@@ -83,6 +83,138 @@ double rand([Object? min, Object? max]) {
   throw UnimplementedError('Random with non-numeric bounds');
 }
 
+/// A Numeric Limit Test comparison: the first pair of letters applies to the low limit and the second to the high
+/// limit; a single pair compares against the low limit.
+enum LimitComparison {
+  /// Equal to low.
+  eq('EQ'),
+
+  /// Not equal to low.
+  ne('NE'),
+
+  /// Greater than low.
+  gt('GT'),
+
+  /// Less than low.
+  lt('LT'),
+
+  /// Greater than or equal to low.
+  ge('GE'),
+
+  /// Less than or equal to low.
+  le('LE'),
+
+  /// Above low and below high.
+  gtlt('GTLT'),
+
+  /// At or above low and at or below high.
+  gele('GELE'),
+
+  /// At or above low and below high.
+  gelt('GELT'),
+
+  /// Above low and at or below high.
+  gtle('GTLE'),
+
+  /// Below low or above high.
+  ltgt('LTGT'),
+
+  /// At or below low or at or above high.
+  lege('LEGE'),
+
+  /// Below low or at or above high.
+  ltge('LTGE'),
+
+  /// At or below low or above high.
+  legt('LEGT'),
+
+  /// Records the value without judging it.
+  log('LOG');
+
+  const LimitComparison(this.code);
+  final String code;
+  static final Map<String, LimitComparison> byCode = {for (final c in values) c.code: c};
+  bool passes(num value, num low, num high) => switch (this) {
+    eq => value == low,
+    ne => value != low,
+    gt => value > low,
+    lt => value < low,
+    ge => value >= low,
+    le => value <= low,
+    gtlt => value > low && value < high,
+    gele => value >= low && value <= high,
+    gelt => value >= low && value < high,
+    gtle => value > low && value <= high,
+    ltgt => value < low || value > high,
+    lege => value <= low || value >= high,
+    ltge => value < low || value >= high,
+    legt => value <= low || value > high,
+    log => true,
+  };
+}
+
+/// A String Value Test comparison.
+enum StringComparison {
+  /// Equal ignoring case.
+  ignoreCase('IgnoreCase'),
+
+  /// Equal including case.
+  caseSensitive('CaseSensitive'),
+
+  /// Records the value without judging it.
+  log('LOG');
+
+  const StringComparison(this.code);
+  final String code;
+  static final Map<String, StringComparison> byCode = {for (final c in values) c.code: c};
+}
+
+/// The step status a passing judgement sets.
+const statusPassed = 'Passed';
+
+/// The step status a failing judgement sets.
+const statusFailed = 'Failed';
+
+String checkLimits(
+  Object? value,
+  Object? high,
+  Object? low,
+  Object? comparison, [
+  Object? doNotCopyToResults,
+  Object? nominal,
+  Object? thresholdType,
+]) {
+  final judged = LimitComparison.byCode[comparison];
+  if (judged == null) throw UnimplementedError('CheckLimits comparison $comparison');
+  if (judged == LimitComparison.log) return statusPassed;
+  if (value is! num || low is! num || high is! num) {
+    throw UnimplementedError('CheckLimits of ${value.runtimeType} against ${low.runtimeType}..${high.runtimeType}');
+  }
+  return judged.passes(value, low, high) ? statusPassed : statusFailed;
+}
+
+String checkStrLimit(Object? value, Object? limit, Object? comparison, [Object? maxChars]) {
+  final judged = StringComparison.byCode[comparison];
+  if (judged == null || (maxChars != null && maxChars != -1)) {
+    throw UnimplementedError('CheckStrLimit comparison $comparison${maxChars == null ? '' : ' over $maxChars chars'}');
+  }
+  if (judged == StringComparison.log) return statusPassed;
+  if (value is! String || limit is! String) {
+    throw UnimplementedError('CheckStrLimit of ${value.runtimeType} against ${limit.runtimeType}');
+  }
+  final equal = judged == StringComparison.ignoreCase ? value.toLowerCase() == limit.toLowerCase() : value == limit;
+  return equal ? statusPassed : statusFailed;
+}
+
+/// The status a sequence reports: failed once a step whose failure fails the sequence records a failed status.
+class SequenceRun {
+  bool failed = false;
+  String get status => failed ? statusFailed : statusPassed;
+  void record(Object? stepStatus) {
+    if (stepStatus == statusFailed) failed = true;
+  }
+}
+
 Iterable<Object?> iterate(Object? v) => switch (v) {
   final Iterable<Object?> i => i,
   final Map<Object?, Object?> m => m.values,

@@ -1,3 +1,4 @@
+import 'scalar_read.dart';
 import 'seq_expression.dart';
 import 'seq_file.dart';
 import 'seq_module.dart';
@@ -1027,6 +1028,8 @@ enum _SeqFunction {
   mid('Mid', 'mid', 2, 3, _DartSlot.text),
   find('Find', 'find', 2, 3, _DartSlot.number),
   random('Random', 'rand', 0, 2, _DartSlot.number),
+  checkLimits('CheckLimits', 'checkLimits', 4, 7, _DartSlot.text),
+  checkStrLimit('CheckStrLimit', 'checkStrLimit', 3, 4, _DartSlot.text),
 
   /// True when every argument is true; lowered to `&&` when no argument has side effects.
   allOf('AllOf', '', 1, 1 << 16, _DartSlot.flag),
@@ -1094,6 +1097,18 @@ class _DartExporter {
   Map<String, String> _paramIds = const {};
 
   Map<String, _DartSlot> _idTypes = const {};
+
+  Sequence? _sequence;
+
+  String _runId = 'run';
+
+  Map<SeqProperty, String> _resultVars = Map.identity();
+
+  Step? _foldStep;
+
+  String? _foldResult;
+
+  int _loopDepth = 0;
 
   void _markUnported(String target) {
     final seq = _currentSeq;
@@ -1312,10 +1327,116 @@ class _DartExporter {
       case 'StationGlobals':
         final declared = _stationGlobalCanon[name.toLowerCase()];
         return declared == null ? null : typed('stationGlobals.$declared', null);
+      case 'Step' when name.toLowerCase() == 'result' && _foldResult != null:
+        return typed(_foldResult!, null);
+      case 'RunState' when name.toLowerCase() == 'sequencefailed':
+        return typed('$_runId.failed', _DartSlot.flag);
       default:
         return _dartReservedWords.contains(name) ? null : typed('${_variableRoots[root]}.$name', null);
     }
   }
+
+  static final _stepSelfWrite = RegExp(
+    r'(?<![\w.])Step\.(?!Result\b)[A-Za-z_][\w.]*(?:\[[^\]]*\])*\s*[-+*/%&|^]?=(?!=)',
+    caseSensitive: false,
+  );
+  static final _stepReference = RegExp(r'(?<![\w.])Step\.(?!Result\b)', caseSensitive: false);
+
+  final Map<SeqProperty, bool> _foldableSteps = Map.identity();
+
+  bool _foldable(Step step) => _foldableSteps.putIfAbsent(step.raw, () {
+    final settings = step.settings;
+    final expressions = [
+      settings.precondition,
+      settings.preExpression,
+      settings.postExpression,
+      settings.statusExpression,
+      settings.customExpression,
+    ].nonNulls;
+    if (expressions.any(_stepSelfWrite.hasMatch)) return false;
+    final module = step.module;
+    final bindings = [
+      for (final p in [...module.viParameters, ...module.callParameters]) p.boundExpression,
+      for (final call in module.dotNetCalls)
+        for (final p in call.parameters) p.boundExpression,
+      for (final a in module.sequenceArguments) a.expression,
+    ].nonNulls;
+    return !bindings.any(_stepReference.hasMatch);
+  });
+
+  SeqProperty? _stepLeaf(SeqExpr e) {
+    final step = _foldStep;
+    final path = <String>[];
+    var at = e;
+    while (at is SeqMember) {
+      path.insert(0, at.name.toLowerCase());
+      at = at.target;
+    }
+    if (step == null || at is! SeqName || at.name.toLowerCase() != 'step' || path.isEmpty || path.first == 'result') {
+      return null;
+    }
+    final limits = step.limits;
+    if (path.length == 2 && path.first == 'limits') {
+      if (path.last == 'low' && limits?.usesLowExpression == true) return null;
+      if (path.last == 'high' && limits?.usesHighExpression == true) return null;
+    }
+    if (!_foldable(step)) return null;
+    SeqProperty? node = step.raw;
+    for (final name in path) {
+      node = node?.subProps.where((c) => c.name.toLowerCase() == name).firstOrNull;
+    }
+    final cls = node?.valueClass;
+    return node != null &&
+            node.isLeaf &&
+            node.scalar != null &&
+            cls != null &&
+            cls.isLeaf &&
+            cls != SeqValueClass.reference
+        ? node
+        : null;
+  }
+
+  _Code? _foldedStepProperty(SeqExpr e) {
+    final leaf = _stepLeaf(e);
+    if (leaf == null) return null;
+    final scalar = leaf.scalar!;
+    switch (leaf.valueClass) {
+      case SeqValueClass.number:
+        final n = _parseNumberScalar(scalar);
+        if (n == null || !n.isFinite) return null;
+        return (
+          code: _numLiteral(n),
+          type: n is int ? _DartSlot.integer : _DartSlot.number,
+          prec: n < 0 ? _Prec.prefix : _Prec.primary,
+        );
+      case SeqValueClass.boolean:
+        final flag = parseFlag(scalar);
+        return flag == null ? null : (code: '$flag', type: _DartSlot.flag, prec: _Prec.primary);
+      default:
+        return (code: "'${_escape(scalar)}'", type: _DartSlot.text, prec: _Prec.primary);
+    }
+  }
+
+  _Code? _stepResultRef(SeqIndex e) {
+    final sequence = _sequence;
+    final group = e.target;
+    final key = e.index;
+    if (sequence == null || key is! SeqString || group is! SeqMember) return null;
+    final owner = group.target;
+    if (owner is! SeqMember || owner.name.toLowerCase() != 'sequence') return null;
+    final root = owner.target;
+    if (root is! SeqName || root.name.toLowerCase() != 'runstate') return null;
+    final stepGroup = StepGroup.values.where((g) => g.key.toLowerCase() == group.name.toLowerCase()).firstOrNull;
+    if (stepGroup == null) return null;
+    final matches = [
+      for (final step in sequence.stepsIn(stepGroup))
+        if (step.name == key.value || step.id == key.value) step,
+    ];
+    final variable = matches.length == 1 ? _resultVars[matches.single.raw] : null;
+    return variable == null ? null : (code: variable, type: _DartSlot.untyped, prec: _Prec.primary);
+  }
+
+  static final _literalCode = RegExp(r"^(?:true|false|null|-?\d+(?:\.\d+)?|'(?:[^'\\]|\\.)*')$");
 
   _Code? _emitTarget(SeqExpr e) => switch (e) {
     SeqMember() || SeqIndex() => _emit(e),
@@ -1339,6 +1460,12 @@ class _DartExporter {
       case SeqName() || SeqSequence():
         return null;
       case SeqMember(:final target, :final name):
+        final folded = _foldedStepProperty(e);
+        if (folded != null) return folded;
+        if (target is SeqIndex && name.toLowerCase() == 'result') {
+          final ref = _stepResultRef(target);
+          if (ref != null) return ref;
+        }
         if (target is SeqName) {
           final root = _rootOf(target.name);
           return root == null ? null : _emitRooted(root, name);
@@ -1394,6 +1521,8 @@ class _DartExporter {
         var t = _emit(whenTrue);
         var f = _emit(whenFalse);
         if (cb == null || t == null || f == null) return null;
+        if (cb.code == 'true') return t;
+        if (cb.code == 'false') return f;
         _DartSlot type;
         if (t.type == f.type) {
           type = t.type;
@@ -1459,9 +1588,23 @@ class _DartExporter {
         final lb = _asBool(l);
         final rb = _asBool(r);
         if (lb == null || rb == null) return null;
+        final absorbing = op == SeqBinaryOp.or ? 'true' : 'false';
+        final neutral = op == SeqBinaryOp.or ? 'false' : 'true';
+        if (lb.code == neutral) return rb;
+        if (rb.code == neutral) return lb;
+        if (lb.code == absorbing) return lb;
         final prec = op == SeqBinaryOp.or ? _Prec.or : _Prec.and;
         return out('${_wrap(lb, prec).code} ${op.token} ${_wrap(rb, prec + 1).code}', _DartSlot.flag, prec);
       case SeqBinaryOp.equal || SeqBinaryOp.notEqual:
+        if (_literalCode.hasMatch(l.code) &&
+            _literalCode.hasMatch(r.code) &&
+            l.type == r.type &&
+            l.type != _DartSlot.absent) {
+          final same = l.type == _DartSlot.text || l.type == _DartSlot.flag
+              ? l.code == r.code
+              : num.parse(l.code) == num.parse(r.code);
+          return out('${same == (op == SeqBinaryOp.equal)}', _DartSlot.flag, _Prec.primary);
+        }
         return out(
           '${_wrap(l, _Prec.relational).code} ${op.token} ${_wrap(r, _Prec.relational).code}',
           _DartSlot.flag,
@@ -1521,8 +1664,9 @@ class _DartExporter {
     if (function == null || arguments.length < function.minArgs || arguments.length > function.maxArgs) return null;
     if (function == _SeqFunction.evaluate) {
       final source = arguments.single;
-      if (source is! SeqString) return null;
-      final parsed = parseSeqExpression(source.value);
+      final text = source is SeqString ? source.value : _stepLeaf(source)?.scalar;
+      if (text == null) return null;
+      final parsed = parseSeqExpression(text);
       return parsed == null || parsed is SeqSequence ? null : _emit(parsed);
     }
     final args = [for (final a in arguments) _emit(a)];
@@ -1589,10 +1733,13 @@ class _DartExporter {
       for (final p in emittedParams) _paramDecl(p, _paramIds[p.name]!),
     ];
     _out.writeln(
-      'Future<void> $fnName('
+      'Future<String> $fnName('
       '${params.isEmpty ? '' : '{${params.join(', ')}}'}) async {',
     );
     _indent = 1;
+    _sequence = sequence;
+    _runId = _claimId('run');
+    _resultVars = _trackedResults(sequence);
 
     var arrayPreamble = false;
     for (final p in emittedParams) {
@@ -1607,6 +1754,12 @@ class _DartExporter {
       _line(_localDecl(local, _localIds[local.name]!));
     }
     if (emittedLocals.isNotEmpty) _line('');
+    _line('final $_runId = ts.SequenceRun();');
+    for (final step in sequence.steps) {
+      final variable = _resultVars[step.raw];
+      if (variable != null) _line('dynamic $variable = ${_resultInit(step)}; // result of ${_comment(step.name)}');
+    }
+    _line('');
 
     final nonEmptyGroups = [
       for (final g in StepGroup.values)
@@ -1621,11 +1774,14 @@ class _DartExporter {
       _emitSteps(sequence.stepsIn(group));
       _line('');
     }
+    _line('return $_runId.status;');
     _indent = 0;
     _out
       ..writeln('}')
       ..writeln();
     _currentSeq = null;
+    _sequence = null;
+    _resultVars = Map.identity();
     _localIds = const {};
     _paramIds = const {};
     _idTypes = const {};
@@ -1771,6 +1927,7 @@ class _DartExporter {
         nameNote = nameNote.isEmpty ? ' //$modeNote' : '$nameNote$modeNote';
       }
       if (flow == null) {
+        _loopDepth = open.where((o) => loopKinds.contains(o.kind) || o.kind == FlowKind.sweepLoop).length;
         _emitPlainStep(step);
         continue;
       }
@@ -1995,12 +2152,16 @@ class _DartExporter {
     return out.isEmpty ? [_exprStatement(raw)] : out;
   }
 
-  void _emitStmt(String raw, String note) {
-    final parts = _stmtParts(raw);
+  bool _emitStmt(String raw, String note) {
+    final parts = [
+      for (final part in _stmtParts(raw))
+        if (!_literalCode.hasMatch(part)) part,
+    ];
     for (var i = 0; i < parts.length; i++) {
       final suffix = note.isEmpty ? '' : (i == 0 ? ' // $note' : ' // $note (cont.)');
       _line('${parts[i]};$suffix');
     }
+    return parts.isNotEmpty;
   }
 
   List<String> _stepPayloadNotes(Step step) {
@@ -2172,14 +2333,13 @@ class _DartExporter {
     if (jumps) {
       _markUnported('flow action of step "${step.name}" (${settings.flowSummary ?? 'custom/goto'}) not exported');
     }
-    final status = settings.statusExpression;
-    if (status != null && status.trim() != '""') {
-      _markUnported('status expression of step "${step.name}" not exported');
-    }
   }
 
   void _emitPlainStep(Step step) {
     final settings = step.settings;
+    final result = _resultVars[step.raw];
+    _foldStep = step;
+    _foldResult = result;
     _emitPayloadNotes(step);
     final precondition = settings.precondition ?? _typePreconditions[step.type];
     if (precondition != null) {
@@ -2189,6 +2349,7 @@ class _DartExporter {
       );
       _indent++;
     }
+    if (result != null && _loopDepth > 0) _line('$result = ${_resultInit(step)};');
 
     final pre = settings.preExpression;
     if (pre != null) _emitStmt(pre, 'pre-expression');
@@ -2199,11 +2360,86 @@ class _DartExporter {
     if (post != null && step.stepType != StepType.statement) {
       _emitStmt(post, 'post-expression');
     }
+    final status = settings.statusExpression;
+    if (result != null) {
+      if (status != null) {
+        final pieces = _rawStmtPieces(status) ?? [status];
+        for (final piece in pieces.take(pieces.length - 1)) {
+          _emitStmt(piece, 'status expression');
+        }
+        _line('$result.Status = ${_expr(pieces.last)}; // status expression');
+      } else if (!_callsExportedSequence(step)) {
+        _line("$result.Status = 'Done';");
+      }
+      if (settings.failureCausesSequenceFailure != false) _line('$_runId.record($result.Status);');
+    }
 
     if (precondition != null) {
       _indent--;
+      if (result != null) {
+        _line('} else {');
+        _line("  $result.Status = 'Skipped';");
+      }
       _line('}');
     }
+    _foldStep = null;
+    _foldResult = null;
+  }
+
+  bool _callsExportedSequence(Step step) {
+    final module = step.module;
+    if (module.adapter != SeqAdapter.sequenceCall) return false;
+    final target = module.sequenceName;
+    final local =
+        module.resolvesLocalCall(ownFilePath: sourceName) && target != null && _sequenceFnNames[target] != null;
+    return local || resolveExternalCall?.call(module) != null;
+  }
+
+  String _sequenceCallLine(Step step, String call, String note) {
+    final result = _resultVars[step.raw];
+    if (result != null) return '$result.Status = await $call; // $note';
+    if (step.settings.failureCausesSequenceFailure == false) return 'await $call; // $note';
+    return '$_runId.record(await $call); // $note';
+  }
+
+  String _resultInit(Step step) {
+    final raw = step.raw.prop('Result');
+    final init = raw == null ? '' : _propObjInit(raw, {});
+    return init.startsWith('ts.PropObj({') && raw!.subProps.any((p) => p.name == 'Status')
+        ? init
+        : "ts.PropObj({'Status': ''})";
+  }
+
+  Map<SeqProperty, String> _trackedResults(Sequence sequence) {
+    final tracked = <SeqProperty>{};
+    final referenced = RegExp(r'RunState\.Sequence\.(Main|Setup|Cleanup)\["((?:[^"\\]|\\.)*)"\]', caseSensitive: false);
+    final ownResult = RegExp(r'(?<![\w.])Step\.Result\b', caseSensitive: false);
+    final steps = sequence.steps;
+    for (final step in steps) {
+      final settings = step.settings;
+      final expressions = [
+        settings.precondition,
+        settings.preExpression,
+        settings.postExpression,
+        settings.statusExpression,
+        settings.customExpression,
+      ].nonNulls;
+      final status = settings.statusExpression;
+      if ((status != null && status.trim() != '""') || expressions.any(ownResult.hasMatch)) tracked.add(step.raw);
+      for (final m in expressions.expand(referenced.allMatches)) {
+        final group = StepGroup.values.firstWhere((g) => g.key.toLowerCase() == m.group(1)!.toLowerCase());
+        final matches = [
+          for (final candidate in sequence.stepsIn(group))
+            if (candidate.name == m.group(2) || candidate.id == m.group(2)) candidate.raw,
+        ];
+        if (matches.length == 1) tracked.add(matches.single);
+      }
+    }
+    final vars = Map<SeqProperty, String>.identity();
+    for (final step in steps) {
+      if (tracked.contains(step.raw)) vars[step.raw] = _claimId('${dartIdentifier(step.name)}Result');
+    }
+    return vars;
   }
 
   void _emitStepAction(Step step) {
@@ -2212,9 +2448,7 @@ class _DartExporter {
     switch (step.stepType) {
       case StepType.statement:
         final expression = step.settings.postExpression;
-        if (expression != null) {
-          _emitStmt(expression, name == 'Statement' ? '' : name);
-        } else {
+        if (expression == null || !_emitStmt(expression, name == 'Statement' ? '' : name)) {
           _line('// $name: Statement with no expression');
         }
         return;
@@ -2284,7 +2518,7 @@ class _DartExporter {
             argsText = text;
             if (!disarmed) _stats.localBoundSitesRearmed++;
           }
-          _line('await $inFileFn($argsText); // $name');
+          _line(_sequenceCallLine(step, '$inFileFn($argsText)', name));
         } else {
           final resolved = resolveExternalCall?.call(module);
           if (resolved != null) {
@@ -2304,7 +2538,7 @@ class _DartExporter {
                 writtenParams: resolved.scope.writtenParams,
               ).text;
             }
-            _line('await ${resolved.fn}($argsText); // $name: external sequence');
+            _line(_sequenceCallLine(step, '${resolved.fn}($argsText)', '$name: external sequence'));
           } else {
             if (asTest) {
               _markUnported('external sequence: ${_stubTarget(step, module)}');
@@ -2346,7 +2580,10 @@ class _DartExporter {
           );
         }
       case SeqAdapter.none:
-        if (asTest && step.type != null) {
+        final status = step.settings.statusExpression;
+        if (!_runsSubsteps(step.type) && status != null && status.trim() != '""') {
+          _line('// $name${step.type != null ? ' [${_comment(step.type!)}]' : ''}: judged by its status expression');
+        } else if (asTest && step.type != null) {
           _throwLine(step, 'step type ${step.type}', 'action not exported yet');
         } else {
           _line(
@@ -2356,6 +2593,15 @@ class _DartExporter {
           );
         }
     }
+  }
+
+  bool _runsSubsteps(String? type) {
+    final substeps = type == null ? null : _typeByName[type]?.raw.prop('Substeps');
+    return substeps == null ||
+        [
+          ...substeps.subProps,
+          ...?substeps.array,
+        ].any((s) => s.typeName == 'PreSubstep' || s.typeName == 'PostSubstep');
   }
 
   void _throwLine(Step step, String kind, String target) {
@@ -2620,7 +2866,7 @@ class _DartExporter {
           '  lw.${unported.isEmpty ? 'test' : 'skipTest'}'
           "('${_escape(root.name)}',$reqArg () async {",
         )
-        ..writeln('    await $fnName();')
+        ..writeln("    lw.expect(await $fnName(), 'Passed');")
         ..writeln('  });');
     }
     _out.writeln('}');

@@ -4,9 +4,9 @@ import 'package:test/test.dart';
 SeqProperty _p(String name, {String? cls, String? type, String? value, List<SeqProperty> sub = const []}) =>
     SeqProperty(name: name, className: cls, typeName: type, scalar: value, subProps: sub);
 
-SeqFile _fileWith(List<SeqProperty> sequenceProps) => SeqFile(
+SeqFile _fileWith(List<SeqProperty> sequenceProps, {List<SeqProperty> types = const []}) => SeqFile(
   header: const SeqFileHeader(format: SeqFormat.xml),
-  types: const [],
+  types: types,
   data: _p(
     'Data',
     sub: [SeqProperty(name: 'Seq', className: 'Objs', array: sequenceProps)],
@@ -254,7 +254,7 @@ void main() {
       expect(source, contains('lw.skipTest('));
       expect(source, contains('flow action of step "Voltage OK"'));
       expect(source, contains('per-step looping not exported'));
-      expect(source, contains('status expression of step "Voltage OK" not exported'));
+      expect(source, contains('voltageOkResult.Status = voltageOkResult.Status; // status expression'));
     });
 
     test('a status expression of the literal "" is noted but does not disarm', () {
@@ -445,7 +445,7 @@ void main() {
         _seqWith('Callee', params: [_num('Threshold', '5')]),
       ]);
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
-      expect(source, contains('await callee(); // Run it'));
+      expect(source, contains('run.record(await callee()); // Run it'));
       expect(source, contains("lw.test('Caller'"), reason: 'omission is exact — no disarm');
       expect(source, isNot(contains('call parameters')));
     });
@@ -473,7 +473,9 @@ void main() {
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
       expect(
         source,
-        contains("await callee(label: 'abc', enabled: true, count: count, gain: (1 + 2).toDouble()); // Run it"),
+        contains(
+          "run.record(await callee(label: 'abc', enabled: true, count: count, gain: (1 + 2).toDouble())); // Run it",
+        ),
       );
       expect(source, contains("lw.test('Caller'"), reason: 'every argument translated mechanically — armed');
     });
@@ -489,7 +491,7 @@ void main() {
         _seqWith('Callee', params: [_num('Count', '0')]),
       ]);
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
-      expect(source, contains("await callee(count: ts.eval('GetNumSockets()')); // Run it"));
+      expect(source, contains("run.record(await callee(count: ts.eval('GetNumSockets()'))); // Run it"));
       expect(source, contains("lw.skipTest('Caller'"));
       expect(source, contains('untranslated expression in body'));
     });
@@ -512,7 +514,7 @@ void main() {
         _seqWith('Callee', params: [_num('Real', '0')]),
       ]);
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
-      expect(source, contains('await callee(real: 2); // Run it'));
+      expect(source, contains('run.record(await callee(real: 2)); // Run it'));
       expect(source, contains("lw.skipTest('Caller'"));
       expect(source, contains('call parameters of sequence Callee: no parameter named Ghost (stale binding)'));
     });
@@ -529,7 +531,7 @@ void main() {
         _seqWith('Callee', params: [_str('Label')]),
       ]);
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
-      expect(source, contains("await callee(label: ts.eval('Locals.N + 1')); // Run it"));
+      expect(source, contains("run.record(await callee(label: ts.eval('Locals.N + 1'))); // Run it"));
       expect(source, contains('call parameters of sequence Callee: Label binding is not visibly String-typed'));
     });
 
@@ -566,7 +568,7 @@ void main() {
         callee,
       ]);
       final varSource = exportSeqFileToLabwright(varBound, sourceName: 'own.seq');
-      expect(varSource, contains('await callee(x: y); // Run it'), reason: 'the value still passes in');
+      expect(varSource, contains('run.record(await callee(x: y)); // Run it'), reason: 'the value still passes in');
       expect(varSource, contains("lw.skipTest('Caller'"));
       expect(varSource, contains('by-ref writeback of parameter X of sequence Callee not exported'));
 
@@ -580,7 +582,7 @@ void main() {
         callee,
       ]);
       final literalSource = exportSeqFileToLabwright(literalBound, sourceName: 'own.seq');
-      expect(literalSource, contains('await callee(x: 5); // Run it'));
+      expect(literalSource, contains('run.record(await callee(x: 5)); // Run it'));
       expect(literalSource, contains("lw.test('Caller'"), reason: 'a literal has nothing to write back to — armed');
     });
     test('a by-value parameter the callee writes leaves a variable-path binding armed', () {
@@ -595,7 +597,7 @@ void main() {
         bumpingCallee(byReference: false),
       ]);
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
-      expect(source, contains('await callee(x: y); // Run it'));
+      expect(source, contains('run.record(await callee(x: y)); // Run it'));
       expect(source, contains("lw.test('Caller'"));
       expect(source, isNot(contains('writeback')));
     });
@@ -611,8 +613,8 @@ void main() {
         _seqWith('Callee', params: [_num('X', '0')]),
       ]);
       final source = exportSeqFileToDart(file, sourceName: 'own.seq');
-      expect(source, contains('Future<void> callee({double x = 0}) async {'));
-      expect(source, contains('await callee(x: 2.5); // Run it'));
+      expect(source, contains('Future<String> callee({double x = 0}) async {'));
+      expect(source, contains('run.record(await callee(x: 2.5)); // Run it'));
     });
 
     test('an external stub gets a TYPED signature from the prototype snapshot', () {
@@ -730,9 +732,12 @@ void main() {
       ]);
       final project = exportSeqProjectToLabwright({'a.seq': caller, 'b.seq': calleeFile});
       final aSource = project.files['a_seq.dart']!;
-      expect(project.files['b_seq.dart'], contains('Future<void> helper({int x = 0}) async {'));
-      expect(aSource, contains('await b_seq.helper(x: 3); // Use helper: external sequence'));
-      expect(aSource, contains("await b_seq.helper(x: ts.eval('3.5')); // Break helper: external sequence"));
+      expect(project.files['b_seq.dart'], contains('Future<String> helper({int x = 0}) async {'));
+      expect(aSource, contains('run.record(await b_seq.helper(x: 3)); // Use helper: external sequence'));
+      expect(
+        aSource,
+        contains("run.record(await b_seq.helper(x: ts.eval('3.5'))); // Break helper: external sequence"),
+      );
       expect(aSource, contains('call parameters of sequence Helper: X binding is not visibly int-typed'));
     });
   });
@@ -761,7 +766,7 @@ void main() {
       ),
     ]);
     final source = exportSeqFileToDart(file);
-    expect(source, contains('Future<void> mainSequence({List<dynamic>? thresholds, List<dynamic>? names}) async {'));
+    expect(source, contains('Future<String> mainSequence({List<dynamic>? thresholds, List<dynamic>? names}) async {'));
     expect(source, contains('thresholds ??= <dynamic>[1.5, 2];'));
     expect(source, contains('names ??= <dynamic>[];'));
     expect(source, isNot(contains('const []')), reason: 'a shared const default would alias across calls');
@@ -825,6 +830,108 @@ void main() {
       expect(statement('Locals.Text = PropValType_Enum'), startsWith('ts.eval('));
       expect(parseSeqExpression('&Locals.Count'), isNull);
       expect(parseSeqExpression('Locals.A <<= 1'), isNull);
+    });
+  });
+  group('step results', () {
+    final limitType = _p(
+      'NumericLimitTest',
+      sub: [
+        SeqProperty(
+          name: 'Substeps',
+          array: [SeqProperty(name: 'Edit', typeName: 'EditSubstep')],
+        ),
+      ],
+    );
+    SeqProperty limitTest(String name, {String dataSource = '10', List<SeqProperty> ts = const []}) => _stepWith(
+      name,
+      typeName: 'NumericLimitTest',
+      ts: [
+        _p(
+          'StatusExpr',
+          value:
+              'CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : '
+              '(Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp)',
+        ),
+        ...ts,
+      ],
+      props: [
+        _p('Comp', cls: 'Str', value: 'GELE'),
+        _p('DataSource', cls: 'Str', value: dataSource),
+        _p('Limits', sub: [_num('Low', '9'), _num('High', '11')]),
+        _p('Result', sub: [_str('Status', ''), _num('Numeric', '0')]),
+      ],
+    );
+    test('a limit test without a module is judged by its status expression and fails the sequence', () {
+      final source = exportSeqFileToLabwright(
+        _fileWith(
+          [
+            _seqWith(
+              'Main',
+              locals: [_num('Volts', '10.5')],
+              steps: [limitTest('Volts', dataSource: 'Locals.Volts')],
+            ),
+          ],
+          types: [limitType],
+        ),
+      );
+      expect(source, contains("dynamic voltsResult = ts.PropObj({'Status': '', 'Numeric': 0});"));
+      expect(
+        source,
+        contains(
+          "voltsResult.Status = ts.checkLimits(voltsResult.Numeric = volts, 11, 9, 'GELE'); // status expression",
+        ),
+      );
+      expect(source, contains('run.record(voltsResult.Status);'));
+      expect(source, contains('return run.status;'));
+      expect(source, contains("lw.expect(await main\$(), 'Passed');"));
+      expect(source, contains("lw.test('Main'"));
+    });
+    test('a skipped precondition sets Skipped; a step that cannot fail the sequence is not recorded', () {
+      final source = exportSeqFileToDart(
+        _fileWith([
+          _seqWith(
+            'Main',
+            steps: [
+              limitTest(
+                'A',
+                ts: [
+                  _p('PreCond', value: 'False'),
+                  _bool('StepFCSeqF', 'false'),
+                ],
+              ),
+            ],
+          ),
+        ]),
+      );
+      expect(source, contains("  } else {\n    aResult.Status = 'Skipped';\n  }"));
+      expect(source, isNot(contains('run.record(aResult.Status)')));
+    });
+    test('other steps read a result by name or id, and the sequence failure flag', () {
+      final source = exportSeqFileToDart(
+        _fileWith([
+          _seqWith(
+            'Main',
+            locals: [_bool('Seen')],
+            steps: [
+              limitTest('A', ts: [_p('Id', value: 'ID#:abc')]),
+              _stepWith(
+                'B',
+                typeName: 'Statement',
+                ts: [
+                  _p(
+                    'PostExpr',
+                    value:
+                        'Locals.Seen = RunState.Sequence.Main["ID#:abc"].Result.Status == "Passed" || RunState.SequenceFailed',
+                  ),
+                ],
+              ),
+              _callStep('Call', 'Main'),
+            ],
+          ),
+        ]),
+      );
+      expect(source, contains("seen = aResult.Status == 'Passed' || run.failed; // B"));
+      expect(source, contains('run.record(await main\$()); // Call'));
     });
   });
 }

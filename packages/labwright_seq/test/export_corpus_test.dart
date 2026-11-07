@@ -95,7 +95,7 @@ void main() {
     expect(f.existsSync(), isTrue, reason: 'the Rosetta oracle must be fetched with the corpus');
     final file = parseSeqFile(f.readAsBytesSync());
     final source = exportSeqFileToDart(file);
-    expect(source, contains('Future<void> mainSequence('));
+    expect(source, contains('Future<String> mainSequence('));
     for (final seq in file.sequences) {
       for (final step in seq.steps) {
         expect(source, contains(step.name), reason: 'step must appear as code or ordered comment');

@@ -95,4 +95,25 @@ void main() {
     }
     expect(List.generate(8, (_) => lw.rand()).toSet().length, greaterThan(1));
   });
+  test('checkLimits: the low limit alone for one-sided comparisons, both for ranges', () {
+    expect(ts.checkLimits(5, 0, 5, 'EQ'), ts.statusPassed);
+    expect(ts.checkLimits(6, 0, 5, 'GT'), ts.statusPassed);
+    expect(ts.checkLimits(5, 0, 5, 'GT'), ts.statusFailed);
+    expect(ts.checkLimits(10, 10, 0, 'GELE'), ts.statusPassed);
+    expect(ts.checkLimits(10, 10, 0, 'GELT'), ts.statusFailed);
+    expect(ts.checkLimits(11, 10, 0, 'LTGT'), ts.statusPassed);
+    expect(ts.checkLimits(-1, 1, 0, 'LOG'), ts.statusPassed);
+    expect(() => ts.checkLimits(1, 2, 0, 'EQT'), throwsUnimplementedError);
+  });
+  test('checkStrLimit compares with or without case', () {
+    expect(ts.checkStrLimit('Abc', 'aBC', 'IgnoreCase'), ts.statusPassed);
+    expect(ts.checkStrLimit('Abc', 'aBC', 'CaseSensitive'), ts.statusFailed);
+    expect(() => ts.checkStrLimit('a', 'a', 'IgnoreCase', 3), throwsUnimplementedError);
+  });
+  test('a sequence run fails once a failed status is recorded', () {
+    final run = ts.SequenceRun()..record('Done');
+    expect(run.status, ts.statusPassed);
+    run.record(ts.statusFailed);
+    expect((run.status, run.failed), (ts.statusFailed, true));
+  });
 }
