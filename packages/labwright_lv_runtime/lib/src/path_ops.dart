@@ -38,3 +38,44 @@ LvPath lvPathOfString(String text) {
 // TODO(lv-refnum-validity): references are not tracked after creation, so a reference other
 // than Not A Refnum reads as valid.
 bool lvNotARefnum(LvRefnum refnum) => refnum.id == LvRefnum.none.id;
+
+/// Strip Path: the last component and the path leading to it. An empty or invalid path gives an
+/// empty name and Not A Path; a path of one relative component gives an empty relative path,
+/// and the root of an absolute path strips to Not A Path.
+({LvPath strippedPath, String name}) lvStripPath(LvPath path) {
+  if (!path.valid || path.components.isEmpty) return (strippedPath: LvPath.notAPath, name: '');
+  return (
+    strippedPath: LvPath(components: path.components.sublist(0, path.components.length - 1), absolute: path.absolute),
+    name: path.components.last,
+  );
+}
+
+/// Path To String, in the running platform's spelling; Not A Path spells `<Not A Path>`.
+String lvPathToString(LvPath path) {
+  if (!path.valid) return '<Not A Path>';
+  final separator = Platform.pathSeparator;
+  if (!path.absolute) return path.components.join(separator);
+  if (Platform.isWindows && path.components.isNotEmpty && RegExp(r'^[A-Za-z]:$').hasMatch(path.components.first)) {
+    return path.components.join(separator) + (path.components.length == 1 ? separator : '');
+  }
+  return separator + path.components.join(separator);
+}
+
+/// Is Path And Not Empty?: the path's type as LabVIEW numbers them, 0 absolute, 1 relative,
+/// 2 Not A Path, 3 empty.
+int lvPathType(LvPath path) {
+  if (!path.valid) return 2;
+  if (path.isEmpty) return 3;
+  return path.absolute ? 0 : 1;
+}
+
+/// Path To Array Of Strings: the components, and whether the path is relative.
+({bool relative, List<String> components}) lvPathToArrayOfStrings(LvPath path) =>
+    (relative: !path.absolute, components: path.valid ? List<String>.of(path.components) : <String>[]);
+
+/// Array Of Strings To Path.
+LvPath lvArrayOfStringsToPath(List<String> components, {bool relative = false}) =>
+    LvPath(components: List<String>.of(components), absolute: !relative);
+
+/// Whether two paths name the same location.
+bool lvSamePath(LvPath left, LvPath right) => lvSameValue(left, right);

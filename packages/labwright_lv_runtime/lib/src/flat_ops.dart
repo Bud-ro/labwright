@@ -21,14 +21,28 @@ Uint8List lvFlatOfFloat(double value, int bits) {
   return bytes;
 }
 
-Uint8List lvFlatOfString(String value) => latin1.encode(value);
-Uint8List lvFlatOfIntList(List<int> values, int bits) {
+/// A string's bytes, with its length as a big-endian `u32` first when [prependSize], as
+/// Flatten To String writes a string.
+Uint8List lvFlatOfString(String value, {bool prependSize = false}) {
+  final text = latin1.encode(value);
+  if (!prependSize) return text;
+  final bytes = Uint8List(4 + text.length);
+  ByteData.sublistView(bytes).setUint32(0, text.length);
+  bytes.setRange(4, bytes.length, text);
+  return bytes;
+}
+
+/// The big-endian bytes of [values] at [bits] each, with the element count as a `u32` first
+/// when [prependSize], as Flatten To String writes a 1-D array.
+Uint8List lvFlatOfIntList(List<int> values, int bits, {bool prependSize = false}) {
   final size = bits ~/ 8;
-  final bytes = Uint8List(values.length * size);
+  final header = prependSize ? 4 : 0;
+  final bytes = Uint8List(header + values.length * size);
+  if (prependSize) ByteData.sublistView(bytes).setUint32(0, values.length);
   for (var i = 0; i < values.length; i++) {
     final value = values[i];
     for (var lane = 0; lane < size; lane++) {
-      bytes[i * size + lane] = (value >>> (8 * (size - 1 - lane))) & 0xFF;
+      bytes[header + i * size + lane] = (value >>> (8 * (size - 1 - lane))) & 0xFF;
     }
   }
   return bytes;

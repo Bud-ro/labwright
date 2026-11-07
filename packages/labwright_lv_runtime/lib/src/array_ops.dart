@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'string_ops.dart';
 import 'values.dart';
 
 class LvArrayNd<T extends List<Object?>> {
@@ -36,4 +37,172 @@ int lvSearch1dArray<T>(List<T> array, T element, [int start = 0]) {
     if (lvSameValue(array[index], element)) return index;
   }
   return -1;
+}
+
+/// Sort 1D Array over elements with a natural order: numbers by value, strings by code units,
+/// booleans false before true.
+List<T> lvSort1dArray<T>(List<T> array) {
+  final sorted = List<T>.of(array);
+  sorted.sort(lvCompareValues);
+  return sorted;
+}
+
+/// LabVIEW's ordering of two scalar values of one type: numbers numerically (NaN after every
+/// number), strings by code units, booleans false before true, paths by their text; a pair this
+/// runtime does not order throws.
+int lvCompareValues(Object? a, Object? b) {
+  if (a is num && b is num) {
+    if (a is double && a.isNaN) return b is double && b.isNaN ? 0 : 1;
+    if (b is double && b.isNaN) return -1;
+    return a.compareTo(b);
+  }
+  if (a is String && b is String) return lvCompareStrings(a, b);
+  if (a is bool && b is bool) return a == b ? 0 : (a ? 1 : -1);
+  if (a is LvPath && b is LvPath) return lvCompareStrings(a.components.join('/'), b.components.join('/'));
+  if (a is LvTimestamp && b is LvTimestamp) {
+    return a.seconds != b.seconds
+        ? a.seconds.compareTo(b.seconds)
+        : (a.fraction ^ _kSignBit).compareTo(b.fraction ^ _kSignBit);
+  }
+  throw UnsupportedError("LabVIEW's ordering of ${a.runtimeType} against ${b.runtimeType} is not decoded");
+}
+
+/// The sign bit of a 64-bit integer; flipping it orders unsigned patterns as signed ones.
+const int _kSignBit = -0x8000000000000000;
+
+/// Transpose 2D Array: `[i, j]` becomes `[j, i]`.
+LvArrayNd<T> lvTranspose2dArray<T extends List<Object?>>(LvArrayNd<T> array, T Function(int length) allocate) {
+  if (array.dims.length != 2) {
+    throw ArgumentError.value(array.dims.length, 'dims', 'Transpose 2D Array takes a 2-D array');
+  }
+  final rows = array.dims[0], columns = array.dims[1];
+  final out = allocate(rows * columns);
+  for (var row = 0; row < rows; row++) {
+    for (var column = 0; column < columns; column++) {
+      out[column * rows + row] = array.data[row * columns + column];
+    }
+  }
+  return LvArrayNd(out, Uint32List.fromList([columns, rows]));
+}
+
+/// Array Max & Min over a 1-D array: the first maximum and minimum and their indices; an empty
+/// array gives [empty] for both values and -1 for both indices.
+({T maxValue, int maxIndex, T minValue, int minIndex}) lvArrayMaxAndMin<T>(List<T> array, T empty) {
+  if (array.isEmpty) return (maxValue: empty, maxIndex: -1, minValue: empty, minIndex: -1);
+  var maxIndex = 0, minIndex = 0;
+  for (var i = 1; i < array.length; i++) {
+    if (lvCompareValues(array[i], array[maxIndex]) > 0) maxIndex = i;
+    if (lvCompareValues(array[i], array[minIndex]) < 0) minIndex = i;
+  }
+  return (maxValue: array[maxIndex], maxIndex: maxIndex, minValue: array[minIndex], minIndex: minIndex);
+}
+
+/// Or Array Elements: false for an empty array.
+bool lvOrArrayElements(List<bool> array) => array.any((element) => element);
+
+/// And Array Elements: true for an empty array.
+bool lvAndArrayElements(List<bool> array) => array.every((element) => element);
+
+/// Split 1D Array: the elements before [index] and from it on; an index below zero splits at
+/// zero and one past the end splits at the end.
+(List<T>, List<T>) lvSplit1dArray<T>(List<T> array, int index) {
+  final at = index < 0 ? 0 : (index > array.length ? array.length : index);
+  return (array.sublist(0, at), array.sublist(at));
+}
+
+/// Delete From Array over a 1-D array: [length] elements from [index] removed, and those
+/// elements. Without an index the last [length] elements go; a range past either end is cut
+/// to the array.
+({List<T> remaining, List<T> deleted}) lvDeleteFromArray<T>(List<T> array, {int? index, int length = 1}) {
+  final count = length < 0 ? 0 : length;
+  var start = index ?? array.length - count;
+  if (start < 0) start = 0;
+  if (start > array.length) start = array.length;
+  var end = start + count;
+  if (end > array.length) end = array.length;
+  return (remaining: [...array.sublist(0, start), ...array.sublist(end)], deleted: array.sublist(start, end));
+}
+
+/// Array Subset over a 1-D array: [length] elements from [index], cut to the array; a null
+/// length takes the rest.
+List<T> lvArraySubset<T>(List<T> array, int index, [int? length]) {
+  var start = index < 0 ? 0 : index;
+  if (start > array.length) start = array.length;
+  var end = length == null ? array.length : start + (length < 0 ? 0 : length);
+  if (end > array.length) end = array.length;
+  return array.sublist(start, end);
+}
+
+/// Insert Into Array over a 1-D array: [elements] inserted before [index]; without an index
+/// they are appended, and an index past the end appends too.
+List<T> lvInsertIntoArray<T>(List<T> array, List<T> elements, [int? index]) {
+  var at = index ?? array.length;
+  if (at < 0) at = 0;
+  if (at > array.length) at = array.length;
+  return [...array.sublist(0, at), ...elements, ...array.sublist(at)];
+}
+
+/// Rotate 1D Array: every element moved [n] places toward the end, wrapping around.
+List<T> lvRotate1dArray<T>(List<T> array, int n) {
+  if (array.isEmpty) return array;
+  final shift = n % array.length;
+  if (shift == 0) return List<T>.of(array);
+  return [...array.sublist(array.length - shift), ...array.sublist(0, array.length - shift)];
+}
+
+/// Threshold 1D Array: the fractional index at which the ascending [array] crosses [threshold],
+/// searched from [startIndex]: `i + (threshold - a[i]) / (a[i+1] - a[i])` for the first `i` with
+/// `a[i+1] >= threshold`; the start index when the threshold is below its element, and the
+/// last index when the array never reaches the threshold.
+double lvThreshold1dArray(List<num> array, num threshold, [int startIndex = 0]) {
+  var start = startIndex < 0 ? 0 : startIndex;
+  if (array.isEmpty) return 0;
+  if (start >= array.length) start = array.length - 1;
+  if (threshold <= array[start]) return start.toDouble();
+  for (var i = start; i + 1 < array.length; i++) {
+    final low = array[i], high = array[i + 1];
+    if (high >= threshold) {
+      return high == low ? (i + 1).toDouble() : i + (threshold - low) / (high - low);
+    }
+  }
+  return (array.length - 1).toDouble();
+}
+
+/// Delete From Array of one element: the array without the element at [index], and that
+/// element. Without an index the last element goes. An index outside the array is not decoded
+/// and throws.
+({List<T> remaining, T element}) lvDeleteFromArrayElement<T>(List<T> array, [int? index]) {
+  final at = index ?? array.length - 1;
+  if (at < 0 || at >= array.length) {
+    throw RangeError.index(
+      at,
+      array,
+      'index',
+      "LabVIEW's Delete From Array result for an index outside the array is not decoded",
+    );
+  }
+  return (remaining: [...array.sublist(0, at), ...array.sublist(at + 1)], element: array[at]);
+}
+
+/// Decimate 1D Array: element `i` of [array] goes to output `i % outputs`, and every output has
+/// as many elements as the shortest, so a remainder is dropped.
+List<List<T>> lvDecimate1dArray<T>(List<T> array, int outputs) {
+  if (outputs < 1) throw ArgumentError.value(outputs, 'outputs', 'Decimate 1D Array draws at least one output');
+  final length = array.length ~/ outputs;
+  return [
+    for (var output = 0; output < outputs; output++) [for (var i = 0; i < length; i++) array[output + i * outputs]],
+  ];
+}
+
+/// Reshape Array's dimension sizes as the result carries them, a size below zero read as zero.
+Uint32List lvReshapeDims(List<int> dims) => Uint32List.fromList([for (final dim in dims) dim < 0 ? 0 : dim]);
+
+/// Reshape Array: [data] read row-major into an array of [dims], cut short or padded with
+/// [padding] to fill the new shape; a dimension below zero reads as zero.
+List<T> lvReshapeArray<T>(List<T> data, List<int> dims, T padding) {
+  var count = 1;
+  for (final dim in dims) {
+    count *= dim < 0 ? 0 : dim;
+  }
+  return [for (var i = 0; i < count; i++) i < data.length ? data[i] : padding];
 }
