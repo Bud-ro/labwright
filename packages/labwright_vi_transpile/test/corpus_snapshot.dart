@@ -92,20 +92,7 @@ CorpusSweep sweepLoweringChunk((List<String>, Map<String, String>) input) {
     return path == null ? null : load(path, callee.fileName);
   }
 
-  final classData = <String, ViModel?>{};
-  ViModel? resolveClass(List<String> qualifiedName) => classData.putIfAbsent(qualifiedName.join(':'), () {
-    final path = libraries.fileOf(qualifiedName);
-    if (path == null) return null;
-    try {
-      final control = LvLibraryFile.parse(
-        File(path).readAsStringSync(),
-        fileName: qualifiedName.last,
-      ).privateDataControl;
-      return control == null ? null : buildViModel(control);
-    } catch (_) {
-      return null;
-    }
-  });
+  final classes = LvProjectClassIndex(libraries);
   void checkCall(String name, LvDataflow flow, LvViUnit caller, LvSubViUnit call) {
     final calleeName = call.calleeName;
     if (calleeName == null) return;
@@ -152,7 +139,7 @@ CorpusSweep sweepLoweringChunk((List<String>, Map<String, String>) input) {
       declarations: LvDeclarations(),
       caller: unit,
       resolve: resolveCallee,
-      resolveClass: resolveClass,
+      classes: classes,
     );
     if (built.dataflow case final flow?) walk(name, flow, unit, flow.root);
     final outcomes = <String?>[];
@@ -162,7 +149,7 @@ CorpusSweep sweepLoweringChunk((List<String>, Map<String, String>) input) {
         functionName: 'lowered',
         errorMode: mode,
         resolveSubVi: resolveCallee,
-        resolveClass: resolveClass,
+        classes: classes,
       );
       outcomes.add(result.refusal?.kind.name ?? 'lowered');
       if (mode == LvErrorMode.exceptions && result.source != null) emitted.add(result.source!);

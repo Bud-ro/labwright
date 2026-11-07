@@ -38,15 +38,7 @@ void main(List<String> args) {
       final file = linked != null && File(linked).existsSync() ? File(linked) : byName[callee.fileName.toLowerCase()];
       return file == null ? null : _unitOf(file, callee.fileName);
     },
-    resolveClass: (qualifiedName) {
-      final path = libraries?.fileOf(qualifiedName);
-      if (path == null) return null;
-      final control = LvLibraryFile.parse(
-        File(path).readAsStringSync(),
-        fileName: qualifiedName.last,
-      ).privateDataControl;
-      return control == null ? null : buildViModel(control);
-    },
+    classes: libraries == null ? null : LvProjectClassIndex(libraries),
   );
   if (result.refusal case final refusal?) {
     stderr.writeln('$name: $refusal');

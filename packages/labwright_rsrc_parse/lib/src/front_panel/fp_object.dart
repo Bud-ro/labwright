@@ -3,6 +3,8 @@
 /// per-class payloads ([FpPayload]).
 library;
 
+import 'dart:typed_data';
+
 import '../heap/heap_object.dart';
 import '../heap/obj_flags.dart';
 import '../heap/object_class.dart';
@@ -50,6 +52,13 @@ final class FpDataObject extends FpPayload {
   /// The `conNum` attribute: the control's connector-pane terminal, [kViNotOnPane] off the
   /// pane; a control saved without it sits on terminal 0.
   int? conNum;
+
+  /// The `defaultData` attribute: the control's default value flattened by its type, as a
+  /// diagram constant's `constValue` holds a constant's.
+  Uint8List? defaultData;
+
+  /// Whether [defaultData] came from a scalar attribute width rather than a counted blob.
+  bool defaultIsScalar = false;
 }
 
 /// A numeric control's range.

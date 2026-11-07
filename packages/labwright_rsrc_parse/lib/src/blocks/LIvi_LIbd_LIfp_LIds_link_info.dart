@@ -202,16 +202,43 @@ bool _framesPath(Uint8List bytes, ByteData view, int at) {
   return isPth0(Uint8List.sublistView(bytes, at, at + 8 + length));
 }
 
+/// A link's qualified name: a `u32` count, then that many Pascal strings. A component of the API
+/// link kinds (a class method's `DyOM`, `VIPI`, `FPPI` and their kin) may itself be a qualified
+/// name, a `u8` count then that many Pascal strings filling the component exactly, and its
+/// components then stand in its place.
+// TODO: components of the API kinds that start with a control byte and do not read as a nested
+// qualified name (most of DDPI, FPPI, TCPI and PNOM, some of VIPI) are not decoded.
 List<String> _qualifiedNameAt(Uint8List bytes, int at) {
   final count = ByteData.sublistView(bytes).getUint32(at);
   final names = <String>[];
   var pos = at + 4;
   for (var i = 0; i < count; i++) {
     final length = bytes[pos];
-    names.add(String.fromCharCodes(bytes, pos + 1, pos + 1 + length));
+    names.addAll(
+      _nestedQualifiedName(bytes, pos + 1, pos + 1 + length) ??
+          [String.fromCharCodes(bytes, pos + 1, pos + 1 + length)],
+    );
     pos += 1 + length;
   }
   return names;
+}
+
+/// The bytes [start]..[end] as a `u8` count then that many Pascal strings that end exactly at
+/// [end]; null when they do not read so.
+List<String>? _nestedQualifiedName(Uint8List bytes, int start, int end) {
+  if (start >= end) return null;
+  final count = bytes[start];
+  if (count == 0 || count >= 0x20) return null;
+  final names = <String>[];
+  var pos = start + 1;
+  for (var i = 0; i < count; i++) {
+    if (pos >= end) return null;
+    final length = bytes[pos];
+    if (length == 0 || pos + 1 + length > end) return null;
+    names.add(String.fromCharCodes(bytes, pos + 1, pos + 1 + length));
+    pos += 1 + length;
+  }
+  return pos == end ? names : null;
 }
 
 List<ViLinkEntry>? _walk(Uint8List bytes, ViVersionWord? version, int count, int start, int termOff) {

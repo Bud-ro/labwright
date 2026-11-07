@@ -65,7 +65,9 @@ int? _signalScalarDepth(int code) {
   if (code >= TypeCode.i8 && code <= TypeCode.complexExt) return 1;
   if (code >= TypeCode.enumU8 && code <= TypeCode.enumU32) return 1;
   if (code == TypeCode.booleanU16 || code == TypeCode.boolean) return 1;
-  if (code == TypeCode.string || code == TypeCode.path || code == TypeCode.picture) return 2;
+  if (code == TypeCode.string || code == TypeCode.path || code == TypeCode.picture || code == TypeCode.tag) {
+    return 2;
+  }
   if (code == TypeCode.cluster ||
       code == ViSignalType.clusterVariantCode ||
       code == TypeCode.variant ||

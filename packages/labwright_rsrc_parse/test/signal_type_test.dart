@@ -22,6 +22,8 @@ void main() {
       (0x430, 0x30, 4, 0, ViDataType.string, ViTypeKind.string, 2, ViTypeKind.array),
       (0x8450, 0x50, 4, 8, ViDataType.cluster, ViTypeKind.cluster, 1, ViTypeKind.array),
       (0x8354, 0x54, 3, 8, ViDataType.measureData, null, 0, null),
+      (0x237, 0x37, 2, 0, ViDataType.tag, null, 0, null),
+      (0x4337, 0x37, 3, 4, ViDataType.tag, null, 1, ViTypeKind.array),
       (0x83ff, 0xff, 3, 8, null, null, null, null),
     ];
     for (final (raw, code, depth, flags, dataType, elementKind, dims, kind) in cases) {

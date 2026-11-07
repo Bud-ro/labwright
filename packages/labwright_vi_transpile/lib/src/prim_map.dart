@@ -520,6 +520,7 @@ List<String>? _binaryCommutative(LvPrimCall call, String operator) {
   if (call.inputs.length != 2 || call.outputs.length != 1) return null;
   final out = call.outputs.single;
   if (out.type.dims != 0 || call.inputs.any((operand) => operand.type.dims != 0)) return null;
+  if (call.inputs.any((operand) => operand.type.carrier != out.type.carrier)) return null;
   final name = out.expression;
   if (name == null) return const [];
   final body = '${call.inputs[0].expression} $operator ${call.inputs[1].expression}';
@@ -878,13 +879,8 @@ class _ClusterShape {
     }
     if (type.declarations.length == 1 && type.declarations.single.name == type.dartType) {
       final declaration = type.declarations.single;
-      if (declaration.isEnum || declaration.fields.isEmpty) return null;
-      return _ClusterShape._(
-        declaration.name,
-        declaration.fields,
-        LvNaming.declarationFields([for (final field in declaration.fields) field.label]),
-        isRecord: false,
-      );
+      if (declaration.isEnum || declaration.allFields.isEmpty) return null;
+      return _ClusterShape._(declaration.name, declaration.allFields, declaration.allFieldNames, isRecord: false);
     }
     final fields = type.value.fields;
     if (fields.isEmpty || type.dartType == null || !type.dartType!.startsWith('({')) return null;
@@ -1187,8 +1183,10 @@ List<String>? _binaryPredicate(LvPrimCall call, String operator) {
   if (call.inputs.length != 2 || call.outputs.length != 1) return null;
   final left = call.inputs[0], right = call.inputs[1], out = call.outputs.single;
   if (left.type.dims != 0 || right.type.dims != 0) return null;
-  if (!_kValueEqualityCarriers.contains(left.type.carrier)) return null;
-  if (left.type.carrier != right.type.carrier) return null;
+  if (left.type.enumeration == null || left.type.dartType != right.type.dartType) {
+    if (!_kValueEqualityCarriers.contains(left.type.carrier)) return null;
+    if (left.type.carrier != right.type.carrier) return null;
+  }
   if (out.type.carrier != LvCarrier.boolean) return null;
   final name = out.expression;
   if (name == null) return const [];
@@ -1297,12 +1295,19 @@ List<String>? _not(LvPrimCall call) {
   return ['final int $name = ${lvWrapped(out.type, '~${source.expression}')};'];
 }
 
+/// Increment and Decrement: the wrapped sum on a numeric, and on an enum the next or previous
+/// item, wrapping past either end as the reference states.
 List<String>? _unaryNumeric(LvPrimCall call, String suffix) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;
   final source = call.inputs.single, out = call.outputs.single;
   if (source.type.dims != 0 || out.type.dims != 0) return null;
-  if (out.type.numeric == null) return null;
   final name = out.expression;
+  if (out.type.enumeration case final enumeration? when source.type.dartType == out.type.dartType) {
+    if (name == null) return const [];
+    final items = '${enumeration.name}.values';
+    return ['final ${enumeration.name} $name = $items[(${source.expression}.index $suffix) % $items.length];'];
+  }
+  if (out.type.numeric == null) return null;
   if (name == null) return const [];
   final body = '${source.expression} $suffix';
   return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
@@ -1313,12 +1318,14 @@ List<String>? _integerConversion(LvPrimCall call) {
   final source = call.inputs.single, out = call.outputs.single;
   final target = out.type.numeric;
   if (target == null || target.isFloat) return null;
-  if (source.type.numeric == null || source.type.numeric!.isFloat) return null;
+  final fromEnum = source.type.enumeration != null;
+  if (!fromEnum && (source.type.numeric == null || source.type.numeric!.isFloat)) return null;
   if (source.type.dims != 0 || out.type.dims != 0) return null;
   final name = out.expression;
   if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
-  return ['final int $name = ${LvRuntimeCall.integerConversion(target)}(${source.expression});'];
+  final value = fromEnum ? '${source.expression}.index' : source.expression;
+  return ['final int $name = ${LvRuntimeCall.integerConversion(target)}($value);'];
 }
 
 List<String>? _floatConversion(LvPrimCall call) {
@@ -1411,10 +1418,10 @@ List<String>? _replaceArraySubset(LvPrimCall call) {
   if (element.type.dims != 0 || out.type.dims != 1) return null;
   final name = out.expression;
   if (name == null) return const [];
+  if (element.type.dartType != out.type.element.dartType || array.type.dartType != out.type.dartType) return null;
   final storage = out.type.elementListType;
-  return [
-    'final $storage $name = $storage.fromList(${array.expression})..[${index.expression}] = ${element.expression};',
-  ];
+  final copy = out.type.numeric == null ? '$storage.of' : '$storage.fromList';
+  return ['final $storage $name = $copy(${array.expression})..[${index.expression}] = ${element.expression};'];
 }
 
 List<String>? _compoundArithmetic(LvPrimCall call) {
@@ -1633,7 +1640,8 @@ List<String>? _bundle(LvPrimCall call) {
   }
   final statements = <String>[];
   var carrier = base?.expression;
-  if (carrier != null && !lvIsAtomic(carrier)) {
+  final readsBase = elements.any((port) => !wired.containsKey(port));
+  if (carrier != null && readsBase && !lvIsAtomic(carrier)) {
     final local = call.names.wire(base!.type);
     statements.add('final ${shape.dartType} $local = $carrier;');
     carrier = local;
