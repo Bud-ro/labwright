@@ -125,7 +125,6 @@ abstract class LvEnvironment {
 
   /// Get Permissions and Set Permissions.
   ({int permissions, String owner, String group, LvError errorOut}) getPermissions(LvPath path, LvError errorIn);
-
   LvError setPermissions(LvPath path, int permissions, String newOwner, String newGroup, LvError errorIn);
 
   /// Any instrument, network or external-session primitive ([operation] is its name) with its
@@ -137,22 +136,16 @@ abstract class LvEnvironment {
 /// writes.
 class LvPropertyItem {
   const LvPropertyItem.read(this.property) : write = false, value = null;
-
   const LvPropertyItem.write(this.property, this.value) : write = true;
-
   final String property;
-
   final bool write;
-
   final Object? value;
 }
 
 /// Raised by [LvUnavailableEnvironment] for every operation.
 final class LvEnvironmentUnavailable extends Error {
   LvEnvironmentUnavailable(this.operation);
-
   final String operation;
-
   @override
   String toString() => 'LabVIEW operation "$operation" needs an LvEnvironment, and none is installed';
 }
@@ -161,9 +154,7 @@ final class LvEnvironmentUnavailable extends Error {
 /// that provides only some operations extends it and overrides those.
 class LvUnavailableEnvironment extends LvEnvironment {
   const LvUnavailableEnvironment();
-
   Never _raise(String operation) => throw LvEnvironmentUnavailable(operation);
-
   @override
   ({LvRefnum viReference, LvError errorOut}) openViReference({
     LvRefnum applicationReference = LvRefnum.none,
@@ -173,20 +164,16 @@ class LvUnavailableEnvironment extends LvEnvironment {
     LvRefnum typeSpecifier = LvRefnum.none,
     LvError errorIn = LvError.none,
   }) => _raise('Open VI Reference');
-
   @override
   LvError closeReference(LvRefnum reference, LvError errorIn) => _raise('Close Reference');
-
   @override
   ({LvRefnum reference, LvError errorOut}) toMoreSpecificClass(
     LvRefnum reference,
     LvRefnum targetClass,
     LvError errorIn,
   ) => _raise('To More Specific Class');
-
   @override
   LvRefnum toMoreGenericClass(LvRefnum reference, LvRefnum targetClass) => _raise('To More Generic Class');
-
   @override
   ({LvRefnum object, LvError errorOut}) preserveRunTimeClass(LvRefnum object, LvRefnum target, LvError errorIn) =>
       _raise('Preserve Run-Time Class');
@@ -202,14 +189,12 @@ class LvUnavailableEnvironment extends LvEnvironment {
     Object? bounds,
     LvError errorIn = LvError.none,
   }) => _raise('New VI Object');
-
   @override
   ({LvRefnum reference, List<Object?> values, LvError errorOut}) propertyNode(
     LvRefnum reference,
     LvError errorIn,
     List<LvPropertyItem> items,
   ) => _raise('Property Node ${items.map((item) => item.property).join(', ')}');
-
   @override
   ({LvRefnum reference, List<Object?> outputs, LvError errorOut}) invokeNode(
     LvRefnum reference,
@@ -217,34 +202,24 @@ class LvUnavailableEnvironment extends LvEnvironment {
     String method,
     List<Object?> inputs,
   ) => _raise('Invoke Node $method');
-
   @override
   List<String> callChain() => _raise('Call Chain');
-
   @override
   LvPath currentVisPath() => _raise("Current VI's Path");
-
   @override
   LvPath viLibrary() => _raise('VI Library');
-
   @override
   LvRefnum currentVisMenubar() => _raise("Current VI's Menubar");
-
   @override
   bool firstCall(int site) => _raise('First Call?');
-
   @override
   Object? readLocalVariable(String name) => _raise('local variable "$name"');
-
   @override
   void writeLocalVariable(String name, Object? value) => _raise('local variable "$name"');
-
   @override
   bool oneButtonDialog(String message, String buttonName) => _raise('One Button Dialog');
-
   @override
   bool twoButtonDialog(String message, String tButtonName, String fButtonName) => _raise('Two Button Dialog');
-
   @override
   ({LvPath path, bool exists, bool cancelled, LvError errorOut}) fileDialog({
     LvPath startPath = const LvPath(components: [], absolute: false),
@@ -256,23 +231,18 @@ class LvUnavailableEnvironment extends LvEnvironment {
     int selectMode = 0,
     LvError errorIn = LvError.none,
   }) => _raise('File Dialog');
-
   @override
   void stop(bool stop) => _raise('Stop');
-
   @override
   void quitLabview(bool quit) => _raise('Quit LabVIEW');
-
   @override
   ({LvRefnum registration, LvError errorOut}) registerForEvents(
     List<({String event, LvRefnum source})> sources,
     LvRefnum existing,
     LvError errorIn,
   ) => _raise('Register For Events ${sources.map((source) => source.event).join(', ')}');
-
   @override
   LvError unregisterForEvents(LvRefnum registration, LvError errorIn) => _raise('Unregister For Events');
-
   @override
   ({int permissions, String owner, String group, LvError errorOut}) getPermissions(LvPath path, LvError errorIn) =>
       _raise('Get Permissions');

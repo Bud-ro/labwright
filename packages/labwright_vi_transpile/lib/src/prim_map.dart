@@ -35,16 +35,12 @@ abstract final class LvArrayTerminalRole {
 /// The role bits of a Property Node, Invoke Node or Register For Events node's fixed terminals.
 abstract final class LvServerNodeRole {
   static const int referenceIn = 0x10000;
-
   static const int referenceOut = 0x40001;
-
   static const int errorIn = 0x20000;
-
   static const int errorOut = 0x80001;
 
   /// An Invoke Node's method name record, on the left and on the right.
   static const int methodLeft = 0x30000;
-
   static const int methodRight = 0x30001;
 
   /// The bit a Register For Events reference-in terminal may add.
@@ -119,7 +115,6 @@ class LvPrimCall {
 
   /// The type label of every terminal's own record, wired or not, where it carries one.
   final Map<int, String> portMemberName;
-
   final void Function(String) requireImport;
 
   final LvNaming names;

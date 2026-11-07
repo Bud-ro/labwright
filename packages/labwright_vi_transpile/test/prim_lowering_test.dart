@@ -89,7 +89,6 @@ void main() {
     expect(lvPrimLowering(wrong), isNull);
     expect(wrong.refusal, contains('"path" terminal carrying String'));
   });
-
   test('Search and Replace String takes its defaults from the signature and its regex option from the node', () {
     final imports = <String>{};
     final plain = _call(
@@ -114,7 +113,6 @@ void main() {
           'offset: 0, replaceAll: all, ignoreCase: false, multiline: false, regularExpression: true);',
     ]);
   });
-
   test('a labelled terminal drawn with another label is a revision with another order and refuses', () {
     final call = _call(
       PrimOp.fileDialog,
@@ -125,7 +123,6 @@ void main() {
     expect(lvPrimLowering(call), isNull);
     expect(call.refusal, contains('another terminal order'));
   });
-
   test('Enqueue Element runs for its effect and reads the queue back as the same refnum', () {
     final call = _call(
       PrimOp.enqueueElement,
@@ -145,7 +142,6 @@ void main() {
     expect(lvPrimHasSideEffect(op: PrimOp.enqueueElement, classCode: 0x2f), isTrue);
     expect(lvPrimHasSideEffect(op: PrimOp.stripPath, classCode: 0x2f), isFalse);
   });
-
   test('Variant To Data takes its type from the data wire and spells that type\'s default', () {
     final call = _call(
       PrimOp.variantToData,
@@ -156,7 +152,6 @@ void main() {
       'final (data: int n, errorOut: LvError e) = lvVariantToData<int>(v, defaultValue: 0, errorIn: LvError.none);',
     ]);
   });
-
   test('the primitives the corpus does not decide stay without a rule', () {
     for (final op in [PrimOp.inRangeAndCoerce, PrimOp.booleanArrayToNumber, PrimOp.flattenedStringToVariant]) {
       expect(kLvMappedPrimOps, isNot(contains(op)), reason: op.opName);
@@ -170,7 +165,6 @@ void main() {
     expect(lvPrimLowering(split), isNull);
     expect(split.refusal, contains('0x1000000'));
   });
-
   test('a seam operation passes every input in signature order and reads outputs back by slot', () {
     final call = _call(
       PrimOp.tcpOpenConnection,
@@ -183,7 +177,6 @@ void main() {
       'final LvRefnum id = value[1] as LvRefnum;',
     ]);
   });
-
   test('a float function wired to an integer output refuses instead of spelling a value', () {
     final call = _call(PrimOp.squareRoot, {'x': 'a', 'sqrt(x)': 'r'}, types: {'x': _i32, 'sqrt(x)': _i32});
     expect(lvPrimLowering(call), isNull);
@@ -206,7 +199,6 @@ void main() {
     );
     expect(lvPrimLowering(square), isNull);
   });
-
   test('To Variant records the numeric representation of a number', () {
     expect(
       lvPrimLowering(
@@ -225,7 +217,6 @@ void main() {
       ],
     );
   });
-
   test('a spreadsheet function needs its format wired and spells integers by it', () {
     final i32Array = mapLvWireType(const ViSignalType(0x0203));
     final unwired = _call(
@@ -248,7 +239,6 @@ void main() {
       "final String out = lvArrayToSpreadsheetString([a], (value) => lvFormatRadix(value as int, 16, 32, width: 4, zeroPad: true, upper: true), delimiter: '\\t');",
     ]);
   });
-
   test('Register For Events names each event source by its terminal label', () {
     final refnum = _refnum, error = _error;
     final call = LvPrimCall(

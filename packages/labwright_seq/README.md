@@ -22,21 +22,27 @@ for (final seq in f.sequences) {
 
 `writeSeqFileXml(SeqFile)` and `writeIniSeq(IniSeqFile)` write the two text
 flavors back out **byte-exactly** — `write(parse(f)) == f` for the whole
-corpus (36/36 XML, 58/58 INI), asserted by the round-trip gates in
-`test/seq_write_xml_test.dart` and `test/seq_write_ini_test.dart`. The model
+corpus (43/43 XML, 3/3 INI), asserted by the round-trip gates in
+`test/seq_write_corpus_test.dart`. The model
 retains everything the encodings carry: elemproto trees, verbatim array
-bounds, extdata, numeric formats, protected typelist blobs, interleaved INI
+bounds, extdata, numeric formats, `<Attributes>` objects, protected typelist blobs, interleaved INI
 line order, quoting, 120-char continuation splits, and per-file line
 terminators. INI writing works at the
 `IniSeqFile` section level deliberately: the derived property tree is
 inheritance-expanded, and writing it would fabricate lines the source file
-omits. Binary `TOF1` writing is out of scope until the binary model is
-complete.
+omits.
+
+`BinarySeqWriteModel.parse(bytes)` decodes a binary `TOF1` file into its record
+grammar; `writeBody()` reproduces the inflated body byte-exactly and
+`writeFile()` keeps the header and re-deflates that body, for 168/168 corpus
+binaries (`test/binary_sweep_test.dart`). `test/corpus_snapshot.json`, written by
+`dart run tool/snapshot.dart`, pins each corpus file's format, version and
+type, sequence, step and module-step counts, one line per file.
 
 ## Exporting a source tree with its VIs
 
 `dart run tool/export_seq.dart <source tree> <output directory>` (library:
-`exportSeqTree`) writes a Dart package from every text sequence file under a
+`exportSeqTree`) writes a Dart package from every sequence file under a
 tree together with the LabVIEW VIs its steps call:
 
 ```
@@ -63,17 +69,9 @@ become throws. A VI whose lowering refuses keeps the signature its connector
 pane gives it over a body that throws `UnimplementedError`, and its doc
 comment states what is not decoded, so the package always analyzes clean.
 
-`test/export_corpus_test.dart` exports every corpus source tree and pins the
-measures. Over 43 trees (1.9 s): 45 sequence files, 89 LabVIEW steps, 87 of
-which locate their VI (2 name project items whose files are not vendored);
-110 VI functions are emitted, 29 with lowered bodies and 81 refused — 33 on
-constants (29 of them saved by LabVIEW 9.0 or earlier, which keep no value in
-the heap record), 15 on sub-VI calls, 15 on primitives, 12 on wire types, 6 on
-structures — and 15 call sites reach a lowered body. 61 call sites (one
-repository's legacy-prototype VIs) leave required inputs unwired and are
-emitted as throws naming them; 36 arguments translate, 9 fall back to `eval`;
-3 outputs store to locals, 2 target engine state the export has no variable
-for.
+`test/export_corpus_test.dart` exports every corpus source tree and checks
+that every sequence file parses and every exported package analyzes clean;
+`tool/export_seq.dart` prints what an export located, lowered and refused.
 
 ## Notes On Development
 

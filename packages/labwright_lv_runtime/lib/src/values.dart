@@ -7,10 +7,8 @@ class LvPath {
   final bool valid;
   bool get isEmpty => valid && !absolute && components.isEmpty;
   static const LvPath notAPath = LvPath(components: [], absolute: false, valid: false);
-
   @override
   bool operator ==(Object other) => other is LvPath && lvSameValue(this, other);
-
   @override
   int get hashCode => Object.hash(valid, absolute, Object.hashAll(components));
 }
@@ -48,9 +46,7 @@ enum LvNumericType {
   dbl(64, isFloat: true);
 
   const LvNumericType(this.bits, {required this.isFloat});
-
   final int bits;
-
   final bool isFloat;
 }
 
@@ -58,19 +54,15 @@ enum LvNumericType {
 /// it holds, and the type descriptor of the value when the program that made it supplied one.
 class LvVariant {
   const LvVariant(this.value, {this.attributes = const {}, this.typeDescriptor, this.numeric});
-
   final Object? value;
-
   final LvNumericType? numeric;
 
   /// The attributes by name, each a variant of its own.
   final Map<String, LvVariant> attributes;
-
   final Uint8List? typeDescriptor;
 
   /// An empty variant, which holds no value.
   static const LvVariant empty = LvVariant(null);
-
   LvVariant withAttributes(Map<String, LvVariant> attributes) =>
       LvVariant(value, attributes: attributes, typeDescriptor: typeDescriptor, numeric: numeric);
 }

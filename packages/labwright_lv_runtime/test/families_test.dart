@@ -75,7 +75,6 @@ void main() {
       expect(lvRoundToInteger(double.nan, 32, signed: true), 0);
     });
   });
-
   group('strings', () {
     test('Number To Decimal String pads to the width with spaces, never truncates', () {
       expect(lvNumberToDecimalString(5, 2), ' 5');
@@ -190,7 +189,6 @@ void main() {
       expect(() => lvToUpperCase('\u00e9'), throwsUnsupportedError);
     });
   });
-
   group('paths', () {
     test('Strip Path returns the last component and the path leading to it', () {
       expect(lvStripPath(_path('C:/labview/foo.vi')), (strippedPath: _path('C:/labview'), name: 'foo.vi'));
@@ -215,7 +213,6 @@ void main() {
       expect(lvArrayOfStringsToPath(['a', 'b'], relative: true), const LvPath(components: ['a', 'b'], absolute: false));
     });
   });
-
   group('arrays', () {
     test('Sort 1D Array ascends by LabVIEW comparison rules', () {
       expect(lvSort1dArray([3, 1, 2]), [1, 2, 3]);
@@ -293,7 +290,6 @@ void main() {
       expect(lvThreshold1dArray([0, 10, 20], 5, 1), 1.0);
     });
   });
-
   group('timing', () {
     test('the LabVIEW epoch is 1904 and converts both ways to microsecond precision', () {
       final unixEpoch = DateTime.utc(1970);
@@ -328,7 +324,6 @@ void main() {
       expect(lvWaitUntilNextMsMultiple(0), greaterThanOrEqualTo(before));
     });
   });
-
   group('references', () {
     setUp(LvReferenceTable.instance.clear);
 
@@ -406,7 +401,6 @@ void main() {
       expect(() => lvEnvironment.callChain(), throwsA(isA<LvEnvironmentUnavailable>()));
     });
   });
-
   group('variants', () {
     test('To Variant and Variant To Data round-trip a value and refuse another type', () {
       final variant = lvToVariant(3);
@@ -436,7 +430,6 @@ void main() {
       expect(lvDeleteVariantAttribute(variant).variant.attributes, isEmpty);
     });
   });
-
   group('files', () {
     late Directory scratch;
     setUp(() => scratch = Directory.systemTemp.createTempSync('lv_runtime_'));

@@ -14,7 +14,6 @@ final class LvUserEvent<T> {
 
   /// The label of the data type the event was created from.
   final String name;
-
   final Set<LvEventRegistration> _registrations = {};
 
   /// Create User Event.
@@ -56,16 +55,12 @@ final class LvUserEvent<T> {
 /// queued for them, front first.
 final class LvEventRegistration {
   LvEventRegistration._();
-
   final Set<LvRefnum> _sources = {};
 
   /// The environment's registration of the sources that are not runtime user events, when any.
   LvRefnum? _environmentRegistration;
-
   final List<LvQueuedEvent> _pending = [];
-
   List<LvQueuedEvent> get pending => List.unmodifiable(_pending);
-
   void _queue(LvRefnum source, Object? data, LvEventPriority priority) {
     final event = (userEvent: source, data: data);
     if (priority == LvEventPriority.high) {

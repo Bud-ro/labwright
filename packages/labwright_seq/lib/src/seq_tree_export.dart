@@ -5,7 +5,6 @@ import 'package:labwright_vi_transpile/labwright_vi_transpile.dart';
 
 import 'dart_export.dart';
 import 'seq_file.dart';
-import 'seq_format.dart';
 import 'seq_module.dart';
 
 /// How a LabVIEW step states where its VI is.
@@ -45,39 +44,32 @@ enum SeqViPathKind {
 
 sealed class SeqViTarget {
   const SeqViTarget(this.kind);
-
   final SeqViPathKind kind;
 }
 
 final class SeqViFile extends SeqViTarget {
   const SeqViFile(super.kind, this.file);
-
   final File file;
 }
 
 final class SeqViUnlocated extends SeqViTarget {
   const SeqViUnlocated(super.kind, this.path);
-
   final String path;
 }
 
-/// A source tree holding sequence files and the LabVIEW files their steps call: the text
-/// sequence files parsed, the LabVIEW libraries indexed, and every VI by file name.
+/// A source tree holding sequence files and the LabVIEW files their steps call: the sequence
+/// files parsed, the LabVIEW libraries indexed, and every VI by file name.
 class SeqSourceTree {
   SeqSourceTree._(this.root, this.sequenceFiles, this.unparsed, this.libraries, this._visByName);
-
   final Directory root;
 
-  /// Each text sequence file by its path relative to [root], in path order.
+  /// Each sequence file by its path relative to [root], in path order.
   final Map<String, SeqFile> sequenceFiles;
 
-  /// Text sequence files that did not parse, relative to [root].
+  /// Sequence files that did not parse, relative to [root].
   final List<String> unparsed;
-
   final LvProjectIndex libraries;
-
   final Map<String, List<File>> _visByName;
-
   factory SeqSourceTree.scan(Directory root) {
     final sequenceFiles = <String, SeqFile>{};
     final unparsed = <String>[];
@@ -91,7 +83,6 @@ class SeqSourceTree {
       }
       if (!lower.endsWith('.seq')) continue;
       final bytes = file.readAsBytesSync();
-      if (!detectSeqFormat(bytes).isText) continue;
       final relative = _relative(root, file.path);
       try {
         sequenceFiles[relative] = parseSeqFile(bytes);
@@ -209,9 +200,7 @@ class SeqSourceTree {
 /// What one export of a source tree produced and left out.
 class SeqTreeMeasures {
   SeqTreeMeasures({required this.sequenceFiles, required this.unparsedSequenceFiles, required this.seq});
-
   final int sequenceFiles;
-
   final int unparsedSequenceFiles;
 
   /// LabVIEW steps whose VI was located and lowered to a function with a body.
@@ -229,18 +218,13 @@ class SeqTreeMeasures {
 
   /// Every function emitted: the VIs steps call and, transitively, the VIs those call.
   int viFunctions = 0;
-
   int viLowered = 0;
-
   int viStubbed = 0;
 
   /// Refused VIs by the refusal's kind.
   final Map<String, int> refusalsByKind = {};
-
   int declarations = 0;
-
   final SeqExportStats seq;
-
   int get labViewSteps =>
       stepsLowered + stepsStubbed + stepsWithoutDiagram + stepsUnlocated.values.fold(0, (sum, n) => sum + n);
 }
@@ -250,9 +234,7 @@ class SeqTreeExport {
 
   /// Every generated file by its path relative to the package root.
   final Map<String, String> files;
-
   final SeqTreeMeasures measures;
-
   void write(Directory out) {
     for (final MapEntry(key: path, value: source) in files.entries) {
       File('${out.path}/$path')
@@ -277,7 +259,7 @@ String seqRelativeDirectory({required String from, required String to}) {
   return [for (var i = shared; i < fromParts.length; i++) '..', ...toParts.sublist(shared)].join('/');
 }
 
-/// Exports every text sequence file under [root] as a Dart package: one `<dir>/<stem>.seq.dart`
+/// Exports every sequence file under [root] as a Dart package: one `<dir>/<stem>.seq.dart`
 /// per sequence file, one `<dir>/<stem>.vi.dart` per VI a step calls or one of those calls, the
 /// nominal types they share in [kSeqExportTypesFile], `main.dart`, and a `pubspec.yaml` whose
 /// [pathDependencies] map each package name to its path from the output directory.
@@ -293,7 +275,6 @@ SeqTreeExport exportSeqTree(
     unparsedSequenceFiles: tree.unparsed.length,
     seq: stats,
   );
-
   final units = <String, LvViUnit?>{};
   LvViUnit? unitOf(File file, String fileName) => units.putIfAbsent(file.path, () {
     try {
@@ -302,7 +283,6 @@ SeqTreeExport exportSeqTree(
       return null;
     }
   });
-
   final targets = <(String, String), SeqViTarget>{};
   final steps = <SeqViTarget>[];
   final entries = <String, LvViUnit>{};
@@ -320,7 +300,6 @@ SeqTreeExport exportSeqTree(
       }
     }
   }
-
   final emitted = emitLvFunctions(
     entries.values,
     resolveSubVi: (callee) {
@@ -333,7 +312,6 @@ SeqTreeExport exportSeqTree(
     },
     classes: LvProjectClassIndex(tree.libraries),
   );
-
   final files = <String, String>{};
   final takenPaths = <String>{};
   final fileOfFunction = <String, String>{};
@@ -350,7 +328,6 @@ SeqTreeExport exportSeqTree(
     byViPath[viPath] = function;
     fileOfFunction[function.functionName] = _uniquePath(_viDartPath(root, viPath), takenPaths);
   }
-
   final declarationNames = [for (final declaration in emitted.declarations) declaration.name];
   final spellsDeclaration = declarationNames.isEmpty
       ? null
@@ -382,7 +359,6 @@ SeqTreeExport exportSeqTree(
       '${_importLines(imports)}$body',
     );
   }
-
   for (final target in steps) {
     switch (target) {
       case SeqViFile(:final file):
@@ -398,7 +374,6 @@ SeqTreeExport exportSeqTree(
         measures.stepsUnlocated[kind] = (measures.stepsUnlocated[kind] ?? 0) + 1;
     }
   }
-
   SeqViCall? resolveViCall(String sourceKey, StepModule module) {
     final target = targets[(sourceKey, module.viPath ?? '')];
     if (target is! SeqViFile) return null;

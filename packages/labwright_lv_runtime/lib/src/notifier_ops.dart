@@ -6,16 +6,12 @@ import 'values.dart';
 /// obtained under that name until the last one is released.
 final class LvNotifier<T> {
   LvNotifier._(this.name);
-
   final String name;
-
   bool _hasMessage = false;
-
   T? _message;
 
   /// The live refnums that point at this object.
   final Set<LvRefnum> _refnums = {};
-
   void _releaseAll() {
     for (final refnum in _refnums) {
       LvReferenceTable.instance.release(refnum);

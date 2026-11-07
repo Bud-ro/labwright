@@ -18,9 +18,7 @@ enum LvFileOperation {
   replaceOrCreateWithConfirmation(5);
 
   const LvFileOperation(this.code);
-
   final int code;
-
   static LvFileOperation? ofCode(int code) => values.where((operation) => operation.code == code).firstOrNull;
 }
 
@@ -31,9 +29,7 @@ enum LvFileAccess {
   writeOnly(2);
 
   const LvFileAccess(this.code);
-
   final int code;
-
   static LvFileAccess? ofCode(int code) => values.where((access) => access.code == code).firstOrNull;
 }
 
@@ -44,18 +40,14 @@ enum LvFilePositionFrom {
   current(2);
 
   const LvFilePositionFrom(this.code);
-
   final int code;
-
   static LvFilePositionFrom? ofCode(int code) => values.where((from) => from.code == code).firstOrNull;
 }
 
 /// An open file: the handle and the path it was opened at.
 final class LvOpenFile {
   LvOpenFile(this.file, this.path);
-
   final RandomAccessFile file;
-
   final LvPath path;
 }
 

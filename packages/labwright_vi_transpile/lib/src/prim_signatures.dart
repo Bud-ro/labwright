@@ -21,7 +21,6 @@ class LvPrimTerminalSpec {
 
   /// The reference's name for the terminal.
   final String name;
-
   final bool isInput;
 
   /// The Dart expression an unwired input takes, or null when the input must be wired.
@@ -38,11 +37,8 @@ class LvPrimTerminalSpec {
 /// A primitive's terminals in heap child order, for nodes drawn with exactly this many.
 class LvPrimSignature {
   const LvPrimSignature(this.op, this.terminals);
-
   final PrimOp op;
-
   final List<LvPrimTerminalSpec> terminals;
-
   int get length => terminals.length;
 
   /// The child index of the terminal named [name].
@@ -57,7 +53,6 @@ class LvPrimSignature {
     for (var i = 0; i < terminals.length; i++)
       if (terminals[i].isInput) i,
   ];
-
   Iterable<int> get outputIndices => [
     for (var i = 0; i < terminals.length; i++)
       if (!terminals[i].isInput) i,

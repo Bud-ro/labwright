@@ -40,6 +40,7 @@ bool seqPropertyDeepEquals(SeqProperty a, SeqProperty b) {
   if (!_orderedMapEquals(a.attributes, b.attributes)) return false;
   if (!_orderedMapEquals(a.valueAttributes, b.valueAttributes)) return false;
   if (!_nullablePropEquals(a.elemProto, b.elemProto)) return false;
+  if (!_nullablePropEquals(a.attributeBlock, b.attributeBlock)) return false;
   if (a.extData.length != b.extData.length) return false;
   for (var i = 0; i < a.extData.length; i++) {
     if (!_orderedMapEquals(a.extData[i], b.extData[i])) return false;

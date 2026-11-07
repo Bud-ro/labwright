@@ -592,7 +592,7 @@ its label set and the Dart expression an unwired input takes. A lowering
 addresses terminals by name (`LvSignedCall`), and a node whose labelled terminal
 carries another label is drawn from a revision with another order and refuses.
 
-`test/corpus_prim_signature_test.dart` pins the census: 45,950 corpus nodes
+`test/corpus_prim_signature_test.dart` checks them against the corpus: 45,950 corpus nodes
 carry a signature; every one of their 127,356 wired terminals has the direction
 the signature says, bar three Generate User Event nodes wired as sources;
 37,589 labelled terminals carry a listed label, bar one File Dialog node from a
@@ -722,8 +722,8 @@ Integer conversions emit a width helper carrying a `TODO(lv-convert-range)`:
 they are exact for every value the target width holds, and LabVIEW's rule for
 one outside it (truncate or saturate) is not established from the file format.
 
-The **review list** is everything else, pinned by count in
-`test/corpus_lowering_sweep_test.dart`: 118 distinct unmapped identities over
+The **review list** is everything else, listed per VI under `unruled` in
+`test/corpus_snapshot.json`: 118 distinct unmapped identities over
 5,199 nodes and 2,040 VI-identity pairs across the corpus (from 244, 28,853 and
 13,123). One identity sits in 150 VIs or more: the Event Data Node (`0xd6`,
 2,657 nodes in 415 VIs), which lives inside Event structures and lowers only
@@ -820,14 +820,14 @@ told apart by the class the node's dispatch terminal names.
 Over the 46 rcpacini VI snippets: 12 lower (`MD5`, `PNG CRC32`,
 `crc32_lookup_table`, `crc8`, `ReverseBitsVim`, `basic`, `Resolve Path`,
 `Resolve Library Path`, `FileReadOnly`, `ClassesInMemory`, and `VI Tree` /
-`decorations_only`, which have no dataflow) and 34 refuse, pinned per VI:
+`decorations_only`, which have no dataflow) and 34 refuse, snapshotted per VI:
 undecoded primitives 11, wire types 7, foreign calls, tunnel indexing and subVI
 calls whose callee is not supplied 3 each, structures and wire direction 2
 each, and one each on a constant's value, a reference node and an unbound
 value.
 
 Over the whole 7,508-VI corpus, with every VI available as a subVI: 1,145
-lower and the rest refuse, pinned per kind in `kCorpusLoweringSweep`: 2,048 on
+lower and the rest refuse, per kind: 2,048 on
 a wire type, 1,387 on a structure (among them a connector-pane indicator inside
 a loop, case or disable structure, whose returned value depends on which frames
 run), 1,042 on a primitive, 878 on a subVI call, 302 on a foreign call, 252 on

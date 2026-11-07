@@ -5,7 +5,6 @@ import 'values.dart';
 /// through a refnum.
 final class LvDataValueReference<T> {
   LvDataValueReference(this.value);
-
   T value;
 
   /// New Data Value Reference.

@@ -13,9 +13,7 @@ import 'wire_type.dart';
 /// carries checked against the ones the signature lists.
 class LvSignedCall {
   LvSignedCall._(this.call, this.signature);
-
   final LvPrimCall call;
-
   final LvPrimSignature signature;
 
   /// The call read through the signature its op and holder count select, or null (with the
@@ -44,7 +42,6 @@ class LvSignedCall {
   }
 
   int _port(String name) => call.ports[signature.indexOf(name)];
-
   LvPrimTerminalSpec spec(String name) => signature.terminals[signature.indexOf(name)];
 
   /// The wired input named [name], or null when it is unwired.
@@ -84,9 +81,7 @@ class LvSignedCall {
 
   /// The local a consumed output binds to, or `_` when nothing reads it.
   String target(String name) => output(name)?.expression ?? '_';
-
   bool consumed(String name) => output(name) != null;
-
   bool get anyConsumed => call.outputs.isNotEmpty;
 
   /// Declines because [name] carries a [type] the lowering does not take.
@@ -94,7 +89,6 @@ class LvSignedCall {
     'primitive ${call.op!.opName} (primResID ${call.op!.id}) has its "$name" terminal carrying '
     '${type.dartType ?? '?'} at ${type.dims} dimensions, and the lowering takes $wanted there',
   );
-
   Null refuse(String detail) => call.refuse('primitive ${call.op!.opName} (primResID ${call.op!.id}) $detail');
 }
 
@@ -191,8 +185,6 @@ List<String>? _unaryRuntime(
   if (out.type.numeric == LvNumericKind.sgl) call.requireImport('dart:typed_data');
   return ['final ${out.type.dartType} ${out.expression} = ${body(source.expression!, source, out)};'];
 }
-
-// Numeric and comparison.
 
 List<String>? _orderedBySignature(LvPrimCall call, String operator, {bool predicate = false}) {
   final sig = LvSignedCall.of(call);
@@ -349,8 +341,6 @@ List<String>? _numberToBooleanArray(LvPrimCall call) {
         '${LvRuntimeCall.numberToBooleanArray}(${number.expression}, ${number.type.numeric!.bits});',
   ];
 }
-
-// Strings.
 
 List<String>? _toUpperCase(LvPrimCall call) => _unaryRuntime(
   call,
@@ -904,8 +894,6 @@ String _jsonKey(String label) => label.replaceAll(r'\', r'\\').replaceAll("'", r
 List<String> _memberNames(List<String?> labels, {required bool declaration}) =>
     declaration ? LvNaming.declarationFields(labels) : [for (final label in labels) lvFieldName(label ?? '')];
 
-// Paths.
-
 List<String>? _pathToString(LvPrimCall call) => _unaryRuntime(
   call,
   'path',
@@ -990,8 +978,6 @@ List<String>? _arrayOfStringsToPath(LvPrimCall call) {
     sideEffect: false,
   );
 }
-
-// Arrays.
 
 bool _sortable(LvTypeMapping element) =>
     element.carrier == LvCarrier.integer ||
@@ -1261,8 +1247,6 @@ List<String>? _arrayToCluster(LvPrimCall call) {
   return lines;
 }
 
-// Variants.
-
 /// [expression] as a variant, recording its numeric representation when it is a number or a
 /// 1-D numeric array.
 String _variantOf(String expression, LvWireType type) {
@@ -1468,8 +1452,6 @@ List<String>? _variantToFlattenedString(LvPrimCall call) {
   return ['final String ${data.expression} = ${LvRuntimeCall.flattenVariantData}(${variant.expression});'];
 }
 
-// Timing.
-
 List<String>? _tickCount(LvPrimCall call) =>
     _nullary(call, 'millisecond timer value', LvRuntimeCall.tickCount, _isInt, 'an integer');
 
@@ -1547,8 +1529,6 @@ List<String>? _toTimeStamp(LvPrimCall call) => _unaryRuntime(
   (operand, source, out) =>
       '${LvRuntimeCall.toTimeStamp}(${source.type.numeric!.isFloat ? operand : '$operand.toDouble()'})',
 );
-
-// Files.
 
 /// A file terminal: an open file refnum or a path.
 bool _isFileOrPath(LvWireType type) => _isRefnum(type) || _isPath(type);
@@ -1910,8 +1890,6 @@ List<String>? _listFolder(LvPrimCall call) {
   );
 }
 
-// Queues, notifiers, data value references, user events.
-
 /// The element type of a queue or notifier reference's payload: the type of the terminal that
 /// carries an element, else of the one that names the element data type.
 LvWireType? _payloadType(LvSignedCall sig, List<String> terminals) {
@@ -2219,8 +2197,6 @@ List<String>? _referenceErrorOnly(LvPrimCall call, String terminal, String runti
   final body = '$runtimeCall(${reference.expression}, errorIn: $errorIn)';
   return sig.consumed('error out') ? ['final ${LvRuntimeType.error} ${sig.target('error out')} = $body;'] : ['$body;'];
 }
-
-// The environment seam: VI Server, application control, dialogs.
 
 List<String>? _closeReference(LvPrimCall call) {
   final sig = LvSignedCall.of(call);
