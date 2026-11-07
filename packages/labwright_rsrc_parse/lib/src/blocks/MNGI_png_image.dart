@@ -301,7 +301,7 @@ int? _ancillaryZlibStart(String type, Uint8List data) {
 Uint8List? _inflateZlib(Uint8List z) {
   if (z.isEmpty) return null;
   try {
-    return Uint8List.fromList(const ZLibDecoder().decodeBytes(z));
+    return Uint8List.fromList(const ZLibDecoder().decodeBytes(z, verify: true));
   } catch (_) {
     return null;
   }

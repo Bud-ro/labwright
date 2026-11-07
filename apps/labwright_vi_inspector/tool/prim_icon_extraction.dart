@@ -4,41 +4,248 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/bd_color_aliases.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
-
-import '../test/bd_wire_mask_test.dart' show kWireInkPalette;
+import 'package:labwright_vi_inspector/src/diagram_view.dart';
+import 'package:labwright_vi_inspector/src/prim_icon_border.dart';
 
 import '../test/util.dart';
 
-/// Wire colours erased from icon crops: the wire-ink palette plus the Boolean green of newer
-/// LabVIEW renders.
-const Set<int> kIconStubInk = {...kWireInkPalette, 0x007f00};
+/// Keys whose samples, alignment and consensus are written as PNGs under [kIconDebugDir]:
+///     --dart-define=ICON_DEBUG_KEYS=prim1053,prim1151 --dart-define=ICON_DEBUG_DIR=<dir>
+const String kIconDebugKeys = String.fromEnvironment('ICON_DEBUG_KEYS');
+const String kIconDebugDir = String.fromEnvironment('ICON_DEBUG_DIR');
+
+void _debugPng(String name, Uint8List rgba, int w, int h) {
+  if (kIconDebugDir.isEmpty) return;
+  final image = img.Image(width: w, height: h, numChannels: 4);
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      final i = (y * w + x) * 4;
+      image.setPixelRgba(x, y, rgba[i], rgba[i + 1], rgba[i + 2], 255);
+    }
+  }
+  File('$kIconDebugDir/$name.png')
+    ..parent.createSync(recursive: true)
+    ..writeAsBytesSync(img.encodePng(image));
+}
+
+/// Stands in for a pixel the wire erosion erased: background for every geometric test,
+/// unknown in every vote.
+const int kErasedRgb = 0xFEFEFE;
+
+/// How far, in pixels, a primitive's art sits from the centre of its node box on either axis
+/// when it is centred: Not's negation bubble pulls its bounds one pixel left. To More
+/// Specific Class draws its 32x16 art at the top of the box instead.
+const int kPrimitiveArtMaxOffCentre = 2;
+
+/// Whitens every ink of [rgba] ([w] by [h], node box inset by [pad]) that is not the icon.
+/// Components form over [componentInk]: the icon is the component whose bounds hold the
+/// box's centre (the largest when several do, or when none does) together with the
+/// components inside its bounds and the non-wire-like components within two pixels of it
+/// that keep the union centred in the box to within two pixels. Every other pixel of
+/// [anyInk] farther than [kStrayInkReach] pixels from the kept components is whitened too,
+/// so a neighbour's ink goes while the blended fringe and the wires against the icon stay.
+void _keepMainCluster(
+  Uint8List rgba,
+  int w,
+  int h,
+  int pad,
+  bool Function(Uint8List rgba, int w, int x, int y) componentInk,
+  bool Function(Uint8List rgba, int w, int x, int y) anyInk,
+) {
+  final inky = componentInk;
+  final compOf = List<int>.filled(w * h, -1);
+  final comps = <({List<int> px, int l, int t, int r, int b})>[];
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      if (compOf[y * w + x] != -1 || !inky(rgba, w, x, y)) continue;
+      final id = comps.length;
+      final pixels = <int>[];
+      int cl = x, ct = y, cr = x, cb = y;
+      final queue = <(int, int)>[(x, y)];
+      while (queue.isNotEmpty) {
+        final (px, py) = queue.removeLast();
+        if (px < 0 || py < 0 || px >= w || py >= h) continue;
+        final idx = py * w + px;
+        if (compOf[idx] != -1 || !inky(rgba, w, px, py)) continue;
+        compOf[idx] = id;
+        pixels.add(idx);
+        if (px < cl) cl = px;
+        if (px > cr) cr = px;
+        if (py < ct) ct = py;
+        if (py > cb) cb = py;
+        queue.addAll([
+          (px + 1, py),
+          (px - 1, py),
+          (px, py + 1),
+          (px, py - 1),
+          (px + 1, py + 1),
+          (px - 1, py - 1),
+          (px + 1, py - 1),
+          (px - 1, py + 1),
+        ]);
+      }
+      comps.add((px: pixels, l: cl, t: ct, r: cr, b: cb));
+    }
+  }
+  if (comps.isEmpty) return;
+  final cx = w ~/ 2, cy = h ~/ 2;
+  var main = -1;
+  for (var i = 0; i < comps.length; i++) {
+    final c = comps[i];
+    final holdsCentre = c.l <= cx && cx <= c.r && c.t <= cy && cy <= c.b;
+    final mainHoldsCentre =
+        main != -1 &&
+        comps[main].l <= cx &&
+        cx <= comps[main].r &&
+        comps[main].t <= cy &&
+        cy <= comps[main].b;
+    if (main == -1 ||
+        holdsCentre && !mainHoldsCentre ||
+        holdsCentre == mainHoldsCentre && c.px.length > comps[main].px.length) {
+      main = i;
+    }
+  }
+  final kept = <int>{main};
+  var kl = comps[main].l,
+      kt = comps[main].t,
+      kr = comps[main].r,
+      kb = comps[main].b;
+  var grew = true;
+  while (grew) {
+    grew = false;
+    for (var i = 0; i < comps.length; i++) {
+      if (kept.contains(i)) continue;
+      final c = comps[i];
+      final inside =
+          c.l >= kl - 1 && c.r <= kr + 1 && c.t >= kt - 1 && c.b <= kb + 1;
+      final adjacent =
+          c.l - 2 <= kr && c.r + 2 >= kl && c.t - 2 <= kb && c.b + 2 >= kt;
+      final wireLike = (c.b - c.t + 1) <= 3 || (c.r - c.l + 1) <= 1;
+      final ul = c.l < kl ? c.l : kl, ur = c.r > kr ? c.r : kr;
+      final ut = c.t < kt ? c.t : kt, ub = c.b > kb ? c.b : kb;
+      final staysCentred =
+          ((ul + ur) - 2 * cx).abs() <= 4 && ((ut + ub) - 2 * cy).abs() <= 4;
+      if (inside || adjacent && !wireLike && staysCentred) {
+        kept.add(i);
+        kl = ul;
+        kt = ut;
+        kr = ur;
+        kb = ub;
+        grew = true;
+      }
+    }
+  }
+  final near = List<bool>.filled(w * h, false);
+  for (final i in kept) {
+    for (final idx in comps[i].px) {
+      final x = idx % w, y = idx ~/ w;
+      for (var dy = -kStrayInkReach; dy <= kStrayInkReach; dy++) {
+        for (var dx = -kStrayInkReach; dx <= kStrayInkReach; dx++) {
+          final nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          near[ny * w + nx] = true;
+        }
+      }
+    }
+  }
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      final idx = y * w + x;
+      if (near[idx] || !anyInk(rgba, w, x, y)) continue;
+      rgba[idx * 4] = rgba[idx * 4 + 1] = rgba[idx * 4 + 2] = 255;
+    }
+  }
+}
+
+/// How far, in pixels, ink may lie from the icon's cluster and still belong to the cut: the
+/// blended fringe of an anti-aliased edge and the wire pixels against the icon.
+const int kStrayInkReach = 2;
 
 /// The reference renders' diagram dot grid, background rather than ink.
 const int kDiagramGridDotRgb = 0xe2e2e2;
 
+/// A primitive's icon is black ink on its yellow fill; in a hard-edged render every other
+/// colour inside its node box is drawn over or beside it: wires, coercion dots, neighbours.
+/// The primitives whose icons carry another colour are kept by hand.
+const Set<int> kPrimitiveInkPalette = {0x000000, 0xFFFFCC};
+
+/// Whether a hard-edged render's pixel of colour [rgb] is foreign to the icon of [key]: for
+/// a primitive any colour outside [kPrimitiveInkPalette], otherwise wire ink or a coercion
+/// dot. White is background, never foreign ink.
+bool isForeignInk(String key, int rgb) =>
+    rgb != 0xFFFFFF &&
+    (key.startsWith('prim')
+        ? !primitiveInkOf(key).contains(BdColorAlias.canonicalRgb(rgb))
+        : isOverlayInk(rgb));
+
+/// The ink of the option markers that join [kPrimitiveInkPalette] on an option variant's art.
+const Map<BdPrimIconOption, Set<int>> kPrimIconOptionMarkerInk = {
+  BdPrimIconOption.legacyData: {0xFF0000},
+};
+
+/// The colours the art of primitive icon [key] is made of: [kPrimitiveInkPalette], plus the
+/// marker ink of the option the key names.
+Set<int> primitiveInkOf(String key) {
+  final id = parsePrimIconName(key);
+  final option = id == null ? null : primIconOptionOf(id)?.$2;
+  final marker = option == null ? null : kPrimIconOptionMarkerInk[option];
+  return marker == null
+      ? kPrimitiveInkPalette
+      : {...kPrimitiveInkPalette, ...marker};
+}
+
 const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
-  'prim1053': [(snippet: '25772310_GqWWr', oid: 572)],
+  'prim1069': [(snippet: '34109337_OCxvL', oid: 599)],
   'prim1082': [(snippet: 'MD5', oid: 6017)],
   'prim1170': [(snippet: 'crc16', oid: 820), (snippet: 'crc16', oid: 619)],
   'prim1537': [(snippet: 'Excel_Cell_to_RowCol', oid: 477)],
+  'prim2302': [
+    (
+      snippet: 'Error_1073807253_0xBFFF006B_at_VISA_Serial_Read_in_LabVIEW',
+      oid: 273,
+    ),
+  ],
 };
 
-({Uint8List rgba, int w, int h, int dx, int dy})? _cleanNodeBoxCrop(
+/// The asset key of [o]'s icon: its primitive's art key (an option variant when the node sets
+/// one), or the class variant key of a single-op class in [primClasses]; null for other
+/// objects.
+String? iconReviewKeyOf(BdDiagram bd, BdObject o, Set<int> primClasses) {
+  if (o.primitive?.primResId != null) return primIconName(primIconArtKeyOf(o)!);
+  return primClasses.contains(o.kind)
+      ? primIconName(bdClassVariantIconKey(bd, o))
+      : null;
+}
+
+/// The background pixels kept around a node box in an extraction crop.
+const int kPrimIconCropPad = 5;
+
+/// The icon ink of one node-box crop ([pad] pixels around the box) on its own: [foreign]
+/// colours whitened, the cluster holding the box centre kept, the rest transparent, cut to
+/// the ink's bounds and clipped to the box when larger. `dx`, `dy` place the cut in the box.
+({Uint8List rgba, int w, int h, int dx, int dy})? cleanNodeBoxCrop(
   Uint8List crop,
   int w,
   int h,
   int pad,
+  bool Function(int rgb) foreign,
 ) {
   final boxWidth = w - 2 * pad, boxHeight = h - 2 * pad;
   if (boxWidth < 4 || boxHeight < 4) return null;
   final pixels = Uint8List.fromList(crop);
   for (var i = 0; i < pixels.length; i += 4) {
     final rgb = (pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2];
-    if (kIconStubInk.contains(rgb)) {
+    if (foreign(rgb)) {
       pixels[i] = pixels[i + 1] = pixels[i + 2] = 255;
     }
   }
+  bool inky(Uint8List rgba, int w, int x, int y) =>
+      rgba[(y * w + x) * 4] < 240 ||
+      rgba[(y * w + x) * 4 + 1] < 240 ||
+      rgba[(y * w + x) * 4 + 2] < 240;
+  _keepMainCluster(pixels, w, h, pad, inky, inky);
   final background = List<bool>.filled(w * h, false);
   bool nearWhite(int idx) =>
       pixels[idx * 4] >= 240 &&
@@ -117,6 +324,14 @@ const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
     }
   }
   if (right < 0) return null;
+  if (right - left + 1 > boxWidth) {
+    if (left < pad) left = pad;
+    if (right > w - 1 - pad) right = w - 1 - pad;
+  }
+  if (bottom - top + 1 > boxHeight) {
+    if (top < pad) top = pad;
+    if (bottom > h - 1 - pad) bottom = h - 1 - pad;
+  }
   final artWidth = right - left + 1, artHeight = bottom - top + 1;
   final art = Uint8List(artWidth * artHeight * 4);
   for (var y = 0; y < artHeight; y++) {
@@ -140,29 +355,77 @@ bool _sameBytes(Uint8List a, Uint8List b) {
   return true;
 }
 
-/// Whether a reference crop is a hard-edged render: every colour inside the node box, wire
-/// ink and the white background aside, tiles at least [kHardEdgeMinRun] pixels. Anti-aliased
-/// renders blend the icon's edges into dozens of colours that occur once or twice.
-bool isHardEdgedCrop(Uint8List rgba, int w, int h, int pad) {
+/// Whether a reference crop is a hard-edged render. For a primitive ([key] starting with
+/// `prim`) every pixel inside the node box that is neither its ink ([kPrimitiveInkPalette])
+/// nor overlay ink belongs to a component at most [kStrayInkMaxThickness] pixels thin that
+/// reaches the box's edge, so is a wire crossing the box rather than a blended edge of the
+/// icon or a tinted background; renders from LabVIEW
+/// 2018 on smooth the icon's edges with a fixed ramp of greys that tile well, and only the
+/// palette tells them apart. For any other key every colour inside the node box, overlay
+/// ink and the white background aside, tiles at least [kHardEdgeMinRun] pixels;
+/// anti-aliased renders blend the icon's edges into dozens of colours that occur once or
+/// twice.
+bool isHardEdgedCrop(Uint8List rgba, int w, int h, int pad, {String? key}) {
+  final primitive = key?.startsWith('prim') ?? false;
   final counts = <int, int>{};
+  final stray = List<bool>.filled(w * h, false);
   for (var y = pad; y < h - pad; y++) {
     for (var x = pad; x < w - pad; x++) {
       final i = (y * w + x) * 4;
       final r = rgba[i], g = rgba[i + 1], b = rgba[i + 2];
       if (r >= 240 && g >= 240 && b >= 240) continue;
       final rgb = (r << 16) | (g << 8) | b;
-      if (kIconStubInk.contains(rgb)) continue;
+      if (isOverlayInk(rgb)) continue;
+      if (primitive) {
+        if (!primitiveInkOf(key!).contains(BdColorAlias.canonicalRgb(rgb))) {
+          stray[y * w + x] = true;
+        }
+        continue;
+      }
       counts[rgb] = (counts[rgb] ?? 0) + 1;
     }
   }
-  return counts.values.every((n) => n >= kHardEdgeMinRun);
+  if (!primitive) return counts.values.every((n) => n >= kHardEdgeMinRun);
+  final seen = List<bool>.filled(w * h, false);
+  for (var start = 0; start < w * h; start++) {
+    if (!stray[start] || seen[start]) continue;
+    var reachesEdge = false;
+    var l = w, t = h, r = -1, b = -1;
+    final queue = <int>[start];
+    seen[start] = true;
+    while (queue.isNotEmpty) {
+      final idx = queue.removeLast();
+      final x = idx % w, y = idx ~/ w;
+      if (x <= pad || y <= pad || x >= w - 1 - pad || y >= h - 1 - pad) {
+        reachesEdge = true;
+      }
+      if (x < l) l = x;
+      if (x > r) r = x;
+      if (y < t) t = y;
+      if (y > b) b = y;
+      for (final n in [idx - 1, idx + 1, idx - w, idx + w]) {
+        if (n < 0 || n >= w * h || seen[n] || !stray[n]) continue;
+        if ((n % w - x).abs() > 1) continue;
+        seen[n] = true;
+        queue.add(n);
+      }
+    }
+    final thin =
+        r - l + 1 <= kStrayInkMaxThickness ||
+        b - t + 1 <= kStrayInkMaxThickness;
+    if (!reachesEdge || !thin) return false;
+  }
+  return true;
 }
+
+/// The thickest a run of ink crossing a primitive's node box may be and still be a wire.
+const int kStrayInkMaxThickness = 5;
 
 /// The fewest pixels a colour must cover in a node box for the render to count as hard-edged.
 const int kHardEdgeMinRun = 3;
 
 /// Whether the node box of a reference crop holds icon ink at all: at least
-/// [kIconInkMinPixels] pixels that are neither white nor wire ink. A node the reference does not
+/// [kIconInkMinPixels] pixels that are neither white nor overlay ink. A node the reference does not
 /// show, such as one inside a frame the structure is not displaying, crops to a blank box.
 bool hasIconInk(Uint8List rgba, int w, int h, int pad) {
   var ink = 0;
@@ -171,7 +434,7 @@ bool hasIconInk(Uint8List rgba, int w, int h, int pad) {
       final i = (y * w + x) * 4;
       final r = rgba[i], g = rgba[i + 1], b = rgba[i + 2];
       if (r >= 240 && g >= 240 && b >= 240) continue;
-      if (kIconStubInk.contains((r << 16) | (g << 8) | b)) continue;
+      if (isOverlayInk((r << 16) | (g << 8) | b)) continue;
       if (++ink >= kIconInkMinPixels) return true;
     }
   }
@@ -188,8 +451,12 @@ class PrimIconExtraction {
     required this.failed,
     required this.observedKeys,
     required this.skippedLowQuality,
+    required this.lowRegistrationOnly,
     required this.antiAliased,
     required this.softOnly,
+    required this.watermarkedSnippets,
+    required this.watermarkedOnlyKeys,
+    required this.inferredBorders,
     required this.palette,
     required this.verifiedKeys,
     required this.handKeys,
@@ -207,11 +474,26 @@ class PrimIconExtraction {
 
   final List<String> skippedLowQuality;
 
+  /// Keys cut from the renders of [skippedLowQuality] snippets because no other snippet shows
+  /// them.
+  final Set<String> lowRegistrationOnly;
+
   /// Per key, the snippets whose render of it was anti-aliased and therefore set aside.
   final Map<String, Set<String>> antiAliased;
 
   /// Keys cut from anti-aliased renders because no hard-edged render of them exists.
   final Set<String> softOnly;
+
+  /// Snippets whose saving LabVIEW watermarks its renders, see [ViSaveRecord.rendersWatermark];
+  /// nothing is harvested from them.
+  final List<String> watermarkedSnippets;
+
+  /// Keys seen only in [watermarkedSnippets], so with no render to cut from.
+  final Set<String> watermarkedOnlyKeys;
+
+  /// Per key cut from anti-aliased renders, how its border was replaced by the canonical
+  /// border of the hard-edged icons that share its silhouette, see [inferIconBorders].
+  final Map<String, String> inferredBorders;
 
   final List<int> palette;
 
@@ -236,6 +518,16 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         List<({Uint8List rgba, int w, int h, String source, double quality})>
       >{};
   final skippedLowQuality = <String>[];
+  final lowRegistration =
+      <
+        String,
+        List<({Uint8List rgba, int w, int h, String source, double quality})>
+      >{};
+  final lowRegistrationSoft =
+      <
+        String,
+        List<({Uint8List rgba, int w, int h, String source, double quality})>
+      >{};
   final observedKeys = <String>{};
   final soft =
       <
@@ -249,6 +541,8 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         List<({Uint8List rgba, int w, int h, int pad, String source})>
       >{};
   final versionOfSnippet = <String, int>{};
+  final watermarkedSnippets = <String>[];
+  final watermarkedKeys = <String>{};
   await tester.runAsync(() async {
     for (final f in pngs) {
       final vi = extractSnippetVi(f.readAsBytesSync());
@@ -256,14 +550,31 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
       final model = buildViModel(vi);
       final bd = bestBlockDiagram(model);
       if (bd == null) continue;
-      final raster = await rasteriseBlockDiagram(bd, scale: 1.0, margin: 2);
+      if (model.saveRecord?.rendersWatermark ?? false) {
+        watermarkedSnippets.add(f.uri.pathSegments.last.replaceAll('.png', ''));
+        for (final o in bdDrawableObjects(bd)) {
+          final key = iconReviewKeyOf(bd, o, primClasses);
+          if (key != null) watermarkedKeys.add(key);
+        }
+        continue;
+      }
+      final drawable = bdDrawableObjects(bd);
+      final raster = await rasteriseBlockDiagram(
+        bd,
+        primIcons: loadPrimIcons(),
+        scale: 1.0,
+        margin: 2,
+        wires: bdVisibleWires(bd),
+        drawable: drawable,
+      );
       if (raster == null) continue;
       final reference = await decodeReferenceImage(f.readAsBytesSync());
       final result = await compareToReference(
         raster.image,
         reference.image,
         lockScale: 1.0 / raster.scale,
-        anchorRects: bdStructureAnchorRects(bd, raster),
+        anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+        exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
       );
       if (!result.registered) continue;
       final reg = result.registration;
@@ -283,7 +594,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
       final name = f.uri.pathSegments.last.replaceAll('.png', '');
       final major = int.tryParse((model.version ?? '').split('.').first) ?? 0;
       versionOfSnippet[name] = major;
-      const pad = 5;
+      const pad = kPrimIconCropPad;
       ({Uint8List rgba, int w, int h})? cropOf(HeapRect bounds) {
         final left =
             ((bounds.left - raster.content.left) * raster.scale * reg.scale +
@@ -297,33 +608,45 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
             pad;
         final w = (bounds.width * raster.scale * reg.scale).round() + 2 * pad;
         final h = (bounds.height * raster.scale * reg.scale).round() + 2 * pad;
-        if (left < 0 || top < 0 || left + w > refW || top + h > refH) {
+        if (left + w <= pad ||
+            top + h <= pad ||
+            left >= refW - pad ||
+            top >= refH - pad) {
           return null;
         }
-        final crop = Uint8List(w * h * 4);
+        final crop = Uint8List(w * h * 4)..fillRange(0, w * h * 4, 255);
         for (var y = 0; y < h; y++) {
+          final sy = top + y;
+          if (sy < 0 || sy >= refH) continue;
+          final x0 = left < 0 ? -left : 0,
+              x1 = left + w > refW ? refW - left : w;
+          if (x1 <= x0) continue;
           crop.setRange(
-            y * w * 4,
-            (y + 1) * w * 4,
+            (y * w + x0) * 4,
+            (y * w + x1) * 4,
             result.referenceRgba,
-            ((top + y) * refW + left) * 4,
+            (sy * refW + left + x0) * 4,
           );
         }
         for (var i = 0; i < crop.length; i += 4) {
           final rgb = (crop[i] << 16) | (crop[i + 1] << 8) | crop[i + 2];
-          if (rgb == kDiagramGridDotRgb)
+          if (rgb == kDiagramGridDotRgb) {
             crop[i] = crop[i + 1] = crop[i + 2] = 255;
+            continue;
+          }
+          final canonical = BdColorAlias.canonicalRgb(rgb);
+          if (canonical != rgb) {
+            crop[i] = canonical >> 16;
+            crop[i + 1] = (canonical >> 8) & 0xff;
+            crop[i + 2] = canonical & 0xff;
+          }
         }
         return (rgba: crop, w: w, h: h);
       }
 
-      for (final o in bd.objects) {
+      for (final o in drawable) {
         final b = o.absBounds;
-        final key = o.primitive?.primResId != null
-            ? 'prim${o.primitive?.primResId}'
-            : (primClasses.contains(o.kind)
-                  ? primIconName(bdClassVariantIconKey(bd, o))
-                  : null);
+        final key = iconReviewKeyOf(bd, o, primClasses);
         if (key == null || b == null || b.width <= 0 || b.height <= 0) {
           continue;
         }
@@ -342,7 +665,6 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
             ));
           }
         }
-        if (lowQuality) continue;
         var anc = bd.byId[o.parentOid ?? -1];
         var hops = 0;
         var disabled = false;
@@ -358,8 +680,14 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         if (crop == null || !hasIconInk(crop.rgba, crop.w, crop.h, pad)) {
           continue;
         }
-        final hard = isHardEdgedCrop(crop.rgba, crop.w, crop.h, pad);
-        final bucket = hard ? samples : soft;
+        final hard = isHardEdgedCrop(crop.rgba, crop.w, crop.h, pad, key: key);
+        final bucket = lowQuality
+            ? hard
+                  ? lowRegistration
+                  : lowRegistrationSoft
+            : hard
+            ? samples
+            : soft;
         if (!hard) (antiAliased[key] ??= {}).add(name);
         if ((bucket[key]
                     ?.where((s) => versionOfSnippet[s.source] == major)
@@ -379,6 +707,14 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     }
   });
 
+  final lowRegistrationOnly = <String>{};
+  for (final key in {...lowRegistration.keys, ...lowRegistrationSoft.keys}) {
+    if (samples.containsKey(key) || soft.containsKey(key)) continue;
+    lowRegistrationOnly.add(key);
+    if (lowRegistration[key] case final hard?) samples[key] = hard;
+    if (lowRegistrationSoft[key] case final aa?) soft[key] = aa;
+  }
+
   final softOnly = <String>{};
   for (final entry in soft.entries) {
     if (samples.containsKey(entry.key)) continue;
@@ -391,12 +727,22 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     return rgba[i] < 240 || rgba[i + 1] < 240 || rgba[i + 2] < 240;
   }
 
-  bool wireInk(Uint8List rgba, int w, int x, int y) {
+  bool Function(int rgb) foreignRgb = isOverlayInk;
+  bool foreign(Uint8List rgba, int w, int x, int y) {
     final i = (y * w + x) * 4;
-    return kIconStubInk.contains(
-      (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2],
-    );
+    return inky(rgba, w, x, y) &&
+        foreignRgb((rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2]);
   }
+
+  bool Function(int rgb) erodableRgb = isOverlayInk;
+  bool erodable(Uint8List rgba, int w, int x, int y) {
+    final i = (y * w + x) * 4;
+    return inky(rgba, w, x, y) &&
+        erodableRgb((rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2]);
+  }
+
+  bool iconInk(Uint8List rgba, int w, int x, int y) =>
+      inky(rgba, w, x, y) && !foreign(rgba, w, x, y);
 
   void floodTransparent(img.Image icon) {
     bool nearWhite(img.Pixel p) => p.r >= 240 && p.g >= 240 && p.b >= 240;
@@ -420,13 +766,50 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     }
   }
 
+  /// Makes transparent every foreign pixel of [icon] that touches a transparent pixel or
+  /// the edge, repeatedly, so wire ink left against the icon's outline falls away, then
+  /// trims the transparent margin.
+  img.Image peelForeign(img.Image icon) {
+    final iw = icon.width, ih = icon.height;
+    var peeled = true;
+    while (peeled) {
+      peeled = false;
+      for (final p in icon) {
+        if (p.a == 0 || !foreignRgb(_rgbOf(p))) continue;
+        final x = p.x, y = p.y;
+        final outside =
+            x == 0 ||
+            y == 0 ||
+            x == iw - 1 ||
+            y == ih - 1 ||
+            icon.getPixel(x - 1, y).a == 0 ||
+            icon.getPixel(x + 1, y).a == 0 ||
+            icon.getPixel(x, y - 1).a == 0 ||
+            icon.getPixel(x, y + 1).a == 0;
+        if (!outside) continue;
+        icon.setPixelRgba(x, y, 0, 0, 0, 0);
+        peeled = true;
+      }
+    }
+    var l = iw, t = ih, r = -1, b = -1;
+    for (final p in icon) {
+      if (p.a == 0) continue;
+      if (p.x < l) l = p.x;
+      if (p.x > r) r = p.x;
+      if (p.y < t) t = p.y;
+      if (p.y > b) b = p.y;
+    }
+    if (r < 0 || (l == 0 && t == 0 && r == iw - 1 && b == ih - 1)) return icon;
+    return img.copyCrop(icon, x: l, y: t, width: r - l + 1, height: b - t + 1);
+  }
+
   void erodeWireTails(Uint8List rgba, int w, int h) {
     int vrun(int x, int y) {
       var t = y, b = y;
-      while (t > 0 && inky(rgba, w, x, t - 1)) {
+      while (t > 0 && erodable(rgba, w, x, t - 1)) {
         t--;
       }
-      while (b < h - 1 && inky(rgba, w, x, b + 1)) {
+      while (b < h - 1 && erodable(rgba, w, x, b + 1)) {
         b++;
       }
       return b - t + 1;
@@ -434,10 +817,10 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
 
     int hrun(int x, int y) {
       var l = x, r = x;
-      while (l > 0 && inky(rgba, w, l - 1, y)) {
+      while (l > 0 && erodable(rgba, w, l - 1, y)) {
         l--;
       }
-      while (r < w - 1 && inky(rgba, w, r + 1, y)) {
+      while (r < w - 1 && erodable(rgba, w, r + 1, y)) {
         r++;
       }
       return r - l + 1;
@@ -446,21 +829,22 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     final queue = <(int, int, bool)>[];
     for (var y = 0; y < h; y++) {
       for (final x in [0, w - 1]) {
-        if (inky(rgba, w, x, y) && vrun(x, y) <= 3) queue.add((x, y, true));
+        if (erodable(rgba, w, x, y) && vrun(x, y) <= 5) queue.add((x, y, true));
       }
     }
     for (var x = 0; x < w; x++) {
       for (final y in [0, h - 1]) {
-        if (inky(rgba, w, x, y) && hrun(x, y) <= 3) queue.add((x, y, false));
+        if (erodable(rgba, w, x, y) && hrun(x, y) <= 5)
+          queue.add((x, y, false));
       }
     }
     while (queue.isNotEmpty) {
       final (x, y, horiz) = queue.removeLast();
       if (x < 0 || y < 0 || x >= w || y >= h) continue;
-      if (!inky(rgba, w, x, y)) continue;
-      if (horiz ? vrun(x, y) > 3 : hrun(x, y) > 3) continue;
+      if (!erodable(rgba, w, x, y)) continue;
+      if (horiz ? vrun(x, y) > 5 : hrun(x, y) > 5) continue;
       final i = (y * w + x) * 4;
-      rgba[i] = rgba[i + 1] = rgba[i + 2] = 255;
+      rgba[i] = rgba[i + 1] = rgba[i + 2] = kErasedRgb & 0xff;
       queue.addAll([
         (x + 1, y, horiz),
         (x - 1, y, horiz),
@@ -517,6 +901,15 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
           ..sort();
     if (keys.isEmpty) break;
     for (final key in keys) {
+      final identity = key.split('@').first;
+      final antiAliased = softOnly.contains(identity);
+      final primitive = identity.startsWith('prim');
+      foreignRgb = antiAliased
+          ? isOverlayInk
+          : (rgb) => isForeignInk(identity, rgb);
+      erodableRgb = primitive && !antiAliased
+          ? (rgb) => isForeignInk(identity, rgb)
+          : isOverlayInk;
       final all = samples[key]!;
       final dims = <String, int>{};
       for (final s in all) {
@@ -528,19 +921,20 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         ..sort((a, b) => b.quality.compareTo(a.quality));
       final w0 = group.first.w, h0 = group.first.h;
 
-      const boxPad = 5;
+      const boxPad = kPrimIconCropPad;
       final bw = w0 - 2 * boxPad, bh = h0 - 2 * boxPad;
+      bool ringInk(Uint8List rgba, int x, int y) =>
+          iconInk(rgba, w0, x, y) ||
+          primitive && !antiAliased && foreign(rgba, w0, x, y);
       bool ringComplete(Uint8List rgba) {
         if (bw < 8 || bh < 8) return false;
         for (var x = boxPad; x < boxPad + bw; x++) {
-          if (!inky(rgba, w0, x, boxPad) ||
-              !inky(rgba, w0, x, boxPad + bh - 1)) {
+          if (!ringInk(rgba, x, boxPad) || !ringInk(rgba, x, boxPad + bh - 1)) {
             return false;
           }
         }
         for (var y = boxPad; y < boxPad + bh; y++) {
-          if (!inky(rgba, w0, boxPad, y) ||
-              !inky(rgba, w0, boxPad + bw - 1, y)) {
+          if (!ringInk(rgba, boxPad, y) || !ringInk(rgba, boxPad + bw - 1, y)) {
             return false;
           }
         }
@@ -564,40 +958,47 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
           if (ringComplete(s.rgba)) (rect: boxRectOf(s.rgba), source: s.source),
       ];
       if (ringed.isNotEmpty) {
-        final rectGroups =
-            <String, ({Uint8List rect, int count, Set<String> sources})>{};
-        for (final c in ringed) {
-          final sig = String.fromCharCodes(c.rect);
-          final prev = rectGroups[sig];
-          rectGroups[sig] = (
-            rect: c.rect,
-            count: (prev?.count ?? 0) + 1,
-            sources: {...?prev?.sources, c.source},
-          );
-        }
-        final ranked = rectGroups.values.toList()
-          ..sort((a, b) => b.count.compareTo(a.count));
-        final win = ranked.first;
-        included[key] = {...win.sources};
         final icon = img.Image(width: bw, height: bh, numChannels: 4);
+        var disputed = 0;
         for (var y = 0; y < bh; y++) {
           for (var x = 0; x < bw; x++) {
             final i = (y * bw + x) * 4;
+            final own = <int, int>{}, over = <int, int>{};
+            for (final c in ringed) {
+              final rgb =
+                  (c.rect[i] << 16) | (c.rect[i + 1] << 8) | c.rect[i + 2];
+              if (rgb == kErasedRgb) continue;
+              final tally = foreignRgb(rgb) ? over : own;
+              tally[rgb] = (tally[rgb] ?? 0) + 1;
+            }
+            final tally = own.isNotEmpty ? own : over;
+            if (tally.length > 1) disputed++;
+            var rgb = 0, best = 0;
+            for (final e in tally.entries) {
+              if (e.value > best) {
+                best = e.value;
+                rgb = e.key;
+              }
+            }
             icon.setPixelRgba(
               x,
               y,
-              win.rect[i],
-              win.rect[i + 1],
-              win.rect[i + 2],
+              rgb >> 16,
+              (rgb >> 8) & 0xff,
+              rgb & 0xff,
               255,
             );
           }
         }
+        included[key] = {for (final c in ringed) c.source};
         pending[key] = (
           icon: icon,
           sources:
-              'border-exact rect (${win.count}/${ringed.length} ring '
-              'samples agree byte-for-byte): ${win.sources.join(', ')}',
+              'border-exact rect (${ringed.length} ring sample'
+              '${ringed.length == 1 ? '' : 's'} voted per pixel, foreign ink '
+              'outvoted by the icon beneath'
+              '${disputed == 0 ? '' : ', $disputed pixels disputed'}): '
+              '${included[key]!.join(', ')}',
         );
         continue;
       }
@@ -639,14 +1040,13 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         for (var y = boxPad; y < boxPad + bh; y++) {
           for (var x = boxPad; x < boxPad + bw; x++) {
             final sx = x + bx, sy = y + by;
-            final aInk = inky(a.rgba, w0, x, y) && !wireInk(a.rgba, w0, x, y);
+            final aInk = iconInk(a.rgba, w0, x, y);
             final bInk =
                 sx >= 0 &&
                 sy >= 0 &&
                 sx < b.w &&
                 sy < b.h &&
-                inky(b.rgba, b.w, sx, sy) &&
-                !wireInk(b.rgba, b.w, sx, sy);
+                iconInk(b.rgba, b.w, sx, sy);
             if (!aInk && !bInk) continue;
             union++;
             if (aInk && bInk) match++;
@@ -656,7 +1056,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
       }
 
       /// The share of inked pixels of [a] and [b] (aligned by [dx], [dy]) that are the same
-      /// colour; wire ink in either is left out.
+      /// colour; foreign ink in either is left out.
       double sameArtRate(
         ({Uint8List rgba, int w, int h, String source, double quality}) a,
         ({Uint8List rgba, int w, int h, String source, double quality}) b,
@@ -674,8 +1074,8 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
             if (!aInk && !bInk) continue;
             final ca = (a.rgba[i] << 16) | (a.rgba[i + 1] << 8) | a.rgba[i + 2];
             final cb = (b.rgba[j] << 16) | (b.rgba[j + 1] << 8) | b.rgba[j + 2];
-            if (kIconStubInk.contains(ca) || kIconStubInk.contains(cb))
-              continue;
+            if (ca == kErasedRgb || cb == kErasedRgb) continue;
+            if (foreignRgb(ca) || foreignRgb(cb)) continue;
             counted++;
             if (ca == cb) same++;
           }
@@ -716,10 +1116,29 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         }
       }
       included[key] = {for (final a in aligned) a.source};
+      final debug = kIconDebugKeys.split(',').contains(identity);
+      if (debug) {
+        var n = 0;
+        for (final s in group) {
+          final tag = aligned.any((a) => a.source == s.source) ? 'in' : 'out';
+          _debugPng('$key/sample${n++}_${tag}_${s.source}', s.rgba, s.w, s.h);
+        }
+        File('$kIconDebugDir/$key/notes.txt')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(
+            'seeded: $seeded base: ${base.source}\n'
+            '${group.map((s) {
+              final (dx, dy, agree) = alignOnto(base, s);
+              return '${s.source}: dx $dx dy $dy agree ${agree.toStringAsFixed(3)} '
+                  'sameArt ${sameArtRate(base, s, dx, dy).toStringAsFixed(3)}';
+            }).join('\n')}\n',
+          );
+      }
       final consensus = Uint8List(w0 * h0 * 4);
       for (var y = 0; y < h0; y++) {
         for (var x = 0; x < w0; x++) {
-          final votes = <int, int>{};
+          final own = <int, int>{}, over = <int, int>{};
+          var ownVotes = 0, overVotes = 0;
           for (final a in aligned) {
             final sx = x + a.dx, sy = y + a.dy;
             if (sx < 0 || sy < 0 || sx >= a.w || sy >= a.h) continue;
@@ -728,17 +1147,34 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
                 ((a.rgba[j] >> 4) << 8) |
                 ((a.rgba[j + 1] >> 4) << 4) |
                 (a.rgba[j + 2] >> 4);
-            votes[q] = (votes[q] ?? 0) + 1;
+            final rgb =
+                (a.rgba[j] << 16) | (a.rgba[j + 1] << 8) | a.rgba[j + 2];
+            if (rgb == kErasedRgb) continue;
+            if (foreignRgb(rgb)) {
+              over[q] = (over[q] ?? 0) + 1;
+              overVotes++;
+            } else {
+              own[q] = (own[q] ?? 0) + 1;
+              ownVotes++;
+            }
           }
           final i = (y * w0 + x) * 4;
-          if (votes.isEmpty) {
+          if (ownVotes + overVotes == 0) {
             consensus[i] = consensus[i + 1] = consensus[i + 2] = 255;
             consensus[i + 3] = 255;
             continue;
           }
+          final foreignCounts = ownVotes < 2 && overVotes > 0;
+          final counted = foreignCounts ? ownVotes + overVotes : ownVotes;
+          final votes = {...own};
+          if (foreignCounts) {
+            for (final e in over.entries) {
+              votes[e.key] = (votes[e.key] ?? 0) + e.value;
+            }
+          }
           final top =
               (votes.entries.toList()..sort((a, b) => b.value - a.value)).first;
-          if (aligned.length >= 3 && top.value * 3 < aligned.length * 2) {
+          if (counted >= 3 && top.value * 3 < counted * 2) {
             consensus[i] = consensus[i + 1] = consensus[i + 2] = 255;
             consensus[i + 3] = 255;
             continue;
@@ -796,91 +1232,32 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
           }
         }
       }
-      void keepMainCluster(Uint8List rgba) {
-        final compOf = List<int>.filled(w0 * h0, -1);
-        final comps = <({List<int> px, int l, int t, int r, int b})>[];
-        for (var y = 0; y < h0; y++) {
-          for (var x = 0; x < w0; x++) {
-            if (compOf[y * w0 + x] != -1 || !inky(rgba, w0, x, y)) continue;
-            final id = comps.length;
-            final pixels = <int>[];
-            int cl = x, ct = y, cr = x, cb = y;
-            final queue = <(int, int)>[(x, y)];
-            while (queue.isNotEmpty) {
-              final (px, py) = queue.removeLast();
-              if (px < 0 || py < 0 || px >= w0 || py >= h0) continue;
-              final idx = py * w0 + px;
-              if (compOf[idx] != -1 || !inky(rgba, w0, px, py)) continue;
-              compOf[idx] = id;
-              pixels.add(idx);
-              if (px < cl) cl = px;
-              if (px > cr) cr = px;
-              if (py < ct) ct = py;
-              if (py > cb) cb = py;
-              queue.addAll([
-                (px + 1, py),
-                (px - 1, py),
-                (px, py + 1),
-                (px, py - 1),
-                (px + 1, py + 1),
-                (px - 1, py - 1),
-                (px + 1, py - 1),
-                (px - 1, py + 1),
-              ]);
-            }
-            comps.add((px: pixels, l: cl, t: ct, r: cr, b: cb));
-          }
-        }
-        if (comps.length < 2) return;
-        var main = 0;
-        for (var i = 1; i < comps.length; i++) {
-          if (comps[i].px.length > comps[main].px.length) main = i;
-        }
-        final kept = <int>{main};
-        var kl = comps[main].l,
-            kt = comps[main].t,
-            kr = comps[main].r,
-            kb = comps[main].b;
-        var grew = true;
-        while (grew) {
-          grew = false;
-          for (var i = 0; i < comps.length; i++) {
-            if (kept.contains(i)) continue;
-            final c = comps[i];
-            final inside =
-                c.l >= kl - 1 &&
-                c.r <= kr + 1 &&
-                c.t >= kt - 1 &&
-                c.b <= kb + 1;
-            final adjacent =
-                c.l - 2 <= kr &&
-                c.r + 2 >= kl &&
-                c.t - 2 <= kb &&
-                c.b + 2 >= kt;
-            final wireLike = (c.b - c.t + 1) <= 3 || (c.r - c.l + 1) <= 1;
-            if (inside || (adjacent && !wireLike)) {
-              kept.add(i);
-              if (c.l < kl) kl = c.l;
-              if (c.t < kt) kt = c.t;
-              if (c.r > kr) kr = c.r;
-              if (c.b > kb) kb = c.b;
-              grew = true;
-            }
-          }
-        }
-        for (var i = 0; i < comps.length; i++) {
-          if (kept.contains(i)) continue;
-          for (final idx in comps[i].px) {
-            rgba[idx * 4] = rgba[idx * 4 + 1] = rgba[idx * 4 + 2] = 255;
-          }
-        }
+      bool paletteInk(Uint8List rgba, int w, int x, int y) {
+        final i = (y * w + x) * 4;
+        return inky(rgba, w, x, y) &&
+            kPrimitiveInkPalette.contains(
+              BdColorAlias.canonicalRgb(
+                (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2],
+              ),
+            );
       }
 
+      void keepMainCluster(Uint8List rgba) => _keepMainCluster(
+        rgba,
+        w0,
+        h0,
+        boxPad,
+        primitive ? paletteInk : iconInk,
+        inky,
+      );
+
+      if (debug) _debugPng('$key/consensus_voted', consensus, w0, h0);
       keepMainCluster(consensus);
+      if (debug) _debugPng('$key/consensus_clustered', consensus, w0, h0);
       int l = w0, t = h0, r = -1, btm = -1;
 
-      /// The ink's bounds; wire ink lying on the boundary is a stub and is erased, so
-      /// the bounds shrink until no boundary pixel is wire-coloured.
+      /// The ink's bounds; foreign ink lying on the boundary is a stub and is erased, so
+      /// the bounds shrink until no boundary pixel is foreign.
       void measure(Uint8List rgba) {
         while (true) {
           l = w0;
@@ -901,7 +1278,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
           for (var y = t; y <= btm; y++) {
             for (var x = l; x <= r; x++) {
               if (y != t && y != btm && x != l && x != r) continue;
-              if (!wireInk(rgba, w0, x, y)) continue;
+              if (!foreign(rgba, w0, x, y)) continue;
               final i = (y * w0 + x) * 4;
               rgba[i] = rgba[i + 1] = rgba[i + 2] = 255;
               erased = true;
@@ -911,18 +1288,33 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         }
       }
 
+      /// Whether ink bounds sit within [kPrimitiveArtMaxOffCentre] pixels of the node box's
+      /// centre on both axes, as most primitives' art does; a single sample that is wins over
+      /// one that is not, since a neighbour fused to the icon pulls the bounds off centre.
+      bool centredInBox(int l, int t, int r, int b) =>
+          ((l + r) - (w0 - 1)).abs() <= 2 * kPrimitiveArtMaxOffCentre &&
+          ((t + b) - (h0 - 1)).abs() <= 2 * kPrimitiveArtMaxOffCentre;
+
       String? singleSource;
       Uint8List? centredSingle() {
-        var bestInk = 0;
+        var bestInk = 0, bestCentred = false;
         Uint8List? single;
         for (final s in group) {
           final copy = Uint8List.fromList(s.rgba);
           keepMainCluster(copy);
           measure(copy);
+          if (debug) {
+            _debugPng('$key/single_${s.source}', copy, w0, h0);
+            File('$kIconDebugDir/$key/notes.txt').writeAsStringSync(
+              'single ${s.source}: l $l t $t r $r b $btm\n',
+              mode: FileMode.append,
+            );
+          }
           if (r < 0) continue;
           if (l == 0 || t == 0 || r == w0 - 1 || btm == h0 - 1) continue;
           final cx = w0 ~/ 2, cy = h0 ~/ 2;
           if (l > cx || r < cx || t > cy || btm < cy) continue;
+          final centred = !primitive || centredInBox(l, t, r, btm);
           if (r - l + 1 > w0 - 4 || btm - t + 1 > h0 - 4) continue;
           var ink = 0;
           for (var y = t; y <= btm; y++) {
@@ -930,13 +1322,16 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
               if (inky(copy, w0, x, y)) ink++;
             }
           }
-          if (ink > bestInk) {
+          if (ink < 60) continue;
+          if (centred && !bestCentred ||
+              centred == bestCentred && ink > bestInk) {
             bestInk = ink;
+            bestCentred = centred;
             single = copy;
             singleSource = s.source;
           }
         }
-        return bestInk < 60 ? null : single;
+        return single;
       }
 
       var method = seeded ? 'pair-seeded consensus' : 'single-sample fallback';
@@ -971,6 +1366,14 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         consensus.setAll(0, single);
         measure(consensus);
       }
+      if (r - l + 1 > bw) {
+        if (l < boxPad) l = boxPad;
+        if (r > w0 - 1 - boxPad) r = w0 - 1 - boxPad;
+      }
+      if (btm - t + 1 > bh) {
+        if (t < boxPad) t = boxPad;
+        if (btm > h0 - 1 - boxPad) btm = h0 - 1 - boxPad;
+      }
       final w = r - l + 1, h = btm - t + 1;
       final icon = img.Image(width: w, height: h, numChannels: 4);
       for (var y = 0; y < h; y++) {
@@ -987,8 +1390,8 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         }
       }
       floodTransparent(icon);
-      final maxW = w0 - 2 * 5 + 6, maxH = h0 - 2 * 5 + 6;
-      var finalIcon = icon;
+      final maxW = w0 - 2 * boxPad + 6, maxH = h0 - 2 * boxPad + 6;
+      var finalIcon = peelForeign(icon);
       if (finalIcon.width > maxW || finalIcon.height > maxH) {
         final single = centredSingle();
         img.Image? rebuilt;
@@ -1014,13 +1417,14 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
               }
             }
             floodTransparent(rebuilt);
+            rebuilt = peelForeign(rebuilt);
             method = 'single-sample retry after oversized consensus';
           }
         }
         if (rebuilt == null) {
           failed[key] =
               'extracted ink ${finalIcon.width}x${finalIcon.height} exceeds '
-              'the node box (${w0 - 10}x${h0 - 10}) — displaced model bounds '
+              'the node box (${w0 - 2 * boxPad}x${h0 - 2 * boxPad}) — displaced model bounds '
               'suspected (sources: ${group.map((s) => s.source).toSet().join(', ')})';
           continue;
         }
@@ -1060,6 +1464,12 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     if (!retried) break;
   }
 
+  final inferredBorders = inferIconBorders(
+    pending: pending,
+    softOnly: softOnly,
+    assetDir: assetDir,
+  );
+
   final renamed = _mergeVersionClusters(
     pending: pending,
     failed: failed,
@@ -1082,7 +1492,13 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     }
     final cleaned = [
       for (final crop in crops)
-        if (_cleanNodeBoxCrop(crop.rgba, crop.w, crop.h, crop.pad)
+        if (cleanNodeBoxCrop(
+              crop.rgba,
+              crop.w,
+              crop.h,
+              crop.pad,
+              (rgb) => isForeignInk(key, rgb),
+            )
             case final art?)
           (art: art, source: crop.source),
     ];
@@ -1147,9 +1563,13 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     pending: pending,
     failed: failed,
     observedKeys: observedKeys,
+    watermarkedSnippets: watermarkedSnippets,
+    watermarkedOnlyKeys: watermarkedKeys.difference(observedKeys),
     skippedLowQuality: skippedLowQuality,
+    lowRegistrationOnly: lowRegistrationOnly,
     antiAliased: antiAliased,
     softOnly: softOnly,
+    inferredBorders: inferredBorders,
     palette: paletteList,
     verifiedKeys: verifiedKeys,
     handKeys: handKeys,
@@ -1160,7 +1580,11 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
 /// Folds the appearances of each key (`key`, `key@1`, …: samples that did not agree with
 /// an earlier cut, from other LabVIEW majors) into generations named `key_from<major>` by
 /// the first LabVIEW major each appearance comes from. A verified key's committed asset
-/// names the generation it equals.
+/// names the generation it equals; when one cut serves every major, a verified generation
+/// it equals folds back into the plain key. Appearances whose cuts are identical are one
+/// candidate. A primitive has one art unless verified generations of it exist, so its
+/// appearances never split: the cut most samples agree on serves it and the others are set
+/// aside.
 Map<String, String> _mergeVersionClusters({
   required Map<String, ({img.Image icon, String sources})> pending,
   required Map<String, String> failed,
@@ -1179,10 +1603,33 @@ Map<String, String> _mergeVersionClusters({
       for (final k in [...pending.keys, ...failed.keys])
         if (k == base || k.startsWith('$base@')) k,
     ]..sort((a, b) => (included[b]?.length ?? 0) - (included[a]?.length ?? 0));
-    final candidates = [
-      for (final k in members)
-        if (pending[k] != null && (included[k]?.length ?? 0) >= 2) k,
-    ];
+    final candidates = <String>[];
+    for (final k in members) {
+      if (pending[k] == null || (included[k]?.length ?? 0) < 2) continue;
+      String? twin;
+      for (final c in candidates) {
+        if (_sameArt(pending[c]!.icon, pending[k]!.icon, tolerance: 0)) {
+          twin = c;
+          break;
+        }
+      }
+      if (twin == null) {
+        candidates.add(k);
+      } else {
+        included[twin]!.addAll(included[k]!);
+        included[k] = {};
+      }
+    }
+    if (base.startsWith('prim')) {
+      final defects = {
+        for (final k in candidates) k: _primDefects(pending[k]!.icon),
+      };
+      candidates.sort(
+        (a, b) => defects[a]! != defects[b]!
+            ? defects[a]!.compareTo(defects[b]!)
+            : included[b]!.length.compareTo(included[a]!.length),
+      );
+    }
     final votes = <int, Map<String, int>>{};
     for (final k in candidates) {
       for (final src in included[k]!) {
@@ -1233,19 +1680,48 @@ Map<String, String> _mergeVersionClusters({
     final committed = verifiedKeys.contains(base)
         ? _committedAsset(assetDir, base)
         : null;
+    final primitive =
+        base.startsWith('prim') &&
+        !verifiedKeys.any((k) => k.startsWith('${base}_from'));
     final split =
+        !primitive &&
         runs.map((r) => r.key).toSet().length >= 2 &&
         (committed == null ||
             runs.any(
               (r) => _sameArt(pending[r.key]!.icon, committed, tolerance: 0),
             ));
+    String? agreeingWithCommitted;
+    if (primitive && committed != null) {
+      for (final k in candidates) {
+        if (_sameArt(pending[k]!.icon, committed, tolerance: 0)) {
+          agreeingWithCommitted = k;
+          break;
+        }
+      }
+    }
     final keep = split
         ? null
+        : primitive
+        ? agreeingWithCommitted ?? candidates.firstOrNull ?? base
         : committed != null
         ? base
         : candidates.firstOrNull ?? base;
     if (!split) {
-      final cut = pending[keep!], inc = included[keep];
+      var cut = pending[keep!];
+      final inc = included[keep];
+      if (primitive && cut != null) {
+        final aside = members
+            .where((k) => k != keep)
+            .fold(0, (n, k) => n + (included[k]?.length ?? 0));
+        if (aside > 0) {
+          cut = (
+            icon: cut.icon,
+            sources:
+                '${cut.sources}; $aside disagreeing sample'
+                '${aside == 1 ? '' : 's'} set aside',
+          );
+        }
+      }
       for (final k in members) {
         if (k != base) {
           pending.remove(k);
@@ -1256,6 +1732,13 @@ Map<String, String> _mergeVersionClusters({
       if (cut != null) {
         pending[base] = cut;
         included[base] = inc!;
+        for (final generation in verifiedKeys) {
+          if (!generation.startsWith('${base}_from')) continue;
+          final art = _committedAsset(assetDir, generation);
+          if (art != null && _sameArt(cut.icon, art, tolerance: 0)) {
+            renamed[generation] = base;
+          }
+        }
       }
       continue;
     }
@@ -1282,13 +1765,50 @@ Map<String, String> _mergeVersionClusters({
   return renamed;
 }
 
-/// Whether two cuts are the same art: the same size and at most [tolerance] differing pixels.
+/// The pixels of a primitive's cut that cannot be its art: opaque pixels outside
+/// [kPrimitiveInkPalette] and transparent pixels enclosed by the art (a hole where a wire or
+/// coercion dot hid the icon in every sample).
+int _primDefects(img.Image icon) {
+  final w = icon.width, h = icon.height;
+  final outside = List<bool>.filled(w * h, false);
+  final stack = <int>[];
+  for (var x = 0; x < w; x++) {
+    stack.addAll([x, (h - 1) * w + x]);
+  }
+  for (var y = 0; y < h; y++) {
+    stack.addAll([y * w, y * w + w - 1]);
+  }
+  while (stack.isNotEmpty) {
+    final idx = stack.removeLast();
+    if (outside[idx] || icon.getPixel(idx % w, idx ~/ w).a != 0) continue;
+    outside[idx] = true;
+    final x = idx % w, y = idx ~/ w;
+    if (x > 0) stack.add(idx - 1);
+    if (x < w - 1) stack.add(idx + 1);
+    if (y > 0) stack.add(idx - w);
+    if (y < h - 1) stack.add(idx + w);
+  }
+  var defects = 0;
+  for (final p in icon) {
+    if (p.a == 0) {
+      if (!outside[p.y * w + p.x]) defects++;
+    } else if (!kPrimitiveInkPalette.contains(
+      BdColorAlias.canonicalRgb(_rgbOf(p)),
+    )) {
+      defects++;
+    }
+  }
+  return defects;
+}
+
+/// Whether two cuts are the same art: the same size and at most [tolerance] pixels that
+/// differ in colour once aliased or in transparency.
 bool _sameArt(img.Image a, img.Image b, {int tolerance = 12}) {
   if (a.width != b.width || a.height != b.height) return false;
   var diffs = 0;
   for (final px in a) {
     final q = b.getPixel(px.x, px.y);
-    if (px.r != q.r || px.g != q.g || px.b != q.b || px.a != q.a) diffs++;
+    if (px.a != q.a || !BdColorAlias.sameColor(_rgbOf(px), _rgbOf(q))) diffs++;
     if (diffs > tolerance) return false;
   }
   return true;
@@ -1346,7 +1866,7 @@ List<String> primIconReproErrors(PrimIconExtraction extraction) {
     var diffs = 0;
     for (final px in fresh) {
       final cp = committed.getPixel(px.x, px.y);
-      if (px.r != cp.r || px.g != cp.g || px.b != cp.b || px.a != cp.a) {
+      if (px.a != cp.a || !BdColorAlias.sameColor(_rgbOf(px), _rgbOf(cp))) {
         diffs++;
       }
     }
@@ -1357,4 +1877,238 @@ List<String> primIconReproErrors(PrimIconExtraction extraction) {
     }
   }
   return reproErrors;
+}
+
+int _rgbOf(img.Pixel p) =>
+    (p.r.toInt() << 16) | (p.g.toInt() << 8) | p.b.toInt();
+
+/// A silhouette the hard-edged assets share: its size and opaque mask, the positions of its
+/// border pixels, and each distinct colouring of that border with the keys that carry it.
+class _IconShape {
+  _IconShape(this.width, this.height, this.mask, this.border);
+
+  final int width;
+  final int height;
+  final Uint8List mask;
+  final List<int> border;
+  final Map<String, List<String>> rings = {};
+  final Map<String, img.Image> carriers = {};
+  int get area => mask.fold(0, (sum, v) => sum + v);
+}
+
+/// The least share of a hard-edged shape's opaque pixels an anti-aliased cut must cover for
+/// the shape to be its outline.
+const double kInferredBorderMinCoverage = 0.97;
+
+/// How far, in pixels, an anti-aliased cut may reach beyond the shape it is matched to:
+/// the blended fringe LabVIEW draws outside an icon's edge.
+const int kInferredBorderFringe = 2;
+
+/// Rebuilds every icon in [softOnly] (cut from anti-aliased renders, so its outline is
+/// blended with the background) on the silhouette of the hard-edged assets in [assetDir]:
+/// the shape, up to [kInferredBorderFringe] pixels smaller than the cut in each direction,
+/// that the cut covers by at least [kInferredBorderMinCoverage] while reaching no further than
+/// the fringe beyond it; among such shapes the one covered best, then the largest. The
+/// border colouring is the one, among the shape's carriers, nearest the cut's own border
+/// pixels. A primitive keeps every cut pixel in [kPrimitiveInkPalette] and takes every other
+/// pixel from that carrier, since the renders blend only the edges; any other key keeps the
+/// cut's interior and takes the border. Returns a note per key rebuilt; a key without a
+/// matching shape keeps its cut and gets no note.
+Map<String, String> inferIconBorders({
+  required Map<String, ({img.Image icon, String sources})> pending,
+  required Set<String> softOnly,
+  required Directory assetDir,
+}) {
+  String keyOf(File f) => f.uri.pathSegments.last
+      .replaceFirst(RegExp(r'\.png$'), '')
+      .replaceFirst(
+        RegExp(r'_(?!t\d|r[0-9a-f]+(?:_|$)|from\d)[a-z0-9-]+$'),
+        '',
+      );
+  final shapes = <String, _IconShape>{};
+  for (final f in assetDir.listSync().whereType<File>()) {
+    if (!f.path.endsWith('.png')) continue;
+    final key = keyOf(f);
+    if (softOnly.contains(key.replaceFirst(RegExp(r'_from\d+$'), ''))) continue;
+    final image = img.decodePng(f.readAsBytesSync());
+    if (image == null) continue;
+    final w = image.width, h = image.height;
+    final alpha = Uint8List(w * h);
+    for (final px in image) {
+      alpha[px.y * w + px.x] = px.a == 0 ? 0 : 1;
+    }
+    final border = primIconBorderMask(alpha, w, h);
+    final positions = [
+      for (var i = 0; i < border.length; i++)
+        if (border[i] != 0) i,
+    ];
+    final id = '${w}x$h:${String.fromCharCodes(alpha.map((v) => v + 0x30))}';
+    final shape = shapes[id] ??= _IconShape(w, h, alpha, positions);
+    final ring = positions
+        .map(
+          (i) => BdColorAlias.canonicalRgb(
+            _rgbOf(image.getPixel(i % w, i ~/ w)),
+          ).toRadixString(16).padLeft(6, '0'),
+        )
+        .join(',');
+    (shape.rings[ring] ??= []).add(key);
+    shape.carriers[ring] ??= image;
+  }
+  final notes = <String, String>{};
+  for (final key in softOnly) {
+    final cut = pending[key];
+    if (cut == null) continue;
+    final icon = cut.icon;
+    if (kIconDebugDir.isNotEmpty && kIconDebugKeys.split(',').contains(key)) {
+      File('$kIconDebugDir/$key/cut_before_inference.png')
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(img.encodePng(icon));
+    }
+    final w = icon.width, h = icon.height;
+    final soft = Uint8List(w * h);
+    for (final px in icon) {
+      if (px.a == 0) continue;
+      soft[px.y * w + px.x] = 1;
+    }
+    _IconShape? best;
+    var bestCoverage = 0.0, bestDx = 0, bestDy = 0;
+    for (final shape in shapes.values) {
+      if (shape.width > w || shape.height > h) continue;
+      if (w - shape.width > 2 * kInferredBorderFringe ||
+          h - shape.height > 2 * kInferredBorderFringe) {
+        continue;
+      }
+      for (var dy = 0; dy <= h - shape.height; dy++) {
+        for (var dx = 0; dx <= w - shape.width; dx++) {
+          var covered = 0;
+          for (var y = 0; y < shape.height; y++) {
+            for (var x = 0; x < shape.width; x++) {
+              if (shape.mask[y * shape.width + x] != 0 &&
+                  soft[(y + dy) * w + x + dx] != 0) {
+                covered++;
+              }
+            }
+          }
+          final coverage = covered / shape.area;
+          if (coverage < kInferredBorderMinCoverage) continue;
+          var withinFringe = true;
+          for (var y = 0; y < h && withinFringe; y++) {
+            for (var x = 0; x < w && withinFringe; x++) {
+              if (soft[y * w + x] == 0) continue;
+              var near = false;
+              for (
+                var fy = -kInferredBorderFringe;
+                fy <= kInferredBorderFringe && !near;
+                fy++
+              ) {
+                for (
+                  var fx = -kInferredBorderFringe;
+                  fx <= kInferredBorderFringe && !near;
+                  fx++
+                ) {
+                  final sx = x + fx - dx, sy = y + fy - dy;
+                  if (sx < 0 ||
+                      sy < 0 ||
+                      sx >= shape.width ||
+                      sy >= shape.height) {
+                    continue;
+                  }
+                  near = shape.mask[sy * shape.width + sx] != 0;
+                }
+              }
+              if (!near) withinFringe = false;
+            }
+          }
+          if (!withinFringe) continue;
+          if (coverage > bestCoverage ||
+              coverage == bestCoverage && shape.area > best!.area) {
+            bestCoverage = coverage;
+            best = shape;
+            bestDx = dx;
+            bestDy = dy;
+          }
+        }
+      }
+    }
+    if (best == null) continue;
+    final shape = best;
+    String? chosenRing;
+    var chosenDistance = 1 << 40;
+    for (final ring in shape.rings.keys) {
+      final colours = ring.split(',');
+      var distance = 0;
+      for (var n = 0; n < shape.border.length; n++) {
+        final i = shape.border[n];
+        final x = i % shape.width + bestDx, y = i ~/ shape.width + bestDy;
+        final px = icon.getPixel(x, y);
+        final rgb = int.parse(colours[n], radix: 16);
+        distance +=
+            (px.r.toInt() - (rgb >> 16)).abs() +
+            (px.g.toInt() - ((rgb >> 8) & 0xff)).abs() +
+            (px.b.toInt() - (rgb & 0xff)).abs();
+      }
+      final support = shape.rings[ring]!.length;
+      if (distance < chosenDistance ||
+          distance == chosenDistance &&
+              support > shape.rings[chosenRing]!.length) {
+        chosenDistance = distance;
+        chosenRing = ring;
+      }
+    }
+    final colours = chosenRing!.split(',');
+    final carrier = shape.carriers[chosenRing]!;
+    final primitive = key.startsWith('prim');
+    final rebuilt = img.Image(
+      width: shape.width,
+      height: shape.height,
+      numChannels: 4,
+    );
+    var fromCarrier = 0;
+    for (var y = 0; y < shape.height; y++) {
+      for (var x = 0; x < shape.width; x++) {
+        if (shape.mask[y * shape.width + x] == 0) continue;
+        final px = icon.getPixel(x + bestDx, y + bestDy);
+        var rgb = px.a == 0 ? 0xFFFFFF : BdColorAlias.canonicalRgb(_rgbOf(px));
+        if (primitive && !kPrimitiveInkPalette.contains(rgb)) {
+          rgb = _rgbOf(carrier.getPixel(x, y));
+          fromCarrier++;
+        }
+        rebuilt.setPixelRgba(
+          x,
+          y,
+          rgb >> 16,
+          (rgb >> 8) & 0xff,
+          rgb & 0xff,
+          255,
+        );
+      }
+    }
+    if (!primitive) {
+      for (var n = 0; n < shape.border.length; n++) {
+        final i = shape.border[n];
+        final rgb = int.parse(colours[n], radix: 16);
+        rebuilt.setPixelRgba(
+          i % shape.width,
+          i ~/ shape.width,
+          rgb >> 16,
+          (rgb >> 8) & 0xff,
+          rgb & 0xff,
+          255,
+        );
+      }
+    }
+    final carriers = shape.rings[chosenRing]!;
+    final sharing = shape.rings.values.fold(
+      0,
+      (sum, keys) => sum + keys.length,
+    );
+    pending[key] = (icon: rebuilt, sources: cut.sources);
+    notes[key] =
+        'outline inferred: the ${shape.width}x${shape.height} silhouette of '
+        '$sharing hard-edged icon${sharing == 1 ? '' : 's'} is covered by the cut at '
+        '${(bestCoverage * 100).toStringAsFixed(1)}%; '
+        '${primitive ? '$fromCarrier blended pixels taken from' : 'its border coloured as'} '
+        '${carriers.first}${carriers.length > 1 ? ' and ${carriers.length - 1} more' : ''}';
+  }
+  return notes;
 }

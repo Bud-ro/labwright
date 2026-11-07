@@ -54,6 +54,12 @@ class ViModel {
     return null;
   }
 
+  /// The save record, `LVSR`, or null when the file has none it can read.
+  ViSaveRecord? get saveRecord {
+    final lvsr = section(BlockTag.lvsr.tag);
+    return lvsr == null || lvsr.bytes.length < ViSaveRecord.layout.minSize ? null : ViSaveRecord(lvsr.bytes);
+  }
+
   /// A fresh object id for a heap object: one above the highest in use, which `MUID` now
   /// records.
   int allocateUid() {

@@ -12,6 +12,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'heap_view_chrome.dart';
 
+import 'bd_color_aliases.dart';
 import 'diagram_view.dart';
 import 'image_clipboard.dart';
 import 'oracle_gif.dart';
@@ -21,204 +22,21 @@ class BdRaster {
     required this.image,
     required this.content,
     required this.scale,
+    this.primIcons = const {},
   });
 
   final ui.Image image;
   final Rect content;
   final double scale;
 
+  /// The icon arts the raster was painted with, by key.
+  final Map<int, PrimIconArt> primIcons;
+
   Rect modelRect(HeapRect bounds) => Rect.fromLTRB(
     (bounds.left - content.left) * scale,
     (bounds.top - content.top) * scale,
     (bounds.right - content.left) * scale,
     (bounds.bottom - content.top) * scale,
-  );
-}
-
-/// The render style a snippet reference calls for once a first render is registered to it:
-/// the hatch, error-hatch and wire-cycle phases, and the alignment grid when one is drawn.
-BdRenderStyle deriveSnippetStyle({
-  required BdDiagram diagram,
-  required BdScene scene,
-  required BdRaster raster,
-  required BdRegistration registration,
-  required Uint8List referenceRgba,
-  required int width,
-  required int height,
-}) {
-  final bilevel = referenceTextIsBilevel(
-    referenceRgba: referenceRgba,
-    width: width,
-    height: height,
-    registration: registration,
-    textRects: [
-      for (final painted in scene.paintedText)
-        if (painted.fontSize == kBdTextSize) painted.rect,
-    ],
-  );
-  GlobalHatchOffset derive({required bool errorStyle}) => deriveHatchOffset(
-    diagram: diagram,
-    raster: raster,
-    registration: registration,
-    referenceRgba: referenceRgba,
-    width: width,
-    height: height,
-    errorStyle: errorStyle,
-  );
-  final style = BdRenderStyle(
-    hatchOffset: derive(errorStyle: false),
-    errorHatchOffset: derive(errorStyle: true),
-    wireCycleOffset: deriveWireCycleOffset(
-      scene: scene,
-      raster: raster,
-      registration: registration,
-      referenceRgba: referenceRgba,
-      width: width,
-      height: height,
-    ),
-    era: bilevel ?? false ? BdRenderEra.bilevel : BdRenderEra.current,
-  );
-  return deriveGridStyle(
-        raster: raster,
-        registration: registration,
-        referenceRgba: referenceRgba,
-        width: width,
-        height: height,
-        base: style,
-      ) ??
-      style;
-}
-
-/// Whether [style] changes anything a default render would show.
-bool snippetStyleRephases(BdRenderStyle style) =>
-    style.hatchOffset != kNoHatchOffset ||
-    style.errorHatchOffset != kNoHatchOffset ||
-    style.wireCycleOffset != kNoHatchOffset ||
-    style.gridPitch > 0 ||
-    style.era != BdRenderEra.current;
-
-/// Whether a reference draws its 12 px text bi-level. Each rectangle that text was painted
-/// in votes: bi-level when fewer than [kBdBilevelTintedFringe] of the 4-neighbours of its
-/// black pixels carry the tint that anti-aliasing leaves, anti-aliased otherwise; rectangles
-/// with fewer than [kBdBilevelVoteInk] black pixels abstain. The majority decides, a tie
-/// counts as anti-aliased, and null means no rectangle voted. Larger text is anti-aliased
-/// even in the bi-level renders, so callers pass only 12 px text, and an anti-aliased
-/// attachment arrow crossing one label sways only that label's vote.
-bool? referenceTextIsBilevel({
-  required Uint8List referenceRgba,
-  required int width,
-  required int height,
-  required BdRegistration registration,
-  required Iterable<Rect> textRects,
-}) {
-  var bilevel = 0, antiAliased = 0;
-  for (final rect in textRects) {
-    final mapped = registration.mapRect(rect);
-    final x0 = math.max(1, mapped.left.floor());
-    final x1 = math.min(width - 1, mapped.right.ceil());
-    final y0 = math.max(1, mapped.top.floor());
-    final y1 = math.min(height - 1, mapped.bottom.ceil());
-    var black = 0, tinted = 0;
-    for (var y = y0; y < y1; y++) {
-      for (var x = x0; x < x1; x++) {
-        final i = (y * width + x) * 4;
-        if (referenceRgba[i] != 0 ||
-            referenceRgba[i + 1] != 0 ||
-            referenceRgba[i + 2] != 0) {
-          continue;
-        }
-        black++;
-        for (final j in [i - 4, i + 4, i - width * 4, i + width * 4]) {
-          final r = referenceRgba[j],
-              g = referenceRgba[j + 1],
-              b = referenceRgba[j + 2];
-          final lo = math.min(r, math.min(g, b)),
-              hi = math.max(r, math.max(g, b));
-          if (lo > 100 && hi < 250 && hi - lo > 8) tinted++;
-        }
-      }
-    }
-    if (black < kBdBilevelVoteInk) continue;
-    if (tinted < black * kBdBilevelTintedFringe) {
-      bilevel++;
-    } else {
-      antiAliased++;
-    }
-  }
-  if (bilevel + antiAliased == 0) return null;
-  return bilevel > antiAliased;
-}
-
-/// How many black pixels a text rectangle needs before it votes.
-const int kBdBilevelVoteInk = 20;
-
-/// The tinted-fringe share below which a reference's text counts as bi-level: bi-level
-/// renders measure about 0.001 in their text, sub-pixel anti-aliased ones 0.01 and above.
-const double kBdBilevelTintedFringe = 0.005;
-
-/// The alignment grid a snippet reference shows, as a render style: the pitch and the
-/// diagram coordinates of one crossing, found as the column and row residues modulo the
-/// pitch that hold [kBdGridPhaseLead] times the grid ink of any other residue, or null when
-/// no grid of lines is drawn; a grid of dots spreads its ink evenly and so draws none.
-/// How many times the grid ink of the runner-up residue a line's residue must hold: full
-/// lines hold the pitch times the ink the crossing lines leave on every other residue.
-const int kBdGridPhaseLead = 4;
-
-BdRenderStyle? deriveGridStyle({
-  required BdRaster raster,
-  required BdRegistration registration,
-  required Uint8List referenceRgba,
-  required int width,
-  required int height,
-  BdRenderStyle base = const BdRenderStyle(),
-  int pitch = kBdDefaultGridPitch,
-}) {
-  bool isInk(int x, int y) {
-    final i = (y * width + x) * 4;
-    return referenceRgba[i] == 0xE2 &&
-        referenceRgba[i + 1] == 0xE2 &&
-        referenceRgba[i + 2] == 0xE2;
-  }
-
-  int? phaseOf(int extent, int across, bool Function(int at, int t) ink) {
-    final perResidue = List<int>.filled(pitch, 0);
-    for (var at = 0; at < extent; at++) {
-      var hits = 0;
-      for (var t = 0; t < across; t++) {
-        if (ink(at, t)) hits++;
-      }
-      perResidue[at % pitch] += hits;
-    }
-    var best = 0;
-    for (var residue = 1; residue < pitch; residue++) {
-      if (perResidue[residue] > perResidue[best]) best = residue;
-    }
-    var runnerUp = 0;
-    for (var residue = 0; residue < pitch; residue++) {
-      if (residue != best && perResidue[residue] > runnerUp) {
-        runnerUp = perResidue[residue];
-      }
-    }
-    return perResidue[best] > kBdGridPhaseLead * runnerUp ? best : null;
-  }
-
-  final column = phaseOf(width, height, (x, y) => isInk(x, y));
-  final row = phaseOf(height, width, (y, x) => isInk(x, y));
-  if (column == null || row == null) return null;
-  final scale = registration.scale;
-  return BdRenderStyle(
-    whileBandGrey: base.whileBandGrey,
-    errorCaseGreen: base.errorCaseGreen,
-    booleanGreen: base.booleanGreen,
-    hatchOffset: base.hatchOffset,
-    errorHatchOffset: base.errorHatchOffset,
-    wireCycleOffset: base.wireCycleOffset,
-    era: base.era,
-    gridPitch: pitch,
-    gridPhase: Offset(
-      (column - registration.dx) / scale + raster.content.left,
-      (row - registration.dy) / scale + raster.content.top,
-    ),
   );
 }
 
@@ -502,6 +320,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
       image: await picture.toImage(width, height),
       content: content,
       scale: pxScale,
+      primIcons: primIcons,
     );
   } finally {
     picture.dispose();
@@ -528,13 +347,7 @@ class ImageComparison {
   final Uint8List diff;
 }
 
-ImageComparison compareRgba(
-  Uint8List a,
-  Uint8List b,
-  int width,
-  int height, {
-  int threshold = 16,
-}) {
+ImageComparison compareRgba(Uint8List a, Uint8List b, int width, int height) {
   assert(a.length == b.length, 'buffers differ in length');
   assert(a.length == width * height * 4, 'buffer is not width*height*4');
   final diff = Uint8List(a.length);
@@ -545,8 +358,12 @@ ImageComparison compareRgba(
     final dg = (a[i + 1] - b[i + 1]).abs();
     final db = (a[i + 2] - b[i + 2]).abs();
     sum += dr + dg + db;
-    final maxChannel = math.max(dr, math.max(dg, db));
-    if (maxChannel > threshold) changed++;
+    if (!BdColorAlias.sameColor(
+      (a[i] << 16) | (a[i + 1] << 8) | a[i + 2],
+      (b[i] << 16) | (b[i + 1] << 8) | b[i + 2],
+    )) {
+      changed++;
+    }
     diff[i] = dr;
     diff[i + 1] = dg;
     diff[i + 2] = db;
@@ -714,9 +531,9 @@ class BdOracleResult {
 Future<BdOracleResult> compareToReference(
   ui.Image rendered,
   ui.Image reference, {
-  int threshold = 16,
   double? lockScale,
   List<Rect> anchorRects = const [],
+  List<Rect> exactRects = const [],
   BdRegistration? knownRegistration,
   Uint8List? knownReferenceEdges,
 }) async {
@@ -762,6 +579,8 @@ Future<BdOracleResult> compareToReference(
                       width,
                       height,
                       anchorRects: anchorRects,
+                      exactRects: exactRects,
+                      referenceRgba: referenceRgba,
                     )
                   : _inkBoundsRegistration(srcInk, dstInk);
             }
@@ -785,13 +604,7 @@ Future<BdOracleResult> compareToReference(
   final renderedRgba = await _rgbaOf(fitted);
   final cmp = await Isolate.run(
     () => (
-      comparison: compareRgba(
-        renderedRgba,
-        referenceRgba,
-        width,
-        height,
-        threshold: threshold,
-      ),
+      comparison: compareRgba(renderedRgba, referenceRgba, width, height),
       structural: compareStructural(
         renderedRgba,
         referenceRgba,
@@ -818,8 +631,6 @@ Future<BdOracleResult> compareToReference(
   );
 }
 
-/// The boxes a snippet render is registered on: structures and backed labels, both drawn
-/// as crisp rectangles, except one that covers the whole diagram.
 List<Rect> bdStructureAnchorRects(
   BdDiagram diagram,
   BdRaster raster, {
@@ -842,6 +653,33 @@ List<Rect> bdStructureAnchorRects(
       continue;
     }
     out.add(raster.modelRect(bounds));
+  }
+  return out;
+}
+
+/// The render-space rectangles where [raster] stamped a primitive icon's art for each of the
+/// [drawable] objects (every drawn object by default): the pixels the registration trusts
+/// most, since the committed arts are verified against the references pixel for pixel.
+List<Rect> bdPrimIconStampRects(
+  BdDiagram diagram,
+  BdRaster raster, {
+  List<BdObject>? drawable,
+}) {
+  drawable ??= bdDrawableObjects(diagram);
+  final out = <Rect>[];
+  for (final object in drawable) {
+    final bounds = object.absBounds;
+    if (bounds == null || object.category != BdObjectKind.node) continue;
+    final art = primIconArtFor(object, diagram, raster.primIcons);
+    if (art == null) continue;
+    out.add(
+      primIconStampRect(
+        raster.modelRect(bounds),
+        art.width,
+        art.height,
+        key: loadedPrimIconIdOf(object, diagram: diagram),
+      ),
+    );
   }
   return out;
 }
@@ -1110,6 +948,8 @@ BdRegistration _translationRegistration(
   int searchRadius = 96,
   int edgeThreshold = kBdEdgeThreshold,
   List<Rect> anchorRects = const [],
+  List<Rect> exactRects = const [],
+  Uint8List? referenceRgba,
 }) {
   final base = BdRegistration(
     scale: scale,
@@ -1255,19 +1095,31 @@ BdRegistration _translationRegistration(
       }
     }
     final (dx, dy, _) = refine(best.$1, best.$2, hitsAt);
-    return BdRegistration(
-      scale: scale,
-      dx: dx,
-      dy: dy,
-    )._exactSnap(points, referenceEdges, width, height);
+    return BdRegistration(scale: scale, dx: dx, dy: dy)
+        ._exactSnap(points, referenceEdges, width, height)
+        ._inkSnap(
+          renderRgba,
+          renderWidth,
+          renderHeight,
+          referenceRgba,
+          width,
+          height,
+          exactRects: exactRects,
+        );
   }
   candidates.sort((a, b) => b.$3.compareTo(a.$3));
   final (dx, dy, _) = refine(candidates.first.$1, candidates.first.$2, hitsAt);
-  return BdRegistration(
-    scale: scale,
-    dx: dx,
-    dy: dy,
-  )._exactSnap(points, referenceEdges, width, height);
+  return BdRegistration(scale: scale, dx: dx, dy: dy)
+      ._exactSnap(points, referenceEdges, width, height)
+      ._inkSnap(
+        renderRgba,
+        renderWidth,
+        renderHeight,
+        referenceRgba,
+        width,
+        height,
+        exactRects: exactRects,
+      );
 }
 
 extension _ExactSnap on BdRegistration {
@@ -1300,6 +1152,139 @@ extension _ExactSnap on BdRegistration {
       }
     }
     return BdRegistration(scale: scale, dx: bx, dy: by);
+  }
+}
+
+/// The trusted pixels a render needs before the ink snap scores them alone.
+const int kBdInkSnapMinimum = 200;
+
+/// Which of the render's ink [_InkSnap._inkSnap] votes with, the first tier holding at least
+/// [kBdInkSnapMinimum] pixels.
+enum _InkSnapTier { exact, black, all }
+
+extension _InkSnap on BdRegistration {
+  /// This registration moved by up to [radius] pixels to where the most of the render's
+  /// trusted ink lands on a reference pixel of the same color, aliases equal: the ink inside
+  /// [exactRects] (the stamped icon arts, verified pixel for pixel), or when that is under
+  /// [kBdInkSnapMinimum] pixels the render's black ink (node frames, icon ink, text and
+  /// structure borders, which LabVIEW draws hard-edged), or when that is too the whole ink.
+  /// The current offset wins ties, and a registration that scales is left alone.
+  BdRegistration _inkSnap(
+    Uint8List renderRgba,
+    int renderWidth,
+    int renderHeight,
+    Uint8List? referenceRgba,
+    int width,
+    int height, {
+    int radius = 2,
+    List<Rect> exactRects = const [],
+  }) {
+    if (referenceRgba == null ||
+        scale != 1.0 ||
+        dx != dx.roundToDouble() ||
+        dy != dy.roundToDouble()) {
+      return this;
+    }
+    final exact = exactRects.isEmpty
+        ? null
+        : Uint8List(renderWidth * renderHeight);
+    for (final rect in exactRects) {
+      for (
+        var y = math.max(0, rect.top.round());
+        y < math.min(renderHeight, rect.bottom.round());
+        y++
+      ) {
+        for (
+          var x = math.max(0, rect.left.round());
+          x < math.min(renderWidth, rect.right.round());
+          x++
+        ) {
+          exact![y * renderWidth + x] = 1;
+        }
+      }
+    }
+    var exactCount = 0, blackCount = 0, allCount = 0;
+    for (var y = 0; y < renderHeight; y++) {
+      for (var x = 0; x < renderWidth; x++) {
+        final i = (y * renderWidth + x) * 4;
+        if (renderRgba[i + 3] == 0) continue;
+        final rgb =
+            (renderRgba[i] << 16) |
+            (renderRgba[i + 1] << 8) |
+            renderRgba[i + 2];
+        if (rgb == 0xffffff) continue;
+        allCount++;
+        if (exact != null && exact[y * renderWidth + x] != 0) exactCount++;
+        if (BdColorAlias.canonicalRgb(rgb) == BdColorAlias.nodeInk.canonical) {
+          blackCount++;
+        }
+      }
+    }
+    final tier = exactCount >= kBdInkSnapMinimum
+        ? _InkSnapTier.exact
+        : blackCount >= kBdInkSnapMinimum
+        ? _InkSnapTier.black
+        : _InkSnapTier.all;
+    final count = switch (tier) {
+      _InkSnapTier.exact => exactCount,
+      _InkSnapTier.black => blackCount,
+      _InkSnapTier.all => allCount,
+    };
+    final ink = Int32List(count * 2);
+    final colors = Int32List(count);
+    var n = 0;
+    for (var y = 0; y < renderHeight; y++) {
+      for (var x = 0; x < renderWidth; x++) {
+        final i = (y * renderWidth + x) * 4;
+        if (renderRgba[i + 3] == 0) continue;
+        final rgb =
+            (renderRgba[i] << 16) |
+            (renderRgba[i + 1] << 8) |
+            renderRgba[i + 2];
+        if (rgb == 0xffffff) continue;
+        final canonical = BdColorAlias.canonicalRgb(rgb);
+        final take = switch (tier) {
+          _InkSnapTier.exact => exact![y * renderWidth + x] != 0,
+          _InkSnapTier.black => canonical == BdColorAlias.nodeInk.canonical,
+          _InkSnapTier.all => true,
+        };
+        if (!take) continue;
+        ink[n * 2] = x;
+        ink[n * 2 + 1] = y;
+        colors[n] = canonical;
+        n++;
+      }
+    }
+    if (ink.isEmpty) return this;
+    final ox0 = dx.round(), oy0 = dy.round();
+    int hitsAt(int ox, int oy) {
+      var hits = 0;
+      for (var i = 0, c = 0; i < ink.length; i += 2, c++) {
+        final x = ink[i] + ox, y = ink[i + 1] + oy;
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        final r = (y * width + x) * 4;
+        final rgb =
+            (referenceRgba[r] << 16) |
+            (referenceRgba[r + 1] << 8) |
+            referenceRgba[r + 2];
+        if (BdColorAlias.canonicalRgb(rgb) == colors[c]) hits++;
+      }
+      return hits;
+    }
+
+    var bx = ox0, by = oy0, best = hitsAt(ox0, oy0);
+    for (var oy = -radius; oy <= radius; oy++) {
+      for (var ox = -radius; ox <= radius; ox++) {
+        if (ox == 0 && oy == 0) continue;
+        final hits = hitsAt(ox0 + ox, oy0 + oy);
+        if (hits > best) {
+          best = hits;
+          bx = ox0 + ox;
+          by = oy0 + oy;
+        }
+      }
+    }
+    return BdRegistration(scale: scale, dx: bx.toDouble(), dy: by.toDouble());
   }
 }
 
@@ -1442,7 +1427,7 @@ class _BdOracleViewState extends State<BdOracleView>
     final bytes = widget.referenceBytes;
     final reference = bytes == null ? null : await decodeReferenceImage(bytes);
     final snippet = reference?.snippetCropped ?? false;
-    final scene = BdScene(diagram)..recordPaintedText = true;
+    final scene = BdScene(diagram);
     final drawable = scene.drawable;
     final snippetVi = bytes == null ? null : extractSnippetVi(bytes);
     final facades = snippetVi == null
@@ -1480,22 +1465,39 @@ class _BdOracleViewState extends State<BdOracleView>
       raster.image,
       reference.image,
       lockScale: snippet ? 1.0 / raster.scale : null,
+      exactRects: snippet
+          ? bdPrimIconStampRects(diagram, raster, drawable: drawable)
+          : const [],
       anchorRects: snippet
           ? bdStructureAnchorRects(diagram, raster, drawable: drawable)
           : const [],
     );
     var style = const BdRenderStyle();
     if (snippet) {
-      style = deriveSnippetStyle(
+      GlobalHatchOffset derive({required bool errorStyle}) => deriveHatchOffset(
         diagram: diagram,
-        scene: scene,
-        raster: raster,
+        raster: raster!,
         registration: result.registration,
         referenceRgba: result.referenceRgba,
         width: reference.image.width,
         height: reference.image.height,
+        errorStyle: errorStyle,
       );
-      if (snippetStyleRephases(style)) {
+      style = BdRenderStyle(
+        hatchOffset: derive(errorStyle: false),
+        errorHatchOffset: derive(errorStyle: true),
+        wireCycleOffset: deriveWireCycleOffset(
+          scene: scene,
+          raster: raster,
+          registration: result.registration,
+          referenceRgba: result.referenceRgba,
+          width: reference.image.width,
+          height: reference.image.height,
+        ),
+      );
+      if (style.hatchOffset != kNoHatchOffset ||
+          style.errorHatchOffset != kNoHatchOffset ||
+          style.wireCycleOffset != kNoHatchOffset) {
         final rephased = await render(
           maxDimension: widget.maxDimension,
           scale: 1.0,

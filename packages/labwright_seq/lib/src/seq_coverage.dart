@@ -203,6 +203,77 @@ const _pythonSessionKeys = [
   'DefaultParamCategoryForArray',
 ];
 
+const _sweepLoopKeys = [
+  'Iteration',
+  'IterationExpr',
+  'Permute',
+  'NumberOfIOSessions',
+  'OpenSweepTableWhenExecuting',
+  'IsEditTimeSweepTableOpen',
+  'EnabledTestVectors',
+];
+
+const _sweepInputKeys = [
+  'Enabled',
+  'UseStream',
+  'StreamExpr',
+  'RecordExpr',
+  'FieldMappingExpr',
+  'AutoClose',
+  'CsvExpr',
+  'CsvDataTag',
+  'IgnoreTagCase',
+  'SkipLines',
+  'CsvSeparator',
+  'SpecifyPathByExpr',
+  'CsvFilePath',
+];
+
+const _sweepOutputKeys = [
+  'Enabled',
+  'UseStream',
+  'StreamExpr',
+  'AutoClose',
+  'CsvFileDirectory',
+  'CsvFileName',
+  'CsvDataTag',
+  'CsvFileMode',
+  'CsvSeparator',
+  'SpecifyPathByExpr',
+  'CsvFileDirectoryPath',
+  'CsvFilePath',
+];
+
+const _sweepParameterKeys = [
+  'ParameterStrategy',
+  'StrategyType',
+  'StartExpr',
+  'StopExpr',
+  'StepExpr',
+  'ParameterStepOperation',
+  'SweepPointsExpr',
+  'ConstantExpr',
+  'ArrayExpr',
+  'InputFieldExpr',
+  'Specification',
+  'SpecificationDataType',
+  'Log',
+  'Level',
+  'Enabled',
+  'NumericFormat',
+  'EnabledValues',
+  'PreviousSerializedValues',
+];
+
+const _sweepSessionKeys = [
+  'Channel',
+  'Attribute',
+  'ExportVariable',
+  'SessionVariable',
+  'AttributeIndex',
+  'AttributeValue',
+];
+
 Set<SeqProperty> _modeledNodes(SeqFile file) {
   final modeled = <SeqProperty>{};
   void mark(SeqProperty? node) {
@@ -540,6 +611,21 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
           'ArrayElementExpr',
           'OffsetExpr',
         ]);
+      }
+      if (step.sweepLoop case final sweep?) {
+        markKeys(step.raw, _sweepLoopKeys);
+        mark(sweep.input?.raw);
+        markKeys(sweep.input?.raw, _sweepInputKeys);
+        mark(sweep.output?.raw);
+        markKeys(sweep.output?.raw, _sweepOutputKeys);
+        mark(step.raw.prop('Parameters'));
+        for (final parameter in sweep.parameters) {
+          mark(parameter.raw);
+          markKeys(parameter.raw, _sweepParameterKeys);
+          markContainer(parameter.raw.prop('ExpressionSettings'));
+          mark(parameter.sessionSettings?.raw);
+          markKeys(parameter.sessionSettings?.raw, _sweepSessionKeys);
+        }
       }
       mark(step.raw.prop('Comp'));
       mark(step.raw.prop('DataSource'));
