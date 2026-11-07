@@ -1,7 +1,9 @@
 @Tags(['corpus'])
 library;
 
+import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -174,4 +176,43 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 4)),
   );
+  test('tree export: every source tree lowers to a package with its VIs beside the sequences, and the packages '
+      'analyze clean', () {
+    final sources = Directory('${corpusSeqDir.path}/seq-corpus/sources');
+    final trees = [...sources.listSync().whereType<Directory>(), Directory('${corpusSeqDir.path}/seq-corpus/rosetta')];
+    final out = Directory.systemTemp.createTempSync('seq_tree_export_');
+    try {
+      for (final tree in trees) {
+        final name = tree.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+        final target = Directory('${out.path}/$name');
+        final export = exportSeqTree(
+          tree,
+          packageName: seqSnakeCase(name),
+          pathDependencies: {
+            for (final package in const ['labwright', 'labwright_lv_runtime'])
+              package: seqRelativeDirectory(from: target.path, to: '${pkgRoot.path}/packages/$package'),
+          },
+        )..write(target);
+        expect(export.measures.unparsedSequenceFiles, 0, reason: name);
+      }
+      _writePackageConfig(out);
+      final analyze = Process.runSync('dart', ['analyze', out.path]);
+      expect(analyze.exitCode, 0, reason: 'exported trees must analyze clean:\n${analyze.stdout}');
+    } finally {
+      out.deleteSync(recursive: true);
+    }
+  }, timeout: const Timeout(Duration(minutes: 5)));
+}
+
+/// Resolves the exported packages' imports from this test's own package configuration, so the
+/// analyzer runs without a `pub get` in the scratch directory.
+void _writePackageConfig(Directory out) {
+  final configUri = Isolate.packageConfigSync!;
+  final config = jsonDecode(File.fromUri(configUri).readAsStringSync()) as Map<String, dynamic>;
+  for (final package in (config['packages']! as List<dynamic>).cast<Map<String, dynamic>>()) {
+    package['rootUri'] = configUri.resolve(package['rootUri']! as String).toString();
+  }
+  Directory('${out.path}/.dart_tool').createSync();
+  File('${out.path}/.dart_tool/package_config.json').writeAsStringSync(jsonEncode(config));
+  File('${out.path}/pubspec.yaml').writeAsStringSync('name: seq_tree_exports\nenvironment:\n  sdk: ^3.11.0\n');
 }

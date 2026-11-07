@@ -9,6 +9,7 @@ environment:
 
 dependencies:
   labwright_rsrc_parse: ^0.0.1
+  labwright_vi_transpile: ^0.0.1
   xml: ^6.5.0
 
 dev_dependencies:
