@@ -361,7 +361,7 @@ void main() {
       expect(source, contains('dotNet call: Knv.Instr.GenericDMM.Read'));
     });
 
-    test('an async sequence call is stated and disarms', () {
+    test('a sequence call in a new execution is stated and disarms', () {
       final file = _fileWith([
         _seqWith(
           'MainSequence',
@@ -370,7 +370,7 @@ void main() {
               'Spawn monitor',
               sdata: [
                 _p('SeqName', value: 'Monitor'),
-                _num('ThreadOpt', '1'),
+                _num('ThreadOpt', '2'),
               ],
             ),
             _stepWith(
@@ -383,8 +383,8 @@ void main() {
         _seqWith('Monitor'),
       ]);
       final source = exportSeqFileToLabwright(file);
-      expect(source, contains('// sequence call spawns a new thread in the engine'));
-      expect(source, contains('runs its sequence call in a new thread (not exported)'));
+      expect(source, contains('// sequence call spawns a new execution in the engine'));
+      expect(source, contains('runs its sequence call in a new execution (not exported)'));
     });
 
     test('popup, database, and executable payloads surface as notes', () {
@@ -1260,5 +1260,37 @@ void main() {
       );
       expect((pre >= 0, post > pre), (true, true));
     });
+  });
+  test('a call in a new thread starts without waiting; a thread wait and the sequence end await it', () {
+    final source = exportSeqFileToLabwright(
+      _fileWith([
+        _seqWith(
+          'Main',
+          steps: [
+            _stepWith(
+              'Spawn',
+              sdata: [
+                _p('SeqName', value: 'Worker'),
+                _p('UseCurFile', cls: 'Bool', value: 'true'),
+                _num('ThreadOpt', '1'),
+                _bool('AutoWaitAsync', 'true'),
+              ],
+            ),
+            _stepWith(
+              'Join',
+              typeName: 'NI_Wait',
+              props: [_num('WaitForTarget', '2'), _bool('SpecifyBySeqCall', 'true'), _str('SeqCallName', 'Spawn')],
+            ),
+          ],
+        ),
+        _seqWith('Worker'),
+      ]),
+      sourceName: 'own.seq',
+    );
+    expect(source, contains("  final threads = ts.AsyncCalls();\n"));
+    expect(source, contains("  threads.start('Spawn', worker(), waitAtEnd: true); // Spawn\n"));
+    expect(source, contains("  await threads.wait('Spawn'); // Join\n"));
+    expect(source, contains('  await threads.waitAtEnd();\n  return run.status;'));
+    expect(source, contains("lw.test('Main'"));
   });
 }

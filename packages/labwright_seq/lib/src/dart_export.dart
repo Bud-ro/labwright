@@ -1060,6 +1060,25 @@ enum _SeqFunction {
   static final Map<String, _SeqFunction> byName = {for (final f in values) f.name: f};
 }
 
+/// What a Wait step waits for.
+enum _WaitTarget {
+  /// A time interval from now.
+  timeInterval(0),
+
+  /// The next multiple of a time interval.
+  timeMultiple(1),
+
+  /// A thread, such as one a sequence call started.
+  thread(2),
+
+  /// An execution, such as one a sequence call started.
+  execution(3);
+
+  const _WaitTarget(this.code);
+  final int code;
+  static final Map<int, _WaitTarget> byCode = {for (final t in values) t.code: t};
+}
+
 /// A step-type substep that runs as part of executing the step.
 enum _SubstepKind {
   /// Runs before the step's code module.
@@ -1191,6 +1210,8 @@ class _DartExporter {
   String? _cleanupFrom;
 
   String? _stepLoop;
+
+  String? _asyncId;
 
   Map<String, String> _boxedParams = {};
 
@@ -1886,6 +1907,8 @@ class _DartExporter {
     }
     if (emittedLocals.isNotEmpty) _line('');
     _line('final $_runId = ts.SequenceRun();');
+    _asyncId = sequence.steps.any(_startsThread) ? _claimId('threads') : null;
+    if (_asyncId != null) _line('final $_asyncId = ts.AsyncCalls();');
     for (final step in sequence.steps) {
       final variable = _resultVars[step.raw];
       if (variable != null) _line('dynamic $variable = ${_resultInit(step)}; // result of ${_comment(step.name)}');
@@ -1938,6 +1961,8 @@ class _DartExporter {
     _bodyLabel = null;
     _cleanupFrom = null;
     _cleanupEntriesOf = const {};
+    if (_asyncId != null) _line('await $_asyncId.waitAtEnd();');
+    _asyncId = null;
     _line('return $_runId.status;');
     _indent = 0;
     _out
@@ -2725,7 +2750,9 @@ class _DartExporter {
       );
     }
 
-    if (step.specifiesBySequenceCall == true && step.referencedSequenceCallName != null) {
+    if ((step.waitForTargetCode ?? 0) != _WaitTarget.timeInterval.code &&
+        step.specifiesBySequenceCall == true &&
+        step.referencedSequenceCallName != null) {
       notes.add('waits for sequence call step "${step.referencedSequenceCallName}"');
     }
     if (step.threadReferenceExpression != null) {
@@ -2875,8 +2902,32 @@ class _DartExporter {
     return local || resolveExternalCall?.call(module) != null;
   }
 
+  /// Whether a step calls an exported sequence in a new thread of the same execution.
+  bool _startsThread(Step step) =>
+      step.module.adapter == SeqAdapter.sequenceCall &&
+      step.module.threadOptionCode == _newThreadOption &&
+      step.module.remoteExecution != true &&
+      _callsExportedSequence(step);
+
+  Step? _threadStep(String? reference) {
+    if (reference == null || _asyncId == null) return null;
+    final matches = [
+      for (final step in _sequence?.steps ?? const <Step>[])
+        if ((step.name == reference || step.id == reference) && _startsThread(step)) step,
+    ];
+    return matches.length == 1 ? matches.single : null;
+  }
+
+  /// The sequence call thread option that runs the callee in a new thread.
+  static const _newThreadOption = 1;
+
   String _sequenceCallLine(Step step, String call, String note) {
     final result = _resultVars[step.raw];
+    if (_asyncId != null && _startsThread(step)) {
+      final start =
+          "$_asyncId.start('${_escape(step.id ?? step.name)}', $call, waitAtEnd: ${step.module.autoWaitsAsync != false}); // $note";
+      return result == null ? start : "$start\n${'  ' * _indent}$result.Status = 'Done';";
+    }
     if (result != null) return '$result.Status = await $call; // $note';
     if (step.settings.failureCausesSequenceFailure == false) return 'await $call; // $note';
     return '$_runId.record(await $call); // $note';
@@ -2946,6 +2997,19 @@ class _DartExporter {
       case StepType.label:
         _line('// label: $name');
         return;
+      case StepType.wait when _WaitTarget.byCode[step.waitForTargetCode ?? 0] != _WaitTarget.timeInterval:
+        final target = _WaitTarget.byCode[step.waitForTargetCode];
+        final call = target == _WaitTarget.thread && step.specifiesBySequenceCall == true && step.timeoutEnabled != true
+            ? _threadStep(step.referencedSequenceCallName)
+            : null;
+        if (call != null) {
+          _line("await $_asyncId.wait('${_escape(call.id ?? call.name)}'); // $name");
+        } else {
+          final what = target?.name ?? 'target ${step.waitForTargetCode}';
+          if (asTest) _markUnported('wait step "${step.name}" for $what not exported');
+          _line('// $name: wait for $what not exported');
+        }
+        return;
       case StepType.wait:
         final timeout = step.timeoutExpression ?? step.waitTimeExpression;
         final literal = timeout != null ? num.tryParse(timeout.trim()) : null;
@@ -2981,7 +3045,7 @@ class _DartExporter {
           2 => 'a new execution',
           _ => null,
         };
-        if (spawns != null) {
+        if (spawns != null && !_startsThread(step)) {
           _line('// sequence call spawns $spawns in the engine — exported as a plain awaited call');
           if (asTest) _markUnported('step "${step.name}" runs its sequence call in $spawns (not exported)');
         }

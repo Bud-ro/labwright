@@ -89,6 +89,21 @@ class Ref<T> {
   T value;
 }
 
+/// The sequence calls a sequence started in new threads: waited for by step name, and at the end of the calling
+/// sequence when the call asked for it.
+class AsyncCalls {
+  final Map<String, Future<Object?>> _byStep = {};
+  final List<Future<Object?>> _atEnd = [];
+  void start(String step, Future<Object?> call, {required bool waitAtEnd}) {
+    call.ignore();
+    _byStep[step] = call;
+    if (waitAtEnd) _atEnd.add(call);
+  }
+
+  Future<Object?> wait(String step) => _byStep[step] ?? (throw StateError('no thread was started by step "$step"'));
+  Future<void> waitAtEnd() => Future.wait(_atEnd);
+}
+
 /// A deep copy of a value passed to a by-value container parameter.
 T copy<T>(T value) => switch (value) {
   final List<Object?> list => <Object?>[for (final element in list) copy(element)] as T,
