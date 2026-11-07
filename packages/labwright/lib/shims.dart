@@ -83,6 +83,23 @@ double rand([Object? min, Object? max]) {
   throw UnimplementedError('Random with non-numeric bounds');
 }
 
+/// A sequence parameter passed by reference that the callee writes: the caller reads [value] back after the call.
+class Ref<T> {
+  Ref(this.value);
+  T value;
+}
+
+/// A deep copy of a value passed to a by-value container parameter.
+T copy<T>(T value) => switch (value) {
+  final List<Object?> list => <Object?>[for (final element in list) copy(element)] as T,
+  final PropObj object =>
+    (PropObj.named(object._name)
+          .._canonical.addAll(object._canonical)
+          .._values.addAll({for (final e in object._values.entries) e.key: copy(e.value)}))
+        as T,
+  _ => value,
+};
+
 /// A Numeric Limit Test comparison: the first pair of letters applies to the low limit and the second to the high
 /// limit; a single pair compares against the low limit.
 enum LimitComparison {

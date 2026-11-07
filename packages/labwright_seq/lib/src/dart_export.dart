@@ -636,17 +636,18 @@ class _StubInfo {
     }
   }
 
-  Map<String, ({String id, _DartSlot type})> paramTableFor(StepModule module) {
+  Map<String, ({String id, _DartSlot type, bool boxed})> paramTableFor(StepModule module) {
     final proto = module.prototypeParameters;
     if (proto.isNotEmpty) {
       return {
-        for (final p in proto) p.name.toLowerCase(): (id: _idOf[p.name.toLowerCase()]!, type: _stubParamType(p)),
+        for (final p in proto)
+          p.name.toLowerCase(): (id: _idOf[p.name.toLowerCase()]!, type: _stubParamType(p), boxed: false),
       };
     }
     return {
       for (final a in module.sequenceArguments)
         if (_idOf.containsKey(a.name.toLowerCase()))
-          a.name.toLowerCase(): (id: _idOf[a.name.toLowerCase()]!, type: _DartSlot.untyped),
+          a.name.toLowerCase(): (id: _idOf[a.name.toLowerCase()]!, type: _DartSlot.untyped, boxed: false),
     };
   }
 
@@ -692,6 +693,11 @@ class _SeqScope {
   };
 
   late final Set<String> allIds = {...paramIds.values, ...localIds.values};
+
+  late final Set<String> boxedIds = {
+    for (final p in emittedParams)
+      if (writtenParams.contains(p.name.toLowerCase()) && idTypes[paramIds[p.name]]!.isScalar) paramIds[p.name]!,
+  };
 }
 
 List<_SeqScope> _sequenceScopeTable(SeqFile file, Set<String> taken, {String? sourceName}) {
@@ -1186,6 +1192,8 @@ class _DartExporter {
 
   String? _stepLoop;
 
+  Map<String, String> _boxedParams = {};
+
   Set<int> _cleanupEntriesOf = const {};
 
   Map<SeqProperty, Map<String, String>> _gotoLabels = Map.identity();
@@ -1400,7 +1408,9 @@ class _DartExporter {
     switch (root) {
       case 'Locals' || 'Parameters':
         final id = _idIn(root == 'Locals' ? _localIds : _paramIds, name);
-        return id == null ? null : typed(id, _idTypes[id]);
+        if (id == null) return null;
+        final box = root == 'Parameters' ? _boxedParams[id] : null;
+        return box != null ? typed('$box.value', _idTypes[id]) : typed(id, _idTypes[id]);
       case 'FileGlobals':
         final declared = _fileGlobalCanon[name.toLowerCase()];
         return declared == null ? null : typed('fileGlobals.$declared', _fileGlobalTypes[declared]);
@@ -1835,7 +1845,11 @@ class _DartExporter {
     _idTypes = scope.idTypes;
 
     final params = [
-      for (final p in emittedParams) _paramDecl(p, _paramIds[p.name]!),
+      for (final p in emittedParams)
+        if (scope.boxedIds.contains(_paramIds[p.name]))
+          'ts.Ref<${_idTypes[_paramIds[p.name]]!.source}>? ${_paramIds[p.name]}'
+        else
+          _paramDecl(p, _paramIds[p.name]!),
     ];
     _out.writeln(
       'Future<String> $fnName('
@@ -1846,14 +1860,26 @@ class _DartExporter {
     _runId = _claimId('run');
     _resultVars = _trackedResults(sequence);
 
-    var arrayPreamble = false;
+    var preamble = false;
+    _boxedParams = {};
     for (final p in emittedParams) {
+      final id = _paramIds[p.name]!;
       if (_scalarType(p) == null && _isArrayVar(p)) {
-        _line('${_paramIds[p.name]!} ??= ${_arrayInit(p)};${_typeComment(p)}');
-        arrayPreamble = true;
+        _line('$id ??= ${_arrayInit(p)};${_typeComment(p)}');
+        preamble = true;
+      }
+      if (scope.boxedIds.contains(id)) {
+        final (type, _, init) = _scalarDecl(p, id)!;
+        final box = _claimId('${id}Ref');
+        _line('final $box = $id ?? ts.Ref<${type.source}>($init);');
+        _boxedParams[id] = box;
+        preamble = true;
+      } else if (_scalarType(p) == null && !p.passesByReference) {
+        _line('$id = ts.copy($id);');
+        preamble = true;
       }
     }
-    if (arrayPreamble) _line('');
+    if (preamble) _line('');
 
     for (final local in emittedLocals) {
       _line(_localDecl(local, _localIds[local.name]!));
@@ -2970,20 +2996,16 @@ class _DartExporter {
             : null;
         if (inFileFn != null) {
           final scope = _scopeByName[target]!;
-          var argsText = '';
+          var args = (text: '', disarmed: false, before: const <String>[], after: const <String>[]);
           if (module.sequenceArguments.isNotEmpty) {
             _stats.boundSites++;
             _stats.localBoundSites++;
-            final (:text, :disarmed) = _renderCallArgs(
-              module,
-              calleeLabel: target!,
-              params: _scopeParamTable(scope),
-              writtenParams: scope.writtenParams,
-            );
-            argsText = text;
-            if (!disarmed) _stats.localBoundSitesRearmed++;
+            args = _renderCallArgs(module, calleeLabel: target!, params: _scopeParamTable(scope));
+            if (!args.disarmed) _stats.localBoundSitesRearmed++;
           }
-          _line(_sequenceCallLine(step, '$inFileFn($argsText)', name));
+          args.before.forEach(_line);
+          _line(_sequenceCallLine(step, '$inFileFn(${args.text})', name));
+          args.after.forEach(_line);
         } else {
           final resolved = resolveExternalCall?.call(module);
           if (resolved != null) {
@@ -2993,17 +3015,18 @@ class _DartExporter {
                 '${_stubTarget(step, module)} (see its module TODOs)',
               );
             }
-            var argsText = '';
+            var args = (text: '', disarmed: false, before: const <String>[], after: const <String>[]);
             if (module.sequenceArguments.isNotEmpty) {
               _stats.boundSites++;
-              argsText = _renderCallArgs(
+              args = _renderCallArgs(
                 module,
                 calleeLabel: target ?? _stubTarget(step, module),
                 params: _scopeParamTable(resolved.scope),
-                writtenParams: resolved.scope.writtenParams,
-              ).text;
+              );
             }
-            _line(_sequenceCallLine(step, '${resolved.fn}($argsText)', '$name: external sequence'));
+            args.before.forEach(_line);
+            _line(_sequenceCallLine(step, '${resolved.fn}(${args.text})', '$name: external sequence'));
+            args.after.forEach(_line);
           } else {
             if (asTest) {
               _markUnported('external sequence: ${_stubTarget(step, module)}');
@@ -3198,17 +3221,19 @@ class _DartExporter {
       module.sequenceNameExpression ??
       step.name;
 
-  Map<String, ({String id, _DartSlot type})> _scopeParamTable(_SeqScope scope) => {
-    for (final e in scope.paramIds.entries) e.key.toLowerCase(): (id: e.value, type: scope.idTypes[e.value]!),
+  Map<String, ({String id, _DartSlot type, bool boxed})> _scopeParamTable(_SeqScope scope) => {
+    for (final e in scope.paramIds.entries)
+      e.key.toLowerCase(): (id: e.value, type: scope.idTypes[e.value]!, boxed: scope.boxedIds.contains(e.value)),
   };
 
-  ({String text, bool disarmed}) _renderCallArgs(
+  ({String text, bool disarmed, List<String> before, List<String> after}) _renderCallArgs(
     StepModule module, {
     required String calleeLabel,
-    required Map<String, ({String id, _DartSlot type})> params,
-    Set<String> writtenParams = const {},
+    required Map<String, ({String id, _DartSlot type, bool boxed})> params,
   }) {
     final parts = <String>[];
+    final before = <String>[];
+    final after = <String>[];
     var disarmed = false;
     final seen = <String>{};
     void disarm(String kind, String reason) {
@@ -3253,14 +3278,31 @@ class _DartExporter {
       } else {
         _stats.argsTranslated++;
       }
-      if (writtenParams.contains(lower) && param.type.isScalar && _isVariablePath(raw)) {
+      if (!param.boxed) {
+        parts.add('${param.id}: $value');
+        continue;
+      }
+      final ref = 'ts.Ref<${param.type.source}>($value)';
+      if (!_isVariablePath(raw)) {
+        parts.add('${param.id}: $ref');
+        continue;
+      }
+      final parsed = parseSeqExpression(raw);
+      final target = parsed == null ? null : _emitTarget(parsed);
+      final back = target == null ? null : _coerce((code: '', type: param.type, prec: _Prec.primary), target.type);
+      if (back == null || back.code != '') {
         disarmed = true;
         _stats.siteDisarms['by-ref writeback'] = (_stats.siteDisarms['by-ref writeback'] ?? 0) + 1;
         _markUnported('by-ref writeback of parameter ${arg.name} of sequence $calleeLabel not exported');
+        parts.add('${param.id}: $ref');
+        continue;
       }
-      parts.add('${param.id}: $value');
+      final box = _claimId('${param.id}Ref');
+      before.add('final $box = $ref;');
+      parts.add('${param.id}: $box');
+      after.add('${target!.code} = $box.value;');
     }
-    return (text: parts.join(', '), disarmed: disarmed);
+    return (text: parts.join(', '), disarmed: disarmed, before: before, after: after);
   }
 
   _StubInfo _stubFor(Step step, StepModule module) {

@@ -555,7 +555,7 @@ void main() {
         ),
       ],
     );
-    test('scalar by-ref writeback disarms a variable-path binding; a literal binding is safe', () {
+    test('a written by-ref scalar passes a box the caller reads back; a literal passes a fresh box', () {
       final callee = bumpingCallee(byReference: true);
       final varBound = _fileWith([
         _seqWith(
@@ -568,9 +568,17 @@ void main() {
         callee,
       ]);
       final varSource = exportSeqFileToLabwright(varBound, sourceName: 'own.seq');
-      expect(varSource, contains('run.record(await callee(x: y)); // Run it'), reason: 'the value still passes in');
-      expect(varSource, contains("lw.skipTest('Caller'"));
-      expect(varSource, contains('by-ref writeback of parameter X of sequence Callee not exported'));
+      expect(
+        varSource,
+        contains(
+          '  final xRef = ts.Ref<int>(y);\n  run.record(await callee(x: xRef)); // Run it\n  y = xRef.value;',
+        ),
+      );
+      expect(
+        varSource,
+        contains('Future<String> callee({ts.Ref<int>? x}) async {\n  final xRef = x ?? ts.Ref<int>(0);'),
+      );
+      expect(varSource, contains("lw.test('Caller'"));
 
       final literalBound = _fileWith([
         _seqWith(
@@ -582,8 +590,28 @@ void main() {
         callee,
       ]);
       final literalSource = exportSeqFileToLabwright(literalBound, sourceName: 'own.seq');
-      expect(literalSource, contains('run.record(await callee(x: 5)); // Run it'));
+      expect(literalSource, contains('run.record(await callee(x: ts.Ref<int>(5))); // Run it'));
       expect(literalSource, contains("lw.test('Caller'"), reason: 'a literal has nothing to write back to — armed');
+    });
+    test('a by-value container parameter is copied on entry; a by-reference one is shared', () {
+      final source = exportSeqFileToDart(
+        _fileWith([
+          _seqWith(
+            'Callee',
+            params: [
+              SeqProperty(name: 'Copied', className: 'Obj', subProps: [_num('A', '1')]),
+              SeqProperty(
+                name: 'Shared',
+                className: 'Obj',
+                subProps: [_num('A', '1')],
+                attributes: {'valueflags': '${SeqPropertyFlag.passByReference.bit}'},
+              ),
+            ],
+          ),
+        ]),
+      );
+      expect(source, contains('  copied = ts.copy(copied);\n'));
+      expect(source, isNot(contains('shared = ts.copy(shared)')));
     });
     test('a by-value parameter the callee writes leaves a variable-path binding armed', () {
       final file = _fileWith([
