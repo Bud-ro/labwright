@@ -315,9 +315,7 @@ enum SeqViParameterDirection {
   output(1);
 
   const SeqViParameterDirection(this.code);
-
   final int code;
-
   static SeqViParameterDirection? ofCode(int? code) {
     for (final direction in values) {
       if (direction.code == code) return direction;
@@ -334,7 +332,6 @@ class CallParameter {
   /// The direction of a LabVIEW `ViCall` parameter; null for a parameter of another adapter or
   /// an unrecorded code.
   SeqViParameterDirection? get viDirection => SeqViParameterDirection.ofCode(int.tryParse(directionCode ?? ''));
-
   String get name => nonEmpty(raw.prop('Name')?.scalar) ?? nonEmpty(raw.prop('Label')?.scalar) ?? raw.name;
 
   int? get connectorNumber => _int('ConnectorNumber');

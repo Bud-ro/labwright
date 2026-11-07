@@ -40,9 +40,7 @@ class SeqExportStats {
   /// Of [viCallSites], those emitted as a throw because the step wires no expression to a
   /// required input.
   int viCallSitesUnboundInputs = 0;
-
   int viArgsTranslated = 0;
-
   int viArgsEvalFallback = 0;
 
   /// VI outputs stored to a sequence local or parameter.
@@ -68,14 +66,11 @@ class SeqViCall {
     required this.undecided,
     required this.refusal,
   });
-
   final String functionName;
 
   /// The generated file holding the function, relative to the exported package root.
   final String filePath;
-
   final Map<int, SeqViPort> parameters;
-
   final Map<int, SeqViPort> results;
 
   /// Connector-pane terminals the function leaves out because its error clusters became throws.
@@ -83,15 +78,12 @@ class SeqViCall {
 
   /// Connector-pane terminals the function leaves out because no Dart type is decided for them.
   final Map<int, String> undecided;
-
   final String? refusal;
 }
 
 class SeqViPort {
   const SeqViPort({required this.name, required this.dartType});
-
   final String name;
-
   final String dartType;
 }
 
@@ -2465,9 +2457,16 @@ class _DartExporter {
     final slot = _viSlot(dartType);
     var value = _expr(raw);
     if (!value.startsWith('ts.eval(')) {
-      final lead = _idTypes[RegExp(r'^[A-Za-z_][A-Za-z0-9_\$]*$').firstMatch(value)?.group(0) ?? ''];
-      final typedIntoNominal = slot == _DartSlot.untyped && lead != null && lead != _DartSlot.untyped;
-      if (typedIntoNominal || _kindMismatch(slot, value) || (slot == _DartSlot.integer && !_staticallyIntExpr(value))) {
+      final lead = _idTypes[RegExp(r'^[A-Za-z_][A-Za-z0-9_\$]*').firstMatch(value)?.group(0) ?? ''];
+      final intoNominal =
+          slot == _DartSlot.untyped &&
+          dartType != 'dynamic' &&
+          ((lead != null && lead != _DartSlot.untyped) || RegExp(r'''^([0-9'"-]|(true|false)$)''').hasMatch(value));
+      final intoTypedList = slot == _DartSlot.list && dartType != 'List<dynamic>' && !value.startsWith('[');
+      if (intoNominal ||
+          intoTypedList ||
+          _kindMismatch(slot, value) ||
+          (slot == _DartSlot.integer && !_staticallyIntExpr(value))) {
         value = _evalFallback(raw);
       } else if (slot == _DartSlot.number && _staticallyIntExpr(value) && !RegExp(r'^\d+$').hasMatch(value)) {
         value = RegExp(r'^[A-Za-z_][A-Za-z0-9_\$]*$').hasMatch(value) ? '$value.toDouble()' : '($value).toDouble()';

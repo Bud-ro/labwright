@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:labwright_seq/labwright_seq.dart';
 
-/// Exports the text sequence files of a source tree, with the VIs their steps call, as a Dart
+/// Exports the sequence files of a source tree, with the VIs their steps call, as a Dart
 /// package: `dart run tool/export_seq.dart <source tree> <output directory> [--package=<name>]`.
 void main(List<String> args) {
   final positional = args.where((argument) => !argument.startsWith('--')).toList();

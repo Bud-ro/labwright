@@ -219,8 +219,31 @@ void main() {
         contains("vi_user_exists.userExists(loginName: ts.eval('Locals.Found'), manager: ts.eval('Locals.Login'));"),
       );
     });
+    test('a literal feeding a nominal input falls back to eval', () {
+      final project = export(
+        [
+          _viParm('LoginName', 6, SeqViParameterDirection.input, expr: '"script.py"'),
+          _viParm('EasyUserManager in', 7, SeqViParameterDirection.input, expr: '0'),
+        ],
+        call: const SeqViCall(
+          functionName: 'userExists',
+          filePath: 'lib/user_exists.vi.dart',
+          parameters: {
+            6: SeqViPort(name: 'loginName', dartType: 'LvPath'),
+            7: SeqViPort(name: 'manager', dartType: 'Driver'),
+          },
+          results: {},
+          elided: {},
+          undecided: {},
+          refusal: null,
+        ),
+      );
+      expect(
+        project.files['example/own.seq.dart'],
+        contains("vi_user_exists.userExists(loginName: ts.eval('\"script.py\"'), manager: ts.eval('0'));"),
+      );
+    });
   });
-
   test('relative imports climb from the importing file\'s directory', () {
     expect(seqRelativeImport('a/b/c.seq.dart', 'a/x/y.vi.dart'), '../x/y.vi.dart');
     expect(seqRelativeImport('a/b/c.seq.dart', 'lv_types.dart'), '../../lv_types.dart');
@@ -228,7 +251,6 @@ void main() {
     expect(seqRelativeImport('a/b.dart', 'a/c.dart'), 'c.dart');
     expect(seqSnakeDirectory('TestStand Scripts/CC Tests'), 'test_stand_scripts/cc_tests');
   });
-
   test('a step states its VI path one of six ways', () {
     StepModule module(String? path, {String? project, String? namespace}) => StepModule.fromSData(
       _p(
@@ -253,7 +275,6 @@ void main() {
     expect(SeqViPathKind.of(module(r'<vilib>\Utility\Test.vi')), SeqViPathKind.symbolic);
     expect(SeqViPathKind.of(module(r'C:\Code\Test.vi')), SeqViPathKind.absolute);
   });
-
   group('stub naming (extension strip)', () {
     test('a VI stub name drops the .vi extension, case-insensitively', () {
       final file = _fileWith([

@@ -64,11 +64,8 @@ const int kLvEmitPageWidth = 120;
 /// Dart parameter or record field it became.
 class LvEmittedPort {
   const LvEmittedPort({required this.pane, required this.name, required this.dartType});
-
   final int pane;
-
   final String name;
-
   final String dartType;
 }
 
@@ -86,13 +83,9 @@ class LvEmittedFunction {
     required this.source,
     required this.callees,
   });
-
   final LvViUnit unit;
-
   final String functionName;
-
   final List<LvEmittedPort> parameters;
-
   final List<LvEmittedPort> results;
 
   /// Connector-pane terminals left out of a refused function's signature, by pane index, with
@@ -101,7 +94,6 @@ class LvEmittedFunction {
 
   /// Connector-pane terminals the error mode leaves out of the signature, by pane index.
   final Set<int> elided;
-
   final LvRefusal? refusal;
 
   /// The function's Dart source, unformatted, without imports or declarations.
@@ -109,7 +101,6 @@ class LvEmittedFunction {
 
   /// The function names of the VIs this body calls.
   final Set<String> callees;
-
   bool get isLowered => refusal == null;
 }
 
@@ -117,7 +108,6 @@ class LvEmittedFunction {
 /// named once, with the type declarations and file constants their sources spell.
 class LvEmittedSet {
   const LvEmittedSet({required this.functions, required this.declarations, required this.constants});
-
   final List<LvEmittedFunction> functions;
 
   /// In dependency order, so a declaration follows the ones its fields name.
@@ -194,12 +184,10 @@ class _Callable {
   final LvNaming names;
 
   LvRefusal? refusal;
-
   final Set<String> callees = <String>{};
 
   /// Connector-pane terminals of a refused function with no decided Dart type, by pane index.
   final Map<int, String> undecided = <int, String>{};
-
   final List<_Port> parameters = <_Port>[];
 
   final List<_Port> results = <_Port>[];
@@ -378,7 +366,6 @@ class _Library {
   }
 
   static String _prose(String text) => text.replaceAll(RegExp(r'\s+'), ' ').trim();
-
   LvEmittedSet emitted() {
     final emitted = <LvEmittedFunction>[];
     for (final callable in functions) {
