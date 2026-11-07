@@ -627,9 +627,6 @@ final class ViRefnumType extends ViType {
   /// Null for a code [ViRefnumKind] does not name.
   ViRefnumKind? get refnumKind => ViRefnumKind.ofCode(refKind);
 
-  /// For a [ViRefnumKind.lvObjectControl], the word after the client indices: the class of
-  /// control the reference is to, which [ViControlRefClass] names. Null for other kinds or
-  /// when the descriptor ends before it.
   int? get controlClassCode {
     if (refnumKind != ViRefnumKind.lvObjectControl) return null;
     final at = offset + _descriptorHead + 4 + 2 * clientCount;
@@ -667,19 +664,16 @@ final class ViRefnumType extends ViType {
 }
 
 /// The class of control a [ViRefnumKind.lvObjectControl] reference is to, by the code after
-/// its client indices, with the name LabVIEW shows on a local variable of it. Codes seen in
-/// the corpus; the full table is not yet decoded.
+/// its client indices, with the name LabVIEW shows on a local variable of it.
+// TODO(control-ref-class): the rest of the code table is not yet decoded.
 enum ViControlRefClass {
   digital(0x12, 'Digital'),
   string(0x1b, 'String'),
   enumeration(0x23, 'Enum');
 
   const ViControlRefClass(this.code, this.displayName);
-
   final int code;
-
   final String displayName;
-
   static ViControlRefClass? ofCode(int? code) {
     for (final value in values) {
       if (value.code == code) return value;
@@ -951,6 +945,20 @@ List<ViType> clusterFields(ViType c, List<ViType> types) => switch (c) {
   ],
   _ => const [],
 };
+
+/// [clusterFields] with each member's typedef unwound to the type it defines.
+List<ViType> clusterBaseFields(ViType c, List<ViType> types) => [
+  for (final member in clusterFields(c, types)) typedefBase(member),
+];
+
+/// [type] with any typedef wrapping unwound to the type it defines.
+ViType typedefBase(ViType type) {
+  var base = type;
+  while (base is ViTypedefType) {
+    base = base.base;
+  }
+  return base;
+}
 
 String typeLabel(ViType t, List<ViType> types) {
   if (t case ViArrayType(:final elementIndex) when elementIndex < types.length) {

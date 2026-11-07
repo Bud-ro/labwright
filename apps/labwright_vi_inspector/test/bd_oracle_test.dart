@@ -71,12 +71,20 @@ void main() {
       expect(cmp.diffFraction, 1.0);
     });
 
-    test('one changed pixel is a small fraction over the threshold', () {
+    test('one changed pixel is a small fraction', () {
       final a = solid(4, 4, 0, 0, 0);
       final b = Uint8List.fromList(a);
-      b[0] = 200;
+      b[0] = 1;
       final cmp = compareRgba(a, b, 4, 4);
       expect(cmp.diffFraction, closeTo(1 / 16, 1e-9));
+      expect(cmp.meanAbsDiff, greaterThan(0));
+    });
+
+    test('a color alias is the same color', () {
+      final a = solid(4, 4, 0xff, 0x66, 0x00);
+      final b = solid(4, 4, 0xff, 0x7f, 0x00);
+      final cmp = compareRgba(a, b, 4, 4);
+      expect(cmp.diffFraction, 0);
       expect(cmp.meanAbsDiff, greaterThan(0));
     });
   });

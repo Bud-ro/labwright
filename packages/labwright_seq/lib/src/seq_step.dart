@@ -18,7 +18,7 @@ class Step {
 
   StepType? get stepType => StepType.of(type);
 
-  String? get comment => nonEmpty(raw.directiveAttribute('%COMMENT'));
+  String? get comment => nonEmpty(raw.directiveAttribute('%COMMENT')) ?? nonEmpty(raw.xmlComment);
 
   String? get description => _scalarOf('Description');
 
@@ -113,6 +113,8 @@ class Step {
 
   FlowControl? get flowControl => FlowControl.fromStep(this);
 
+  SweepLoop? get sweepLoop => stepType == StepType.sweepLoop ? SweepLoop(raw) : null;
+
   StepLimits? get limits => StepLimits.fromStep(raw);
 
   String? get resultUnits => nonEmpty(raw.prop('Result')?.prop('Units')?.scalar);
@@ -169,6 +171,7 @@ enum StepType {
   forEach('NI_Flow_ForEach', FlowKind.forEach),
   selectBlock('NI_Flow_Select', FlowKind.selectBlock),
   caseBlock('NI_Flow_Case', FlowKind.caseBlock),
+  sweepLoop('NI_Flow_SweepLoop', FlowKind.sweepLoop),
   flowEnd('NI_Flow_End', FlowKind.end),
   breakStep('NI_Flow_Break', FlowKind.breakStmt),
 
@@ -204,6 +207,7 @@ enum FlowKind {
   forEach('for each'),
   selectBlock('select'),
   caseBlock('case'),
+  sweepLoop('sweep loop'),
   end('end'),
   breakStmt('break'),
   continueStmt('continue');
@@ -220,6 +224,7 @@ enum FlowKind {
     forEach,
     selectBlock,
     caseBlock,
+    sweepLoop,
   }.contains(this);
 
   bool get closesBlock => this == end;
@@ -268,6 +273,8 @@ class FlowControl {
     FlowKind.forEach => 'for each (${arrayElement ?? '?'} in ${arrayExpr ?? '?'})',
     FlowKind.selectBlock => 'select (${itemExpression ?? ''})',
     FlowKind.caseBlock => isDefaultCase ? 'case (default)' : 'case (${itemExpression ?? ''})',
+    FlowKind.sweepLoop =>
+      'sweep loop (${SweepLoop(_node!).parameters.map((p) => p.valueExpression ?? '?').join(', ')})',
     FlowKind.end => 'end',
     FlowKind.breakStmt => 'break',
     FlowKind.continueStmt => 'continue',
@@ -275,6 +282,112 @@ class FlowControl {
 
   @override
   String toString() => 'FlowControl(${kind.name})';
+}
+
+class SweepLoop {
+  SweepLoop(this.raw);
+  final SeqProperty raw;
+  String? get offsetExpression => nonEmpty(raw.prop('OffsetExpr')?.scalar);
+  int? get iteration => int.tryParse(raw.prop('Iteration')?.scalar ?? '');
+  String? get iterationExpression => nonEmpty(raw.prop('IterationExpr')?.scalar);
+  bool? get permutes => parseFlag(raw.prop('Permute')?.scalar);
+  int? get ioSessionCount => int.tryParse(raw.prop('NumberOfIOSessions')?.scalar ?? '');
+  bool? get opensSweepTableWhenExecuting => parseFlag(raw.prop('OpenSweepTableWhenExecuting')?.scalar);
+  bool? get sweepTableOpenAtEditTime => parseFlag(raw.prop('IsEditTimeSweepTableOpen')?.scalar);
+  String? get enabledTestVectors => nonEmpty(raw.prop('EnabledTestVectors')?.scalar);
+
+  SweepLoopInput? get input => switch (raw.prop('Input')) {
+    final node? => SweepLoopInput(node),
+    null => null,
+  };
+
+  SweepLoopOutput? get output => switch (raw.prop('Output')) {
+    final node? => SweepLoopOutput(node),
+    null => null,
+  };
+
+  List<SweepParameter> get parameters => [
+    for (final element in raw.prop('Parameters')?.array ?? const <SeqProperty>[]) SweepParameter(element),
+  ];
+}
+
+class SweepLoopInput {
+  SweepLoopInput(this.raw);
+  final SeqProperty raw;
+  String? _scalarOf(String key) => nonEmpty(raw.prop(key)?.scalar);
+  bool? get enabled => parseFlag(_scalarOf('Enabled'));
+  bool? get usesStream => parseFlag(_scalarOf('UseStream'));
+  String? get streamExpression => _scalarOf('StreamExpr');
+  String? get recordExpression => _scalarOf('RecordExpr');
+  String? get fieldMappingExpression => _scalarOf('FieldMappingExpr');
+  bool? get autoCloses => parseFlag(_scalarOf('AutoClose'));
+  String? get csvExpression => _scalarOf('CsvExpr');
+  String? get csvDataTag => _scalarOf('CsvDataTag');
+  bool? get ignoresTagCase => parseFlag(_scalarOf('IgnoreTagCase'));
+  String? get skipLinesExpression => _scalarOf('SkipLines');
+  String? get csvSeparatorExpression => _scalarOf('CsvSeparator');
+  bool? get specifiesPathByExpression => parseFlag(_scalarOf('SpecifyPathByExpr'));
+  String? get csvFilePath => _scalarOf('CsvFilePath');
+}
+
+class SweepLoopOutput {
+  SweepLoopOutput(this.raw);
+  final SeqProperty raw;
+  String? _scalarOf(String key) => nonEmpty(raw.prop(key)?.scalar);
+  bool? get enabled => parseFlag(_scalarOf('Enabled'));
+  bool? get usesStream => parseFlag(_scalarOf('UseStream'));
+  String? get streamExpression => _scalarOf('StreamExpr');
+  bool? get autoCloses => parseFlag(_scalarOf('AutoClose'));
+  String? get csvFileDirectoryExpression => _scalarOf('CsvFileDirectory');
+  String? get csvFileNameExpression => _scalarOf('CsvFileName');
+  String? get csvDataTag => _scalarOf('CsvDataTag');
+  int? get csvFileModeCode => int.tryParse(_scalarOf('CsvFileMode') ?? '');
+  String? get csvSeparatorExpression => _scalarOf('CsvSeparator');
+  bool? get specifiesPathByExpression => parseFlag(_scalarOf('SpecifyPathByExpr'));
+  String? get csvFileDirectoryPath => _scalarOf('CsvFileDirectoryPath');
+  String? get csvFilePath => _scalarOf('CsvFilePath');
+}
+
+class SweepParameter {
+  SweepParameter(this.raw);
+  final SeqProperty raw;
+  String? _scalarOf(String key) => nonEmpty(raw.prop(key)?.scalar);
+  String? get valueExpression => nonEmpty(raw.prop('ExpressionSettings')?.prop('ValueExpr')?.scalar);
+  String? get strategy => _scalarOf('ParameterStrategy');
+  String? get strategyType => _scalarOf('StrategyType');
+  String? get startExpression => _scalarOf('StartExpr');
+  String? get stopExpression => _scalarOf('StopExpr');
+  String? get stepExpression => _scalarOf('StepExpr');
+  String? get stepOperation => _scalarOf('ParameterStepOperation');
+  String? get sweepPointsExpression => _scalarOf('SweepPointsExpr');
+  String? get constantExpression => _scalarOf('ConstantExpr');
+  String? get arrayExpression => _scalarOf('ArrayExpr');
+  String? get inputFieldExpression => _scalarOf('InputFieldExpr');
+  String? get specification => _scalarOf('Specification');
+  String? get specificationDataType => _scalarOf('SpecificationDataType');
+  bool? get logs => parseFlag(_scalarOf('Log'));
+  int? get level => int.tryParse(_scalarOf('Level') ?? '');
+  bool? get enabled => parseFlag(_scalarOf('Enabled'));
+  String? get numericFormat => _scalarOf('NumericFormat');
+  String? get enabledValues => _scalarOf('EnabledValues');
+  String? get previousSerializedValues => _scalarOf('PreviousSerializedValues');
+
+  SweepSessionSettings? get sessionSettings => switch (raw.prop('SessionSettings')) {
+    final node? => SweepSessionSettings(node),
+    null => null,
+  };
+}
+
+class SweepSessionSettings {
+  SweepSessionSettings(this.raw);
+  final SeqProperty raw;
+  String? _scalarOf(String key) => nonEmpty(raw.prop(key)?.scalar);
+  String? get channel => _scalarOf('Channel');
+  String? get attribute => _scalarOf('Attribute');
+  String? get exportVariable => _scalarOf('ExportVariable');
+  String? get sessionVariable => _scalarOf('SessionVariable');
+  int? get attributeIndex => int.tryParse(_scalarOf('AttributeIndex') ?? '');
+  int? get attributeValue => int.tryParse(_scalarOf('AttributeValue') ?? '');
 }
 
 class AdditionalResult {

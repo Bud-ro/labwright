@@ -12,6 +12,7 @@ import 'heap_view_chrome.dart';
 import 'terminal_bitmaps.dart';
 
 import 'prim_icon_catalog.dart';
+import 'prim_icon_border.dart';
 import 'span_annotations.dart';
 
 class ViDiagramView extends StatefulWidget {
@@ -221,15 +222,12 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                           primIconsGrey: primIconsGrey,
                           iconFilterQuality: FilterQuality.low,
                           canvasScale: _anchorScale,
-                          style: const BdRenderStyle(
-                            gridPitch: kBdDefaultGridPitch,
-                            era: BdRenderEra.bilevel,
-                          ),
                         ),
                         foregroundPainter: _OverlayPainter(
                           origin: content.topLeft,
                           selected: _selected,
                           members: _members,
+                          diagram: _diagram,
                           canvasScale: _anchorScale,
                         ),
                       ),
@@ -248,6 +246,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
             child: _DetailsCard(
               object: _selected!,
               members: _members,
+              diagram: _diagram,
               onClose: () => setState(() {
                 _selected = null;
                 _members = const {};
@@ -427,60 +426,7 @@ class BdRenderStyle {
     this.hatchOffset = kNoHatchOffset,
     this.errorHatchOffset = kNoHatchOffset,
     this.wireCycleOffset = kNoHatchOffset,
-    this.gridPitch = 0,
-    this.gridPhase = Offset.zero,
-    this.gridLines = true,
-    this.era = BdRenderEra.current,
   });
-
-  /// Which LabVIEW renderer's conventions the diagram follows.
-  final BdRenderEra era;
-
-  /// Whether 12 px text is drawn from the bi-level glyph bitmaps rather than through the
-  /// font rasteriser.
-  bool get bitmapText => era == BdRenderEra.bilevel;
-
-  /// Whether a label's stored backing colour 0xFFFFD7 is drawn as 0xFFFFCC, as the current
-  /// renderer does; the bi-level renderer draws the stored colour.
-  bool get labelBackingMapped => era == BdRenderEra.current;
-
-  /// The ring around a tunnel: 0x444444 under the current renderer, black under the
-  /// bi-level one.
-  Color get tunnelBorder =>
-      era == BdRenderEra.bilevel ? Colors.black : kBdTunnelBorder;
-
-  /// [color] as this era draws it: the bi-level renderer paints floating-point orange
-  /// 0xFF7F00, Boolean green 0x007F00 and the while band 0x7F7F7F where the current one
-  /// paints 0xFF6600, 0x006600 and 0x777777.
-  Color eraColor(Color color) {
-    if (era != BdRenderEra.bilevel) return color;
-    if (color == kBdFloatOrange) return kBdBilevelFloatOrange;
-    if (color == kBdBooleanGreen) return kBdBilevelBooleanGreen;
-    if (color == whileBandGrey) return kBdBilevelWhileBandGrey;
-    return color;
-  }
-
-  /// A terminal's two lighter shades of [base] as the bi-level renderer draws them,
-  /// lightened by 75/255 and 178/255; the current renderer's shades are the art's own.
-  (Color, Color) terminalShades(Color base) {
-    final (mid, light) = (75 / 255, 178 / 255);
-    Color lighten(double t) => Color.fromARGB(
-      255,
-      (base.r * 255 + (255 - base.r * 255) * t).round(),
-      (base.g * 255 + (255 - base.g * 255) * t).round(),
-      (base.b * 255 + (255 - base.b * 255) * t).round(),
-    );
-    return (lighten(mid), lighten(light));
-  }
-
-  /// The alignment grid drawn under the diagram: its pitch in diagram pixels (0 draws none),
-  /// the diagram coordinates of one of its crossings, and whether it is drawn as lines
-  /// rather than dots.
-  final int gridPitch;
-
-  final Offset gridPhase;
-
-  final bool gridLines;
 
   final Color whileBandGrey;
 
@@ -497,66 +443,6 @@ class BdRenderStyle {
 
 const Color kBdDisabledChromeGrey = Color(0xFFAAAAAA);
 
-/// Floating-point orange and Boolean green as the current renderer and the bi-level
-/// renderer draw them.
-const Color kBdFloatOrange = Color(0xFFFF6600);
-
-const Color kBdBilevelFloatOrange = Color(0xFFFF7F00);
-
-const Color kBdBooleanGreen = Color(0xFF006600);
-
-const Color kBdBilevelBooleanGreen = Color(0xFF007F00);
-
-/// The while loop's band grey as the bi-level renderer draws it.
-const Color kBdBilevelWhileBandGrey = Color(0xFF7F7F7F);
-
-/// The two LabVIEW renderers the corpus shows: the current one, which anti-aliases text and
-/// tints a few colours, and the bi-level one of the 2015-era renders, which draws text from
-/// hinted bitmaps and the stored colours.
-enum BdRenderEra { current, bilevel }
-
-/// The triangle in the top-left corner of a constant linked to a type definition: its ink
-/// and the length of its sides; a 1 px gap of canvas colour separates it from the frame.
-const Color kBdTypeDefinitionMark = Color(0xFF464646);
-
-const int kBdTypeDefinitionMarkSize = 8;
-
-/// The structure colour an event structure defaults to.
-const Color kBdEventStructureColor = Color(0xFFFFFFE5);
-
-/// An event structure's border band: its width, the stripes' diagonal period, how many of
-/// those diagonals are the structure colour and how many its darker tint, and that tint.
-const int kBdEventBandWidth = 7;
-
-const int kBdEventStripePeriod = 18;
-
-const int kBdEventStripeLight = 6;
-
-const int kBdEventStripeDark = 8;
-
-const double kBdEventStripeDarkening = 216 / 255;
-
-/// The event glyph in an event structure's top-left corner: `b` blue, `c` cream.
-const List<String> kBdEventGlyph = [
-  'bbbbbbbbbbbbbb',
-  'bbbbbbbbbbbbbb',
-  'bbccccccccccbb',
-  'bbcbbbbbbbbcbb',
-  'bbccbccccbccbb',
-  'bbccbccccbccbb',
-  'bbcccbbbbcccbb',
-  'bbccccbbccccbb',
-  'bbcccbccbcccbb',
-  'bbccbccccbccbb',
-  'bbccbbbbbbccbb',
-  'bbcbbbbbbbbcbb',
-  'bbccccccccccbb',
-  'bbbbbbbbbbbbbb',
-  'bbbbbbbbbbbbbb',
-];
-
-/// The arrow glyph of a local variable, anti-aliased as LabVIEW draws it: `#` black, then
-/// greys 0x22, 0x55, 0x88, 0xBB and 0xCC for `1` to `5`.
 const List<String> kBdLocalVariableGlyph = [
   '...#####..',
   '....2###..',
@@ -568,7 +454,6 @@ const List<String> kBdLocalVariableGlyph = [
   '..3#5.....',
   '...3#.....',
 ];
-
 const Map<String, Color> kBdLocalVariableGlyphInks = {
   '#': Color(0xFF000000),
   '1': Color(0xFF222222),
@@ -578,32 +463,10 @@ const Map<String, Color> kBdLocalVariableGlyphInks = {
   '5': Color(0xFFCCCCCC),
 };
 
-/// An enum constant's increment/decrement glyph and its drop-down triangle.
-const List<String> kBdEnumStepGlyph = [
-  '..#.#..',
-  '.##.##.',
-  '###.###',
-  '.##.##.',
-  '..#.#..',
-];
-
-const List<String> kBdEnumDropDownGlyph = [
-  '#######',
-  '.#####.',
-  '..###..',
-  '...#...',
-];
-
-/// The alignment grid's ink, and the pitch LabVIEW uses on a block diagram.
-const Color kBdGridInk = Color(0xFFE2E2E2);
-
-const int kBdDefaultGridPitch = 16;
-
 Color? bdDecodedColor(int? rgb) =>
     rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
 
-int bdLabelBackingRgb(int rgb, {bool mapped = true}) =>
-    mapped && rgb == 0xFFFFD7 ? 0xFFFFCC : rgb;
+int bdLabelBackingRgb(int rgb) => rgb == 0xFFFFD7 ? 0xFFFFCC : rgb;
 
 Color? bdFillColor(BdObject object) =>
     bdDecodedColor(object.contentRgb) ?? bdDecodedColor(object.bgRgb);
@@ -699,8 +562,9 @@ int _packRect(int top, int left, int bottom, int right) =>
     ((bottom + 0x8000) << 16) |
     (right + 0x8000);
 
-String? _primDetail(BdObject object) {
-  final key = primIconKeyOf(object);
+String? _primDetail(BdObject object, BdDiagram? diagram) {
+  final key =
+      loadedPrimIconIdOf(object, diagram: diagram) ?? primIconArtKeyOf(object);
   if (key == null) return null;
   final name = primIconName(key);
   final status = kPrimIconStatus[name];
@@ -718,8 +582,9 @@ String? _primDetail(BdObject object) {
       'visible difference between two of them is undecoded state) · $iconPart';
 }
 
-String _iconStatusSuffix(BdObject object) {
-  final key = primIconKeyOf(object);
+String _iconStatusSuffix(BdObject object, BdDiagram? diagram) {
+  final key =
+      loadedPrimIconIdOf(object, diagram: diagram) ?? primIconArtKeyOf(object);
   if (key == null) return '';
   final name = primIconName(key);
   final status = kPrimIconStatus[name];
@@ -731,10 +596,10 @@ PrimIconArt? primIconArtFor(
   BdDiagram diagram,
   Map<int, PrimIconArt> icons,
 ) {
-  final base = primIconKeyOf(object);
+  final base = primIconArtKeyOf(object);
   if (base == null) return null;
   final key = resolvePrimIconKey(base, diagram.version)!;
-  if (base >= 0) return icons[key];
+  if (isPrimitiveIconKey(base)) return icons[key];
   final variant =
       icons[resolvePrimIconKey(
         bdClassVariantIconKey(diagram, object),
@@ -752,6 +617,10 @@ PrimIconArt? primIconArtFor(
   return legacy.width == b.width && legacy.height == b.height ? legacy : null;
 }
 
+/// Whether [key] names a primitive's art (a `primResID` or one of its option variants) rather
+/// than a single-op class's, whose art varies with the node's size.
+bool isPrimitiveIconKey(int key) => key >= 0 || primIconOptionOf(key) != null;
+
 const kPrimIconPrescale = 4;
 
 /// One primitive icon: its pixels, the measurements the painters take from them, its [image]
@@ -766,7 +635,7 @@ class PrimIconArt {
     required this.inkBounds,
     required this.image,
     required this.sharp,
-  });
+  }) : border = primIconBorderMask(alpha, width, height);
 
   final int width;
 
@@ -775,6 +644,9 @@ class PrimIconArt {
   final Uint8List rgba;
 
   final Uint8List alpha;
+
+  /// 1 for each opaque pixel on the art's outline, see [primIconBorderMask].
+  final Uint8List border;
 
   final Set<int> cornerAa;
 
@@ -1140,7 +1012,9 @@ ui.Rect? primIconInkBounds(int key) => primIcons[key]?.inkBounds;
 Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
   final placed = key == null
       ? null
-      : kPrimIconPlacement[primIconName(primIconVersionOf(key)?.$1 ?? key)];
+      : kPrimIconPlacement[primIconName(
+          primIconVersionOf(key)?.$1 ?? primIconOptionOf(key)?.$1 ?? key,
+        )];
   if (placed != null) {
     return Rect.fromLTWH(
       nodeRect.left + placed.dx,
@@ -1159,10 +1033,10 @@ Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
 
 int? loadedPrimIconIdOf(BdObject object, {BdDiagram? diagram}) {
   final version = diagram?.version;
-  final base = primIconKeyOf(object);
+  final base = primIconArtKeyOf(object);
   if (base == null) return null;
   final key = resolvePrimIconKey(base, version)!;
-  if (base >= 0) return key;
+  if (isPrimitiveIconKey(base)) return key;
   final b = object.absBounds;
   if (b == null) return key;
   if (diagram != null) {
@@ -1360,9 +1234,6 @@ const double kBdTextSize = 12.0;
 
 const double kBdTextLineHeight = 14.5 / kBdTextSize;
 
-/// The row of a line box on which bi-level glyphs put their baseline.
-const double kBdTextBaselineRow = 12;
-
 double bdLineBox(double fontSize) =>
     (fontSize * kBdTextLineHeight).ceilToDouble();
 
@@ -1387,23 +1258,19 @@ class BdGlyph {
     required this.dim,
     required this.advance,
     required this.baseline,
-    this.bitmap,
   });
 
-  final TextPainter? main;
+  final TextPainter main;
 
-  final TextPainter? dim;
+  final TextPainter dim;
 
   final int advance;
 
   final double baseline;
 
-  final ui.Picture? bitmap;
-
   void dispose() {
-    main?.dispose();
-    dim?.dispose();
-    bitmap?.dispose();
+    main.dispose();
+    dim.dispose();
   }
 }
 
@@ -1468,56 +1335,10 @@ class BdDiagramPainter extends CustomPainter {
       fontSize,
       fontWeight,
       fontStyle,
-      style.bitmapText ? kBdBitmapTextFamily : bdTextFontFamily,
+      bdTextFontFamily,
     );
     final cached = scene.textGlyphCache[key];
     if (cached != null) return cached;
-    final bold = fontWeight.value >= FontWeight.w700.value;
-    final bitmap =
-        style.bitmapText &&
-            fontSize == kBdTextSize &&
-            fontStyle != FontStyle.italic &&
-            glyph.length == 1
-        ? bdTextGlyphBitmap(glyph.codeUnitAt(0), bold: bold)
-        : null;
-    if (bitmap != null) {
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-      final ink = Paint()..color = color;
-      for (var y = 0; y < bitmap.rows.length; y++) {
-        final row = bitmap.rows[y];
-        var x = 0;
-        while (x < row.length) {
-          if (row.codeUnitAt(x) != 0x23) {
-            x++;
-            continue;
-          }
-          var end = x + 1;
-          while (end < row.length && row.codeUnitAt(end) == 0x23) {
-            end++;
-          }
-          canvas.drawRect(
-            Rect.fromLTWH(
-              x.toDouble(),
-              (bitmap.top + y).toDouble(),
-              (end - x).toDouble(),
-              1,
-            ),
-            ink,
-          );
-          x = end;
-        }
-      }
-      final slot = BdGlyph(
-        main: null,
-        dim: null,
-        advance: bitmap.advance,
-        baseline: bitmap.ascent.toDouble(),
-        bitmap: recorder.endRecording(),
-      );
-      scene.textGlyphCache[key] = slot;
-      return slot;
-    }
     TextPainter build(Color inkColor) => TextPainter(
       text: TextSpan(
         text: glyph,
@@ -1534,9 +1355,14 @@ class BdDiagramPainter extends CustomPainter {
     )..layout();
     final main = build(color);
     final hinted = fontSize == kBdTextSize && glyph.length == 1
-        ? bdHintedAdvance(glyph.codeUnitAt(0), bold: bold)
+        ? bdHintedAdvance(
+            glyph.codeUnitAt(0),
+            bold: fontWeight.value >= FontWeight.w700.value,
+          )
         : null;
-    final overdraw = bold ? kBdTextOverdrawAlphaBold : kBdTextOverdrawAlpha;
+    final overdraw = fontWeight.value >= FontWeight.w700.value
+        ? kBdTextOverdrawAlphaBold
+        : kBdTextOverdrawAlpha;
     final slot = BdGlyph(
       main: main,
       dim: build(color.withValues(alpha: color.a * overdraw)),
@@ -1567,7 +1393,7 @@ class BdDiagramPainter extends CustomPainter {
       fontWeight,
       fontStyle,
       lineCount,
-      style.bitmapText ? kBdBitmapTextFamily : bdTextFontFamily,
+      bdTextFontFamily,
     );
     final cached = scene.textLayoutCache[key];
     if (cached != null) return cached;
@@ -1589,23 +1415,11 @@ class BdDiagramPainter extends CustomPainter {
             fontWeight,
             fontStyle,
           );
-          final picture = slot.bitmap;
-          if (picture != null) {
-            if (!dimPass) {
-              canvas
-                ..save()
-                ..translate(x, lineTop + kBdTextBaselineRow - slot.baseline)
-                ..drawPicture(picture)
-                ..restore();
-            }
-            x += slot.advance;
-            continue;
-          }
           final pen = Offset(
             x,
             lineTop + slot.baseline.roundToDouble() - slot.baseline,
           );
-          (dimPass ? slot.dim! : slot.main!).paint(canvas, pen);
+          (dimPass ? slot.dim : slot.main).paint(canvas, pen);
           x += slot.advance;
         }
         width = math.max(width, x);
@@ -1702,12 +1516,9 @@ class BdDiagramPainter extends CustomPainter {
     return points.isNotEmpty;
   }
 
-  Color _dimFor(int oid, Color color) {
-    final drawn = style.eraColor(color);
-    return disabledOids.contains(oid)
-        ? bdDimDisabled(drawn).withValues(alpha: drawn.a)
-        : drawn;
-  }
+  Color _dimFor(int oid, Color color) => disabledOids.contains(oid)
+      ? bdDimDisabled(color).withValues(alpha: color.a)
+      : color;
 
   final FilterQuality iconFilterQuality;
 
@@ -1723,11 +1534,7 @@ class BdDiagramPainter extends CustomPainter {
     canvas.scale(canvasScale);
     size = Size(size.width / canvasScale, size.height / canvasScale);
     canvas.drawRect(Offset.zero & size, Paint()..color = kBdCanvas);
-    if (style.gridPitch > 0) {
-      _drawGrid(canvas, size);
-    } else if (drawDotGrid) {
-      _drawDotGrid(canvas, size);
-    }
+    if (drawDotGrid) _drawDotGrid(canvas, size);
 
     final structures = objects
         .where((o) => o.category == BdObjectKind.structure)
@@ -1765,19 +1572,7 @@ class BdDiagramPainter extends CustomPainter {
     final labelBackings = <(int, Rect, Color)>[];
 
     _paintDecorations(canvas, decorations);
-    if (style.gridPitch > 0) {
-      final recorder = ui.PictureRecorder();
-      final segments = _drawWires(
-        Canvas(recorder),
-        tunnelSquares: tunnelSquares,
-      );
-      final picture = recorder.endRecording();
-      _paintWireHalos(canvas, segments);
-      canvas.drawPicture(picture);
-      picture.dispose();
-    } else {
-      _drawWires(canvas, tunnelSquares: tunnelSquares);
-    }
+    _drawWires(canvas, tunnelSquares: tunnelSquares);
     _paintStructures(
       canvas,
       structures,
@@ -1895,13 +1690,6 @@ class BdDiagramPainter extends CustomPainter {
               oid: object.oid,
             );
           }
-        case BdObjectClass.eventStructure:
-          _drawEventStructureBorder(
-            canvas,
-            rect,
-            structColor ?? kBdEventStructureColor,
-            disabled: structDisabled,
-          );
         case BdObjectClass.flatSequence:
           _drawFlatSequenceBorder(canvas, rect, object);
         case BdObjectClass.sequenceFrame:
@@ -1947,19 +1735,6 @@ class BdDiagramPainter extends CustomPainter {
               }
             }
 
-            final band = _solidNoAa(kBdCanvas);
-            canvas.drawRect(
-              Rect.fromLTWH(rect.left, rect.top, 3, rect.height),
-              band,
-            );
-            canvas.drawRect(
-              Rect.fromLTWH(rect.right - 3, rect.top, 3, rect.height),
-              band,
-            );
-            canvas.drawRect(
-              Rect.fromLTWH(rect.left, rect.bottom - 3, rect.width, 3),
-              band,
-            );
             for (var y = rect.top; y < rect.bottom; y++) {
               for (var k = 0; k < 3; k++) {
                 hatchCell(rect.left + k, y);
@@ -2072,12 +1847,7 @@ class BdDiagramPainter extends CustomPainter {
                 !object.hasFlag(ViObjFlag.labelNoBacking));
         final backing = object.isLabelHidden || !backed || object.bgRgb == null
             ? null
-            : bdDecodedColor(
-                bdLabelBackingRgb(
-                  object.bgRgb!,
-                  mapped: style.labelBackingMapped,
-                ),
-              );
+            : bdDecodedColor(bdLabelBackingRgb(object.bgRgb!));
         if (backing != null) labelBackings.add((object.oid, rect, backing));
         continue;
       }
@@ -2296,11 +2066,6 @@ class BdDiagramPainter extends CustomPainter {
         }
       }
     }
-    if (constValue != null &&
-        object.objectClass == BdObjectClass.enumRing &&
-        _paintEnumConstant(canvas, object, box, tint, constValue)) {
-      return;
-    }
     if (constValue != null && box.width >= 12 && box.height >= 12) {
       final run = _layoutText(
         constValue,
@@ -2334,10 +2099,6 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  /// A local variable of a control reference: a 2 px frame in the control class's type
-  /// colour around the terminal fill, the arrow glyph, and the class's name in the same
-  /// colour ending 5 px before the frame's right edge. False when the variable's terminal
-  /// is not a control reference the catalogue names.
   bool _paintLocalVariable(Canvas canvas, BdObject object, Rect rect) {
     ViControlRefClass? refClass;
     for (final holder in scene.diagram.childrenOf(object)) {
@@ -2380,101 +2141,6 @@ class BdDiagramPainter extends CustomPainter {
     return true;
   }
 
-  /// An enum constant: the step glyph in the box's corner, the selected item's name in the
-  /// item list part and the drop-down triangle in the control part. False when the item name
-  /// cannot be found, which leaves the numeric value to the caller.
-  bool _paintEnumConstant(
-    Canvas canvas,
-    BdObject object,
-    Rect box,
-    Color tint,
-    String constValue,
-  ) {
-    final items = switch (object.resolvedType?.type) {
-      ViEnumType(:final items) => items,
-      _ => null,
-    };
-    final index = int.tryParse(constValue);
-    if (items == null || index == null || index < 0 || index >= items.length) {
-      return false;
-    }
-    Rect? partRect(BdObjectClass part) {
-      final child = scene.diagram
-          .childrenOf(object)
-          .where((c) => c.objectClass == part && c.absBounds != null)
-          .firstOrNull;
-      return child == null ? null : _toCanvas(child.absBounds!);
-    }
-
-    final ink = _solidNoAa(tint);
-    _stampRows(canvas, kBdEnumStepGlyph, box.left + 3, box.top + 7, ink);
-    if (scene.diagram.byId[object.parentOid ?? -1]?.objectClass ==
-        BdObjectClass.typeDefinition) {
-      final mark = _solidNoAa(_dimFor(object.oid, kBdTypeDefinitionMark));
-      final gap = _solidNoAa(kBdCanvas);
-      for (var r = 0; r <= kBdTypeDefinitionMarkSize; r++) {
-        canvas.drawRect(
-          Rect.fromLTWH(
-            box.left,
-            box.top + r,
-            (kBdTypeDefinitionMarkSize + 1 - r).toDouble(),
-            1,
-          ),
-          gap,
-        );
-        if (r < kBdTypeDefinitionMarkSize) {
-          canvas.drawRect(
-            Rect.fromLTWH(
-              box.left,
-              box.top + r,
-              (kBdTypeDefinitionMarkSize - r).toDouble(),
-              1,
-            ),
-            mark,
-          );
-        }
-      }
-    }
-    final dropDown = partRect(BdObjectClass.controlPart);
-    if (dropDown != null) {
-      _stampRows(
-        canvas,
-        kBdEnumDropDownGlyph,
-        dropDown.left + 2,
-        dropDown.top + 6,
-        ink,
-      );
-    }
-    final list = partRect(BdObjectClass.itemList);
-    final run = _layoutText(
-      items[index],
-      color: _dimFor(object.oid, Colors.black),
-      maxLines: 1,
-    );
-    _paintText(
-      canvas,
-      run,
-      Offset((list?.left ?? box.left + 10) + 2, box.top + 2),
-      clip: (list ?? box).intersect(box.deflate(2)),
-    );
-    return true;
-  }
-
-  void _stampRows(
-    Canvas canvas,
-    List<String> rows,
-    double x,
-    double y,
-    Paint ink,
-  ) {
-    for (var r = 0; r < rows.length; r++) {
-      for (var c = 0; c < rows[r].length; c++) {
-        if (rows[r].codeUnitAt(c) != 0x23) continue;
-        canvas.drawRect(Rect.fromLTWH(x + c, y + r, 1, 1), ink);
-      }
-    }
-  }
-
   void _paintNode(
     Canvas canvas,
     BdObject object,
@@ -2501,7 +2167,7 @@ class BdDiagramPainter extends CustomPainter {
       return;
     }
     final icon = subViIcons[object.oid];
-    final iconKey = primIconKeyOf(object);
+    final iconKey = primIconArtKeyOf(object);
     final disabled = disabledOids.contains(object.oid);
     final primIcon =
         (disabled
@@ -3038,15 +2704,14 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  /// Draws every wire and returns the segments it stroked.
-  List<_BdWireSeg> _drawWires(
+  void _drawWires(
     Canvas canvas, {
     List<(Rect, BdBorderTerminal, Color)>? tunnelSquares,
   }) {
-    final drawn = <_BdWireSeg>[];
-    if (wires.isEmpty) return drawn;
+    if (wires.isEmpty) return;
     final anchors = _collectWireAnchors();
     final nets = _resolveWireNets(anchors);
+    final drawn = <_BdWireSeg>[];
     for (final wire in wires) {
       _drawOneWire(
         canvas,
@@ -3056,29 +2721,6 @@ class BdDiagramPainter extends CustomPainter {
         drawn: drawn,
         tunnelSquares: tunnelSquares,
       );
-    }
-    return drawn;
-  }
-
-  /// The 1 px of canvas colour around every wire segment that keeps the alignment grid
-  /// off the wires.
-  void _paintWireHalos(Canvas canvas, List<_BdWireSeg> segments) {
-    final halo = Paint()..color = kBdCanvas;
-    for (final seg in segments) {
-      final rect = seg.horizontal
-          ? Rect.fromLTRB(
-              seg.lo - 1.0,
-              seg.bandLo - 1.0,
-              seg.hi + 2.0,
-              seg.bandHi + 2.0,
-            )
-          : Rect.fromLTRB(
-              seg.bandLo - 1.0,
-              seg.lo - 1.0,
-              seg.bandHi + 2.0,
-              seg.hi + 2.0,
-            );
-      canvas.drawRect(rect, halo);
     }
   }
 
@@ -3277,7 +2919,7 @@ class BdDiagramPainter extends CustomPainter {
   }) {
     final tunnels = _wireTunnelChrome(wire);
     final net = nets[wire.signalOid]!;
-    var color = this.style.eraColor(net.color ?? kBdWireColor);
+    var color = net.color ?? kBdWireColor;
     var errorBraid = false;
     if (wire.signalType?.renderStyle == ViWireRenderStyle.braid) {
       errorBraid =
@@ -4340,67 +3982,6 @@ class BdDiagramPainter extends CustomPainter {
     drawn.addAll(mine);
   }
 
-  /// An event structure's border: a 7 px band of diagonal stripes in the structure colour
-  /// and its darker tint between two 1 px black outlines.
-  void _drawEventStructureBorder(
-    Canvas canvas,
-    Rect rect,
-    Color light, {
-    required bool disabled,
-  }) {
-    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    final dark = Color.fromARGB(
-      255,
-      (light.r * 255 * kBdEventStripeDarkening).round(),
-      (light.g * 255 * kBdEventStripeDarkening).round(),
-      (light.b * 255 * kBdEventStripeDarkening).round(),
-    );
-    final inks = [_solidNoAa(dim(light)), _solidNoAa(dim(dark))];
-    final black = _solidNoAa(dim(Colors.black));
-    final l = rect.left.round(), t = rect.top.round();
-    final r = rect.right.round(), b = rect.bottom.round();
-    void stripe(int x0, int y0, int x1, int y1) {
-      for (var y = y0; y < y1; y++) {
-        var x = x0;
-        while (x < x1) {
-          final v = (x - l + y - t) % kBdEventStripePeriod;
-          final isDark =
-              v >= kBdEventStripeLight &&
-              v < kBdEventStripeLight + kBdEventStripeDark;
-          final run = isDark
-              ? kBdEventStripeLight + kBdEventStripeDark - v
-              : (v < kBdEventStripeLight
-                    ? kBdEventStripeLight - v
-                    : kBdEventStripePeriod - v);
-          final end = math.min(x1, x + run);
-          canvas.drawRect(
-            Rect.fromLTRB(x.toDouble(), y.toDouble(), end.toDouble(), y + 1.0),
-            inks[isDark ? 1 : 0],
-          );
-          x = end;
-        }
-      }
-    }
-
-    const band = kBdEventBandWidth;
-    stripe(l + 1, t + 1, r - 1, t + 1 + band);
-    stripe(l + 1, b - 1 - band, r - 1, b - 1);
-    stripe(l + 1, t + 1 + band, l + 1 + band, b - 1 - band);
-    stripe(r - 1 - band, t + 1 + band, r - 1, b - 1 - band);
-    for (final box in [rect, rect.deflate(band + 1.0)]) {
-      canvas.drawRect(Rect.fromLTWH(box.left, box.top, box.width, 1), black);
-      canvas.drawRect(
-        Rect.fromLTWH(box.left, box.bottom - 1, box.width, 1),
-        black,
-      );
-      canvas.drawRect(Rect.fromLTWH(box.left, box.top, 1, box.height), black);
-      canvas.drawRect(
-        Rect.fromLTWH(box.right - 1, box.top, 1, box.height),
-        black,
-      );
-    }
-  }
-
   void _drawFlatSequenceBorder(Canvas canvas, Rect rect, BdObject seq) {
     final black = _dimFor(seq.oid, Colors.black);
     final grey = _dimFor(seq.oid, const Color(0xFFDDDDDD));
@@ -5065,9 +4646,7 @@ class BdDiagramPainter extends CustomPainter {
     Color wireColor,
   ) {
     final objectClass = info.objectClass;
-    final ringColor = info.disabled
-        ? kBdDisabledChromeGrey
-        : style.tunnelBorder;
+    final ringColor = info.disabled ? kBdDisabledChromeGrey : kBdTunnelBorder;
     final creamColor = info.disabled
         ? bdDimDisabled(kBdTerminalFill)
         : kBdTerminalFill;
@@ -5195,7 +4774,7 @@ class BdDiagramPainter extends CustomPainter {
     bool disabled = false,
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    final grey = tint ?? dim(style.eraColor(style.whileBandGrey));
+    final grey = tint ?? dim(style.whileBandGrey);
     final l = rect.left.round(), t = rect.top.round();
     final r = rect.right.round(), b = rect.bottom.round();
     const band = _kWhileBand;
@@ -5414,8 +4993,6 @@ class BdDiagramPainter extends CustomPainter {
   static const _bmpRightShiftRegister = 4;
   static const _bmpCaseSelector = 5;
   static const _bmpConditional = 192;
-  static const _bmpEventDynamic = 214;
-  static const _bmpEventTimeout = 215;
 
   static const _forLoopNGlyph = (
     origin: (4, 3),
@@ -5487,13 +5064,10 @@ class BdDiagramPainter extends CustomPainter {
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
     canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
-    final (mid, light) = style.era == BdRenderEra.bilevel
-        ? style.terminalShades(art.base)
-        : (art.mid, art.light);
     final inks = {
       'B': _solidNoAa(dim(art.base)),
-      'M': _solidNoAa(dim(mid)),
-      'L': _solidNoAa(dim(light)),
+      'M': _solidNoAa(dim(art.mid)),
+      'L': _solidNoAa(dim(art.light)),
       'X': _solidNoAa(dim(const Color(0xFF000000))),
     };
     for (final e in inks.entries) {
@@ -5611,24 +5185,6 @@ class BdDiagramPainter extends CustomPainter {
         _drawConditionalTerminal(canvas, box, disabled: disabled);
         continue;
       }
-      if (t.bmp == _bmpEventTimeout) {
-        final inks = {
-          'b': _solidNoAa(dim(const Color(0xFF0000FF))),
-          'c': _solidNoAa(dim(const Color(0xFFFFFFCC))),
-        };
-        for (final e in inks.entries) {
-          _stampBitmap(
-            canvas,
-            e.value,
-            kBdEventGlyph,
-            box.left,
-            box.top,
-            on: e.key,
-          );
-        }
-        continue;
-      }
-      if (t.bmp == _bmpEventDynamic) continue;
       final border = switch (t.bmp) {
         _bmpConditional => dim(const Color(0xFF007F00)),
         _ => dim(_loopBlue),
@@ -5763,34 +5319,6 @@ class BdDiagramPainter extends CustomPainter {
     _stampBitmap(canvas, ink, _selectorRightPager, r + 11, t + 5);
   }
 
-  /// The alignment grid of [style], as 1 px lines or dots on the diagram's pixel lattice.
-  void _drawGrid(Canvas canvas, Size size) {
-    final pitch = style.gridPitch.toDouble();
-    final ink = Paint()..color = kBdGridInk;
-    final w = size.width / canvasScale, h = size.height / canvasScale;
-    double first(double phase, double originAt) {
-      final at = (phase - originAt) % pitch;
-      return at < 0 ? at + pitch : at;
-    }
-
-    final x0 = first(style.gridPhase.dx, origin.dx);
-    final y0 = first(style.gridPhase.dy, origin.dy);
-    if (style.gridLines) {
-      for (var x = x0; x < w; x += pitch) {
-        canvas.drawRect(Rect.fromLTWH(x, 0, 1, h), ink);
-      }
-      for (var y = y0; y < h; y += pitch) {
-        canvas.drawRect(Rect.fromLTWH(0, y, w, 1), ink);
-      }
-      return;
-    }
-    for (var x = x0; x < w; x += pitch) {
-      for (var y = y0; y < h; y += pitch) {
-        canvas.drawRect(Rect.fromLTWH(x, y, 1, 1), ink);
-      }
-    }
-  }
-
   void _drawDotGrid(Canvas canvas, Size size) {
     const stepPx = 12.0;
     const maxDots = 20000;
@@ -5823,12 +5351,14 @@ class _OverlayPainter extends CustomPainter {
     required this.origin,
     required this.selected,
     required this.members,
+    this.diagram,
     this.canvasScale = 1,
   });
 
   final Offset origin;
   final BdObject? selected;
   final Set<BdObject> members;
+  final BdDiagram? diagram;
 
   final double canvasScale;
 
@@ -5840,7 +5370,7 @@ class _OverlayPainter extends CustomPainter {
       bounds.right - origin.dx,
       bounds.bottom - origin.dy,
     );
-    final key = primIconKeyOf(o);
+    final key = loadedPrimIconIdOf(o, diagram: diagram);
     final art = key == null ? null : primIcons[key];
     return art == null
         ? rect
@@ -5875,6 +5405,7 @@ class _OverlayPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _OverlayPainter old) =>
       old.origin != origin ||
+      !identical(old.diagram, diagram) ||
       !identical(old.selected, selected) ||
       old.members.length != members.length ||
       !old.members.containsAll(members) ||
@@ -5886,9 +5417,11 @@ class _DetailsCard extends StatelessWidget {
     required this.object,
     required this.onClose,
     this.members = const {},
+    this.diagram,
   });
   final BdObject object;
   final VoidCallback onClose;
+  final BdDiagram? diagram;
 
   final Set<BdObject> members;
 
@@ -5923,12 +5456,13 @@ class _DetailsCard extends StatelessWidget {
             final frames? => ' · shows frame ${frames.visibleFrameIndex + 1}',
             null => '',
           }}'
-          '${_iconStatusSuffix(object)}'
+          '${_iconStatusSuffix(object, diagram)}'
           '${object.typeKind != ViTypeKind.unknown ? ' · type ${object.typeKind.name}' : ''}'
           '${bounds != null ? ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})' : ''}'
           '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',
       details: [
-        if (_primDetail(object) case final prim?) detailLine('primitive', prim),
+        if (_primDetail(object, diagram) case final prim?)
+          detailLine('primitive', prim),
         if (object.items.isNotEmpty)
           detailLine(
             'values',
