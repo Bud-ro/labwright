@@ -60,36 +60,6 @@ LvWireType lvRefnumWireType(ViSignalType signal, int dims) {
   return LvWireType._(dims: dims, element: element, value: LvTypeMapping.array(element, dims));
 }
 
-/// What decided a wire's Dart type beyond its signal word.
-enum LvWireRoute {
-  /// The signal word alone: element code and array depth.
-  signalWord,
-
-  /// A descriptor the wire's endpoint, or the endpoint's parent, resolves.
-  endpoint,
-
-  /// A descriptor a node-terminal or structure-terminal record under an endpoint resolves.
-  part,
-
-  /// The connector-pane control of the callee behind a sub-VI call port.
-  pane,
-
-  /// An enum descriptor an endpoint or part resolves for an integer-coded wire.
-  enumeration,
-
-  /// The class-instance descriptor an endpoint of a refnum wire resolves.
-  classObject,
-
-  /// The timestamp descriptor an endpoint of a measure-data wire resolves.
-  timestamp,
-
-  /// The scalar descriptor the endpoints of an untyped (`0xff`) wire resolve.
-  untypedEndpoint,
-
-  /// A refnum descriptor an endpoint or part of a tag-coded wire resolves.
-  tagRefnum,
-}
-
 /// A refnum wire's dimensionality from the descriptors of its endpoints' node-terminal parts;
 /// null when none speaks or when two disagree.
 int? lvRefnumPartDims(BdDiagram diagram, ViWire wire) {

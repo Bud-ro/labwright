@@ -113,7 +113,6 @@ const int kLvFlatTimestampBytes = 16;
 
 class _Undecoded implements Exception {
   const _Undecoded(this.why);
-
   final String why;
 }
 
@@ -122,19 +121,12 @@ class _FlatReader {
 
   /// The default value's literal of a mapping, for the members of a default class object.
   final String? Function(LvTypeMapping mapping)? defaultOf;
-
   final LvDeclarations declarations;
-
   final Uint8List bytes;
-
   final ByteData view;
-
   final List<ViType> pool;
-
   int at = 0;
-
   Never _refuse(String why) => throw _Undecoded(why);
-
   void _need(int count) {
     if (at + count > bytes.length) _refuse('the saved bytes end inside the flattened value');
   }

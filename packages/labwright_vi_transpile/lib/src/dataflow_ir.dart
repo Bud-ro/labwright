@@ -572,7 +572,6 @@ class LvDataflow {
     required this.edgeBySource,
     required this.ownerOfPort,
     required this.sinkPorts,
-    required this.wireRoutes,
   });
 
   final LvRegion root;
@@ -584,9 +583,6 @@ class LvDataflow {
   final Map<int, int> ownerOfPort;
 
   final Set<int> sinkPorts;
-
-  /// What decided each wire's type, by signal oid.
-  final Map<int, LvWireRoute> wireRoutes;
 
   LvEdge? into(int port) => edgeBySink[port];
 
@@ -612,36 +608,6 @@ class LvDataflow {
   } on LvRefusedException catch (error) {
     return (dataflow: null, refusal: error.refusal);
   }
-}
-
-/// What decides each wire of [diagram], typed one wire at a time so a refused wire does not hide
-/// the others: the [LvWireRoute] of each wire that types, by signal oid, and the refusal of each
-/// that does not.
-({Map<int, LvWireRoute> routes, Map<int, LvRefusal> refusals}) lvWireRouteCensus(
-  BdDiagram diagram, {
-  List<ViType> pool = const [],
-  LvViUnit? caller,
-  LvViResolver? resolve,
-  LvClassIndex? classes,
-}) {
-  final builder = _Builder(diagram, pool, LvDeclarations(), caller, resolve, classes);
-  final refusals = <int, LvRefusal>{};
-  for (final wire in diagram.wires) {
-    try {
-      final signal = wire.signalType;
-      if (signal == null) {
-        lvRefuse(LvRefusalKind.wireType, 'signal carries no decoded type word', oid: wire.signalOid);
-      }
-      final type = builder._wireType(wire, signal);
-      if (!type.isMapped) {
-        lvRefuse(LvRefusalKind.wireType, type.value.note ?? 'wire type is unmapped', oid: wire.signalOid);
-      }
-    } on LvRefusedException catch (error) {
-      builder.wireRoutes.remove(wire.signalOid);
-      refusals[wire.signalOid] = error.refusal;
-    }
-  }
-  return (routes: builder.wireRoutes, refusals: refusals);
 }
 
 class _Builder {
@@ -686,7 +652,6 @@ class _Builder {
 
   /// The number of connector-pane terminals each sub-VI call node draws, by node oid.
   late final Map<int, int> _callPortCounts = _countCallPorts();
-
   Map<int, int> _countCallPorts() {
     final counts = <int, int>{};
     for (final (node, _) in _callPorts.values) {
@@ -728,7 +693,6 @@ class _Builder {
   final edgeBySource = <int, LvEdge>{};
   final ownerOfPort = <int, int>{};
   final sinkPorts = <int>{};
-  final wireRoutes = <int, LvWireRoute>{};
 
   LvDataflow build() {
     final rootFrame = _rootFrame();
@@ -740,7 +704,6 @@ class _Builder {
       edgeBySource: edgeBySource,
       ownerOfPort: ownerOfPort,
       sinkPorts: sinkPorts,
-      wireRoutes: wireRoutes,
     );
   }
 
@@ -813,7 +776,6 @@ class _Builder {
       if (direct.numeric case final kind? when !kind.isFloat) {
         if (_enumWireType(wire, signal, direct) case final enumeration?) return enumeration;
       }
-      wireRoutes[wire.signalOid] = LvWireRoute.signalWord;
       return direct;
     }
     final code = signal.typeCode;
@@ -823,19 +785,16 @@ class _Builder {
       if (reading == null) return direct;
       final mapped = mapLvType(reading, pool, 0, declarations);
       if (!mapped.isMapped) return direct;
-      wireRoutes[wire.signalOid] = LvWireRoute.untypedEndpoint;
       return LvWireType.scalarOf(mapped);
     }
     if (code == TypeCode.measureData) {
       if (wire.endpointOids.any((endpoint) => lvEndpointIsTimestamp(diagram, endpoint, array: array))) {
-        wireRoutes[wire.signalOid] = LvWireRoute.timestamp;
         return lvTimestampWireType(signal);
       }
       return direct;
     }
     if (code == TypeCode.tag) {
       if (wire.endpointOids.any((endpoint) => lvTagEndpointIsRefnum(diagram, endpoint, array: array))) {
-        wireRoutes[wire.signalOid] = LvWireRoute.tagRefnum;
         return lvRefnumHandleWireType(signal);
       }
       return direct;
@@ -864,7 +823,6 @@ class _Builder {
     }
     final types = {for (final reading in readings) reading.dartType};
     if (types.length != 1 || !readings.first.isMapped) return null;
-    wireRoutes[wire.signalOid] = LvWireRoute.enumeration;
     return lvElementWireType(readings.first, direct.dims);
   }
 
@@ -874,7 +832,6 @@ class _Builder {
   /// class's object.
   LvWireType _refnumWireType(ViWire wire, ViSignalType signal, LvWireType direct) {
     var dims = signal.arrayDims;
-    var route = LvWireRoute.signalWord;
     if (dims == null) {
       final parts = lvRefnumPartDims(diagram, wire);
       int? pane;
@@ -900,28 +857,20 @@ class _Builder {
         );
       }
       if (kLvRefnumContradictedCells.contains((signal.typeCode, signal.depth))) {
-        if (parts != null && pane == parts) {
-          dims = parts;
-          route = LvWireRoute.pane;
-        }
+        if (parts != null && pane == parts) dims = parts;
       } else if (parts != null) {
         dims = parts;
-        route = LvWireRoute.part;
       } else if (pane != null) {
         dims = pane;
-        route = LvWireRoute.pane;
       } else if (lvRefnumEndpointIsScalar(diagram, wire)) {
         dims = 0;
-        route = LvWireRoute.endpoint;
       }
     }
     if (dims == null) return direct;
     if (_classOfWire(wire, array: dims > 0) case final qualifiedName?) {
       final element = lvClassObjectType(qualifiedName, classes, declarations);
-      wireRoutes[wire.signalOid] = LvWireRoute.classObject;
       return lvElementWireType(element, dims);
     }
-    wireRoutes[wire.signalOid] = route;
     return lvRefnumWireType(signal, dims);
   }
 
@@ -969,14 +918,14 @@ class _Builder {
   /// pane; the readings of the route taken must map to one Dart type.
   LvWireType _clusterWireType(ViWire wire, ViSignalType signal, LvWireType direct) {
     final array = (signal.arrayDims ?? 0) > 0;
-    var route = LvWireRoute.endpoint;
+    var route = 'endpoint';
     var readings = <LvWireType>[
       for (final endpoint in wire.endpointOids)
         if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?)
           lvClusterWireType(signal, cluster, pool, declarations),
     ];
     if (readings.isEmpty) {
-      route = LvWireRoute.part;
+      route = 'part';
       readings = [
         for (final endpoint in wire.endpointOids)
           for (final cluster in lvClustersOfParts(diagram, endpoint, array: array))
@@ -984,7 +933,7 @@ class _Builder {
       ];
     }
     if (readings.isEmpty) {
-      route = LvWireRoute.pane;
+      route = 'pane';
       readings = [
         for (final endpoint in wire.endpointOids)
           if (_paneCluster(endpoint, array: array) case (final cluster, final calleePool))
@@ -996,12 +945,11 @@ class _Builder {
     if (types.length != 1) {
       lvRefuse(
         LvRefusalKind.wireType,
-        'the wire\'s ${route.name} descriptors resolve ${types.length} different Dart types, '
+        'the wire\'s $route descriptors resolve ${types.length} different Dart types, '
         'so the value it carries is not decided',
         oid: wire.signalOid,
       );
     }
-    wireRoutes[wire.signalOid] = route;
     return readings.first;
   }
 

@@ -739,7 +739,6 @@ class _FunctionEmitter {
     LvPrimUnit(:final op, :final ports) => unit.inputPorts.where((port) => !lvPrimPortIsTypeOnly(op, ports, port)),
     _ => unit.inputPorts,
   };
-
   Set<int> _liveUnits(LvRegion region, Set<int> exitPorts, Map<int, LvUnit> byOid) {
     final live = <int>{};
     final pending = <int>[...exitPorts];

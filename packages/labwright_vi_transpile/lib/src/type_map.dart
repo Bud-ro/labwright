@@ -191,7 +191,6 @@ class LvTypeDecl {
   /// For a LabVIEW class object, what its private data control saves as the default of [fields];
   /// null for every other declaration.
   final LvClassDefault? classDefault;
-
   bool get isClassObject => classDefault != null;
 
   /// This declaration and its ancestors, root first.
@@ -208,7 +207,6 @@ class LvTypeDecl {
 
   /// The Dart names of [fields], the last of [allFieldNames].
   List<String> get fieldNames => allFieldNames.sublist(allFields.length - fields.length);
-
   final String? label;
 
   /// The typedef control this declares, `Lib.lvlib`, `Class.lvclass`, `Name.ctl`; empty for a
@@ -612,9 +610,7 @@ class LvClassDefault {
 
   /// The root `LabVIEW Object`, which holds no data.
   static const LvClassDefault empty = LvClassDefault(members: []);
-
   final List<String>? members;
-
   final String? why;
 }
 

@@ -52,15 +52,10 @@ class LvProjectClassIndex implements LvClassIndex {
       }
     }
   }
-
   final LvProjectIndex index;
-
   final Map<String, String> _pathOf = {};
-
   final Map<String, List<List<String>>> _children = {};
-
   final Map<String, LvClassData?> _data = {};
-
   @override
   LvClassData? classOf(List<String> qualifiedName) => _data.putIfAbsent(lvQualifiedNameKey(qualifiedName), () {
     final path = _pathOf[lvQualifiedNameKey(qualifiedName)];
@@ -85,7 +80,6 @@ class LvProjectClassIndex implements LvClassIndex {
       },
     );
   });
-
   @override
   Iterable<List<String>> childrenOf(List<String> qualifiedName) =>
       _children[lvQualifiedNameKey(qualifiedName)] ?? const [];

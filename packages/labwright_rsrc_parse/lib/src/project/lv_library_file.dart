@@ -141,7 +141,6 @@ const String kLvParentClassItemType = 'Parent';
 // TODO: the header before the qualified name, and the words after the path record, are not decoded.
 abstract final class LvParentClassLink {
   static const String property = 'NI.LVClass.ParentClassLinkInfo';
-
   static const int nameOffset = 33;
 
   /// The most components a qualified name is read with.
