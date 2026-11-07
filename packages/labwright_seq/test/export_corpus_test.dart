@@ -14,7 +14,7 @@ void main() {
   final pkgRoot = corpusSeqDir.parent.parent;
 
   test('every parseable corpus .seq exports balanced Dart AND labwright programs; '
-      'every Dart export passes dart analyze (one batch run)', () {
+      'every export passes dart analyze (one batch run)', () {
     var exported = 0, withViStub = 0, withInlineThrow = 0, withHelpers = 0;
     var withIntLocals = 0, withSkipComments = 0;
     final stats = SeqExportStats();
@@ -42,6 +42,7 @@ void main() {
         File('${genDir.path}/gen_$exported.dart').writeAsStringSync(dartSource);
 
         final source = exportSeqFileToLabwright(file, sourceName: f.path, stats: stats);
+        File('${genDir.path}/lw_$exported.dart').writeAsStringSync(source);
         exported++;
         expect(source, isNot(contains('(call parameters not exported yet)')), reason: f.path);
         expect('{'.allMatches(source).length, '}'.allMatches(source).length, reason: '${f.path}: unbalanced braces');

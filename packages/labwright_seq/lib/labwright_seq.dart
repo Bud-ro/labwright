@@ -9,6 +9,7 @@ export 'src/seq_convert.dart';
 export 'src/seq_coverage.dart';
 export 'src/seq_dump.dart';
 export 'src/seq_equals.dart';
+export 'src/seq_expression.dart';
 export 'src/seq_file.dart';
 export 'src/seq_format.dart';
 export 'src/seq_ini.dart';

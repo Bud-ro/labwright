@@ -1,3 +1,4 @@
+import 'seq_expression.dart';
 import 'seq_file.dart';
 import 'seq_module.dart';
 import 'seq_property.dart';
@@ -515,13 +516,15 @@ enum _DartSlot {
   text('String'),
   list('List'),
 
-  untyped('dynamic');
+  untyped('dynamic'),
+  absent('Null'),
+  opaque('Object?');
 
   const _DartSlot(this.source);
 
   final String source;
 
-  bool get isScalar => this != list && this != untyped;
+  bool get isScalar => const {integer, number, flag, text}.contains(this);
 }
 
 (_DartSlot, String)? _scalarType(SeqVariable v) => switch (v.raw.valueClass) {
@@ -924,8 +927,6 @@ const _nonFiniteSpellings = {'NaN': double.nan, 'Inf': double.infinity, '-Inf': 
 
 num? _parseNumberScalar(String text) => num.tryParse(text) ?? _nonFiniteSpellings[text.trim()];
 
-final RegExp _i64SuffixLiteral = RegExp(r'(?<![\w.$])(\d+|0[xX][0-9a-fA-F]+)u?i64\b');
-
 num? _parseTsNum(String text) {
   final t = text.trim();
   final direct = _parseNumberScalar(t);
@@ -994,21 +995,56 @@ const _variableRoots = {
   'Step': 'step',
 };
 
-/// `%` is absent: TestStand modulo keeps the sign of the dividend, Dart does not.
-final _dartSafeExpression = RegExp(r"^[A-Za-z0-9_.\s+\-*/!<>=&|(),'\x22\[\]]+$");
+typedef _Code = ({String code, _DartSlot type, int prec});
 
-const _builtinCalls = {
-  'Len': 'ts.len',
-  'GetNumElements': 'ts.getNumElements',
-  'SetNumElements': 'ts.setNumElements',
-  'Str': 'ts.str',
-  'Left': 'ts.left',
-  'Right': 'ts.right',
-  'Mid': 'ts.mid',
-  'Find': 'ts.find',
-};
+/// Dart operator precedence levels, lowest first, that decide where translated code needs parentheses.
+abstract final class _Prec {
+  static const assignment = 1;
+  static const conditional = 2;
+  static const ifNull = 3;
+  static const or = 4;
+  static const and = 5;
+  static const equality = 6;
+  static const relational = 7;
+  static const bitOr = 8;
+  static const bitXor = 9;
+  static const bitAnd = 10;
+  static const shift = 11;
+  static const additive = 12;
+  static const multiplicative = 13;
+  static const prefix = 14;
+  static const primary = 16;
+}
 
-final _testStandOnly = RegExp(r'(?<!\.)\b[A-Za-z][A-Za-z0-9_]*\s*\(|#|->');
+/// An expression-language function with a runtime counterpart in the shim library.
+enum _SeqFunction {
+  len('Len', 'len', 1, 1, _DartSlot.number),
+  getNumElements('GetNumElements', 'getNumElements', 1, 2, _DartSlot.number),
+  setNumElements('SetNumElements', 'setNumElements', 2, 3, _DartSlot.opaque),
+  str('Str', 'str', 1, 4, _DartSlot.text),
+  left('Left', 'left', 2, 2, _DartSlot.text),
+  right('Right', 'right', 2, 2, _DartSlot.text),
+  mid('Mid', 'mid', 2, 3, _DartSlot.text),
+  find('Find', 'find', 2, 3, _DartSlot.number),
+  random('Random', 'rand', 0, 2, _DartSlot.number),
+
+  /// True when every argument is true; lowered to `&&` when no argument has side effects.
+  allOf('AllOf', '', 1, 1 << 16, _DartSlot.flag),
+
+  /// True when any argument is true; lowered to `||` when no argument has side effects.
+  anyOf('AnyOf', '', 1, 1 << 16, _DartSlot.flag),
+
+  /// Evaluates an expression given as a string; lowered when the string is a literal.
+  evaluate('Evaluate', '', 1, 1, _DartSlot.untyped);
+
+  const _SeqFunction(this.name, this.dart, this.minArgs, this.maxArgs, this.result);
+  final String name;
+  final String dart;
+  final int minArgs;
+  final int maxArgs;
+  final _DartSlot result;
+  static final Map<String, _SeqFunction> byName = {for (final f in values) f.name: f};
+}
 
 typedef _OpenBlock = ({FlowKind kind, String? increment, String? condition, int selectId});
 
@@ -1190,212 +1226,349 @@ class _DartExporter {
   }
 
   String _expr(String raw) {
-    var trimmed = raw.trim();
-    if (trimmed.isEmpty) return "''";
-    trimmed = _stripNoValidation(_stripComments(trimmed)).trim();
-    if (trimmed.isEmpty) return "''";
-
-    if (_splitTopLevelCommas(trimmed).length > 1) return _evalFallback(raw);
-    if (_hasUnterminatedQuote(trimmed)) return _evalFallback(raw);
-
-    final rebuilt = StringBuffer();
-    for (final (segment, isString) in _segments(trimmed)) {
-      if (isString) {
-        if (segment.contains('\n') || segment.contains('\r')) {
-          return _evalFallback(raw);
-        }
-        if (RegExp(r'''\\[^nrt"'\\]''').hasMatch(segment)) {
-          return _evalFallback(raw);
-        }
-        rebuilt.write(segment.replaceAll('\$', r'\$'));
-        continue;
-      }
-      var code = segment;
-      for (final m in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\s*\.').allMatches(code)) {
-        final precededByDot = m.start > 0 && code.substring(m.start - 1, m.start) == '.';
-        final root = m.group(1)!;
-        if (!precededByDot && !_variableRoots.containsKey(root) && root != 'Locals' && root != 'Parameters') {
-          return _evalFallback(raw);
-        }
-      }
-      if (RegExp(r'\*\s*[A-Za-z_]').hasMatch(code)) return _evalFallback(raw);
-      code = code
-          .replaceAll(RegExp(r'\bTrue\b'), 'true')
-          .replaceAll(RegExp(r'\bFalse\b'), 'false')
-          .replaceAll(RegExp(r'(?<!\.)\bNothing\b'), 'null')
-          .replaceAllMapped(_i64SuffixLiteral, (m) => m.group(1)!);
-      var undeclared = false;
-      for (final (root, ids) in [
-        ('Locals', _localIds),
-        ('Parameters', _paramIds),
-      ]) {
-        code = code.replaceAllMapped(
-          RegExp('\\b$root\\.([A-Za-z_][A-Za-z0-9_.]*)'),
-          (m) {
-            final segments = m.group(1)!.split('.');
-            final id = ids[segments.first];
-            if (id == null) {
-              undeclared = true;
-              return m.group(0)!;
-            }
-            return segments.length == 1 ? id : '$id.${segments.sublist(1).join('.')}';
-          },
-        );
-      }
-      if (undeclared) return _evalFallback(raw);
-      for (final entry in _variableRoots.entries) {
-        code = code.replaceAllMapped(
-          RegExp('\\b${entry.key}\\.([A-Za-z_][A-Za-z0-9_.]*)'),
-          (m) => '${entry.value}.${m.group(1)!}',
-        );
-      }
-      var unknownGlobal = false;
-      code = code.replaceAllMapped(
-        RegExp(
-          r'\b(fileGlobals|stationGlobals)\.'
-          r'([A-Za-z_][A-Za-z0-9_]*)(\s*\()?',
-        ),
-        (m) {
-          final isFile = m.group(1) == 'fileGlobals';
-          final declared = (isFile ? _fileGlobalCanon : _stationGlobalCanon)[m.group(2)!.toLowerCase()];
-          final call = m.group(3);
-          final type = declared == null ? null : (isFile ? _fileGlobalTypes[declared] : _DartSlot.untyped);
-          if (declared == null || (call != null && type != _DartSlot.untyped)) {
-            unknownGlobal = true;
-            return m.group(0)!;
-          }
-          return '${m.group(1)}.$declared${call ?? ''}';
-        },
-      );
-      if (unknownGlobal) return _evalFallback(raw);
-      for (final entry in {
-        ..._builtinCalls,
-        'Random': asTest ? 'lw.rand' : 'ts.rand',
-      }.entries) {
-        code = code.replaceAllMapped(
-          RegExp('(?<![.A-Za-z0-9_])${entry.key}\\s*\\('),
-          (_) => '${entry.value}(',
-        );
-      }
-      final masked = code.replaceAll('&&', '  ').replaceAll('||', '  ');
-      if (masked.contains('&') || masked.contains('|')) {
-        return _evalFallback(raw);
-      }
-      if (!_dartSafeExpression.hasMatch(code) || _testStandOnly.hasMatch(code)) {
-        return _evalFallback(raw);
-      }
-      code = code.replaceAll(RegExp(r'\s*[\r\n]+\s*'), ' ');
-      if (RegExp(r'[.+\-*/<>=&|!,]\s*$').hasMatch(code)) {
-        return _evalFallback(raw);
-      }
-      for (final m in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_][A-Za-z0-9_.]*\s*\(').allMatches(code)) {
-        if (_idTypes.containsKey(m.group(1)) && _idTypes[m.group(1)] != _DartSlot.untyped) {
-          return _evalFallback(raw);
-        }
-      }
-      for (final m in RegExp(r'(?<![.A-Za-z0-9_])([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_]').allMatches(code)) {
-        if (_scalarSlots.contains(_idTypes[m.group(1)])) return _evalFallback(raw);
-      }
-      for (final m in RegExp(r'\[([^\[\]]*)\]').allMatches(code)) {
-        for (final idm in RegExp(r'[A-Za-z_][A-Za-z0-9_]*').allMatches(m.group(1)!)) {
-          if (_idTypes[idm.group(0)] == _DartSlot.number) return _evalFallback(raw);
-        }
-      }
-      const knownBare = {
-        'true',
-        'false',
-        'null',
-        'ts',
-        'lw',
-        'fileGlobals',
-        'stationGlobals',
-        'runState',
-        'step',
-      };
-      const generatedName = '__LWELEMENT__';
-      final codeSansKeys = code.replaceAll(RegExp(r"'[^']*'"), '');
-      for (final m in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\b').allMatches(codeSansKeys)) {
-        final id = m.group(1)!;
-        final precededByDot = m.start > 0 && codeSansKeys.substring(m.start - 1, m.start) == '.';
-        if (precededByDot) continue;
-        if (!knownBare.contains(id) &&
-            id != generatedName &&
-            !_localIds.containsValue(id) &&
-            !_paramIds.containsValue(id)) {
-          return _evalFallback(raw);
-        }
-      }
-      rebuilt.write(code);
-    }
-    return rebuilt.toString();
+    if (raw.trim().isEmpty) return "''";
+    return _translate(raw)?.code ?? _evalFallback(raw);
   }
 
   String _evalFallback(String raw) => "ts.eval('${_escape(raw)}')";
 
-  static bool _hasUnterminatedQuote(String text) {
-    String? open;
-    var i = 0;
-    while (i < text.length) {
-      final c = text[i];
-      if (open == null) {
-        if (c == '"' || c == "'") open = c;
-      } else if (c == r'\') {
-        i++;
-      } else if (c == open) {
-        open = null;
-      }
-      i++;
-    }
-    return open != null;
+  _Code? _translate(String raw) {
+    final parsed = parseSeqExpression(raw);
+    return parsed == null || parsed is SeqSequence ? null : _emit(parsed);
   }
-
-  /// Slots whose Dart type has no TestStand subproperties: a member access on one is a PropertyObject API use.
-  static const _scalarSlots = {_DartSlot.integer, _DartSlot.number, _DartSlot.flag, _DartSlot.text};
 
   String _cond(String raw) {
-    final e = _expr(raw);
-    if (e.startsWith('ts.eval(')) return 'ts.cond${e.substring(7)}';
-    if (_staticallyBool(e)) return e;
-    if (_idTypes[e] == _DartSlot.number || _idTypes[e] == _DartSlot.integer) return '$e != 0';
-    return 'ts.truthy($e)';
+    final translated = _translate(raw);
+    final condition = translated == null ? null : _asBool(translated);
+    return condition?.code ?? "ts.cond('${_escape(raw)}')";
   }
 
-  bool _staticallyBool(String e) {
-    if (e.startsWith('ts.eval(')) return false;
-    if (e == 'true' || e == 'false') return true;
-    if (_idTypes[e] == _DartSlot.flag) return true;
-    if (e.startsWith('!')) return true;
-    var depth = 0;
-    String? topOp;
-    for (final (segment, isString) in _segments(e)) {
-      if (isString) continue;
-      for (var i = 0; i < segment.length; i++) {
-        final c = segment[i];
-        if (c == '(' || c == '[') depth++;
-        if (c == ')' || c == ']') depth--;
-        if (depth > 0) continue;
-        if (c == '&' && i + 1 < segment.length && segment[i + 1] == '&') {
-          return true;
-        }
-        if (c == '|' && i + 1 < segment.length && segment[i + 1] == '|') {
-          return true;
-        }
-        if ((c == '=' || c == '!') && i + 1 < segment.length && segment[i + 1] == '=') {
-          topOp ??= '==';
-        }
-        if (c == '<' || c == '>') topOp ??= '<';
-      }
-    }
-    if (topOp == '==') return true;
-    if (topOp == '<') {
-      final lead = RegExp(r'^\(?\s*([A-Za-z_][A-Za-z0-9_]*|[0-9.]+)').firstMatch(e)?.group(1);
-      if (lead == null) return false;
-      if (RegExp(r'^[0-9.]').hasMatch(lead)) return true;
-      final t = _idTypes[lead];
-      return t != null && t.isScalar;
-    }
-    return false;
+  String _numeric(String raw) {
+    final translated = _translate(raw);
+    return translated != null &&
+            const {_DartSlot.integer, _DartSlot.number, _DartSlot.untyped}.contains(translated.type)
+        ? translated.code
+        : _evalFallback(raw);
   }
+
+  static const _dartReservedWords = {
+    'assert', 'break', 'case', 'catch', 'class', 'const', 'continue', 'default', 'do', 'else', 'enum', //
+    'extends', 'false', 'final', 'finally', 'for', 'if', 'in', 'is', 'new', 'null', 'rethrow', 'return', //
+    'super', 'switch', 'this', 'throw', 'true', 'try', 'var', 'void', 'while', 'with',
+  };
+
+  _Code _wrap(_Code c, int min) => c.prec >= min ? c : (code: '(${c.code})', type: c.type, prec: _Prec.primary);
+
+  _Code? _asBool(_Code c) => switch (c.type) {
+    _DartSlot.flag => c,
+    _DartSlot.integer ||
+    _DartSlot.number => (code: '${_wrap(c, _Prec.relational).code} != 0', type: _DartSlot.flag, prec: _Prec.equality),
+    _DartSlot.untyped => (code: 'ts.truthy(${c.code})', type: _DartSlot.flag, prec: _Prec.primary),
+    _ => null,
+  };
+
+  _Code? _coerce(_Code value, _DartSlot target) {
+    if (target == _DartSlot.untyped || value.type == target || value.type == _DartSlot.untyped) return value;
+    if (target == _DartSlot.number && value.type == _DartSlot.integer) {
+      return RegExp(r'^\d+$').hasMatch(value.code)
+          ? value
+          : (code: '${_wrap(value, _Prec.primary).code}.toDouble()', type: _DartSlot.number, prec: _Prec.primary);
+    }
+    return null;
+  }
+
+  static bool _isNumeric(_DartSlot t) => t == _DartSlot.integer || t == _DartSlot.number;
+
+  String? _rootOf(String name) => switch (name.toLowerCase()) {
+    'locals' => 'Locals',
+    'parameters' => 'Parameters',
+    'fileglobals' => 'FileGlobals',
+    'stationglobals' => 'StationGlobals',
+    'runstate' => 'RunState',
+    'step' => 'Step',
+    _ => null,
+  };
+
+  String? _idIn(Map<String, String> ids, String name) {
+    final exact = ids[name];
+    if (exact != null) return exact;
+    final lower = name.toLowerCase();
+    final matches = [
+      for (final e in ids.entries)
+        if (e.key.toLowerCase() == lower) e.value,
+    ];
+    return matches.length == 1 ? matches.single : null;
+  }
+
+  _Code? _emitRooted(String root, String name) {
+    _Code typed(String code, _DartSlot? type) => (code: code, type: type ?? _DartSlot.untyped, prec: _Prec.primary);
+    switch (root) {
+      case 'Locals' || 'Parameters':
+        final id = _idIn(root == 'Locals' ? _localIds : _paramIds, name);
+        return id == null ? null : typed(id, _idTypes[id]);
+      case 'FileGlobals':
+        final declared = _fileGlobalCanon[name.toLowerCase()];
+        return declared == null ? null : typed('fileGlobals.$declared', _fileGlobalTypes[declared]);
+      case 'StationGlobals':
+        final declared = _stationGlobalCanon[name.toLowerCase()];
+        return declared == null ? null : typed('stationGlobals.$declared', null);
+      default:
+        return _dartReservedWords.contains(name) ? null : typed('${_variableRoots[root]}.$name', null);
+    }
+  }
+
+  _Code? _emitTarget(SeqExpr e) => switch (e) {
+    SeqMember() || SeqIndex() => _emit(e),
+    _ => null,
+  };
+
+  _Code? _emit(SeqExpr e) {
+    switch (e) {
+      case SeqNumber(:final value, :final integral):
+        return (
+          code: integral ? value.toString() : _numLiteral(value.toDouble()),
+          type: integral ? _DartSlot.integer : _DartSlot.number,
+          prec: _Prec.primary,
+        );
+      case SeqString(:final value):
+        return (code: "'${_escape(value)}'", type: _DartSlot.text, prec: _Prec.primary);
+      case SeqBool(:final value):
+        return (code: '$value', type: _DartSlot.flag, prec: _Prec.primary);
+      case SeqNothing():
+        return (code: 'null', type: _DartSlot.absent, prec: _Prec.primary);
+      case SeqName() || SeqSequence():
+        return null;
+      case SeqMember(:final target, :final name):
+        if (target is SeqName) {
+          final root = _rootOf(target.name);
+          return root == null ? null : _emitRooted(root, name);
+        }
+        final base = _emit(target);
+        if (base == null || base.type != _DartSlot.untyped || _dartReservedWords.contains(name)) return null;
+        return (code: '${_wrap(base, _Prec.primary).code}.$name', type: _DartSlot.untyped, prec: _Prec.primary);
+      case SeqIndex(:final target, :final index):
+        final base = _emit(target);
+        final at = _emit(index);
+        if (base == null || at == null) return null;
+        final indexable =
+            (base.type == _DartSlot.list && (at.type == _DartSlot.integer || at.type == _DartSlot.untyped)) ||
+            (base.type == _DartSlot.untyped && at.type != _DartSlot.opaque && at.type != _DartSlot.absent);
+        if (!indexable) return null;
+        return (code: '${_wrap(base, _Prec.primary).code}[${at.code}]', type: _DartSlot.untyped, prec: _Prec.primary);
+      case SeqCall(:final callee, :final arguments):
+        return _emitCall(callee, arguments);
+      case SeqUnary(:final op, :final operand):
+        final inner = _emit(operand);
+        if (inner == null) return null;
+        switch (op) {
+          case SeqUnaryOp.not:
+            final b = _asBool(inner);
+            return b == null
+                ? null
+                : (code: '!${_wrap(b, _Prec.prefix).code}', type: _DartSlot.flag, prec: _Prec.prefix);
+          case SeqUnaryOp.negate || SeqUnaryOp.plus:
+            if (!_isNumeric(inner.type) && inner.type != _DartSlot.untyped) return null;
+            if (op == SeqUnaryOp.plus) return inner;
+            final operand = inner.code.startsWith('-') ? '(${inner.code})' : _wrap(inner, _Prec.prefix).code;
+            return (code: '-$operand', type: inner.type, prec: _Prec.prefix);
+          case SeqUnaryOp.bitNot:
+            if (inner.type != _DartSlot.integer) return null;
+            return (code: '~${_wrap(inner, _Prec.prefix).code}', type: _DartSlot.integer, prec: _Prec.prefix);
+        }
+      case SeqStep(:final target, :final increment, :final prefix):
+        final t = _emitTarget(target);
+        if (t == null || !(_isNumeric(t.type) || t.type == _DartSlot.untyped)) return null;
+        final op = increment ? '++' : '--';
+        return (
+          code: prefix ? '$op${t.code}' : '${t.code}$op',
+          type: t.type,
+          prec: prefix ? _Prec.prefix : _Prec.primary,
+        );
+      case SeqBinary(:final op, :final left, :final right):
+        final l = _emit(left);
+        final r = _emit(right);
+        return l == null || r == null ? null : _emitBinary(op, l, r);
+      case SeqConditional(:final condition, :final whenTrue, :final whenFalse):
+        final c = _emit(condition);
+        final cb = c == null ? null : _asBool(c);
+        var t = _emit(whenTrue);
+        var f = _emit(whenFalse);
+        if (cb == null || t == null || f == null) return null;
+        _DartSlot type;
+        if (t.type == f.type) {
+          type = t.type;
+        } else if (t.type == _DartSlot.untyped || f.type == _DartSlot.untyped) {
+          type = _DartSlot.untyped;
+        } else if (_isNumeric(t.type) && _isNumeric(f.type)) {
+          type = _DartSlot.number;
+          t = _coerce(t, type)!;
+          f = _coerce(f, type)!;
+        } else {
+          type = _DartSlot.opaque;
+        }
+        return (
+          code: '${_wrap(cb, _Prec.ifNull).code} ? ${_wrap(t, _Prec.ifNull).code} : ${_wrap(f, _Prec.ifNull).code}',
+          type: type,
+          prec: _Prec.conditional,
+        );
+      case SeqAssign(:final op, :final target, :final value):
+        final t = _emitTarget(target);
+        final v = _emit(value);
+        if (t == null || v == null) return null;
+        final binary = op.binary;
+        if (binary == null) {
+          final coerced = _coerce(v, t.type);
+          if (coerced == null) return null;
+          return (code: '${t.code} = ${_wrap(coerced, _Prec.assignment).code}', type: t.type, prec: _Prec.assignment);
+        }
+        final combined = _emitBinary(binary, t, v);
+        if (combined == null || _coerce(combined, t.type) != combined) return null;
+        if (binary == SeqBinaryOp.modulo) {
+          return (code: '${t.code} = ${combined.code}', type: t.type, prec: _Prec.assignment);
+        }
+        return (code: '${t.code} ${op.token} ${_wrap(v, _Prec.assignment).code}', type: t.type, prec: _Prec.assignment);
+      case SeqArray(:final elements):
+        final items = [for (final element in elements) _emit(element)];
+        if (items.contains(null)) return null;
+        return (code: '<dynamic>[${items.map((i) => i!.code).join(', ')}]', type: _DartSlot.list, prec: _Prec.primary);
+    }
+  }
+
+  _Code? _emitBinary(SeqBinaryOp op, _Code l, _Code r) {
+    _Code out(String code, _DartSlot type, int prec) => (code: code, type: type, prec: prec);
+    String infix(int prec) => '${_wrap(l, prec).code} ${op.token} ${_wrap(r, prec + 1).code}';
+    final dyn = l.type == _DartSlot.untyped || r.type == _DartSlot.untyped;
+    final numeric = _isNumeric(l.type) && _isNumeric(r.type);
+    final bothInt = l.type == _DartSlot.integer && r.type == _DartSlot.integer;
+    bool operable({required bool text}) {
+      if (numeric) return true;
+      if (!dyn) return false;
+      final other = l.type == _DartSlot.untyped ? r.type : l.type;
+      return _isNumeric(other) || other == _DartSlot.untyped || (text && other == _DartSlot.text);
+    }
+
+    _DartSlot arithmetic() => l.type == _DartSlot.untyped
+        ? _DartSlot.untyped
+        : dyn
+        ? _DartSlot.opaque
+        : bothInt
+        ? _DartSlot.integer
+        : _DartSlot.number;
+    switch (op) {
+      case SeqBinaryOp.or || SeqBinaryOp.and:
+        final lb = _asBool(l);
+        final rb = _asBool(r);
+        if (lb == null || rb == null) return null;
+        final prec = op == SeqBinaryOp.or ? _Prec.or : _Prec.and;
+        return out('${_wrap(lb, prec).code} ${op.token} ${_wrap(rb, prec + 1).code}', _DartSlot.flag, prec);
+      case SeqBinaryOp.equal || SeqBinaryOp.notEqual:
+        return out(
+          '${_wrap(l, _Prec.relational).code} ${op.token} ${_wrap(r, _Prec.relational).code}',
+          _DartSlot.flag,
+          _Prec.equality,
+        );
+      case SeqBinaryOp.less || SeqBinaryOp.lessEqual || SeqBinaryOp.greater || SeqBinaryOp.greaterEqual:
+        if (!operable(text: false)) return null;
+        return out(
+          '${_wrap(l, _Prec.bitOr).code} ${op.token} ${_wrap(r, _Prec.bitOr).code}',
+          _DartSlot.flag,
+          _Prec.relational,
+        );
+      case SeqBinaryOp.add:
+        if (l.type == _DartSlot.text && (r.type == _DartSlot.text || r.type == _DartSlot.untyped)) {
+          return out(infix(_Prec.additive), _DartSlot.text, _Prec.additive);
+        }
+        if (!operable(text: true)) return null;
+        return out(infix(_Prec.additive), arithmetic(), _Prec.additive);
+      case SeqBinaryOp.subtract || SeqBinaryOp.multiply || SeqBinaryOp.divide:
+        if (!operable(text: false)) return null;
+        final prec = op == SeqBinaryOp.subtract ? _Prec.additive : _Prec.multiplicative;
+        final type = op == SeqBinaryOp.divide && numeric ? _DartSlot.number : arithmetic();
+        return out(infix(prec), type, prec);
+      case SeqBinaryOp.modulo:
+        if (!numeric) return null;
+        return out('${_wrap(l, _Prec.primary).code}.remainder(${r.code})', arithmetic(), _Prec.primary);
+      case SeqBinaryOp.bitAnd ||
+          SeqBinaryOp.bitOr ||
+          SeqBinaryOp.bitXor ||
+          SeqBinaryOp.shiftLeft ||
+          SeqBinaryOp.shiftRight:
+        if (!bothInt) return null;
+        final prec = switch (op) {
+          SeqBinaryOp.bitAnd => _Prec.bitAnd,
+          SeqBinaryOp.bitXor => _Prec.bitXor,
+          SeqBinaryOp.bitOr => _Prec.bitOr,
+          _ => _Prec.shift,
+        };
+        return out(infix(prec), _DartSlot.integer, prec);
+    }
+  }
+
+  _Code? _emitCall(SeqExpr callee, List<SeqExpr> arguments) {
+    if (callee is SeqMember) {
+      final base = callee.target is SeqName ? null : _emit(callee.target);
+      if (base == null || base.type != _DartSlot.untyped || _dartReservedWords.contains(callee.name)) return null;
+      final args = [for (final a in arguments) _emit(a)];
+      if (args.any((a) => a == null)) return null;
+      return (
+        code: '${_wrap(base, _Prec.primary).code}.${callee.name}(${args.map((a) => a!.code).join(', ')})',
+        type: _DartSlot.untyped,
+        prec: _Prec.primary,
+      );
+    }
+    if (callee is! SeqName) return null;
+    final function = _SeqFunction.byName[callee.name];
+    if (function == null || arguments.length < function.minArgs || arguments.length > function.maxArgs) return null;
+    if (function == _SeqFunction.evaluate) {
+      final source = arguments.single;
+      if (source is! SeqString) return null;
+      final parsed = parseSeqExpression(source.value);
+      return parsed == null || parsed is SeqSequence ? null : _emit(parsed);
+    }
+    final args = [for (final a in arguments) _emit(a)];
+    if (args.any((a) => a == null)) return null;
+    final codes = [for (final a in args) a!];
+    if (function == _SeqFunction.allOf || function == _SeqFunction.anyOf) {
+      if (arguments.any(_hasEffects)) return null;
+      final bools = [for (final c in codes) _asBool(c)];
+      if (bools.any((b) => b == null)) return null;
+      final prec = function == _SeqFunction.allOf ? _Prec.and : _Prec.or;
+      final joiner = function == _SeqFunction.allOf ? ' && ' : ' || ';
+      return (code: bools.map((b) => _wrap(b!, prec + 1).code).join(joiner), type: _DartSlot.flag, prec: prec);
+    }
+    if (function == _SeqFunction.random && codes.any((c) => !_isNumeric(c.type) && c.type != _DartSlot.untyped)) {
+      return null;
+    }
+    final name = function == _SeqFunction.random && asTest ? 'lw.rand' : 'ts.${function.dart}';
+    return (code: '$name(${codes.map((c) => c.code).join(', ')})', type: function.result, prec: _Prec.primary);
+  }
+
+  static bool _hasEffects(SeqExpr e) => switch (e) {
+    SeqCall(:final callee, :final arguments) =>
+      callee is! SeqName ||
+          !const {
+            _SeqFunction.len,
+            _SeqFunction.getNumElements,
+            _SeqFunction.str,
+            _SeqFunction.left,
+            _SeqFunction.right,
+            _SeqFunction.mid,
+            _SeqFunction.find,
+            _SeqFunction.allOf,
+            _SeqFunction.anyOf,
+          }.contains(_SeqFunction.byName[callee.name]) ||
+          arguments.any(_hasEffects),
+    SeqAssign() || SeqStep() => true,
+    SeqMember(:final target) => _hasEffects(target),
+    SeqIndex(:final target, :final index) => _hasEffects(target) || _hasEffects(index),
+    SeqUnary(:final operand) => _hasEffects(operand),
+    SeqBinary(:final left, :final right) => _hasEffects(left) || _hasEffects(right),
+    SeqConditional(:final condition, :final whenTrue, :final whenFalse) =>
+      _hasEffects(condition) || _hasEffects(whenTrue) || _hasEffects(whenFalse),
+    SeqArray(:final elements) => elements.any(_hasEffects),
+    SeqSequence() => true,
+    _ => false,
+  };
 
   void _emitSequence(Sequence sequence, _SeqScope scope) {
     final fnName = _sequenceFnNames[sequence.name]!;
@@ -1678,15 +1851,12 @@ class _DartExporter {
           _indent++;
           final element = flow.arrayElement;
           if (element != null) {
-            final assign = _expr('$element = __LWELEMENT__');
-            if (assign.startsWith('ts.eval(')) {
-              _line(
-                '// TODO: bind loop element: '
-                '${_comment(element)} = <element>',
-              );
+            final parsed = parseSeqExpression(element);
+            final target = parsed == null ? null : _emitTarget(parsed);
+            if (target == null || target.type == _DartSlot.absent || target.type == _DartSlot.opaque) {
+              _line('// TODO: bind loop element: ${_comment(element)} = <element>');
             } else {
-              final targetId = RegExp(r'^([A-Za-z_][A-Za-z0-9_]*)').firstMatch(assign)?.group(1);
-              final cast = switch (_idTypes[targetId]) {
+              final cast = switch (target.type) {
                 _DartSlot.number => '($loopVar as num).toDouble()',
                 _DartSlot.integer => '($loopVar as num).toInt()',
                 _DartSlot.flag => '$loopVar as bool',
@@ -1694,7 +1864,7 @@ class _DartExporter {
                 _DartSlot.list => '$loopVar as List<dynamic>',
                 _ => loopVar,
               };
-              _line('${assign.replaceAll('__LWELEMENT__', cast)};');
+              _line('${target.code} = $cast;');
             }
           }
           open.add(_openBlock(flow.kind));
@@ -1809,50 +1979,10 @@ class _DartExporter {
   }
 
   String _exprStatement(String raw) {
-    final translated = _expr(raw);
-    if (translated.startsWith('ts.eval(')) return translated;
-    final m = RegExp(
-      r'^((?:fileGlobals|stationGlobals)\.)?'
-      r'([A-Za-z_][A-Za-z0-9_]*)\s*=(?![=])',
-    ).firstMatch(translated);
-    if (m != null) {
-      final lhsType = switch (m.group(1)) {
-        'fileGlobals.' => _fileGlobalTypes[m.group(2)],
-        'stationGlobals.' => _DartSlot.untyped,
-        _ => _idTypes[m.group(2)],
-      };
-      if (_kindMismatch(lhsType, translated.substring(m.end).trim())) {
-        return _evalFallback(raw);
-      }
-    }
-    return translated;
-  }
-
-  bool _kindMismatch(_DartSlot? lhsType, String rhs) {
-    if (lhsType == null || lhsType == _DartSlot.untyped) return false;
-    if (rhs == 'null') return true;
-    final looksString =
-        rhs.startsWith("'") || rhs.startsWith('"') || _idTypes[rhs] == _DartSlot.text || rhs.startsWith('ts.str(');
-    final rhsLeadType = _idTypes[RegExp(r'^[A-Za-z_][A-Za-z0-9_\$]*').firstMatch(rhs)?.group(0) ?? ''];
-    final looksNumericLead =
-        RegExp(r'^[0-9(]').hasMatch(rhs) || rhsLeadType == _DartSlot.number || rhsLeadType == _DartSlot.integer;
-    return switch (lhsType) {
-      _DartSlot.text => (looksNumericLead && !looksString) || _staticallyBool(rhs),
-      _DartSlot.number || _DartSlot.integer => looksString || _staticallyBool(rhs),
-      _DartSlot.flag => !_staticallyBool(rhs) && (looksString || looksNumericLead),
-      _DartSlot.list => looksString || _staticallyBool(rhs) || (looksNumericLead && !rhs.startsWith('(')),
-      _ => false,
-    };
-  }
-
-  bool _staticallyIntExpr(String e) {
-    if (e.contains("'") || e.contains('"')) return false;
-    final sansHex = e.replaceAll(RegExp('0x[0-9A-Fa-f]+'), '0');
-    for (final m in RegExp(r'[A-Za-z_][A-Za-z0-9_\$]*').allMatches(sansHex)) {
-      if (_idTypes[m.group(0)] != _DartSlot.integer) return false;
-    }
-    final rest = sansHex.replaceAll(RegExp(r'[A-Za-z_][A-Za-z0-9_\$]*'), '0');
-    return rest.trim().isNotEmpty && RegExp(r'^[0-9\s()+\-*]+$').hasMatch(rest);
+    if (_stripComments(raw).trim().isEmpty) return "''";
+    final parsed = parseSeqExpression(raw);
+    final translated = parsed == null || parsed is SeqSequence ? null : _emit(parsed);
+    return translated?.code ?? _evalFallback(raw);
   }
 
   List<String> _stmtParts(String raw) {
@@ -2107,7 +2237,7 @@ class _DartExporter {
         } else if (timeout != null) {
           _line(
             'await Future<void>.delayed(Duration('
-            'microseconds: ((${_expr(timeout)}) * 1e6).round()));'
+            'microseconds: ((${_numeric(timeout)}) * 1e6).round()));'
             '$waitNote',
           );
         } else {
@@ -2319,13 +2449,15 @@ class _DartExporter {
         disarm('unbound argument', '${arg.name} binds no expression');
         continue;
       }
-      var value = _expr(raw);
-      if (!value.startsWith('ts.eval(')) {
-        if (_kindMismatch(param.type, value) || (param.type == _DartSlot.integer && !_staticallyIntExpr(value))) {
+      final translated = _translate(raw);
+      var value = translated?.code ?? _evalFallback(raw);
+      if (translated != null) {
+        final coerced = _coerce(translated, param.type);
+        if (coerced == null) {
           value = _evalFallback(raw);
           disarm('type guard', '${arg.name} binding is not visibly ${param.type.source}-typed');
-        } else if (param.type == _DartSlot.number && _staticallyIntExpr(value) && !RegExp(r'^\d+$').hasMatch(value)) {
-          value = RegExp(r'^[A-Za-z_][A-Za-z0-9_\$]*$').hasMatch(value) ? '$value.toDouble()' : '($value).toDouble()';
+        } else {
+          value = coerced.code;
         }
       }
       if (value.startsWith('ts.eval(')) {

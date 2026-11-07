@@ -473,7 +473,7 @@ void main() {
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
       expect(
         source,
-        contains('await callee(label: "abc", enabled: true, count: count, gain: (1 + 2).toDouble()); // Run it'),
+        contains("await callee(label: 'abc', enabled: true, count: count, gain: (1 + 2).toDouble()); // Run it"),
       );
       expect(source, contains("lw.test('Caller'"), reason: 'every argument translated mechanically — armed');
     });
@@ -645,7 +645,7 @@ void main() {
           "Future<Object?> loadConfig({String channelName = 'dev1', double voltageLimit = 5, List<dynamic>? thresholds}) async =>",
         ),
       );
-      expect(source, contains('await loadConfig(channelName: "ps1"); // Configure: external sequence call'));
+      expect(source, contains("await loadConfig(channelName: 'ps1'); // Configure: external sequence call"));
       expect(source, contains("/// Signature: the call sites' prototype snapshot"));
     });
 
@@ -765,5 +765,66 @@ void main() {
     expect(source, contains('thresholds ??= <dynamic>[1.5, 2];'));
     expect(source, contains('names ??= <dynamic>[];'));
     expect(source, isNot(contains('const []')), reason: 'a shared const default would alias across calls');
+  });
+  group('expression translation', () {
+    String statement(String expression) {
+      final file = _fileWith([
+        _seqWith(
+          'Main',
+          locals: [
+            _num('Count', '3'),
+            _num('Ratio', '0.5'),
+            _str('Text'),
+            _bool('Flag'),
+            _p('Bag', cls: 'Obj', sub: [_num('X')]),
+          ],
+          steps: [
+            _stepWith(
+              'Do',
+              typeName: 'Statement',
+              ts: [_p('PostExpr', value: expression)],
+            ),
+          ],
+        ),
+      ]);
+      final source = exportSeqFileToDart(file);
+      return [
+        for (final line in source.split('\n'))
+          if (line.endsWith('// Do') || line.endsWith('// Do (cont.)')) line.trim(),
+      ].join('\n');
+    }
+
+    test('conditionals keep their branches and precedence', () {
+      expect(
+        statement('Locals.Flag ? (Locals.Text = "a") : (Locals.Text = @"b\\c")'),
+        r"flag ? (text = 'a') : (text = 'b\\c'); // Do",
+      );
+      expect(statement('Locals.Ratio = (Locals.Count + 1) * 2'), 'ratio = (count + 1) * 2; // Do');
+      expect(statement('Locals.Flag = Locals.Count & 4 ? True : False'), 'flag = count & 4 != 0 ? true : false; // Do');
+    });
+    test('AllOf, AnyOf and Evaluate of a literal lower to plain Dart', () {
+      expect(
+        statement('Locals.Flag = AllOf(Locals.Count > 1, AnyOf(Locals.Flag, Locals.Ratio))'),
+        'flag = count > 1 && (flag || ratio != 0); // Do',
+      );
+      expect(statement('Locals.Ratio = Evaluate("Locals.Ratio * 2")'), 'ratio = ratio * 2; // Do');
+      expect(statement('Locals.Flag = AllOf(Locals.Count++ > 1)'), startsWith('ts.eval('));
+    });
+    test('remainder keeps the sign of the dividend', () {
+      expect(statement('Locals.Count = Locals.Count % 2'), 'count = count.remainder(2); // Do');
+    });
+    test('roots resolve case-insensitively; dynamic objects take any member', () {
+      expect(statement('locals.bag.X += 1'), 'bag.X += 1; // Do');
+    });
+    test('a comma list emits one statement per item', () {
+      expect(statement('Locals.Count = 1, Locals.Text = "x"'), "count = 1; // Do\ntext = 'x'; // Do (cont.)");
+    });
+    test('constructs without a Dart counterpart stay verbatim', () {
+      expect(statement('Locals.Text = Locals.Count'), startsWith('ts.eval('));
+      expect(statement('Locals.Flag = Locals.Text < "b"'), startsWith('ts.eval('));
+      expect(statement('Locals.Text = PropValType_Enum'), startsWith('ts.eval('));
+      expect(parseSeqExpression('&Locals.Count'), isNull);
+      expect(parseSeqExpression('Locals.A <<= 1'), isNull);
+    });
   });
 }
