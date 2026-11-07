@@ -933,5 +933,23 @@ void main() {
       expect(source, contains("seen = aResult.Status == 'Passed' || run.failed; // B"));
       expect(source, contains('run.record(await main\$()); // Call'));
     });
+    test('a step that stores no status expression takes its type default', () {
+      final source = exportSeqFileToDart(
+        _fileWith(
+          [
+            _seqWith('Main', steps: [_stepWith('Check', typeName: 'PassFailTest')]),
+          ],
+          types: [
+            _p(
+              'PassFailTest',
+              sub: [
+                _p('TS', sub: [_p('StatusExpr', value: 'Step.Result.PassFail ? "Passed" : "Failed"')]),
+              ],
+            ),
+          ],
+        ),
+      );
+      expect(source, contains("checkResult.Status = ts.truthy(checkResult.PassFail) ? 'Passed' : 'Failed';"));
+    });
   });
 }

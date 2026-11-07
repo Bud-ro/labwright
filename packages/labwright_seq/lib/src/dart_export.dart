@@ -1350,7 +1350,7 @@ class _DartExporter {
       settings.precondition,
       settings.preExpression,
       settings.postExpression,
-      settings.statusExpression,
+      _statusExpression(step),
       settings.customExpression,
     ].nonNulls;
     if (expressions.any(_stepSelfWrite.hasMatch)) return false;
@@ -2195,8 +2195,8 @@ class _DartExporter {
     } else if (step.resultUnits != null) {
       notes.add('result units: ${step.resultUnits}');
     }
-    if (settings.statusExpression != null) {
-      notes.add('status expression: ${settings.statusExpression}');
+    if (_statusExpression(step) != null) {
+      notes.add('status expression: ${_statusExpression(step)}');
     }
 
     if (settings.isLooping) {
@@ -2360,7 +2360,7 @@ class _DartExporter {
     if (post != null && step.stepType != StepType.statement) {
       _emitStmt(post, 'post-expression');
     }
-    final status = settings.statusExpression;
+    final status = _statusExpression(step);
     if (result != null) {
       if (status != null) {
         final pieces = _rawStmtPieces(status) ?? [status];
@@ -2421,10 +2421,10 @@ class _DartExporter {
         settings.precondition,
         settings.preExpression,
         settings.postExpression,
-        settings.statusExpression,
+        _statusExpression(step),
         settings.customExpression,
       ].nonNulls;
-      final status = settings.statusExpression;
+      final status = _statusExpression(step);
       if ((status != null && status.trim() != '""') || expressions.any(ownResult.hasMatch)) tracked.add(step.raw);
       for (final m in expressions.expand(referenced.allMatches)) {
         final group = StepGroup.values.firstWhere((g) => g.key.toLowerCase() == m.group(1)!.toLowerCase());
@@ -2580,7 +2580,7 @@ class _DartExporter {
           );
         }
       case SeqAdapter.none:
-        final status = step.settings.statusExpression;
+        final status = _statusExpression(step);
         if (!_runsSubsteps(step.type) && status != null && status.trim() != '""') {
           _line('// $name${step.type != null ? ' [${_comment(step.type!)}]' : ''}: judged by its status expression');
         } else if (asTest && step.type != null) {
@@ -2593,6 +2593,13 @@ class _DartExporter {
           );
         }
     }
+  }
+
+  String? _statusExpression(Step step) {
+    final own = step.raw.prop('TS')?.prop('StatusExpr')?.scalar;
+    if (own != null) return nonEmpty(own);
+    final type = step.type == null ? null : _typeByName[step.type];
+    return nonEmpty(type?.raw.prop('TS')?.prop('StatusExpr')?.scalar);
   }
 
   bool _runsSubsteps(String? type) {
