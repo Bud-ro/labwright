@@ -442,6 +442,8 @@ class BdRenderStyle {
 }
 
 const Color kBdDisabledChromeGrey = Color(0xFFAAAAAA);
+const Color kBdTypeDefinitionMark = Color(0xFF464646);
+const int kBdTypeDefinitionMarkSize = 8;
 
 Color? bdDecodedColor(int? rgb) =>
     rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
@@ -1670,6 +1672,11 @@ class BdDiagramPainter extends CustomPainter {
               oid: object.oid,
             );
           }
+        case BdObjectClass.typeDefinition:
+          continue;
+        case BdObjectClass.cluster when _isIconViewCluster(object):
+          _drawIconViewCluster(canvas, object, rect);
+          continue;
         case BdObjectClass.flatSequence:
           _drawFlatSequenceBorder(canvas, rect, object);
         case BdObjectClass.sequenceFrame:
@@ -2076,6 +2083,69 @@ class BdDiagramPainter extends CustomPainter {
         fontWeight: FontWeight.w700,
       );
       _paintText(canvas, run, bdCentredTextAnchor(box, run.size));
+    }
+  }
+
+  void _paintTypeDefinitionMark(Canvas canvas, BdObject object, Rect box) {
+    final mark = _solidNoAa(_dimFor(object.oid, kBdTypeDefinitionMark));
+    final gap = _solidNoAa(kBdCanvas);
+    for (var r = 0; r <= kBdTypeDefinitionMarkSize; r++) {
+      canvas.drawRect(
+        Rect.fromLTWH(
+          box.left,
+          box.top + r,
+          (kBdTypeDefinitionMarkSize + 1 - r).toDouble(),
+          1,
+        ),
+        gap,
+      );
+      if (r < kBdTypeDefinitionMarkSize) {
+        canvas.drawRect(
+          Rect.fromLTWH(
+            box.left,
+            box.top + r,
+            (kBdTypeDefinitionMarkSize - r).toDouble(),
+            1,
+          ),
+          mark,
+        );
+      }
+    }
+  }
+
+  bool _isIconViewCluster(BdObject cluster) {
+    final drawable = {for (final o in objects) o.oid};
+    var hasPane = false;
+    for (final child in scene.diagram.childrenOf(cluster)) {
+      if (child.objectClass != BdObjectClass.pane) continue;
+      hasPane = true;
+      for (final member in scene.diagram.childrenOf(child)) {
+        if (member.objectClass == BdObjectClass.chrome ||
+            member.objectClass == BdObjectClass.textLabel) {
+          continue;
+        }
+        if (drawable.contains(member.oid)) return false;
+      }
+    }
+    return hasPane;
+  }
+
+  void _drawIconViewCluster(Canvas canvas, BdObject cluster, Rect rect) {
+    Color? frameColor;
+    for (final child in scene.diagram.childrenOf(cluster)) {
+      if (child.objectClass == BdObjectClass.chrome && child.fgRgb != null) {
+        frameColor = bdDecodedColor(child.fgRgb);
+      }
+    }
+    final frame = _dimFor(
+      cluster.oid,
+      frameColor ?? labviewTypeColor(ViTypeKind.cluster),
+    );
+    canvas.drawRect(rect, _solidNoAa(frame));
+    canvas.drawRect(rect.deflate(2), _solidNoAa(kBdCanvas));
+    if (scene.diagram.byId[cluster.parentOid ?? -1]?.objectClass ==
+        BdObjectClass.typeDefinition) {
+      _paintTypeDefinitionMark(canvas, cluster, rect);
     }
   }
 

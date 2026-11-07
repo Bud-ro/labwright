@@ -643,9 +643,11 @@ List<Rect> bdStructureAnchorRects(
   );
   final out = <Rect>[];
   for (final object in drawable) {
-    if (object.category != BdObjectKind.structure) continue;
+    final backedLabel =
+        object.objectClass == BdObjectClass.textLabel && object.bgRgb != null;
+    if (object.category != BdObjectKind.structure && !backedLabel) continue;
     final bounds = object.absBounds!;
-    if (bounds.width < 24 || bounds.height < 24) continue;
+    if (bounds.width < 24 || bounds.height < (backedLabel ? 16 : 24)) continue;
     if (bounds.width >= extent.width * 0.95 &&
         bounds.height >= extent.height * 0.95) {
       continue;
