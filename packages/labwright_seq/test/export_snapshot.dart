@@ -15,14 +15,13 @@ String _relative(Directory dir, File file) => file.path.substring(dir.path.lengt
 
 Map<String, String> exportSnapshotFiles() {
   final files = <String, String>{};
-  void add(String folder, Map<String, SeqFile> byPath) =>
-      exportSeqProjectToLabwright(byPath).files.forEach((name, source) {
-        final path = '$folder/$name';
-        if (files[path] case final other? when other != source) {
-          throw StateError('$path: the sources sharing $folder export differently');
-        }
-        files[path] = source;
-      });
+  void add(String folder, Map<String, SeqFile> byPath) => exportSeqProjectToDart(byPath).files.forEach((name, source) {
+    final path = '$folder/$name';
+    if (files[path] case final other? when other != source) {
+      throw StateError('$path: the sources sharing $folder export differently');
+    }
+    files[path] = source;
+  });
   SeqFile parse(File f) => parseSeqFile(f.readAsBytesSync());
   final corpus = Directory('${corpusSeqDir.path}/seq-corpus');
   for (final source in Directory('${corpus.path}/sources').listSync().whereType<Directory>()) {
