@@ -3,8 +3,12 @@ import 'package:labwright/shims.dart' as ts;
 import 'package:test/test.dart';
 
 void main() {
-  test('eval and cond always throw, naming the expression', () {
-    for (final (Function fn, expr) in [(ts.eval, 'RunState.Foo'), (ts.cond, 'Locals.X > 1')]) {
+  test('eval, cond and notExported always throw, naming what they were given', () {
+    for (final (Function fn, expr) in [
+      (ts.eval, 'RunState.Foo'),
+      (ts.cond, 'Locals.X > 1'),
+      (ts.notExported, 'python call: x.py'),
+    ]) {
       expect(
         () => fn(expr),
         throwsA(isA<UnimplementedError>().having((e) => e.message, 'message', contains(expr))),
