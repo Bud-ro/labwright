@@ -252,7 +252,7 @@ void main() {
       expect(source, contains('// step loop (PassFailCount): while RunState.LoopIndex < 10'));
       expect(source, contains('// status expression: Step.Result.Status'));
       expect(source, contains('lw.skipTest('));
-      expect(source, contains('flow action of step "Voltage OK"'));
+      expect(source, contains("if (voltageOkResult.Status == 'Failed') { // post action\n      break body;"));
       expect(source, contains('per-step looping not exported'));
       expect(source, contains('voltageOkResult.Status = voltageOkResult.Status; // status expression'));
     });
@@ -950,6 +950,103 @@ void main() {
         ),
       );
       expect(source, contains("checkResult.Status = ts.truthy(checkResult.PassFail) ? 'Passed' : 'Failed';"));
+    });
+  });
+  group('post actions', () {
+    SeqProperty gotoStep(String name, String target, {String expression = 'True', String action = 'Goto'}) => _stepWith(
+      name,
+      typeName: 'Goto',
+      ts: [
+        _p('CustExpr', value: expression),
+        _p('CustTrueAct', value: action),
+        _p('CustTrueActTarget', value: '"$target"'),
+      ],
+    );
+    SeqProperty statement(String name, String expression) => _stepWith(
+      name,
+      typeName: 'Statement',
+      ts: [_p('PostExpr', value: expression)],
+    );
+    SeqProperty flow(String name, String type, [String? condition]) => _stepWith(
+      name,
+      typeName: type,
+      props: [if (condition != null) _p('ConditionExpr', value: condition)],
+    );
+    String export(List<SeqProperty> main, {List<SeqProperty> cleanup = const []}) {
+      final sequence = _seqWith('Main', locals: [_num('N', '0'), _bool('Flag')], steps: main);
+      return exportSeqFileToLabwright(
+        _fileWith(
+          [
+            if (cleanup.isEmpty)
+              sequence
+            else
+              _p(
+                'Main',
+                sub: [
+                  ...sequence.subProps,
+                  SeqProperty(name: 'Cleanup', className: 'Objs', array: cleanup),
+                ],
+              ),
+          ],
+          types: [
+            _p(
+              'Goto',
+              sub: [SeqProperty(name: 'Substeps', array: const [])],
+            ),
+          ],
+        ),
+      );
+    }
+
+    test('a forward goto out of a block breaks a label that closes before its target', () {
+      final source = export([
+        flow('If', 'NI_Flow_If', 'Locals.Flag'),
+        gotoStep('Skip', 'Done'),
+        flow('End', 'NI_Flow_End'),
+        statement('Work', 'Locals.N = 1'),
+        _stepWith('Done', typeName: 'Label'),
+      ]);
+      expect(
+        source,
+        contains(
+          '  skipToDone: {\n    if (flag) {\n      // goto -> Done\n      // Skip [Goto]: no code module\n'
+          '      break skipToDone; // post action\n    }\n    n = 1; // Work\n  }\n  // label: Done',
+        ),
+      );
+      expect(source, contains("lw.test('Main'"));
+    });
+    test('a backward goto loops; <End> leaves the group', () {
+      final source = export([
+        _stepWith('Top', typeName: 'Label'),
+        statement('Count', 'Locals.N += 1'),
+        gotoStep('Again', 'Top', expression: 'Locals.N < 3'),
+        gotoStep('Out', '<End>'),
+        statement('Never', 'Locals.N = 0'),
+      ]);
+      expect(source, contains('backToTop: while (true) {'));
+      expect(source, contains('if (n < 3) { // post action\n        continue backToTop;\n      }'));
+      expect(source, contains('break backToTop;\n    }'));
+      expect(source, contains('break endMain; // post action'));
+    });
+    test('a goto into the cleanup group skips the cleanup steps before its target', () {
+      final source = export(
+        [gotoStep('Bail', 'Late')],
+        cleanup: [
+          statement('Early', 'Locals.N = 1'),
+          _stepWith('Late', typeName: 'Label'),
+        ],
+      );
+      expect(source, contains('var cleanupFrom = 0;\n  body: try {'));
+      expect(source, contains('cleanupFrom = 1; break body; // post action'));
+      expect(source, contains('    if (cleanupFrom < 1) {\n      n = 1; // Early\n    }\n    // label: Late\n  }'));
+    });
+    test('Terminate raises; Call Sequence calls the named sequence', () {
+      final source = export([
+        gotoStep('Stop', '', expression: 'Locals.Flag', action: 'Terminate'),
+        gotoStep('Again', 'Main', action: 'Cback'),
+      ]);
+      expect(source, contains('if (flag) { // post action\n    ts.terminate();\n  }'));
+      expect(source, contains('await main\$(); // post action'));
     });
   });
 }

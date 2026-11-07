@@ -206,6 +206,15 @@ String checkStrLimit(Object? value, Object? limit, Object? comparison, [Object? 
   return equal ? statusPassed : statusFailed;
 }
 
+/// Raised by a Terminate post action: the execution stops after each sequence on the way out runs its cleanup.
+final class SequenceTermination implements Exception {
+  const SequenceTermination();
+  @override
+  String toString() => 'execution terminated by a post action';
+}
+
+Never terminate() => throw const SequenceTermination();
+
 /// The status a sequence reports: failed once a step whose failure fails the sequence records a failed status.
 class SequenceRun {
   bool failed = false;

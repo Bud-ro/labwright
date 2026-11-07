@@ -1049,6 +1049,21 @@ enum _SeqFunction {
   static final Map<String, _SeqFunction> byName = {for (final f in values) f.name: f};
 }
 
+/// A built-in step type whose whole behaviour, without a code module, is its expressions and post action.
+enum _ModuleFreeStepType {
+  /// Runs its module, so with none only its expressions.
+  action('Action'),
+
+  /// Jumps through its post action.
+  goto('Goto');
+
+  const _ModuleFreeStepType(this.name);
+  final String name;
+  static final Map<String, _ModuleFreeStepType> byName = {for (final t in values) t.name: t};
+}
+
+typedef _JumpBlock = ({int open, int close, String header, String? footer});
+
 typedef _OpenBlock = ({FlowKind kind, String? increment, String? condition, int selectId});
 
 _OpenBlock _openBlock(FlowKind kind, {String? increment, String? condition, int selectId = 0}) =>
@@ -1109,6 +1124,16 @@ class _DartExporter {
   String? _foldResult;
 
   int _loopDepth = 0;
+
+  StepGroup _group = StepGroup.main;
+
+  String? _bodyLabel;
+
+  String? _cleanupFrom;
+
+  Set<int> _cleanupEntriesOf = const {};
+
+  Map<SeqProperty, Map<String, String>> _gotoLabels = Map.identity();
 
   void _markUnported(String target) {
     final seq = _currentSeq;
@@ -1769,11 +1794,44 @@ class _DartExporter {
       _line('// (no steps in the source sequence)');
       _line('');
     }
-    for (final group in nonEmptyGroups) {
+    final cleanup = sequence.cleanup;
+    final bodyGroups = [
+      for (final g in nonEmptyGroups)
+        if (g != StepGroup.cleanup) g,
+    ];
+    final wantsBody = cleanup.isNotEmpty || bodyGroups.any((g) => sequence.stepsIn(g).any(_targetsCleanup));
+    _bodyLabel = wantsBody && bodyGroups.isNotEmpty ? _claimId('body') : null;
+    _cleanupEntriesOf = _bodyLabel != null && cleanup.isNotEmpty ? _cleanupEntries(sequence) : const {};
+    _cleanupFrom = _cleanupEntriesOf.isEmpty ? null : _claimId('cleanupFrom');
+    if (_cleanupFrom != null) _line('var $_cleanupFrom = 0;');
+    if (_bodyLabel != null) {
+      _line(cleanup.isNotEmpty ? '$_bodyLabel: try {' : '$_bodyLabel: {');
+      _indent++;
+    }
+    for (final group in bodyGroups) {
       if (nonEmptyGroups.length > 1) _line('// ── ${group.name} ──');
+      _group = group;
       _emitSteps(sequence.stepsIn(group));
       _line('');
     }
+    if (_bodyLabel != null) {
+      _indent--;
+      _line(cleanup.isNotEmpty ? '} finally {' : '}');
+    }
+    if (cleanup.isNotEmpty) {
+      if (_bodyLabel != null) _indent++;
+      if (nonEmptyGroups.length > 1) _line('// ── ${StepGroup.cleanup.name} ──');
+      _group = StepGroup.cleanup;
+      _emitSteps(cleanup);
+      if (_bodyLabel != null) {
+        _indent--;
+        _line('}');
+      }
+      _line('');
+    }
+    _bodyLabel = null;
+    _cleanupFrom = null;
+    _cleanupEntriesOf = const {};
     _line('return $_runId.status;');
     _indent = 0;
     _out
@@ -1839,6 +1897,23 @@ class _DartExporter {
   String _arrayInit(SeqVariable v) => _listInit(v.raw, {});
 
   void _emitSteps(List<Step> steps) {
+    final plan = _gotoPlan(steps);
+    _gotoLabels = plan.sites;
+    final openJumps = <_JumpBlock>[];
+    void boundary(int index) {
+      while (openJumps.isNotEmpty && openJumps.last.close == index) {
+        final closing = openJumps.removeLast();
+        if (closing.footer != null) _line(closing.footer!);
+        _indent--;
+        _line('}');
+      }
+      for (final block in plan.blocks.where((b) => b.open == index)) {
+        _line(block.header);
+        _indent++;
+        openJumps.add(block);
+      }
+    }
+
     final open = <_OpenBlock>[];
     var selectCounter = 0;
     final selectVars = <int, ({String value, String matched})>{};
@@ -1885,7 +1960,8 @@ class _DartExporter {
       'Statement',
       'Goto',
     };
-    for (final step in steps) {
+    for (final (index, step) in steps.indexed) {
+      boundary(index);
       final flow = step.flowControl;
       final rawName = _comment(step.name);
       final authorComment = step.comment;
@@ -2133,6 +2209,220 @@ class _DartExporter {
     while (open.isNotEmpty) {
       closeBlock(open.removeLast(), note: ' // closed: unbalanced block in source');
     }
+    boundary(steps.length);
+    _gotoLabels = Map.identity();
+  }
+
+  static String? _jumpTarget(String? raw) {
+    final target = raw == null ? null : unwrapExprString(raw);
+    return target == null || target.isEmpty ? null : target;
+  }
+
+  static List<(String?, String?)> _postActions(StepSettings settings) => settings.customExpression != null
+      ? [
+          (settings.customTrueAction, settings.customTrueTarget),
+          (settings.customFalseAction, settings.customFalseTarget),
+        ]
+      : [(settings.passAction, settings.passActionTarget), (settings.failAction, settings.failActionTarget)];
+
+  static bool _targetsCleanup(Step step) =>
+      step.settings.isNormalMode &&
+      _postActions(step.settings).any((a) => a.$1 == 'Goto' && _jumpTarget(a.$2) == _cleanupTarget);
+
+  static const _endTarget = '<End>';
+  static const _cleanupTarget = '<Cleanup>';
+
+  static List<List<int>> _blockContexts(List<Step> steps) {
+    final contexts = <List<int>>[];
+    final stack = <(int, FlowKind)>[];
+    var segment = 0;
+    for (final step in steps) {
+      contexts.add([for (final (id, _) in stack) id]);
+      final kind = step.flowControl?.kind;
+      if (kind == null) continue;
+      if (kind.opensBlock) {
+        stack.add((++segment, kind));
+      } else if (kind.isContinuation && stack.isNotEmpty && stack.last.$2 == FlowKind.ifBlock) {
+        stack[stack.length - 1] = (++segment, FlowKind.ifBlock);
+      } else if (kind == FlowKind.end && stack.isNotEmpty) {
+        stack.removeLast();
+      }
+    }
+    contexts.add([for (final (id, _) in stack) id]);
+    return contexts;
+  }
+
+  static bool _within(List<int> inner, List<int> outer) {
+    if (inner.length < outer.length) return false;
+    for (var i = 0; i < outer.length; i++) {
+      if (inner[i] != outer[i]) return false;
+    }
+    return true;
+  }
+
+  static int? _stepIndex(List<Step> steps, String target) {
+    final matches = [
+      for (final (i, candidate) in steps.indexed)
+        if (candidate.name == target || candidate.id == target) i,
+    ];
+    return matches.length == 1 ? matches.single : null;
+  }
+
+  int? _cleanupEntry(String target) {
+    final cleanup = _sequence?.cleanup ?? const <Step>[];
+    final at = _stepIndex(cleanup, target);
+    return at != null && _blockContexts(cleanup)[at].isEmpty ? at : null;
+  }
+
+  Set<int> _cleanupEntries(Sequence sequence) {
+    final entries = <int>{};
+    for (final group in const [StepGroup.setup, StepGroup.main]) {
+      final steps = sequence.stepsIn(group);
+      for (final step in steps) {
+        if (step.flowControl != null || !step.settings.isNormalMode) continue;
+        for (final (action, raw) in _postActions(step.settings)) {
+          final target = _jumpTarget(raw);
+          if (action != 'Goto' || target == null || target == _endTarget || target == _cleanupTarget) continue;
+          if (_stepIndex(steps, target) != null) continue;
+          final at = _cleanupEntry(target);
+          if (at != null && at > 0) entries.add(at);
+        }
+      }
+    }
+    return entries;
+  }
+
+  ({List<_JumpBlock> blocks, Map<SeqProperty, Map<String, String>> sites}) _gotoPlan(List<Step> steps) {
+    final contexts = _blockContexts(steps);
+    final blocks = <_JumpBlock>[];
+    bool laminar(int open, int close) => blocks.every(
+      (b) =>
+          close <= b.open ||
+          open >= b.close ||
+          (open >= b.open && close <= b.close) ||
+          (open <= b.open && close >= b.close),
+    );
+    final sites = Map<SeqProperty, Map<String, String>>.identity();
+    final forward = <int, String>{};
+    final backward = <(int, int), String>{};
+    if (_group == StepGroup.cleanup && _cleanupFrom != null) {
+      final entries = _cleanupEntriesOf.toList()..sort();
+      for (final (i, entry) in entries.indexed) {
+        final from = i == 0 ? 0 : entries[i - 1];
+        if (laminar(from, entry)) {
+          blocks.add((open: from, close: entry, header: 'if ($_cleanupFrom < $entry) {', footer: null));
+        }
+      }
+    }
+    for (final (site, step) in steps.indexed) {
+      if (step.flowControl != null || !step.settings.isNormalMode) continue;
+      for (final (action, raw) in _postActions(step.settings)) {
+        final target = _jumpTarget(raw);
+        if (action != 'Goto' || target == null || target == _cleanupTarget) continue;
+        final at = target == _endTarget ? steps.length : _stepIndex(steps, target);
+        if (at == null) {
+          final entry = _group == StepGroup.cleanup || _bodyLabel == null ? null : _cleanupEntry(target);
+          if (entry != null && (entry == 0 || _cleanupFrom != null)) {
+            (sites[step.raw] ??= {})[target] = entry == 0
+                ? 'break $_bodyLabel;'
+                : '$_cleanupFrom = $entry; break $_bodyLabel;';
+          }
+          continue;
+        }
+        final kind = at < steps.length ? steps[at].flowControl?.kind : null;
+        if (kind != null && kind.isContinuation) continue;
+        if (!_within(contexts[site], contexts[at])) continue;
+        if (at > site) {
+          var start = at;
+          while (start > 0 && _within(contexts[start - 1], contexts[at])) {
+            start--;
+          }
+          if (site < start) continue;
+          var label = forward[at];
+          if (label == null) {
+            if (!laminar(start, at)) continue;
+            label = forward[at] = _claimId(
+              at == steps.length ? 'end${_group.key}' : 'skipTo${dartIdentifier(steps[at].name, capitalize: true)}',
+            );
+            blocks.add((open: start, close: at, header: '$label: {', footer: null));
+          }
+          (sites[step.raw] ??= {})[target] = 'break $label;';
+        } else {
+          var close = site + 1;
+          while (close < steps.length && !_sameContext(contexts[close], contexts[at])) {
+            close++;
+          }
+          if (!_sameContext(contexts[close], contexts[at])) continue;
+          final escapes = [
+            for (var i = at; i < close; i++)
+              if (steps[i].flowControl?.kind case FlowKind.breakStmt || FlowKind.continueStmt) i,
+          ].any((i) => contexts[i].length == contexts[at].length);
+          if (escapes) continue;
+          var label = backward[(at, close)];
+          if (label == null) {
+            if (!laminar(at, close)) continue;
+            label = backward[(at, close)] = _claimId('backTo${dartIdentifier(steps[at].name, capitalize: true)}');
+            blocks.add((open: at, close: close, header: '$label: while (true) {', footer: 'break $label;'));
+          }
+          (sites[step.raw] ??= {})[target] = 'continue $label;';
+        }
+      }
+    }
+    blocks.sort((a, b) => a.open != b.open ? a.open.compareTo(b.open) : b.close.compareTo(a.close));
+    return (blocks: blocks, sites: sites);
+  }
+
+  static bool _sameContext(List<int> a, List<int> b) => a.length == b.length && _within(a, b);
+
+  String? _postActionCode(Step step, String? action, String? rawTarget) {
+    final target = _jumpTarget(rawTarget);
+    switch (action) {
+      case null || 'Next':
+        return '';
+      case 'Terminate':
+        return 'ts.terminate();';
+      case 'Goto' when target == _cleanupTarget:
+        return _group != StepGroup.cleanup && _bodyLabel != null ? 'break $_bodyLabel;' : null;
+      case 'Goto':
+        return _gotoLabels[step.raw]?[target];
+      case 'Cback':
+        final fn = target == null ? null : _sequenceFnNames[target];
+        return fn == null ? null : 'await $fn();';
+      default:
+        return null;
+    }
+  }
+
+  void _emitPostAction(Step step, String? result) {
+    final settings = step.settings;
+    final actions = _postActions(settings);
+    final codes = [for (final (action, target) in actions) _postActionCode(step, action, target)];
+    if (codes.every((c) => c == '')) return;
+    final custom = settings.customExpression;
+    if (codes.contains(null) || (custom == null && result == null)) {
+      if (asTest) {
+        _markUnported('flow action of step "${step.name}" (${settings.flowSummary ?? 'custom/goto'}) not exported');
+      }
+      return;
+    }
+    final [onTrue!, onFalse!] = codes;
+    final condition = custom != null ? _cond(custom) : "$result.Status == 'Passed'";
+    if (custom != null && (condition == 'true' || condition == 'false')) {
+      final taken = condition == 'true' ? onTrue : onFalse;
+      if (taken.isNotEmpty) _line('$taken // post action');
+      return;
+    }
+    final otherwise = custom != null ? null : "$result.Status == 'Failed'";
+    final arms = [
+      if (onTrue.isNotEmpty) (condition, onTrue),
+      if (onFalse.isNotEmpty) (otherwise ?? (onTrue.isEmpty ? '!($condition)' : null), onFalse),
+    ];
+    for (final (i, (test, code)) in arms.indexed) {
+      final head = test == null ? '} else {' : (i == 0 ? 'if ($test) {' : '} else if ($test) {');
+      _line(i == 0 ? '$head // post action' : head);
+      _line('  $code');
+    }
+    _line('}');
   }
 
   String _exprStatement(String raw) {
@@ -2223,11 +2513,9 @@ class _DartExporter {
     }
     if (step.type == 'Goto' && settings.customTrueTarget != null) {
       notes.add('goto${jump(settings.customTrueTarget)}');
-    } else if (settings.customExpression != null ||
-        settings.customTrueTarget != null ||
-        settings.customFalseTarget != null) {
+    } else if (settings.customExpression != null) {
       notes.add(
-        'custom flow: if (${settings.customExpression ?? 'True'}) '
+        'custom flow: if (${settings.customExpression}) '
         '${settings.customTrueAction ?? 'Next'}${jump(settings.customTrueTarget)}'
         ' else ${settings.customFalseAction ?? 'Next'}${jump(settings.customFalseTarget)}',
       );
@@ -2325,14 +2613,6 @@ class _DartExporter {
     if (settings.isLooping) {
       _markUnported('step "${step.name}" loops (${settings.loopType}) — per-step looping not exported');
     }
-    final jumps =
-        (settings.passAction != null && settings.passAction != 'Next') ||
-        (settings.failAction != null && settings.failAction != 'Next') ||
-        settings.customTrueTarget != null ||
-        settings.customFalseTarget != null;
-    if (jumps) {
-      _markUnported('flow action of step "${step.name}" (${settings.flowSummary ?? 'custom/goto'}) not exported');
-    }
   }
 
   void _emitPlainStep(Step step) {
@@ -2373,6 +2653,7 @@ class _DartExporter {
       }
       if (settings.failureCausesSequenceFailure != false) _line('$_runId.record($result.Status);');
     }
+    _emitPostAction(step, result);
 
     if (precondition != null) {
       _indent--;
@@ -2581,8 +2862,12 @@ class _DartExporter {
         }
       case SeqAdapter.none:
         final status = _statusExpression(step);
-        if (!_runsSubsteps(step.type) && status != null && status.trim() != '""') {
-          _line('// $name${step.type != null ? ' [${_comment(step.type!)}]' : ''}: judged by its status expression');
+        final judged = status != null && status.trim() != '""';
+        if (!_runsSubsteps(step.type) && (judged || _ModuleFreeStepType.byName.containsKey(step.type))) {
+          _line(
+            '// $name${step.type != null ? ' [${_comment(step.type!)}]' : ''}: '
+            '${judged ? 'judged by its status expression' : 'no code module'}',
+          );
         } else if (asTest && step.type != null) {
           _throwLine(step, 'step type ${step.type}', 'action not exported yet');
         } else {
