@@ -4,6 +4,8 @@ dynamic eval(String expression) => throw UnimplementedError('expression not tran
 
 bool cond(String expression) => throw UnimplementedError('condition not translated: $expression');
 
+void notExported(String action) => throw UnimplementedError(action);
+
 bool truthy(Object? v) => switch (v) {
   final bool b => b,
   final num n => n != 0,
