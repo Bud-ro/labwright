@@ -12,8 +12,46 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   String hardwareConfigPath = ''; // Str
+
+  final run = ts.SequenceRun();
+  dynamic thermistorTestCDaqResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Thermistor Test - cDAQ
+  dynamic thermistorTestDaqResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Thermistor Test - DAQ
+  dynamic rtdTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of RTD Test
+  dynamic thermocoupleTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Thermocouple Test
+  dynamic powerDownAllAoChannelsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Power down all AO Channels
+  dynamic powerDownPowerChannelResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Power down Power Channel
 
   // ── setup ──
   ts.eval(
@@ -28,33 +66,69 @@ Future<void> mainSequence() async {
   // ── main ──
   // label: Example demonstrates Thermistor Temperature measurements captured on C Series Voltage Input Module
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await thermistorTestCDaq(); // Thermistor Test - cDAQ
+  thermistorTestCDaqResult.Status =
+      await thermistorTestCDaq(); // Thermistor Test - cDAQ
+  thermistorTestCDaqResult.Status = thermistorTestCDaqResult.Status == 'Done'
+      ? 'Passed'
+      : thermistorTestCDaqResult.Status; // status expression
+  run.record(thermistorTestCDaqResult.Status);
   // label: Example demonstrates Thermistor Temperature measurements captured on DAQ Analog Input Module, and Power Supply using TestScale
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await thermistorTestDaq(); // Thermistor Test - DAQ
+  thermistorTestDaqResult.Status =
+      await thermistorTestDaq(); // Thermistor Test - DAQ
+  thermistorTestDaqResult.Status = thermistorTestDaqResult.Status == 'Done'
+      ? 'Passed'
+      : thermistorTestDaqResult.Status; // status expression
+  run.record(thermistorTestDaqResult.Status);
   // label: Example demonstrates RTD Temperature measurements captured on C Series Temperature Input Module
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await rtdTest(); // RTD Test
+  rtdTestResult.Status = await rtdTest(); // RTD Test
+  rtdTestResult.Status = rtdTestResult.Status == 'Done'
+      ? 'Passed'
+      : rtdTestResult.Status; // status expression
+  run.record(rtdTestResult.Status);
   // label: Example demonstrates Thermocouple Temperature measurements captured on C Series Temperature Input Module
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await thermocoupleTest(); // Thermocouple Test
+  thermocoupleTestResult.Status = await thermocoupleTest(); // Thermocouple Test
+  thermocoupleTestResult.Status = thermocoupleTestResult.Status == 'Done'
+      ? 'Passed'
+      : thermocoupleTestResult.Status; // status expression
+  run.record(thermocoupleTestResult.Status);
 
   // ── cleanup ──
   // label: Turn off all configured AO channels by configuring to 0V
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await turnOffAllAoChannels(); // Power down all AO Channels
+  powerDownAllAoChannelsResult.Status =
+      await turnOffAllAoChannels(); // Power down all AO Channels
+  powerDownAllAoChannelsResult.Status =
+      powerDownAllAoChannelsResult.Status == 'Done'
+      ? 'Passed'
+      : powerDownAllAoChannelsResult.Status; // status expression
+  run.record(powerDownAllAoChannelsResult.Status);
   // label: Turn off configured Power channel by configuring to 0V
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await turnOffPowerChannel(); // Power down Power Channel
+  powerDownPowerChannelResult.Status =
+      await turnOffPowerChannel(); // Power down Power Channel
+  powerDownPowerChannelResult.Status =
+      powerDownPowerChannelResult.Status == 'Done'
+      ? 'Passed'
+      : powerDownPowerChannelResult.Status; // status expression
+  run.record(powerDownPowerChannelResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `-------Examples------`.
-Future<void> examples() async {
+Future<String> examples() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Thermistor Test - cDAQ`.
-Future<void> thermistorTestCDaq() async {
+Future<String> thermistorTestCDaq() async {
   dynamic settings = ts.PropObj(); // Obj
   dynamic thermistorTempMeas = ts.PropObj({
     'AcqTime': 0,
@@ -263,6 +337,8 @@ Future<void> thermistorTestCDaq() async {
     'SessionNumber': 0,
   }); // LabVIEWIOControl
 
+  final run = ts.SequenceRun();
+
   // ── setup ──
   // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
   // Initialize DC Voltage Generation to generate DC Voltage to excite Thermistor
@@ -303,10 +379,12 @@ Future<void> thermistorTestCDaq() async {
   //   DAQmx Task In <- Locals.ThermistorTempMeas.Task
   //   error out <- Step.Result.Error
   await callDaqTtrMeasClose(); // Temperature Thermistor Measurement - Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `Thermistor Test - DAQ`.
-Future<void> thermistorTestDaq() async {
+Future<String> thermistorTestDaq() async {
   dynamic settings = ts.PropObj(); // Obj
   dynamic thermistorTempMeas = ts.PropObj({
     'AcqTime': 0,
@@ -537,6 +615,8 @@ Future<void> thermistorTestDaq() async {
     'Avg_Power': 0,
   }); // Obj
 
+  final run = ts.SequenceRun();
+
   // ── setup ──
   // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
   // Initialize Power Supply Source and Measure to generate DC Voltage to excite Thermistor
@@ -580,14 +660,18 @@ Future<void> thermistorTestDaq() async {
   //   DAQmx Task In <- Locals.ThermistorTempMeas.Task
   //   error out <- Step.Result.Error
   await callDaqTtrMeasClose(); // Temperature Thermistor Measurement - Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `RTD Test`.
-Future<void> rtdTest() async {
+Future<String> rtdTest() async {
   dynamic rtdTempMeasTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
@@ -613,10 +697,12 @@ Future<void> rtdTest() async {
   //   DAQmx Task In <- Locals.RTD_Temp_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqTrtdMeasClose(); // Temperature RTD Measurement - Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `Thermocouple Test`.
-Future<void> thermocoupleTest() async {
+Future<String> thermocoupleTest() async {
   dynamic settings = ts.PropObj(); // Obj
   dynamic thermocoupleTempMeas = ts.PropObj({
     'AcqTime': 0,
@@ -821,6 +907,8 @@ Future<void> thermocoupleTest() async {
     'Task': ts.PropObj({'DeviceName': '', 'SessionNumber': 0}),
   }); // Obj
 
+  final run = ts.SequenceRun();
+
   // ── setup ──
   // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
   // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform Thermocouple Temperature Measurement
@@ -849,21 +937,29 @@ Future<void> thermocoupleTest() async {
   //   DAQmx Task In <- Locals.ThermocoupleTempMeas.Task
   //   error out <- Step.Result.Error
   await callDaqTtcMeasClose(); // Temperature Thermocouple Measurement - Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `-------Reusable Sequences------`.
-Future<void> reusableSequences() async {
+Future<String> reusableSequences() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Turn Off all AO Channels`.
-Future<void> turnOffAllAoChannels() async {
+Future<String> turnOffAllAoChannels() async {
   dynamic dcVoltageGenTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
   List<dynamic> outputVoltagesV =
       <dynamic>[]; // Nums — Update the Array based on AO Channels to Turn OFF
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example resets all configured Analog output channels voltage to 0 Volts
@@ -895,14 +991,18 @@ Future<void> turnOffAllAoChannels() async {
   //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
   //   error out <- Step.Result.Error
   await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+
+  return run.status;
 }
 
 /// Sequence `Turn Off Power Channel`.
-Future<void> turnOffPowerChannel() async {
+Future<String> turnOffPowerChannel() async {
   dynamic psTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example resets configured Power channel voltage to 0.1 Volt
@@ -927,16 +1027,22 @@ Future<void> turnOffPowerChannel() async {
   //   DAQmx Task In <- Locals.PS_Task
   //   error out <- Step.Result.Error
   await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: "About This Example"
   // popup message: "These automation test sequences utilize PCBA libraries to conduct basic electrical functional tests, | which can be adapted or modified to fit your specific procedures. The sequences employ simulated DAQ  | hardware and do not include limit testing.  |   | Make sure all prerequisite software and configurations outlined in the user manual are installed. |   | For detailed help on how to use the test sequences, please refer to the online manual provided in the link below. | https://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html"
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Explanation [MessagePopup]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -1062,12 +1168,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   Common\Import Hardware Config.vi
-  //   status expression of step "Thermistor Test - cDAQ" not exported
-  //   status expression of step "Thermistor Test - DAQ" not exported
-  //   status expression of step "RTD Test" not exported
-  //   status expression of step "Thermocouple Test" not exported
-  //   status expression of step "Power down all AO Channels" not exported
-  //   status expression of step "Power down Power Channel" not exported
   //   DC Voltage Generation\DAQ_DC Voltage Gen Initialize.vi
   //   Temperature Thermistor Measurement\DAQ_TTR Meas Initialize.vi
   //   DC Voltage Generation\DAQ_DC Voltage Gen Configure and Generate.vi
@@ -1084,17 +1184,17 @@ void register() {
   //   Temperature Thermocouple Measurement\DAQ_TTC Meas Configure and Measure.vi
   //   Temperature Thermocouple Measurement\DAQ_TTC Meas Close.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   lw.test('-------Examples------', () async {
-    await examples();
+    lw.expect(await examples(), 'Passed');
   });
   lw.test('-------Reusable Sequences------', () async {
-    await reusableSequences();
+    lw.expect(await reusableSequences(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

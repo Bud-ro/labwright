@@ -12,7 +12,9 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+
   //   Sequence Context <- ThisContext
   //   milliseconds to wait <- 1000
   //   Instrument Names <- FileGlobals.InstrumentList
@@ -32,11 +34,15 @@ Future<void> mainSequence() async {
   //   Instrument Names <- FileGlobals.InstrumentListDAQ
   //   error out <- Step.Result.Error
   await callLockTestVi(); // DAQ Test [Action]
+
+  return run.status;
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
-Future<void> processSetup() async {
+Future<String> processSetup() async {
   String instrument = ''; // Str
+
+  final run = ts.SequenceRun();
 
   for (final element in ts.iterate(fileGlobals.InstrumentList)) {
     instrument = element as String;
@@ -45,6 +51,8 @@ Future<void> processSetup() async {
       'step type NI_Lock: action not exported yet',
     ); // Lock [NI_Lock]
   }
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -77,11 +85,11 @@ void register() {
   //   SubStep\Lock Test VI.vi
   //   step type Action: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type NI_Lock: action not exported yet
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
 }

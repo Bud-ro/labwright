@@ -12,36 +12,132 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic testBoolParameterReturnResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Test Bool Parameter/Return
+  dynamic testU32ParameterReturnResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Numeric': 0,
+    'Units': '',
+  }); // result of Test U32 Parameter/Return
+  dynamic testU64ParameterReturnResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Numeric': 0,
+    'Units': '',
+  }); // result of Test U64 Parameter/Return
+  dynamic testI32ParameterReturnResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Numeric': 0,
+    'Units': '',
+  }); // result of Test I32 Parameter/Return
+  dynamic testI64ParameterReturnResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Numeric': 0,
+    'Units': '',
+  }); // result of Test I64 Parameter/Return
+  dynamic testDblParamaterReturnResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Numeric': 0,
+    'Units': '',
+  }); // result of Test DBL Paramater/Return
+
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // Test Bool Parameter/Return [RunRTSequencePassFail]
+  testBoolParameterReturnResult.Status =
+      ts.truthy(testBoolParameterReturnResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(testBoolParameterReturnResult.Status);
   // checks: Step.Result.Numeric GELE [low 499, high 501, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
   throw UnimplementedError(
     'step type RunRTSequenceNumericLimit: action not exported yet',
   ); // Test U32 Parameter/Return [RunRTSequenceNumericLimit]
+  testU32ParameterReturnResult.Status = ts.checkLimits(
+    testU32ParameterReturnResult.Numeric,
+    501,
+    499,
+    'GELE',
+  ); // status expression
+  run.record(testU32ParameterReturnResult.Status);
   // checks: Step.Result.Numeric GELE [low 9, high 11, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
   throw UnimplementedError(
     'step type RunRTSequenceNumericLimit: action not exported yet',
   ); // Test U64 Parameter/Return [RunRTSequenceNumericLimit]
+  testU64ParameterReturnResult.Status = ts.checkLimits(
+    testU64ParameterReturnResult.Numeric,
+    11,
+    9,
+    'GELE',
+  ); // status expression
+  run.record(testU64ParameterReturnResult.Status);
   // checks: Step.Result.Numeric GELE [low 9, high 11, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
   throw UnimplementedError(
     'step type RunRTSequenceNumericLimit: action not exported yet',
   ); // Test I32 Parameter/Return [RunRTSequenceNumericLimit]
+  testI32ParameterReturnResult.Status = ts.checkLimits(
+    testI32ParameterReturnResult.Numeric,
+    11,
+    9,
+    'GELE',
+  ); // status expression
+  run.record(testI32ParameterReturnResult.Status);
   // checks: Step.Result.Numeric GELE [low 9, high 11, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
   throw UnimplementedError(
     'step type RunRTSequenceNumericLimit: action not exported yet',
   ); // Test I64 Parameter/Return [RunRTSequenceNumericLimit]
+  testI64ParameterReturnResult.Status = ts.checkLimits(
+    testI64ParameterReturnResult.Numeric,
+    11,
+    9,
+    'GELE',
+  ); // status expression
+  run.record(testI64ParameterReturnResult.Status);
   // checks: Step.Result.Numeric GELE [low 9, high 11, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
   throw UnimplementedError(
     'step type RunRTSequenceNumericLimit: action not exported yet',
   ); // Test DBL Paramater/Return [RunRTSequenceNumericLimit]
+  testDblParamaterReturnResult.Status = ts.checkLimits(
+    testDblParamaterReturnResult.Numeric,
+    11,
+    9,
+    'GELE',
+  ); // status expression
+  run.record(testDblParamaterReturnResult.Status);
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -63,15 +159,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Test Bool Parameter/Return" not exported
   //   step type RunRTSequencePassFail: action not exported yet
-  //   status expression of step "Test U32 Parameter/Return" not exported
   //   step type RunRTSequenceNumericLimit: action not exported yet
-  //   status expression of step "Test U64 Parameter/Return" not exported
-  //   status expression of step "Test I32 Parameter/Return" not exported
-  //   status expression of step "Test I64 Parameter/Return" not exported
-  //   status expression of step "Test DBL Paramater/Return" not exported
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

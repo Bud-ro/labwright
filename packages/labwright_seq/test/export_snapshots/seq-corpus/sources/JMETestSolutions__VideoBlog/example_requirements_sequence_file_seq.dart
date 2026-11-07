@@ -9,10 +9,13 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   bool result = false; // Bool — default: false
+
+  final run = ts.SequenceRun();
 
   // Finished Step: Statement with no expression
   result = step.AsPropertyObject.Exists(
@@ -20,6 +23,8 @@ Future<void> mainSequence() async {
     0,
   ); // In Progress Step
   // Malformed Step: Statement with no expression
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -52,7 +57,7 @@ void register() {
       'Test-4, Malformed Requirement, Don\'t Know, Don\'t Care',
     ],
     () async {
-      await mainSequence();
+      lw.expect(await mainSequence(), 'Passed');
     },
   );
 }

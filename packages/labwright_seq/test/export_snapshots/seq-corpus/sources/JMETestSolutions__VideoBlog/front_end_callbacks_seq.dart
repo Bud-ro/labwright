@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `LoginLogout`.
-Future<void> loginLogout({
+Future<String> loginLogout({
   bool logout = false,
   bool isInitialLogin = false,
 }) async {
@@ -20,6 +20,20 @@ Future<void> loginLogout({
   String operatorName = ''; // Str
   List<dynamic> groups = <dynamic>[]; // Strs
   dynamic user = null; // Ref
+
+  final run = ts.SequenceRun();
+  dynamic createUserResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Create User
+  dynamic updateGroupMembershipResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update Group Membership
 
   // ── main ──
   if (logout == false) {
@@ -33,15 +47,27 @@ Future<void> loginLogout({
     if (loggedIn) {
       if (runState.Engine.UserNameExists(operatorName) == false) {
         // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-        await createUser(user: user, username: operatorName); // Create User
+        createUserResult.Status = await createUser(
+          user: user,
+          username: operatorName,
+        ); // Create User
+        createUserResult.Status = createUserResult.Status == 'Done'
+            ? 'Passed'
+            : createUserResult.Status; // status expression
+        run.record(createUserResult.Status);
       } else {
         user = runState.Engine.GetUser(operatorName);
       }
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      await groupMembership(
+      updateGroupMembershipResult.Status = await groupMembership(
         groups: groups,
         user: user,
       ); // Update Group Membership
+      updateGroupMembershipResult.Status =
+          updateGroupMembershipResult.Status == 'Done'
+          ? 'Passed'
+          : updateGroupMembershipResult.Status; // status expression
+      run.record(updateGroupMembershipResult.Status);
       runState.Engine.CurrentUser = user; // Login User
     } else {}
   } else {
@@ -52,10 +78,12 @@ Future<void> loginLogout({
   runState.Engine.UsersFile.AsPropertyObjectFile.SaveFileIfModified(
     false,
   ); // Save Users File
+
+  return run.status;
 }
 
 /// Sequence `GroupMembership`.
-Future<void> groupMembership({List<dynamic>? groups, dynamic user}) async {
+Future<String> groupMembership({List<dynamic>? groups, dynamic user}) async {
   groups ??= <dynamic>[]; // Strs
 
   String currentGroup = ''; // Str
@@ -65,6 +93,14 @@ Future<void> groupMembership({List<dynamic>? groups, dynamic user}) async {
     '',
     growable: true,
   ); // Strs
+
+  final run = ts.SequenceRun();
+  dynamic updateGroupMembershipResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update Group Membership
 
   // ── setup ──
   teststandGroups = <dynamic>[
@@ -100,16 +136,29 @@ Future<void> groupMembership({List<dynamic>? groups, dynamic user}) async {
   for (final element in ts.iterate(teststandGroups)) {
     currentGroup = element as String;
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await updateGroupMembership(
+    updateGroupMembershipResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    updateGroupMembershipResult.Status = await updateGroupMembership(
       groupName: currentGroup,
       user: user,
       userGroups: groups,
     ); // Update Group Membership
+    updateGroupMembershipResult.Status =
+        updateGroupMembershipResult.Status == 'Done'
+        ? 'Passed'
+        : updateGroupMembershipResult.Status; // status expression
+    run.record(updateGroupMembershipResult.Status);
   }
+
+  return run.status;
 }
 
 /// Sequence `UpdateGroupMembership`.
-Future<void> updateGroupMembership({
+Future<String> updateGroupMembership({
   String groupName = '',
   dynamic user,
   List<dynamic>? userGroups,
@@ -120,6 +169,8 @@ Future<void> updateGroupMembership({
   int idx = 0; // Num — default: 0
   bool alreadyInGroup = false; // Bool — default: false
   bool fileChanged = false; // Bool — default: false
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   fileChanged = false;
@@ -176,10 +227,14 @@ Future<void> updateGroupMembership({
   if (fileChanged) {
     // Save Users File: Statement with no expression
   }
+
+  return run.status;
 }
 
 /// Sequence `Create User`.
-Future<void> createUser({dynamic user, String username = ''}) async {
+Future<String> createUser({dynamic user, String username = ''}) async {
+  final run = ts.SequenceRun();
+
   user = runState.Engine.NewUser(null); // Create New User
   user.AsUser.LoginName = username; // Set Login Name
   user.AsUser.Password = ''; // Set Password
@@ -190,6 +245,8 @@ Future<void> createUser({dynamic user, String username = ''}) async {
   ); // Insert New User
   runState.Engine.UsersFile.AsPropertyObjectFile
       .IncChangeCount(); // Increment Changecount of User File
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -220,10 +277,8 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   Login Library.lvlibp\Operator Login Dialog.vi
   //   RunState engine access (no engine at run time)
-  //   status expression of step "Create User" not exported
-  //   status expression of step "Update Group Membership" not exported
   //   untranslated expression in body
   lw.skipTest('LoginLogout', () async {
-    await loginLogout();
+    lw.expect(await loginLogout(), 'Passed');
   });
 }

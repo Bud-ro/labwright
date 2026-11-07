@@ -9,14 +9,30 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic tdmsGeneratingTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TDMS Generating Test
+
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callWaveformTest(); // TDMS Generating Test [PassFailTest]
+  tdmsGeneratingTestResult.Status = ts.truthy(tdmsGeneratingTestResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tdmsGeneratingTestResult.Status);
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -45,9 +61,8 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "TDMS Generating Test" not exported
   //   LabVIEW\Attach Test Files.lvlibp\Waveform Test.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

@@ -12,13 +12,29 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic powerSupplyAndMeasureWithTriggerResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Power Supply and Measure with trigger
+
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await powerSupplyAndMeasureWithTrigger(); // Power Supply and Measure with trigger
+  powerSupplyAndMeasureWithTriggerResult.Status =
+      await powerSupplyAndMeasureWithTrigger(); // Power Supply and Measure with trigger
+  powerSupplyAndMeasureWithTriggerResult.Status =
+      powerSupplyAndMeasureWithTriggerResult.Status == 'Done'
+      ? 'Passed'
+      : powerSupplyAndMeasureWithTriggerResult.Status; // status expression
+  run.record(powerSupplyAndMeasureWithTriggerResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `Power Supply and Measure with trigger`.
-Future<void> powerSupplyAndMeasureWithTrigger({
+Future<String> powerSupplyAndMeasureWithTrigger({
   String skipAnalysis = 'ProceedToAnalysis',
   int samplingRateHertz = 10000,
   int numberOfSamplesPerChannel = 1000,
@@ -37,6 +53,14 @@ Future<void> powerSupplyAndMeasureWithTrigger({
   dynamic artifactsManagerTdm = null; // Ref
   dynamic artifactsManagerPssm = null; // Ref
   String documentPath = ''; // Str
+
+  final run = ts.SequenceRun();
+  dynamic timeDomainMeasurementMeasureOnlyResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Time Domain Measurement - MeasureOnly
 
   // ── setup ──
   //
@@ -179,10 +203,16 @@ Future<void> powerSupplyAndMeasureWithTrigger({
     'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure',
   ); // Time Domain Measurement - MeasureOnly [Action]
   runState.GotoCleanup =
-      !(!ts.truthy(step.Result.Error.Occurred) ||
-          ts.find(step.Result.Error.Msg, 'ErrorCode = 20308') > 0 &&
+      !(!ts.truthy(timeDomainMeasurementMeasureOnlyResult.Error.Occurred) ||
+          ts.find(
+                    timeDomainMeasurementMeasureOnlyResult.Error.Msg,
+                    'ErrorCode = 20308',
+                  ) >
+                  0 &&
               ts.str(skipAnalysis) == 'ProceedToAnalysis'); // post-expression
-  runState.SequenceFailed = runState.GotoCleanup; // post-expression (cont.)
+  run.failed = runState.GotoCleanup; // post-expression (cont.)
+  timeDomainMeasurementMeasureOnlyResult.Status = 'Done';
+  run.record(timeDomainMeasurementMeasureOnlyResult.Status);
 
   // ── cleanup ──
   // label: Close all Tasks
@@ -200,6 +230,8 @@ Future<void> powerSupplyAndMeasureWithTrigger({
   throw UnimplementedError(
     'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Close',
   ); // Time Domain Measurement - Close [Action]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -221,7 +253,6 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Power Supply and Measure with trigger" not exported
   //   untranslated expression in body
   //   dotNet call: System.Environment.GetFolderPath
   //   dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
@@ -232,10 +263,9 @@ void register() {
   //   dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure
   //   dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ConfigureAndMeasure
   //   RunState engine access (no engine at run time)
-  //   Step engine access (no engine at run time)
   //   dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Close
   //   dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Close
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

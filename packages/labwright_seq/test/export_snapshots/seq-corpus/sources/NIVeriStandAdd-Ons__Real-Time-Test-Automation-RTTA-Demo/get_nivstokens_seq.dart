@@ -9,11 +9,14 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic temp = null; // Ref
   double token = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   // ignores run-time errors
   // failure does NOT fail the sequence
@@ -132,6 +135,8 @@ Future<void> mainSequence() async {
   // label: UNUSED & SKIPPED!
   // [skipped in source] RunProj
   // [skipped in source] CloseProj
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -166,6 +171,6 @@ void register() {
   //   dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Deploy
   //   dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

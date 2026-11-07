@@ -12,12 +12,14 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `Model Plugin - Configure Standard Options`.
-Future<void> modelPluginConfigureStandardOptions({
+Future<String> modelPluginConfigureStandardOptions({
   bool changed = false,
   dynamic processModel,
   String modelType = '',
   dynamic modelPlugin,
 }) async {
+  final run = ts.SequenceRun();
+
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
@@ -50,21 +52,27 @@ Future<void> modelPluginConfigureStandardOptions({
     ); // Apply changes if user click OK
     changed = true; // Apply changes if user click OK (cont.)
   }
+
+  return run.status;
 }
 
 /// Sequence `Model Plugin - Initialize`.
-Future<void> modelPluginInitialize({
+Future<String> modelPluginInitialize({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelData,
 }) async {
+  final run = ts.SequenceRun();
+
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
+
+  return run.status;
 }
 
 /// Sequence `Model Plugin - Begin`.
-Future<void> modelPluginBegin({
+Future<String> modelPluginBegin({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -79,6 +87,8 @@ Future<void> modelPluginBegin({
   String dateString = ''; // Str
   String timeString = ''; // Str
   String logFileBaseDirectory = ''; // Str
+
+  final run = ts.SequenceRun();
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
@@ -138,10 +148,12 @@ Future<void> modelPluginBegin({
       'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.SetPerformanceLogFileLocation',
     ); // Set Output File Path [Action]
   }
+
+  return run.status;
 }
 
 /// Sequence `Model Plugin - Post UUT`.
-Future<void> modelPluginPostUut({
+Future<String> modelPluginPostUut({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -155,6 +167,14 @@ Future<void> modelPluginPostUut({
 }) async {
   int siteNumber = 0; // Num — default: 0
   int numberOfSites = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
+  dynamic callLogDataToFileResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Log Data to File
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
@@ -195,18 +215,24 @@ Future<void> modelPluginPostUut({
       // status expression: ""
       // label:
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      await logDataToFile(
+      callLogDataToFileResult.Status = await logDataToFile(
         performanceMeasurementLogger: modelPlugin
             .PluginSpecific
             .RuntimeVariables
             .PerformanceMeasurementLogger,
       ); // Call Log Data to File
+      callLogDataToFileResult.Status = callLogDataToFileResult.Status == 'Done'
+          ? 'Passed'
+          : callLogDataToFileResult.Status; // status expression
+      run.record(callLogDataToFileResult.Status);
     }
   }
+
+  return run.status;
 }
 
 /// Sequence `Model Plugin - Post Batch`.
-Future<void> modelPluginPostBatch({
+Future<String> modelPluginPostBatch({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -218,6 +244,14 @@ Future<void> modelPluginPostBatch({
   String uutStatus = '',
   dynamic mainSequenceResult,
 }) async {
+  final run = ts.SequenceRun();
+  dynamic callLogDataToFileResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Log Data to File
+
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
@@ -225,18 +259,26 @@ Future<void> modelPluginPostBatch({
     '#NoValidation(\nParameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate == 0? True:\n(Parameters.ModelData.BatchLoopIndex % Parameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate) == 0\n)',
   )) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await logDataToFile(
+    callLogDataToFileResult.Status = await logDataToFile(
       performanceMeasurementLogger: modelPlugin
           .PluginSpecific
           .RuntimeVariables
           .PerformanceMeasurementLogger,
     ); // Call Log Data to File
+    callLogDataToFileResult.Status = callLogDataToFileResult.Status == 'Done'
+        ? 'Passed'
+        : callLogDataToFileResult.Status; // status expression
+    run.record(callLogDataToFileResult.Status);
   }
+
+  return run.status;
 }
 
 /// Sequence `Log Data to File`.
-Future<void> logDataToFile({dynamic performanceMeasurementLogger}) async {
+Future<String> logDataToFile({dynamic performanceMeasurementLogger}) async {
   int socketTime = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   // .NET assembly: API\DotNET\Assemblies\CurrentVersion\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll
   // .NET call: NationalInstruments.TestStand.SemiconductorModule.SemiconductorModuleManagerFactory.GetSemiconductorModuleManager
@@ -262,10 +304,12 @@ Future<void> logDataToFile({dynamic performanceMeasurementLogger}) async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.WriteAllStepDataToPerformanceLogFile',
   ); // Log to File [Action]
+
+  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - Pre Batch`.
-Future<void> reservedModelPluginPreBatch({
+Future<String> reservedModelPluginPreBatch({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -281,30 +325,40 @@ Future<void> reservedModelPluginPreBatch({
   dynamic performanceMeasurementUtility = null; // Ref
   int currentLotIndex = 0; // Num — default: 0
 
+  final run = ts.SequenceRun();
+
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
+
+  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - End`.
-Future<void> reservedModelPluginEnd({
+Future<String> reservedModelPluginEnd({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
   dynamic modelData,
 }) async {
+  final run = ts.SequenceRun();
+
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
+
+  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - Configure Additional Options`.
-Future<void> reservedModelPluginConfigureAdditionalOptions({
+Future<String> reservedModelPluginConfigureAdditionalOptions({
   bool changed = false,
   dynamic processModel,
   String modelType = '',
   dynamic modelPlugin,
 }) async {
+  final run = ts.SequenceRun();
+
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
@@ -314,10 +368,12 @@ Future<void> reservedModelPluginConfigureAdditionalOptions({
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Replace this step with a call to your additional options dialog [MessagePopup]
+
+  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - Pre UUT`.
-Future<void> reservedModelPluginPreUut({
+Future<String> reservedModelPluginPreUut({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -328,15 +384,19 @@ Future<void> reservedModelPluginPreUut({
   dynamic uut,
   bool continueTesting = true,
 }) async {
+  final run = ts.SequenceRun();
+
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
   // Make sure a prior plug-in instance has not already decided to stop testing
   if (continueTesting) {}
+
+  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - Batch Start`.
-Future<void> reservedModelPluginBatchStart({
+Future<String> reservedModelPluginBatchStart({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -348,6 +408,8 @@ Future<void> reservedModelPluginBatchStart({
 }) async {
   dynamic controllerAndSocketSynchronizationManager = null; // Ref
 
+  final run = ts.SequenceRun();
+
   // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
   controllerAndSocketSynchronizationManager = modelPluginConfiguration
@@ -358,10 +420,12 @@ Future<void> reservedModelPluginBatchStart({
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
+
+  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - UUT Start`.
-Future<void> reservedModelPluginUutStart({
+Future<String> reservedModelPluginUutStart({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -373,6 +437,8 @@ Future<void> reservedModelPluginUutStart({
 }) async {
   dynamic controllerAndSocketSynchronizationManager = null; // Ref
 
+  final run = ts.SequenceRun();
+
   // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
   controllerAndSocketSynchronizationManager = modelPluginConfiguration
@@ -383,10 +449,12 @@ Future<void> reservedModelPluginUutStart({
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
+
+  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - OnTheFly Step Results`.
-Future<void> reservedModelPluginOnTheFlyStepResults({
+Future<String> reservedModelPluginOnTheFlyStepResults({
   dynamic modelPlugin,
   dynamic modelData,
   dynamic startTime,
@@ -404,13 +472,17 @@ Future<void> reservedModelPluginOnTheFlyStepResults({
   callbackNames ??= <dynamic>[]; // Strs
   parentIds ??= <dynamic>[]; // Nums
 
+  final run = ts.SequenceRun();
+
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
+
+  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - UUT Done`.
-Future<void> reservedModelPluginUutDone({
+Future<String> reservedModelPluginUutDone({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -427,6 +499,8 @@ Future<void> reservedModelPluginUutDone({
 }) async {
   bool inNewThread = false; // Bool — default: false
   dynamic controllerAndSocketSynchronizationManager = null; // Ref
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   inNewThread =
@@ -455,10 +529,12 @@ Future<void> reservedModelPluginUutDone({
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
+
+  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - Batch Done`.
-Future<void> reservedModelPluginBatchDone({
+Future<String> reservedModelPluginBatchDone({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -475,6 +551,8 @@ Future<void> reservedModelPluginBatchDone({
 }) async {
   bool inNewThread = false; // Bool — default: false
   dynamic controllerAndSocketSynchronizationManager = null; // Ref
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   inNewThread =
@@ -503,6 +581,8 @@ Future<void> reservedModelPluginBatchDone({
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -603,14 +683,14 @@ void register() {
   //   root parameter 'ProcessModel' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - Configure Standard Options', () async {
-    await modelPluginConfigureStandardOptions();
+    lw.expect(await modelPluginConfigureStandardOptions(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - Initialize', () async {
-    await modelPluginInitialize();
+    lw.expect(await modelPluginInitialize(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
@@ -627,14 +707,13 @@ void register() {
   //   root parameter 'StartTime' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ParentThread' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - Begin', () async {
-    await modelPluginBegin();
+    lw.expect(await modelPluginBegin(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   dotNet call: NationalInstruments.TestStand.SemiconductorModule.Manager.ISiteNumberMapper.TestSocketIndexToSiteNumber
   //   dotNet call: NationalInstruments.TestStand.SemiconductorModule.Manager.SemiconductorModuleManager.NumberOfSites
   //   dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.ProcessMainSequenceResult
-  //   status expression of step "Call Log Data to File" not exported
   //   dotNet call: NationalInstruments.TestStand.SemiconductorModule.SemiconductorModuleManagerFactory.LastSocketTime
   //   dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.AddSocketTimeToStepData
   //   dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.WriteAllStepDataToPerformanceLogFile
@@ -647,11 +726,10 @@ void register() {
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
   //   root parameter 'MainSequenceResult' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - Post UUT', () async {
-    await modelPluginPostUut();
+    lw.expect(await modelPluginPostUut(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
-  //   status expression of step "Call Log Data to File" not exported
   //   dotNet call: NationalInstruments.TestStand.SemiconductorModule.SemiconductorModuleManagerFactory.LastSocketTime
   //   dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.AddSocketTimeToStepData
   //   dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.WriteAllStepDataToPerformanceLogFile
@@ -664,7 +742,7 @@ void register() {
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
   //   root parameter 'MainSequenceResult' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - Post Batch', () async {
-    await modelPluginPostBatch();
+    lw.expect(await modelPluginPostBatch(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
@@ -675,7 +753,7 @@ void register() {
   //   root parameter 'StartTime' is an engine object (nothing binds it when run as a test)
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
   lw.skipTest('(Reserved) Model Plugin - Pre Batch', () async {
-    await reservedModelPluginPreBatch();
+    lw.expect(await reservedModelPluginPreBatch(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
@@ -683,7 +761,7 @@ void register() {
   //   root parameter 'ModelThreadType' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   lw.skipTest('(Reserved) Model Plugin - End', () async {
-    await reservedModelPluginEnd();
+    lw.expect(await reservedModelPluginEnd(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
@@ -692,7 +770,10 @@ void register() {
   lw.skipTest(
     '(Reserved) Model Plugin - Configure Additional Options',
     () async {
-      await reservedModelPluginConfigureAdditionalOptions();
+      lw.expect(
+        await reservedModelPluginConfigureAdditionalOptions(),
+        'Passed',
+      );
     },
   );
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
@@ -704,7 +785,7 @@ void register() {
   //   root parameter 'StartTime' is an engine object (nothing binds it when run as a test)
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
   lw.skipTest('(Reserved) Model Plugin - Pre UUT', () async {
-    await reservedModelPluginPreUut();
+    lw.expect(await reservedModelPluginPreUut(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
@@ -715,7 +796,7 @@ void register() {
   //   root parameter 'StartTime' is an engine object (nothing binds it when run as a test)
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
   lw.skipTest('(Reserved) Model Plugin - Batch Start', () async {
-    await reservedModelPluginBatchStart();
+    lw.expect(await reservedModelPluginBatchStart(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
@@ -726,7 +807,7 @@ void register() {
   //   root parameter 'StartTime' is an engine object (nothing binds it when run as a test)
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
   lw.skipTest('(Reserved) Model Plugin - UUT Start', () async {
-    await reservedModelPluginUutStart();
+    lw.expect(await reservedModelPluginUutStart(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
@@ -737,7 +818,7 @@ void register() {
   //   root parameter 'Context' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('(Reserved) Model Plugin - OnTheFly Step Results', () async {
-    await reservedModelPluginOnTheFlyStepResults();
+    lw.expect(await reservedModelPluginOnTheFlyStepResults(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
@@ -755,7 +836,7 @@ void register() {
   //   root parameter 'CallingThreadBlocker' is an engine object (nothing binds it when run as a test)
   //   root parameter 'PriorIterationNewThread' is an engine object (nothing binds it when run as a test)
   lw.skipTest('(Reserved) Model Plugin - UUT Done', () async {
-    await reservedModelPluginUutDone();
+    lw.expect(await reservedModelPluginUutDone(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
@@ -773,6 +854,6 @@ void register() {
   //   root parameter 'CallingThreadBlocker' is an engine object (nothing binds it when run as a test)
   //   root parameter 'PriorIterationNewThread' is an engine object (nothing binds it when run as a test)
   lw.skipTest('(Reserved) Model Plugin - Batch Done', () async {
-    await reservedModelPluginBatchDone();
+    lw.expect(await reservedModelPluginBatchDone(), 'Passed');
   });
 }

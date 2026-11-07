@@ -12,40 +12,62 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `PreUUT` — Displays a dialog box in which the operator enters the UUTserial number.  Override this in client file to change or replace this action..
-Future<void> preUut({
+Future<String> preUut({
   bool continueTesting = true,
   dynamic uut,
   dynamic testSocket,
   dynamic modelData,
   dynamic modelPluginConfiguration2,
 }) async {
+  final run = ts.SequenceRun();
+  dynamic callDoPreUutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call DoPreUUT
+
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await doPreUut2(); // Call DoPreUUT: external sequence call
+  callDoPreUutResult.Status = callDoPreUutResult.Status == 'Done'
+      ? 'Passed'
+      : callDoPreUutResult.Status; // status expression
+  run.record(callDoPreUutResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+
   // popup title: NameOf(Step)
   // popup message: "Initializing Instruments"
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Initializing Instruments [MessagePopup]
+
+  return run.status;
 }
 
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
-Future<void> processCleanup() async {
+Future<String> processCleanup() async {
+  final run = ts.SequenceRun();
+
   // popup title: NameOf(Step)
   // popup message: "Shutting down Instruments"
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Shutting down Instruments [MessagePopup]
+
+  return run.status;
 }
 
 /// Sequence `Test UUTs` — If you insert a new step in this sequence, disable the Record Results option for the step..
-Future<void> testUuTs({String sequence = 'MainSequence'}) async {
+Future<String> testUuTs({String sequence = 'MainSequence'}) async {
   bool continueTesting = true; // Bool
   dynamic uut = ts.PropObj({
     'SerialNumber': '',
@@ -137,6 +159,112 @@ Future<void> testUuTs({String sequence = 'MainSequence'}) async {
   }); // NI_ModelThreadType
   dynamic testSocket = ts.PropObj(); // NI_SequentialTestSocket
 
+  final run = ts.SequenceRun();
+  dynamic initializeEntryPointResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Initialize Entry Point
+  dynamic modelPluginsBeginResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - Begin
+  dynamic processSetupCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Process Setup Callback
+  dynamic preUutLoopCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of PreUUTLoop Callback
+  dynamic preUutCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of PreUUT Callback
+  dynamic modelPluginsPreUutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - Pre UUT
+  dynamic modelPluginsUutStartResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - UUT Start
+  dynamic preMainSequenceCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of PreMainSequence Callback
+  dynamic mainSequenceCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of MainSequence Callback
+  dynamic postMainSequenceCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of PostMainSequence Callback
+  dynamic modelPluginsUutDoneResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - UUT Done
+  dynamic modelPluginsPostUutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - Post UUT
+  dynamic postUutCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of PostUUT Callback
+  dynamic handleTerminationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Handle Termination
+  dynamic postUutLoopCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of PostUUTLoop Callback
+  dynamic processCleanupCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Process Cleanup Callback
+  dynamic modelPluginsEndResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - End
+
   // ── main ──
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   ts.eval(
@@ -160,6 +288,11 @@ Future<void> testUuTs({String sequence = 'MainSequence'}) async {
     modelPluginConfiguration: modelPluginConfiguration2,
   ); // Initialize Entry Point: external sequence call
   runState.Execution.IsController = true; // post-expression
+  initializeEntryPointResult.Status =
+      initializeEntryPointResult.Status == 'Done'
+      ? 'Passed'
+      : initializeEntryPointResult.Status; // status expression
+  run.record(initializeEntryPointResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await modelPluginsBegin(
     modelPluginConfiguration: modelPluginConfiguration2,
@@ -170,30 +303,60 @@ Future<void> testUuTs({String sequence = 'MainSequence'}) async {
     ),
     parentThread: null,
   ); // Model Plugins - Begin: external sequence call
+  modelPluginsBeginResult.Status = modelPluginsBeginResult.Status == 'Done'
+      ? 'Passed'
+      : modelPluginsBeginResult.Status; // status expression
+  run.record(modelPluginsBeginResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await processSetup(); // Process Setup Callback
+  processSetupCallbackResult.Status =
+      await processSetup(); // Process Setup Callback
+  processSetupCallbackResult.Status =
+      processSetupCallbackResult.Status == 'Done'
+      ? 'Passed'
+      : processSetupCallbackResult.Status; // status expression
+  run.record(processSetupCallbackResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await preUutLoop(
+  preUutLoopCallbackResult.Status = await preUutLoop(
     modelPluginConfiguration2: modelPluginConfiguration2,
   ); // PreUUTLoop Callback
+  preUutLoopCallbackResult.Status = preUutLoopCallbackResult.Status == 'Done'
+      ? 'Passed'
+      : preUutLoopCallbackResult.Status; // status expression
+  run.record(preUutLoopCallbackResult.Status);
   // The UUT Loop
   //
   for (uut.UUTLoopIndex = 1; continueTesting; uut.UUTLoopIndex++) {
     // Display the UUT dialog box. Exit loop if user cancels.
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     // custom flow: if (!Locals.ContinueTesting) Goto -> step "End" else Next
+    preUutCallbackResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
     ts.eval(
       'Runstate.Thread.PostUIMessageEx(UIMsg_ModelState_Waiting, RunState.TestSockets.MyIndex, "", ThisContext, True) ',
     ); // pre-expression
-    await preUut(
+    preUutCallbackResult.Status = await preUut(
       continueTesting: continueTesting,
       uut: uut,
       testSocket: testSocket,
       modelData: modelData,
       modelPluginConfiguration2: modelPluginConfiguration2,
     ); // PreUUT Callback
+    preUutCallbackResult.Status = preUutCallbackResult.Status == 'Done'
+        ? 'Passed'
+        : preUutCallbackResult.Status; // status expression
+    run.record(preUutCallbackResult.Status);
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     // custom flow: if (!Locals.ContinueTesting) Goto -> step "End" else Next
+    modelPluginsPreUutResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
     runState.Execution.OutputRecordStreams
         .BeginNextUUTOrBatch(); // pre-expression
     await modelPluginsPreUut(
@@ -206,7 +369,17 @@ Future<void> testUuTs({String sequence = 'MainSequence'}) async {
       uut: uut,
       continueTesting: continueTesting,
     ); // Model Plugins - Pre UUT: external sequence call
+    modelPluginsPreUutResult.Status = modelPluginsPreUutResult.Status == 'Done'
+        ? 'Passed'
+        : modelPluginsPreUutResult.Status; // status expression
+    run.record(modelPluginsPreUutResult.Status);
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    modelPluginsUutStartResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
     await modelPluginsUutStart(
       modelPluginConfiguration: modelPluginConfiguration2,
       modelThreadType: modelThreadType,
@@ -216,36 +389,78 @@ Future<void> testUuTs({String sequence = 'MainSequence'}) async {
       ),
       uut: uut,
     ); // Model Plugins - UUT Start: external sequence call
+    modelPluginsUutStartResult.Status =
+        modelPluginsUutStartResult.Status == 'Done'
+        ? 'Passed'
+        : modelPluginsUutStartResult.Status; // status expression
+    run.record(modelPluginsUutStartResult.Status);
     ts.eval('SetNumElements(Locals.ResultList, 0)  '); // Clear ResultList
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await preMainSequence(
+    preMainSequenceCallbackResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    preMainSequenceCallbackResult.Status = await preMainSequence(
       modelPluginConfiguration2: modelPluginConfiguration2,
       modelThreadType: modelThreadType,
       modelData: modelData,
       uut: uut,
       testSocket: testSocket,
     ); // PreMainSequence Callback
+    preMainSequenceCallbackResult.Status =
+        preMainSequenceCallbackResult.Status == 'Done'
+        ? 'Passed'
+        : preMainSequenceCallbackResult.Status; // status expression
+    run.record(preMainSequenceCallbackResult.Status);
     // Because Parameters.Sequence defaults to "MainSequence", this step calls the MainSequence callback in the client file unless you call this entry point sequence directly and pass a different sequence name.
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     // ignores run-time errors
-    ''; // pre-expression
+    mainSequenceCallbackResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
     await parametersSequence(); // MainSequence Callback: external sequence call
     uutTerminated =
         uutTerminated ||
-        runState.Sequence.Main['MainSequence Callback'].Result.Status ==
-            'Terminated'; // post-expression
+        mainSequenceCallbackResult.Status == 'Terminated'; // post-expression
+    mainSequenceCallbackResult.Status =
+        mainSequenceCallbackResult.Status == 'Done'
+        ? 'Passed'
+        : mainSequenceCallbackResult.Status; // status expression
+    run.record(mainSequenceCallbackResult.Status);
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await postMainSequence(
+    postMainSequenceCallbackResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    postMainSequenceCallbackResult.Status = await postMainSequence(
       modelPluginConfiguration2: modelPluginConfiguration2,
       modelThreadType: modelThreadType,
       modelData: modelData,
       uut: uut,
-      uutStatus: runState.Sequence.Main['MainSequence Callback'].Result.Status,
+      uutStatus: mainSequenceCallbackResult.Status,
       mainSequenceResult:
           runState.Sequence.Main['MainSequence Callback'].LastStepResult,
       testSocket: testSocket,
     ); // PostMainSequence Callback
+    postMainSequenceCallbackResult.Status =
+        postMainSequenceCallbackResult.Status == 'Done'
+        ? 'Passed'
+        : postMainSequenceCallbackResult.Status; // status expression
+    run.record(postMainSequenceCallbackResult.Status);
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    modelPluginsUutDoneResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
     ts.eval(
       ' \n(!RunState.SequenceError.Occurred && RunState.Sequence.Main["MainSequence Callback"].Result.Status == "Error") ?\n	(\n	RunState.SequenceError.Code = RunState.Sequence.Main["MainSequence Callback"].Result.Error.Code,\n	RunState.SequenceError.Msg = ResStr("MODEL", "UUT_ERROR_OCCURRED") + "\\n" + RunState.Sequence.Main["MainSequence Callback"].Result.Error.Msg,\n	RunState.SequenceError.Occurred = True\n	) \n: 	0',
     ); // pre-expression
@@ -257,11 +472,22 @@ Future<void> testUuTs({String sequence = 'MainSequence'}) async {
         'PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""',
       ),
       uut: uut,
-      uutStatus: runState.Sequence.Main['MainSequence Callback'].Result.Status,
+      uutStatus: mainSequenceCallbackResult.Status,
       mainSequenceResult:
           runState.Sequence.Main['MainSequence Callback'].LastStepResult,
     ); // Model Plugins - UUT Done: external sequence call
+    modelPluginsUutDoneResult.Status =
+        modelPluginsUutDoneResult.Status == 'Done'
+        ? 'Passed'
+        : modelPluginsUutDoneResult.Status; // status expression
+    run.record(modelPluginsUutDoneResult.Status);
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    modelPluginsPostUutResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
     await modelPluginsPostUut(
       modelPluginConfiguration: modelPluginConfiguration2,
       modelThreadType: modelThreadType,
@@ -270,18 +496,33 @@ Future<void> testUuTs({String sequence = 'MainSequence'}) async {
         'PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""',
       ),
       uut: uut,
-      uutStatus: runState.Sequence.Main['MainSequence Callback'].Result.Status,
+      uutStatus: mainSequenceCallbackResult.Status,
       mainSequenceResult:
           runState.Sequence.Main['MainSequence Callback'].LastStepResult,
     ); // Model Plugins - Post UUT: external sequence call
+    modelPluginsPostUutResult.Status =
+        modelPluginsPostUutResult.Status == 'Done'
+        ? 'Passed'
+        : modelPluginsPostUutResult.Status; // status expression
+    run.record(modelPluginsPostUutResult.Status);
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await postUut(
-      result: runState.Sequence.Main['MainSequence Callback'].Result,
+    postUutCallbackResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    postUutCallbackResult.Status = await postUut(
+      result: mainSequenceCallbackResult,
       uut: uut,
       testSocket: testSocket,
       modelData: modelData,
       modelPluginConfiguration2: modelPluginConfiguration2,
     ); // PostUUT Callback
+    postUutCallbackResult.Status = postUutCallbackResult.Status == 'Done'
+        ? 'Passed'
+        : postUutCallbackResult.Status; // status expression
+    run.record(postUutCallbackResult.Status);
     // If you terminate execution in the MainSequence, this step gives you the choice to continuing with the next UUT or exiting the UUT loop.
     // popup title: ResStr("MODEL", "HANDLE_TERMINATION_TITLE")
     // popup message: ResStr("MODEL", "HANDLE_TERMINATION_MESSAGE")
@@ -290,43 +531,72 @@ Future<void> testUuTs({String sequence = 'MainSequence'}) async {
       '!(RunState.Sequence.Main["MainSequence Callback"].Result.Status == "Terminated"  && Locals.ContinueTesting) ? \nFalse : \n(Locals.ContinueTesting = (Locals.ModelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.SequentialTestUUTsTerminationOption == Enums.NI_SequentialTestUUTsTerminationOptions.NextUUT),\n(Locals.ModelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.SequentialTestUUTsTerminationOption == Enums.NI_SequentialTestUUTsTerminationOptions.Prompt))',
     )) {
       // precondition of Handle Termination
+      handleTerminationResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ButtonHit': 0,
+        'Response': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
       throw UnimplementedError(
         'step type MessagePopup: action not exported yet',
       ); // Handle Termination [MessagePopup]
-      continueTesting = step.Result.ButtonHit != 2; // post-expression
+      continueTesting =
+          handleTerminationResult.ButtonHit != 2; // post-expression
+      handleTerminationResult.Status = 'Done';
+      run.record(handleTerminationResult.Status);
+    } else {
+      handleTerminationResult.Status = 'Skipped';
     }
   }
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await postUutLoop(
+  postUutLoopCallbackResult.Status = await postUutLoop(
     modelPluginConfiguration2: modelPluginConfiguration2,
   ); // PostUUTLoop Callback
+  postUutLoopCallbackResult.Status = postUutLoopCallbackResult.Status == 'Done'
+      ? 'Passed'
+      : postUutLoopCallbackResult.Status; // status expression
+  run.record(postUutLoopCallbackResult.Status);
 
   // ── cleanup ──
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  if (runState.Sequence.Main['ID#:tZ07keE5cUmzKkGLnO0N1B'].Result.Status !=
-          '' &&
-      runState.Sequence.Main['ID#:tZ07keE5cUmzKkGLnO0N1B'].Result.Status !=
-          'Skipped') {
+  if (processSetupCallbackResult.Status != '' &&
+      processSetupCallbackResult.Status != 'Skipped') {
     // precondition of Process Cleanup Callback
-    await processCleanup(); // Process Cleanup Callback
+    processCleanupCallbackResult.Status =
+        await processCleanup(); // Process Cleanup Callback
+    processCleanupCallbackResult.Status =
+        processCleanupCallbackResult.Status == 'Done'
+        ? 'Passed'
+        : processCleanupCallbackResult.Status; // status expression
+    run.record(processCleanupCallbackResult.Status);
+  } else {
+    processCleanupCallbackResult.Status = 'Skipped';
   }
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // custom flow: if (Locals.UUTTerminated // if a user sequence terminates, terminate the entry point too so that the execution status reflects what occurred from the user's point of view.) Terminate else Next
-  if (runState.Sequence.Main['ID#:7Ub90wZS0UqajYy2UIFk1D'].Result.Status !=
-          '' &&
-      runState.Sequence.Main['ID#:7Ub90wZS0UqajYy2UIFk1D'].Result.Status !=
-          'Skipped') {
+  if (modelPluginsBeginResult.Status != '' &&
+      modelPluginsBeginResult.Status != 'Skipped') {
     // precondition of Model Plugins - End
     await modelPluginsEnd(
       modelPluginConfiguration: modelPluginConfiguration2,
       modelThreadType: modelThreadType,
       modelData: modelData,
     ); // Model Plugins - End: external sequence call
+    modelPluginsEndResult.Status = modelPluginsEndResult.Status == 'Done'
+        ? 'Passed'
+        : modelPluginsEndResult.Status; // status expression
+    run.record(modelPluginsEndResult.Status);
+  } else {
+    modelPluginsEndResult.Status = 'Skipped';
   }
+
+  return run.status;
 }
 
 /// Sequence `Single Pass` — If you insert a new step in this sequence, disable the Record Results option for the step..
-Future<void> singlePass({String sequence = 'MainSequence'}) async {
+Future<String> singlePass({String sequence = 'MainSequence'}) async {
   dynamic uut = ts.PropObj({
     'SerialNumber': '',
     'UUTLoopIndex': 0,
@@ -417,6 +687,104 @@ Future<void> singlePass({String sequence = 'MainSequence'}) async {
   bool continueTesting = true; // Bool
   dynamic testSocket = ts.PropObj(); // NI_SequentialTestSocket
 
+  final run = ts.SequenceRun();
+  dynamic initializeEntryPointResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Initialize Entry Point
+  dynamic modelPluginsBeginResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - Begin
+  dynamic processSetupCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Process Setup Callback
+  dynamic preUutLoopCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of PreUUTLoop Callback
+  dynamic preUutCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of PreUUT Callback
+  dynamic modelPluginsPreUutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - Pre UUT
+  dynamic modelPluginsUutStartResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - UUT Start
+  dynamic preMainSequenceCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of PreMainSequence Callback
+  dynamic mainSequenceCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of MainSequence Callback
+  dynamic postMainSequenceCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of PostMainSequence Callback
+  dynamic modelPluginsUutDoneResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - UUT Done
+  dynamic modelPluginsPostUutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - Post UUT
+  dynamic postUutCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of PostUUT Callback
+  dynamic postUutLoopCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of PostUUTLoop Callback
+  dynamic processCleanupCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Process Cleanup Callback
+  dynamic modelPluginsEndResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - End
+
   // ── main ──
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   ts.eval(
@@ -440,6 +808,11 @@ Future<void> singlePass({String sequence = 'MainSequence'}) async {
     modelPluginConfiguration: modelPluginConfiguration2,
   ); // Initialize Entry Point: external sequence call
   runState.Execution.IsController = true; // post-expression
+  initializeEntryPointResult.Status =
+      initializeEntryPointResult.Status == 'Done'
+      ? 'Passed'
+      : initializeEntryPointResult.Status; // status expression
+  run.record(initializeEntryPointResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await modelPluginsBegin(
     modelPluginConfiguration: modelPluginConfiguration2,
@@ -450,24 +823,42 @@ Future<void> singlePass({String sequence = 'MainSequence'}) async {
     ),
     parentThread: null,
   ); // Model Plugins - Begin: external sequence call
+  modelPluginsBeginResult.Status = modelPluginsBeginResult.Status == 'Done'
+      ? 'Passed'
+      : modelPluginsBeginResult.Status; // status expression
+  run.record(modelPluginsBeginResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await processSetup(); // Process Setup Callback
+  processSetupCallbackResult.Status =
+      await processSetup(); // Process Setup Callback
+  processSetupCallbackResult.Status =
+      processSetupCallbackResult.Status == 'Done'
+      ? 'Passed'
+      : processSetupCallbackResult.Status; // status expression
+  run.record(processSetupCallbackResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await preUutLoop(
+  preUutLoopCallbackResult.Status = await preUutLoop(
     modelPluginConfiguration2: modelPluginConfiguration2,
   ); // PreUUTLoop Callback
+  preUutLoopCallbackResult.Status = preUutLoopCallbackResult.Status == 'Done'
+      ? 'Passed'
+      : preUutLoopCallbackResult.Status; // status expression
+  run.record(preUutLoopCallbackResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // custom flow: if (!Locals.ContinueTesting) Goto -> step "PostUUTLoop Callback" else Next
   ts.eval(
     'Runstate.Thread.PostUIMessageEx(UIMsg_ModelState_Waiting, Runstate.TestSockets.MyIndex, "", ThisContext, True) ',
   ); // pre-expression
-  await preUut(
+  preUutCallbackResult.Status = await preUut(
     continueTesting: continueTesting,
     uut: uut,
     testSocket: testSocket,
     modelData: modelData,
     modelPluginConfiguration2: modelPluginConfiguration2,
   ); // PreUUT Callback
+  preUutCallbackResult.Status = preUutCallbackResult.Status == 'Done'
+      ? 'Passed'
+      : preUutCallbackResult.Status; // status expression
+  run.record(preUutCallbackResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // custom flow: if (!Locals.ContinueTesting) Goto -> step "PostUUTLoop Callback" else Next
   await modelPluginsPreUut(
@@ -480,6 +871,10 @@ Future<void> singlePass({String sequence = 'MainSequence'}) async {
     uut: uut,
     continueTesting: continueTesting,
   ); // Model Plugins - Pre UUT: external sequence call
+  modelPluginsPreUutResult.Status = modelPluginsPreUutResult.Status == 'Done'
+      ? 'Passed'
+      : modelPluginsPreUutResult.Status; // status expression
+  run.record(modelPluginsPreUutResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await modelPluginsUutStart(
     modelPluginConfiguration: modelPluginConfiguration2,
@@ -490,29 +885,49 @@ Future<void> singlePass({String sequence = 'MainSequence'}) async {
     ),
     uut: uut,
   ); // Model Plugins - UUT Start: external sequence call
+  modelPluginsUutStartResult.Status =
+      modelPluginsUutStartResult.Status == 'Done'
+      ? 'Passed'
+      : modelPluginsUutStartResult.Status; // status expression
+  run.record(modelPluginsUutStartResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await preMainSequence(
+  preMainSequenceCallbackResult.Status = await preMainSequence(
     modelPluginConfiguration2: modelPluginConfiguration2,
     modelThreadType: modelThreadType,
     modelData: modelData,
     uut: uut,
     testSocket: testSocket,
   ); // PreMainSequence Callback
+  preMainSequenceCallbackResult.Status =
+      preMainSequenceCallbackResult.Status == 'Done'
+      ? 'Passed'
+      : preMainSequenceCallbackResult.Status; // status expression
+  run.record(preMainSequenceCallbackResult.Status);
   // Because Parameters.Sequence defaults to "MainSequence", this step calls the MainSequence callback in the client file unless you call this entry point sequence directly and pass a different sequence name.
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // ignores run-time errors
   await parametersSequence(); // MainSequence Callback: external sequence call
+  mainSequenceCallbackResult.Status =
+      mainSequenceCallbackResult.Status == 'Done'
+      ? 'Passed'
+      : mainSequenceCallbackResult.Status; // status expression
+  run.record(mainSequenceCallbackResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await postMainSequence(
+  postMainSequenceCallbackResult.Status = await postMainSequence(
     modelPluginConfiguration2: modelPluginConfiguration2,
     modelThreadType: modelThreadType,
     modelData: modelData,
     uut: uut,
-    uutStatus: runState.Sequence.Main['MainSequence Callback'].Result.Status,
+    uutStatus: mainSequenceCallbackResult.Status,
     mainSequenceResult:
         runState.Sequence.Main['MainSequence Callback'].LastStepResult,
     testSocket: testSocket,
   ); // PostMainSequence Callback
+  postMainSequenceCallbackResult.Status =
+      postMainSequenceCallbackResult.Status == 'Done'
+      ? 'Passed'
+      : postMainSequenceCallbackResult.Status; // status expression
+  run.record(postMainSequenceCallbackResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   ts.eval(
     ' \n(!RunState.SequenceError.Occurred && RunState.Sequence.Main["MainSequence Callback"].Result.Status == "Error") ?\n	(\n	RunState.SequenceError.Code = RunState.Sequence.Main["MainSequence Callback"].Result.Error.Code,\n	RunState.SequenceError.Msg = ResStr("MODEL", "UUT_ERROR_OCCURRED") + "\\n" + RunState.Sequence.Main["MainSequence Callback"].Result.Error.Msg,\n	RunState.SequenceError.Occurred = True\n	) \n: 	0',
@@ -525,10 +940,14 @@ Future<void> singlePass({String sequence = 'MainSequence'}) async {
       'PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""',
     ),
     uut: uut,
-    uutStatus: runState.Sequence.Main['MainSequence Callback'].Result.Status,
+    uutStatus: mainSequenceCallbackResult.Status,
     mainSequenceResult:
         runState.Sequence.Main['MainSequence Callback'].LastStepResult,
   ); // Model Plugins - UUT Done: external sequence call
+  modelPluginsUutDoneResult.Status = modelPluginsUutDoneResult.Status == 'Done'
+      ? 'Passed'
+      : modelPluginsUutDoneResult.Status; // status expression
+  run.record(modelPluginsUutDoneResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await modelPluginsPostUut(
     modelPluginConfiguration: modelPluginConfiguration2,
@@ -538,49 +957,81 @@ Future<void> singlePass({String sequence = 'MainSequence'}) async {
       'PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""',
     ),
     uut: uut,
-    uutStatus: runState.Sequence.Main['MainSequence Callback'].Result.Status,
+    uutStatus: mainSequenceCallbackResult.Status,
     mainSequenceResult:
         runState.Sequence.Main['MainSequence Callback'].LastStepResult,
   ); // Model Plugins - Post UUT: external sequence call
+  modelPluginsPostUutResult.Status = modelPluginsPostUutResult.Status == 'Done'
+      ? 'Passed'
+      : modelPluginsPostUutResult.Status; // status expression
+  run.record(modelPluginsPostUutResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await postUut(
-    result: runState.Sequence.Main['MainSequence Callback'].Result,
+  postUutCallbackResult.Status = await postUut(
+    result: mainSequenceCallbackResult,
     uut: uut,
     testSocket: testSocket,
     modelData: modelData,
     modelPluginConfiguration2: modelPluginConfiguration2,
   ); // PostUUT Callback
+  postUutCallbackResult.Status = postUutCallbackResult.Status == 'Done'
+      ? 'Passed'
+      : postUutCallbackResult.Status; // status expression
+  run.record(postUutCallbackResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await postUutLoop(
+  postUutLoopCallbackResult.Status = await postUutLoop(
     modelPluginConfiguration2: modelPluginConfiguration2,
   ); // PostUUTLoop Callback
+  postUutLoopCallbackResult.Status = postUutLoopCallbackResult.Status == 'Done'
+      ? 'Passed'
+      : postUutLoopCallbackResult.Status; // status expression
+  run.record(postUutLoopCallbackResult.Status);
 
   // ── cleanup ──
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  if (runState.Sequence.Main['ID#:u1aq2JzRWEecUyOXiOaqLB'].Result.Status !=
-          '' &&
-      runState.Sequence.Main['ID#:u1aq2JzRWEecUyOXiOaqLB'].Result.Status !=
-          'Skipped') {
+  if (processSetupCallbackResult.Status != '' &&
+      processSetupCallbackResult.Status != 'Skipped') {
     // precondition of Process Cleanup Callback
-    await processCleanup(); // Process Cleanup Callback
+    processCleanupCallbackResult.Status =
+        await processCleanup(); // Process Cleanup Callback
+    processCleanupCallbackResult.Status =
+        processCleanupCallbackResult.Status == 'Done'
+        ? 'Passed'
+        : processCleanupCallbackResult.Status; // status expression
+    run.record(processCleanupCallbackResult.Status);
+  } else {
+    processCleanupCallbackResult.Status = 'Skipped';
   }
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // custom flow: if (RunState.Sequence.Main["MainSequence Callback"].Result.Status == "Terminated"   // if a user sequence terminates, terminate the entry point too so that the execution status reflects what occurred from the user's point of view.) Terminate else Next
-  if (runState.Sequence.Main['ID#:OyZ9yPQmD0SaoCHXD3pT6A'].Result.Status !=
-          '' &&
-      runState.Sequence.Main['ID#:OyZ9yPQmD0SaoCHXD3pT6A'].Result.Status !=
-          'Skipped') {
+  if (modelPluginsBeginResult.Status != '' &&
+      modelPluginsBeginResult.Status != 'Skipped') {
     // precondition of Model Plugins - End
     await modelPluginsEnd(
       modelPluginConfiguration: modelPluginConfiguration2,
       modelThreadType: modelThreadType,
       modelData: modelData,
     ); // Model Plugins - End: external sequence call
+    modelPluginsEndResult.Status = modelPluginsEndResult.Status == 'Done'
+        ? 'Passed'
+        : modelPluginsEndResult.Status; // status expression
+    run.record(modelPluginsEndResult.Status);
+  } else {
+    modelPluginsEndResult.Status = 'Skipped';
   }
+
+  return run.status;
 }
 
 /// Sequence `Configure Result Processing` — Appears as Result Processing in the Configure menu..
-Future<void> configureResultProcessing() async {
+Future<String> configureResultProcessing() async {
+  final run = ts.SequenceRun();
+  dynamic displayResultProcessingConfigurationDialogResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Display Result Processing Configuration Dialog
+
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // sequence call spawns a new thread in the engine — exported as a plain awaited call
   await displayResultProcessingConfigurationDialog(
@@ -588,33 +1039,53 @@ Future<void> configureResultProcessing() async {
     modelFile: runState.SequenceFile,
     activeConfigurationName: '',
   ); // Display Result Processing Configuration Dialog: external sequence call
+  displayResultProcessingConfigurationDialogResult.Status =
+      displayResultProcessingConfigurationDialogResult.Status == 'Done' && false
+      ? 'Passed'
+      : displayResultProcessingConfigurationDialogResult
+            .Status; // status expression
+  run.record(displayResultProcessingConfigurationDialogResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `Configure Model Options` — Appears as Model Options in the Configure menu..
-Future<void> configureModelOptions() async {
+Future<String> configureModelOptions() async {
+  final run = ts.SequenceRun();
+
   throw UnimplementedError(
     'cModule call: Edit Model Options',
   ); // Edit Model Options [Action]
+
+  return run.status;
 }
 
 /// Sequence `MainSequence` — Override this in the client file with a sequence that performs tests on the UUT..
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `PreMainSequence` — Test UUTs and Single Pass call this callback before the MainSequence executes. It is empty in the model file.  Override this in the client file to perform an action before any code in the MainSequence executes..
-Future<void> preMainSequence({
+Future<String> preMainSequence({
   dynamic modelPluginConfiguration2,
   dynamic modelThreadType,
   dynamic modelData,
   dynamic uut,
   dynamic testSocket,
 }) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `PostMainSequence` — Test UUTs and Single Pass call this callback after the MainSequence executes. It is empty in the model file.  Override this in the client file to perform an action after all code in the MainSequence executes but before any Model Plug-ins execute..
-Future<void> postMainSequence({
+Future<String> postMainSequence({
   dynamic modelPluginConfiguration2,
   dynamic modelThreadType,
   dynamic modelData,
@@ -623,76 +1094,122 @@ Future<void> postMainSequence({
   dynamic mainSequenceResult,
   dynamic testSocket,
 }) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `PostUUT` — Displays a pass, fail, error, or terminated banner. Override this in client file to change or replace this action..
-Future<void> postUut({
+Future<String> postUut({
   dynamic result,
   dynamic uut,
   dynamic testSocket,
   dynamic modelData,
   dynamic modelPluginConfiguration2,
 }) async {
+  final run = ts.SequenceRun();
+  dynamic callDoPostUutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call DoPostUUT
+
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await doPreUut2(); // Call DoPostUUT: external sequence call
+  callDoPostUutResult.Status = callDoPostUutResult.Status == 'Done'
+      ? 'Passed'
+      : callDoPostUutResult.Status; // status expression
+  run.record(callDoPostUutResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `PreUUTLoop` — Test UUTs calls this before looping on UUTs.  Is empty in model file.  Override this in the client file to perform an action before any UUTs are tested..
-Future<void> preUutLoop({dynamic modelPluginConfiguration2}) async {
+Future<String> preUutLoop({dynamic modelPluginConfiguration2}) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `PostUUTLoop` — Test UUTs calls this after looping on UUTs.  Is empty in model file.  Override this in the client file to perform an action after all UUTs are tested..
-Future<void> postUutLoop({dynamic modelPluginConfiguration2}) async {
+Future<String> postUutLoop({dynamic modelPluginConfiguration2}) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `ReportOptions` — The report generator result processing component calls this from its Begin sequence.  Override it to modify the options..
-Future<void> reportOptions({
+Future<String> reportOptions({
   dynamic reportOptions2,
   dynamic modelPlugin,
   dynamic modelPluginConfiguration2,
 }) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `DatabaseOptions` — The database logging result processing component calls this from its Begin sequence. Override it to modify the options..
-Future<void> databaseOptions({
+Future<String> databaseOptions({
   dynamic databaseOptions2,
   dynamic modelPlugin,
   dynamic modelPluginConfiguration2,
 }) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `ModelOptions` — GetModelOptions calls this after reading the model options from disk  Override it to modify the options..
-Future<void> modelOptions({
+Future<String> modelOptions({
   dynamic modelOptions2,
   String modelPluginConfigurationToLoad = '',
   bool loadModelPluginAddons = true,
 }) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `ModelPluginOptions` — The Model Plugins - Load Configuration sequence calls this callback for each configured model plug-in after loading the model plug-in configuration information. Override this sequence to change settings for an individual plug-in..
-Future<void> modelPluginOptions({
+Future<String> modelPluginOptions({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration2,
 }) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `ModelPluginConfiguration` — The Model Plugins - Load Configuration sequence calls this after loading the model plug-in configuration information. Override this sequence to change the entire model plug-in configuration..
-Future<void> modelPluginConfiguration({
+Future<String> modelPluginConfiguration({
   dynamic modelPluginConfiguration2,
 }) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `TestReport` — The report generator result processing component calls this from its Post UUTsequence. Generates the contents of the test report for one UUT.  Override in client file to change or replace test report generation..
-Future<void> testReport({
+Future<String> testReport({
   dynamic mainSequenceResults,
   dynamic uut,
   dynamic reportOptions2,
@@ -705,6 +1222,18 @@ Future<void> testReport({
   dynamic modelPluginConfiguration2,
   String reportHeaderPrefix = '',
 }) async {
+  final run = ts.SequenceRun();
+  dynamic
+  callTestReportInCaseThisModelSequenceIsBeingCalledDirectlyFromAClientFileOrHasBeenCopiedIntoAnOverrideResult =
+      ts.PropObj(
+        {
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        },
+      ); // result of Call TestReport in case this Model sequence  is being called directly from a client file or has been copied into an override
+
   // This sequence call provides the default reporting functionality when you override this callback. In your override, you can perform actions before and/or after this call, or remove the call entirely. The default report functionality resides in NI_ReportGenerator.seq. It is a Model Plugin and is therefore located in ..\Components\Models\ModelPlugins\. When you override the TestReport callback, the plugin calls your override instead of its version of the TestReport sequence. By explicitly calling back to the plugin's version of TestReport, you can access the default report functionality from your callback.
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await testReport2(
@@ -720,10 +1249,24 @@ Future<void> testReport({
     modelPluginConfiguration: modelPluginConfiguration2,
     reportHeaderPrefix: reportHeaderPrefix,
   ); // Call TestReport in case this Model sequence  is being called directly from a client file or has been copied into an override: external sequence call
+  callTestReportInCaseThisModelSequenceIsBeingCalledDirectlyFromAClientFileOrHasBeenCopiedIntoAnOverrideResult
+          .Status =
+      callTestReportInCaseThisModelSequenceIsBeingCalledDirectlyFromAClientFileOrHasBeenCopiedIntoAnOverrideResult
+              .Status ==
+          'Done'
+      ? 'Passed'
+      : callTestReportInCaseThisModelSequenceIsBeingCalledDirectlyFromAClientFileOrHasBeenCopiedIntoAnOverrideResult
+            .Status; // status expression
+  run.record(
+    callTestReportInCaseThisModelSequenceIsBeingCalledDirectlyFromAClientFileOrHasBeenCopiedIntoAnOverrideResult
+        .Status,
+  );
+
+  return run.status;
 }
 
 /// Sequence `ModifyReportHeader` — The report generator result processing component calls this from its Post sequence.  Override it to modify the report header..
-Future<void> modifyReportHeader({
+Future<String> modifyReportHeader({
   dynamic uut,
   String reportHeader = '',
   dynamic reportOptions2,
@@ -731,11 +1274,15 @@ Future<void> modifyReportHeader({
   dynamic modelPluginConfiguration2,
   String reportHeaderPrefix = '',
 }) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `ModifyReportEntry` — The report generator result processing component calls this from its Post sequence for each result in result list.  Override it to modify the report section generated for each result..
-Future<void> modifyReportEntry({
+Future<String> modifyReportEntry({
   dynamic result,
   dynamic uut,
   String reportEntry = '',
@@ -744,22 +1291,30 @@ Future<void> modifyReportEntry({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration2,
 }) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `ModifyReportFooter` — The report generator result processing component calls this from its Post sequence.  Override it to modify the report footer..
-Future<void> modifyReportFooter({
+Future<String> modifyReportFooter({
   dynamic uut,
   String reportFooter = '',
   dynamic reportOptions2,
   dynamic modelPlugin,
   dynamic modelPluginConfiguration2,
 }) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `LogToDatabase` — The database logging result processing component calls this from its Post UUTsequence. Override in client file to change or replace database logging for that file..
-Future<void> logToDatabase({
+Future<String> logToDatabase({
   dynamic mainSequenceResults,
   dynamic uut,
   dynamic startTime,
@@ -769,6 +1324,18 @@ Future<void> logToDatabase({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration2,
 }) async {
+  final run = ts.SequenceRun();
+  dynamic
+  callLogToDatabaseInCaseThisModelSequenceIsBeingCalledDirectlyFromAClientFileResult =
+      ts.PropObj(
+        {
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        },
+      ); // result of Call LogToDatabase in case this Model sequence  is being called directly from a client file
+
   // This sequence call provides the default database logging functionality when you override this callback. In your override, you can perform actions before and/or after this call, or remove the call entirely. The default database logging functionality resides in NI_DatabaseLogger.seq. It is a Model Plugin and is therefore located in ..\Components\Models\ModelPlugins\. When you override the LogToDatabase callback, the plugin calls your override instead of its version of the LogToDatabase sequence. By explicitly calling back to the plugin's version of LogToDatabase, you can access the default logging functionality from your callback.
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await logToDatabase2(
@@ -781,21 +1348,39 @@ Future<void> logToDatabase({
     modelPlugin: modelPlugin,
     modelPluginConfiguration: modelPluginConfiguration2,
   ); // Call LogToDatabase in case this Model sequence  is being called directly from a client file: external sequence call
+  callLogToDatabaseInCaseThisModelSequenceIsBeingCalledDirectlyFromAClientFileResult
+          .Status =
+      callLogToDatabaseInCaseThisModelSequenceIsBeingCalledDirectlyFromAClientFileResult
+              .Status ==
+          'Done'
+      ? 'Passed'
+      : callLogToDatabaseInCaseThisModelSequenceIsBeingCalledDirectlyFromAClientFileResult
+            .Status; // status expression
+  run.record(
+    callLogToDatabaseInCaseThisModelSequenceIsBeingCalledDirectlyFromAClientFileResult
+        .Status,
+  );
+
+  return run.status;
 }
 
 /// Sequence `GetReportFilePath` — This callback is called after ReportPath is calculated from Post UUT and Post Batch sequences..
-Future<void> getReportFilePath({
+Future<String> getReportFilePath({
   bool appendMode = false,
   String reportFilePath = '',
   bool isBatchReport = false,
   dynamic modelPlugin,
   dynamic modelPluginConfiguration2,
 }) async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `ProcessModelPostResults` — Processes step results for result processing components that use on-the-fly processing. The engine calls this callback periodically as results accumulate..
-Future<void> processModelPostResults({
+Future<String> processModelPostResults({
   List<dynamic>? steps,
   List<dynamic>? results,
   List<dynamic>? callbackNames,
@@ -805,6 +1390,14 @@ Future<void> processModelPostResults({
   results ??= <dynamic>[]; // Refs
   callbackNames ??= <dynamic>[]; // Strs
   parentIds ??= <dynamic>[]; // Nums
+
+  final run = ts.SequenceRun();
+  dynamic modelPluginsPostResultsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Model Plugins - PostResults
 
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await modelPluginsOnTheFlyStepResults(
@@ -819,10 +1412,17 @@ Future<void> processModelPostResults({
     modelPluginConfiguration: runState.Root.Locals.ModelPluginConfiguration,
     callbackContext: runState.Caller,
   ); // Model Plugins - PostResults: external sequence call
+  modelPluginsPostResultsResult.Status =
+      modelPluginsPostResultsResult.Status == 'Done'
+      ? 'Passed'
+      : modelPluginsPostResultsResult.Status; // status expression
+  run.record(modelPluginsPostResultsResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `DoPreUUT` — Perform the default PreUUT action for the Sequential Model..
-Future<void> doPreUut({
+Future<String> doPreUut({
   bool continueTesting = true,
   dynamic uut,
   dynamic testSocket,
@@ -830,6 +1430,8 @@ Future<void> doPreUut({
   dynamic modelPluginConfiguration2,
 }) async {
   String serialNumber = ''; // Str
+
+  final run = ts.SequenceRun();
 
   if (modelData.EntryPoint != 'Single Pass' &&
       ts.truthy(
@@ -855,16 +1457,20 @@ Future<void> doPreUut({
     // precondition of Set Serial Number
     uut.SerialNumber = serialNumber; // Set Serial Number
   }
+
+  return run.status;
 }
 
 /// Sequence `DoPostUUT` — Perform the default PostUUT action for the Sequential Model..
-Future<void> doPostUut({
+Future<String> doPostUut({
   dynamic result,
   dynamic uut,
   dynamic testSocket,
   dynamic modelData,
   dynamic modelPluginConfiguration2,
 }) async {
+  final run = ts.SequenceRun();
+
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(
         modelPluginConfiguration2
@@ -917,6 +1523,8 @@ Future<void> doPostUut({
       'cModule call: DisplayTerminateBanner',
     ); // DisplayTerminateBanner [Action]
   }
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -1145,126 +1753,87 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Initialize Entry Point" not exported
   //   untranslated expression in body
   //   external sequence: Initialize Execution Entry Point
   //   RunState engine access (no engine at run time)
-  //   status expression of step "Model Plugins - Begin" not exported
   //   external sequence: Model Plugins - Begin
-  //   status expression of step "Process Setup Callback" not exported
-  //   status expression of step "PreUUTLoop Callback" not exported
   //   flow action of step "PreUUT Callback" (Next/Next) not exported
-  //   status expression of step "PreUUT Callback" not exported
   //   flow action of step "Model Plugins - Pre UUT" (Next/Next) not exported
-  //   status expression of step "Model Plugins - Pre UUT" not exported
   //   external sequence: Model Plugins - Pre UUT
-  //   status expression of step "Model Plugins - UUT Start" not exported
   //   external sequence: Model Plugins - UUT Start
-  //   status expression of step "PreMainSequence Callback" not exported
-  //   status expression of step "MainSequence Callback" not exported
   //   external sequence: Parameters.sequence
-  //   status expression of step "PostMainSequence Callback" not exported
-  //   status expression of step "Model Plugins - UUT Done" not exported
   //   external sequence: Model Plugins - UUT Done
-  //   status expression of step "Model Plugins - Post UUT" not exported
   //   external sequence: Model Plugins - Post UUT
-  //   status expression of step "PostUUT Callback" not exported
   //   step type MessagePopup: action not exported yet
-  //   Step engine access (no engine at run time)
-  //   status expression of step "PostUUTLoop Callback" not exported
-  //   status expression of step "Process Cleanup Callback" not exported
-  //   status expression of step "Model Plugins - End" not exported
   //   external sequence: Model Plugins - End
-  //   status expression of step "Call DoPreUUT" not exported
   //   external sequence: DoPreUUT
-  //   status expression of step "Call DoPostUUT" not exported
   lw.skipTest('Test UUTs', () async {
-    await testUuTs();
+    lw.expect(await testUuTs(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Initialize Entry Point" not exported
   //   untranslated expression in body
   //   external sequence: Initialize Execution Entry Point
   //   RunState engine access (no engine at run time)
-  //   status expression of step "Model Plugins - Begin" not exported
   //   external sequence: Model Plugins - Begin
-  //   status expression of step "Process Setup Callback" not exported
-  //   status expression of step "PreUUTLoop Callback" not exported
   //   flow action of step "PreUUT Callback" (Next/Next) not exported
-  //   status expression of step "PreUUT Callback" not exported
   //   flow action of step "Model Plugins - Pre UUT" (Next/Next) not exported
-  //   status expression of step "Model Plugins - Pre UUT" not exported
   //   external sequence: Model Plugins - Pre UUT
-  //   status expression of step "Model Plugins - UUT Start" not exported
   //   external sequence: Model Plugins - UUT Start
-  //   status expression of step "PreMainSequence Callback" not exported
-  //   status expression of step "MainSequence Callback" not exported
   //   external sequence: Parameters.sequence
-  //   status expression of step "PostMainSequence Callback" not exported
-  //   status expression of step "Model Plugins - UUT Done" not exported
   //   external sequence: Model Plugins - UUT Done
-  //   status expression of step "Model Plugins - Post UUT" not exported
   //   external sequence: Model Plugins - Post UUT
-  //   status expression of step "PostUUT Callback" not exported
-  //   status expression of step "PostUUTLoop Callback" not exported
-  //   status expression of step "Process Cleanup Callback" not exported
-  //   status expression of step "Model Plugins - End" not exported
   //   external sequence: Model Plugins - End
   //   step type MessagePopup: action not exported yet
-  //   status expression of step "Call DoPreUUT" not exported
   //   external sequence: DoPreUUT
-  //   status expression of step "Call DoPostUUT" not exported
   lw.skipTest('Single Pass', () async {
-    await singlePass();
+    lw.expect(await singlePass(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Display Result Processing Configuration Dialog" not exported
   //   step "Display Result Processing Configuration Dialog" runs its sequence call in a new thread (not exported)
   //   external sequence: DisplayResultProcessingConfigurationDialog
   //   RunState engine access (no engine at run time)
   lw.skipTest('Configure Result Processing', () async {
-    await configureResultProcessing();
+    lw.expect(await configureResultProcessing(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   cModule call: Edit Model Options
   lw.skipTest('Configure Model Options', () async {
-    await configureModelOptions();
+    lw.expect(await configureModelOptions(), 'Passed');
   });
   lw.test('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ReportOptions' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('ReportOptions', () async {
-    await reportOptions();
+    lw.expect(await reportOptions(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'DatabaseOptions' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('DatabaseOptions', () async {
-    await databaseOptions();
+    lw.expect(await databaseOptions(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelOptions' is an engine object (nothing binds it when run as a test)
   lw.skipTest('ModelOptions', () async {
-    await modelOptions();
+    lw.expect(await modelOptions(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('ModelPluginOptions', () async {
-    await modelPluginOptions();
+    lw.expect(await modelPluginOptions(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('ModelPluginConfiguration', () async {
-    await modelPluginConfiguration();
+    lw.expect(await modelPluginConfiguration(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Call TestReport in case this Model sequence  is being called directly from a client file or has been copied into an override" not exported
   //   external sequence: TestReport
   //   root parameter 'MainSequenceResults' is an engine object (nothing binds it when run as a test)
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
@@ -1276,7 +1845,7 @@ void register() {
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('TestReport', () async {
-    await testReport();
+    lw.expect(await testReport(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
@@ -1284,7 +1853,7 @@ void register() {
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('ModifyReportHeader', () async {
-    await modifyReportHeader();
+    lw.expect(await modifyReportHeader(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'Result' is an engine object (nothing binds it when run as a test)
@@ -1293,7 +1862,7 @@ void register() {
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('ModifyReportEntry', () async {
-    await modifyReportEntry();
+    lw.expect(await modifyReportEntry(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
@@ -1301,10 +1870,9 @@ void register() {
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('ModifyReportFooter', () async {
-    await modifyReportFooter();
+    lw.expect(await modifyReportFooter(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Call LogToDatabase in case this Model sequence  is being called directly from a client file" not exported
   //   external sequence: LogToDatabase
   //   root parameter 'MainSequenceResults' is an engine object (nothing binds it when run as a test)
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
@@ -1315,20 +1883,19 @@ void register() {
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('LogToDatabase', () async {
-    await logToDatabase();
+    lw.expect(await logToDatabase(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('GetReportFilePath', () async {
-    await getReportFilePath();
+    lw.expect(await getReportFilePath(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Model Plugins - PostResults" not exported
   //   external sequence: Model Plugins - OnTheFly Step Results
   //   RunState engine access (no engine at run time)
   lw.skipTest('ProcessModelPostResults', () async {
-    await processModelPostResults();
+    lw.expect(await processModelPostResults(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   cModule call: IdentifyUUT
@@ -1337,7 +1904,7 @@ void register() {
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('DoPreUUT', () async {
-    await doPreUut();
+    lw.expect(await doPreUut(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   cModule call: DisplayPassBanner
@@ -1350,6 +1917,6 @@ void register() {
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('DoPostUUT', () async {
-    await doPostUut();
+    lw.expect(await doPostUut(), 'Passed');
   });
 }

@@ -9,19 +9,24 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `ProcessSetup` — Runs once at lot start.
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.SetupMyCustomInstruments
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.SetupMyCustomInstruments',
   ); // Setup Custom Instrument [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 /// Sequence `MainSequence` — Runs for each UUT.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   int vcc = 5; // Num
   int offsetVoltage = 0; // Num — default: 0
   double tolerance = 0.1; // Num
@@ -30,6 +35,8 @@ Future<void> mainSequence() async {
   List<dynamic> analogOutputPins = <dynamic>['E', 'F']; // Strs
   List<dynamic> digitalInputPins = <dynamic>['A', 'B', 'C', 'D']; // Strs
   List<dynamic> pinData = <dynamic>['1', '0', '0', '1']; // Nums
+
+  final run = ts.SequenceRun();
 
   // Provide '0' input to all digital pins (A, B, C, D) and measure offset voltage on analog pins (E, F). Then compare the measured values with expected offset voltage.
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
@@ -64,10 +71,14 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
   ); // Functional Test [NI_SemiconductorModule_MultiTest]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: "About This Example"
   // popup message: "This example demonstrates how to use a Custom Instrument with the Semiconductor Test Library. |   | The example TestStand sequence contains three sample steps to test a hypothetical Device Under Test (DUT) using a custom instrument.  | The DUT is considered to be some kind of Digital to Analog Converter (DAC) and the Custom Instrument to be some kind of multi-functional Data Acquisition (DAQ). | The Custom Instrument device is capable of sourcing digital signals and acquiring analog signals.  | The DUT is connected to the CustomInstrument so that it can receive digital signals from the instrument and output an analog signal back to the instrument to be acquired. |   | Explore the main sequence to see the three sample test methods provided. |   | Sample Tests: | 1. ZeroScale Test | - Provides '0' input to all digital pins (A, B, C, D). | - Measures offset voltage on analog pins (E, F).  | - Compares the measured values with expected offset voltage. |   | 2. FullScale Test | - Provides '1' input to all digital pins (A, B, C, D). | - Measure voltage on analog pins (E, F).  | - Compares the measured values with expected FullScale voltage (VCC). |   | 3. Functional Test | - Provides different test inputs on digital pins (A, B, C, D), for example {0,1,0,1}. | - Measures analog  pins (E, F).  | - Compare the measured values with equivalent analog values. |   | Prerequisites | You must have the following software installed if you want to use the example: | - STS Software 25.5.0 or later |   | Review the README file accompanying the sequence file for information about how to use this example."
   // popup buttons: "Help" | "OK"
@@ -82,16 +93,22 @@ Future<void> sequenceFileLoad() async {
       'step type CallExecutable: action not exported yet',
     ); // Launch Readme [CallExecutable]
   }
+
+  return run.status;
 }
 
 /// Sequence `ProcessCleanup` — Runs once at lot end.
-Future<void> processCleanup() async {
+Future<String> processCleanup() async {
+  final run = ts.SequenceRun();
+
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.CleanupMyCustomInstruments
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.CleanupMyCustomInstruments',
   ); // Cleanup Custom Instrument [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -116,23 +133,23 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.SetupMyCustomInstruments
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   //   RunState engine access (no engine at run time)
   //   step type CallExecutable: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.CleanupMyCustomInstruments
   lw.skipTest('ProcessCleanup', () async {
-    await processCleanup();
+    lw.expect(await processCleanup(), 'Passed');
   });
 }

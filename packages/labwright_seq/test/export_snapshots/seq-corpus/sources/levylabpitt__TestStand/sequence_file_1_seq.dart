@@ -9,13 +9,16 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence({
+Future<String> mainSequence({
   dynamic ceObject,
   dynamic temperatureObject,
   dynamic magnetObject,
 }) async {
+  final run = ts.SequenceRun();
+
   // ── setup ──
   //   Control Experiment.lvclass <- Nothing
   //   Function <- 0
@@ -35,6 +38,8 @@ Future<void> mainSequence({
   //   Axis <- 0
   //   error out <- Step.Result.Error
   await callGetMagnet(); // Get Magnet [Action]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -87,6 +92,6 @@ void register() {
   //   root parameter 'TemperatureObject' is an engine object (nothing binds it when run as a test)
   //   root parameter 'MagnetObject' is an engine object (nothing binds it when run as a test)
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

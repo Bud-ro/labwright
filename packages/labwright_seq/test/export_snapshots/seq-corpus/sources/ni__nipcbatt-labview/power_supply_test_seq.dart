@@ -12,8 +12,34 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   String hardwareConfigPath = ''; // Str
+
+  final run = ts.SequenceRun();
+  dynamic powerSupplyAndMeasureWithTriggerResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Power Supply and Measure (with Trigger)
+  dynamic powerSupplyAndMeasureWithoutTriggerResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Power Supply and Measure (without Trigger)
+  dynamic dmmDcRmsVoltageMeasurementResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of DMM DC-RMS Voltage Measurement
+  dynamic powerDownAllPowerSuppliesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Power down all Power Supplies
 
   // ── setup ──
   ts.eval(
@@ -28,28 +54,58 @@ Future<void> mainSequence() async {
   // ── main ──
   // label: Example 1 - Demonstrates Time domain measurements using Hardware Trigger  from Power supply to Analog Input module
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await powerSupplyAndMeasureWithTrigger(); // Power Supply and Measure (with Trigger)
+  powerSupplyAndMeasureWithTriggerResult.Status =
+      await powerSupplyAndMeasureWithTrigger(); // Power Supply and Measure (with Trigger)
+  powerSupplyAndMeasureWithTriggerResult.Status =
+      powerSupplyAndMeasureWithTriggerResult.Status == 'Done'
+      ? 'Passed'
+      : powerSupplyAndMeasureWithTriggerResult.Status; // status expression
+  run.record(powerSupplyAndMeasureWithTriggerResult.Status);
   // label:
   // label: Example 2 - Demonstrates Power supply source and DC-RMS Voltage Measurement without triggers
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await powerSupplyAndMeasureWithoutTrigger(); // Power Supply and Measure (without Trigger)
+  powerSupplyAndMeasureWithoutTriggerResult.Status =
+      await powerSupplyAndMeasureWithoutTrigger(); // Power Supply and Measure (without Trigger)
+  powerSupplyAndMeasureWithoutTriggerResult.Status =
+      powerSupplyAndMeasureWithoutTriggerResult.Status == 'Done'
+      ? 'Passed'
+      : powerSupplyAndMeasureWithoutTriggerResult.Status; // status expression
+  run.record(powerSupplyAndMeasureWithoutTriggerResult.Status);
   // label:
   // label: Example 3 - Use DMM to measure DC-RMS Voltage from DUT
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await dmmDcRmsVoltageMeasurement(); // DMM DC-RMS Voltage Measurement
+  dmmDcRmsVoltageMeasurementResult.Status =
+      await dmmDcRmsVoltageMeasurement(); // DMM DC-RMS Voltage Measurement
+  dmmDcRmsVoltageMeasurementResult.Status =
+      dmmDcRmsVoltageMeasurementResult.Status == 'Done'
+      ? 'Passed'
+      : dmmDcRmsVoltageMeasurementResult.Status; // status expression
+  run.record(dmmDcRmsVoltageMeasurementResult.Status);
 
   // ── cleanup ──
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await powerDownAllPowerSupplies(); // Power down all Power Supplies
+  powerDownAllPowerSuppliesResult.Status =
+      await powerDownAllPowerSupplies(); // Power down all Power Supplies
+  powerDownAllPowerSuppliesResult.Status =
+      powerDownAllPowerSuppliesResult.Status == 'Done'
+      ? 'Passed'
+      : powerDownAllPowerSuppliesResult.Status; // status expression
+  run.record(powerDownAllPowerSuppliesResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `-------Examples------`.
-Future<void> examples() async {
+Future<String> examples() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Power Supply and Measure (with Trigger)`.
-Future<void> powerSupplyAndMeasureWithTrigger() async {
+Future<String> powerSupplyAndMeasureWithTrigger() async {
   dynamic psTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
@@ -84,6 +140,8 @@ Future<void> powerSupplyAndMeasureWithTrigger() async {
     'Period': <dynamic>[],
     'Dutycycle': <dynamic>[],
   }); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example demostrates Power Supply Source(VDD) and Time Domain Analysis of Measured Analog input voltage in TestPoints. Data capture in Analog Input(TP) starts when the Trigger is sent from Power Supply after starting the source.
@@ -133,10 +191,12 @@ Future<void> powerSupplyAndMeasureWithTrigger() async {
   //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqTdvMeasClose(); // Time Domain Measurement - Close TP [Action]
+
+  return run.status;
 }
 
 /// Sequence `Power Supply and Measure (without Trigger)`.
-Future<void> powerSupplyAndMeasureWithoutTrigger() async {
+Future<String> powerSupplyAndMeasureWithoutTrigger() async {
   dynamic psTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
@@ -166,6 +226,8 @@ Future<void> powerSupplyAndMeasureWithoutTrigger() async {
   dynamic measurementData = ts.PropObj({
     'Voltage_Waveform': <dynamic>[],
   }); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example demonstrates Power Supply source and Voltage Measurement without trigger
@@ -201,14 +263,18 @@ Future<void> powerSupplyAndMeasureWithoutTrigger() async {
   //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close TP [Action]
+
+  return run.status;
 }
 
 /// Sequence `DMM DC-RMS Voltage Measurement`.
-Future<void> dmmDcRmsVoltageMeasurement() async {
+Future<String> dmmDcRmsVoltageMeasurement() async {
   dynamic dmmResource = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example demonstrates how to configure and use a DMM to make a DC-RMS Voltage measurement
@@ -232,19 +298,27 @@ Future<void> dmmDcRmsVoltageMeasurement() async {
   //   DMM Handle In <- Locals.DMM_Resource
   //   error out <- Step.Result.Error
   await callDmmDcRmsVoltageMeasClose(); // Close DMM reference [Action]
+
+  return run.status;
 }
 
 /// Sequence `-------Reusable Sequences------`.
-Future<void> reusableSequences() async {
+Future<String> reusableSequences() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Power down all Power Supplies`.
-Future<void> powerDownAllPowerSupplies() async {
+Future<String> powerDownAllPowerSupplies() async {
   dynamic psTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Note to run with Hardware: Update Physical Channels Info based on NI MAX in the below Initialize Step
@@ -264,16 +338,22 @@ Future<void> powerDownAllPowerSupplies() async {
   //   DAQmx Task In <- Locals.PS_Task
   //   error out <- Step.Result.Error
   await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: "About This Example"
   // popup message: "These automation test sequences utilize PCBA libraries to conduct basic electrical functional tests, | which can be adapted or modified to fit your specific procedures. The sequences employ simulated DAQ  | hardware and do not include limit testing.  |   | Make sure all prerequisite software and configurations outlined in the user manual are installed. |   | For detailed help on how to use the test sequences, please refer to the online manual provided in the link below. | https://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html"
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Explanation [MessagePopup]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -383,10 +463,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   Common\Import Hardware Config.vi
-  //   status expression of step "Power Supply and Measure (with Trigger)" not exported
-  //   status expression of step "Power Supply and Measure (without Trigger)" not exported
-  //   status expression of step "DMM DC-RMS Voltage Measurement" not exported
-  //   status expression of step "Power down all Power Supplies" not exported
   //   Power Supply Source and Measure\DAQ_PS Initialize.vi
   //   Time Domain Measurement\DAQ_TDV Meas Initialize.vi
   //   Time Domain Measurement\DAQ_TDV Meas Configure and Measure.vi
@@ -400,17 +476,17 @@ void register() {
   //   DMM_DC-RMS Voltage Measurement\DMM_DC-RMS Voltage Meas Configure and Measure.vi
   //   DMM_DC-RMS Voltage Measurement\DMM_DC-RMS Voltage Meas Close.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   lw.test('-------Examples------', () async {
-    await examples();
+    lw.expect(await examples(), 'Passed');
   });
   lw.test('-------Reusable Sequences------', () async {
-    await reusableSequences();
+    lw.expect(await reusableSequences(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

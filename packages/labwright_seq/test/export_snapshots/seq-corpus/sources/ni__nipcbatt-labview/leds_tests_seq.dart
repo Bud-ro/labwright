@@ -12,8 +12,28 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   String hardwareConfigPath = ''; // Str
+
+  final run = ts.SequenceRun();
+  dynamic validateDcLevelResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Validate DC Level
+  dynamic sendAndValidatePwmAnalogBufferResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Send and Validate PWM(Analog Buffer)
+  dynamic turnOffAllAoChannelsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Turn Off all AO Channels
 
   // ── setup ──
   ts.eval(
@@ -28,25 +48,47 @@ Future<void> mainSequence() async {
   // ── main ──
   // label: Example 1 - Demonstrates the LED test to measure the differential voltage across Anode and Cathode
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await validateDcLevel(); // Validate DC Level
+  validateDcLevelResult.Status = await validateDcLevel(); // Validate DC Level
+  validateDcLevelResult.Status = validateDcLevelResult.Status == 'Done'
+      ? 'Passed'
+      : validateDcLevelResult.Status; // status expression
+  run.record(validateDcLevelResult.Status);
   //
   //
   // label: Example 2 - Demonstrates the LED test where PWM commands are sent to LEDs and PWM response is captured at TestPoint via analog buffer to validate Dutycycle
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await sendAndValidatePwmAnalogBuffer(); // Send and Validate PWM(Analog Buffer)
+  sendAndValidatePwmAnalogBufferResult.Status =
+      await sendAndValidatePwmAnalogBuffer(); // Send and Validate PWM(Analog Buffer)
+  sendAndValidatePwmAnalogBufferResult.Status =
+      sendAndValidatePwmAnalogBufferResult.Status == 'Done'
+      ? 'Passed'
+      : sendAndValidatePwmAnalogBufferResult.Status; // status expression
+  run.record(sendAndValidatePwmAnalogBufferResult.Status);
 
   // ── cleanup ──
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await turnOffAllAoChannels(); // Turn Off all AO Channels
+  turnOffAllAoChannelsResult.Status =
+      await turnOffAllAoChannels(); // Turn Off all AO Channels
+  turnOffAllAoChannelsResult.Status =
+      turnOffAllAoChannelsResult.Status == 'Done'
+      ? 'Passed'
+      : turnOffAllAoChannelsResult.Status; // status expression
+  run.record(turnOffAllAoChannelsResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `-------Examples------`.
-Future<void> examples() async {
+Future<String> examples() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Send and Validate PWM(Analog Buffer)`.
-Future<void> sendAndValidatePwmAnalogBuffer() async {
+Future<String> sendAndValidatePwmAnalogBuffer() async {
   dynamic timeDomainMeasTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
@@ -56,6 +98,8 @@ Future<void> sendAndValidatePwmAnalogBuffer() async {
     'SessionNumber': 0,
   }); // LabVIEWIOControl
   List<dynamic> pwmDutycycle = <dynamic>[]; // Nums
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example demonstrates the LED test where PWM commands are sent to LEDs and PWM response is captured at TestPoint via analog buffer to validate Dutycycle
@@ -98,10 +142,12 @@ Future<void> sendAndValidatePwmAnalogBuffer() async {
   //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqTdvMeasClose(); // Time Domain Measurement - Close LED Measure [Action]
+
+  return run.status;
 }
 
 /// Sequence `Validate DC Level`.
-Future<void> validateDcLevel() async {
+Future<String> validateDcLevel() async {
   dynamic dcVoltageMeasTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
@@ -111,6 +157,8 @@ Future<void> validateDcLevel() async {
     'Avg_Voltage': <dynamic>[],
     'RMS_Voltage': <dynamic>[],
   }); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example demonstrates the LED test to measure the differential voltage across Anode and Cathode
@@ -133,19 +181,27 @@ Future<void> validateDcLevel() async {
   //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `-------Reusable Sequences------`.
-Future<void> reusableSequences() async {
+Future<String> reusableSequences() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Turn Off all AO Channels`.
-Future<void> turnOffAllAoChannels() async {
+Future<String> turnOffAllAoChannels() async {
   dynamic dcVoltageGenTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example resets all configured Analog output channels voltage to 0 Volts
@@ -169,16 +225,22 @@ Future<void> turnOffAllAoChannels() async {
   //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
   //   error out <- Step.Result.Error
   await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: "About This Example"
   // popup message: "These automation test sequences utilize PCBA libraries to conduct basic electrical functional tests, | which can be adapted or modified to fit your specific procedures. The sequences employ simulated DAQ  | hardware and do not include limit testing.  |   | Make sure all prerequisite software and configurations outlined in the user manual are installed. |   | For detailed help on how to use the test sequences, please refer to the online manual provided in the link below. | https://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html"
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Explanation [MessagePopup]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -287,9 +349,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   Common\Import Hardware Config.vi
-  //   status expression of step "Validate DC Level" not exported
-  //   status expression of step "Send and Validate PWM(Analog Buffer)" not exported
-  //   status expression of step "Turn Off all AO Channels" not exported
   //   DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Initialize.vi
   //   DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Configure and Measure.vi
   //   DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Close.vi
@@ -303,17 +362,17 @@ void register() {
   //   DC Voltage Generation\DAQ_DC Voltage Gen Configure and Generate.vi
   //   DC Voltage Generation\DAQ_DC Voltage Gen Close.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   lw.test('-------Examples------', () async {
-    await examples();
+    lw.expect(await examples(), 'Passed');
   });
   lw.test('-------Reusable Sequences------', () async {
-    await reusableSequences();
+    lw.expect(await reusableSequences(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

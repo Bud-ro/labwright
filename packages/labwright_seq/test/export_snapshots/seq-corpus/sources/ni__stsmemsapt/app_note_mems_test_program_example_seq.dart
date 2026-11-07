@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic pins = ts.PropObj({
     'PPMU': <dynamic>['PPMU0', 'PPMU1', 'PPMU2', 'PPMU3'],
     'SMU': <dynamic>['SMU0', 'SMU1'],
@@ -227,6 +227,8 @@ Future<void> mainSequence() async {
     }),
     'Resonance': <dynamic>['FGEN_A', 'FGEN_B', 'V1_A', 'V2_B'],
   }); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // When Active Configuration is set to Calibration the variable "Locals.Parameters.Capacitance.IS_Calibration" is set to True, otherwise is False
@@ -542,10 +544,12 @@ Future<void> mainSequence() async {
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Disconnect FGEN from A,B and V1 from A and V2 from B [NI_SemiconductorModule_Action]
   }
+
+  return run.status;
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
-Future<void> processSetup() async {
+Future<String> processSetup() async {
   List<dynamic> parametersRelayControl = <dynamic>[
     ts.PropObj({
       'Output': 'DC Voltage',
@@ -563,6 +567,8 @@ Future<void> processSetup() async {
     'IS_ZRef_Im': null,
     'IS_ZRef_Frequencies': null,
   }); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // ---------------------
@@ -625,10 +631,14 @@ Future<void> processSetup() async {
   //   Pins <- FileGlobals.Pins_RelayControl
   //   error Out <- Step.Result.Error
   await callSharedDcPowerStart(); // Start System Power Supply [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
-Future<void> processCleanup() async {
+Future<String> processCleanup() async {
+  final run = ts.SequenceRun();
+
   // ---------------------
   // label: Set System Power Supply to 0V and Stop it
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
@@ -663,16 +673,22 @@ Future<void> processCleanup() async {
   //   Reset? <- False
   //   error out <- Step.Result.Error
   await callSharedClose(); // Release DCPower  resources [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: NameOf(Step)
   // popup message: "This example test program shows how to perform different tests for MEMS devices. | If you're working in a non STS environment you need to enable the OfflineMode and you can use the offline configuration file STS_MEMS_Offline_Mode_System_Configuration.offlinecfg stored in the Example folder. | The sequence can run with both LabVIEW Run-Time Engine and LabVIEW Development System configuration. | All the pins and relays used are not part of a real DUT and system, they're intended just to let the user run the full sequence in either simulated mode or with real hardware. | The number of parallel sites is 8 and the relays used are to be considered System Relays, having one command driving 8 relays in parallel, one per site. | There are two configurations, Calibration which is used to simulate the calibration needed for the Impedance Spectroscopy test, and Production which runs the full test program. | Follow these steps to execute correctly the sequence: | 1) Set Active Configuration to Calibration and run once to get the ZRef values needed for Impedance Spectroscopy test  | 2) Set Active Configuration to Production and run the sequence"
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Example explanation [MessagePopup]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -833,7 +849,7 @@ void register() {
   //   ..\CodeModules-LabVIEW\Libraries\Capacitance\VIs\Capacitance_IS_Test.vi
   //   ..\CodeModules-LabVIEW\Libraries\Resonance\VIs\Resonance_Test.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
@@ -842,17 +858,17 @@ void register() {
   //   ..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_DCPower_Configure.vi
   //   ..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_DCPower_Start.vi
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   ..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_DCPower_0V_Stop.vi
   //   ..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_Close.vi
   lw.skipTest('ProcessCleanup', () async {
-    await processCleanup();
+    lw.expect(await processCleanup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

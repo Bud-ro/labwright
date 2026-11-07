@@ -9,10 +9,13 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   int voltage = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // Note: This sequence is an example for programmatically saving the the screenshot of Instrument Studio windows in the specified location.
@@ -29,6 +32,8 @@ Future<void> mainSequence() async {
     ); // Instrument Studio Screenshot [Action]
     await Future<void>.delayed(const Duration(seconds: 1));
   }
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -52,6 +57,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   python call: C:\dev\Screenshot Utility\screenshot_utility.py
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

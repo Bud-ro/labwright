@@ -12,7 +12,9 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+
   // Power up the DUT
   // measurement: devicePowerSequencingModule_LabVIEW
   // measurement param: Power Down (In TypeBool) = False
@@ -67,10 +69,14 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type NI_Measurement: action not exported yet',
   ); // PowerDown Step [NI_Measurement]
+
+  return run.status;
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+
   ts.eval(
     'FileGlobals.FolderPath =Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True))',
   ); // Get Sequence Directory
@@ -89,14 +95,20 @@ Future<void> processSetup() async {
     1,
     fileGlobals.MeasurementLink.PinMapId,
   ); // Register active PinMapId
+
+  return run.status;
 }
 
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
-Future<void> processCleanup() async {
+Future<String> processCleanup() async {
+  final run = ts.SequenceRun();
+
   runState.Engine.TemporaryGlobals.DeleteSubProperty(
     'NI.MeasurementLink.PinMapId',
     2,
   ); // Unregister active PinMapId
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -132,18 +144,18 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type NI_Measurement: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   VIs\Update Pin Map.vi
   //   RunState engine access (no engine at run time)
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
   lw.skipTest('ProcessCleanup', () async {
-    await processCleanup();
+    lw.expect(await processCleanup(), 'Passed');
   });
 }

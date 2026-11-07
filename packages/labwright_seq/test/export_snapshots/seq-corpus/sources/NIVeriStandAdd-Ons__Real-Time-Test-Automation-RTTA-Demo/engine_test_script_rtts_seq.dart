@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic niVsFactory = null; // Ref
   dynamic niVsWorkspace = null; // Ref
   dynamic niVsStimulus = null; // Ref
@@ -33,6 +33,15 @@ Future<void> mainSequence() async {
     'C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\Working Directory',
   ]; // Strs
   List<dynamic> analysisResult = <dynamic>['0']; // Nums
+
+  final run = ts.SequenceRun();
+  dynamic passFailTestMaskAAnalysisVbsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Pass Fail Test:MaskA_Analysis.VBS
 
   // ── setup ──
   // runs executable: C:\Program Files (x86)\National Instruments\VeriStand 2011\NI VeriStand.exe "" (WAIT_NONE)
@@ -149,10 +158,16 @@ Future<void> mainSequence() async {
   ); // Get test results [DIAdem_ImportChannels]
   // checks: Step.Result.PassFail = Locals.AnalysisResult[0] == 1
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type PassFailTest: action not exported yet',
-  ); // Pass Fail Test:MaskA_Analysis.VBS [PassFailTest]
-  testResult = step.Result.PassFail; // post-expression
+  // Pass Fail Test:MaskA_Analysis.VBS [PassFailTest]: judged by its status expression
+  testResult = passFailTestMaskAAnalysisVbsResult.PassFail; // post-expression
+  passFailTestMaskAAnalysisVbsResult.PassFail =
+      passFailTestMaskAAnalysisVbsResult.PassFail =
+          analysisResult[0] == 1; // status expression
+  passFailTestMaskAAnalysisVbsResult.Status =
+      ts.truthy(passFailTestMaskAAnalysisVbsResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(passFailTestMaskAAnalysisVbsResult.Status);
   // failure does NOT fail the sequence
   throw UnimplementedError(
     'step type DIAdem_Close_Reference: action not exported yet',
@@ -165,6 +180,8 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit',
   ); // Quit VS [Action]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -210,9 +227,6 @@ void register() {
   //   step type DIAdem_ExportChannels: action not exported yet
   //   step type DIAdem_RunScript: action not exported yet
   //   step type DIAdem_ImportChannels: action not exported yet
-  //   status expression of step "Pass Fail Test:MaskA_Analysis.VBS" not exported
-  //   step type PassFailTest: action not exported yet
-  //   Step engine access (no engine at run time)
   //   step type DIAdem_Close_Reference: action not exported yet
   //   dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit
   lw.skipTest(
@@ -223,7 +237,7 @@ void register() {
       'REQ_NumExceptions_215',
     ],
     () async {
-      await mainSequence();
+      lw.expect(await mainSequence(), 'Passed');
     },
   );
 }

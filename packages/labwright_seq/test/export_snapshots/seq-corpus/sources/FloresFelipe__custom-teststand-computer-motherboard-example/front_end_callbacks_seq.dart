@@ -9,12 +9,15 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `LoginLogout`.
-Future<void> loginLogout({
+Future<String> loginLogout({
   bool logout = false,
   bool isInitialLogin = false,
 }) async {
+  final run = ts.SequenceRun();
+
   // custom flow: if (True) Goto -> <End> else Goto -> <End>
   if (logout) {
     // precondition of Logout
@@ -27,6 +30,8 @@ Future<void> loginLogout({
       'administrator',
     ); // Auto Login
   }
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -52,6 +57,6 @@ void register() {
   //   cModule call: Logout
   //   RunState engine access (no engine at run time)
   lw.skipTest('LoginLogout', () async {
-    await loginLogout();
+    lw.expect(await loginLogout(), 'Passed');
   });
 }

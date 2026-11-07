@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic atsSettings = ts.PropObj({
     'tolerance': 0.2,
     'settling_time': 1,
@@ -2429,6 +2429,15 @@ Future<void> mainSequence() async {
   }); // NI_IOSession
   List<dynamic> y = <dynamic>[]; // Nums
 
+  final run = ts.SequenceRun();
+  dynamic testTemperatureStabilizedResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Test - Temperature Stabilized
+
   // ── setup ──
   throw UnimplementedError(
     'step type NI_CreateIOSessionAndApplyIOConfig: action not exported yet',
@@ -2454,10 +2463,14 @@ Future<void> mainSequence() async {
   ); // Temptronic ATS 545- Set Temperature [NI_Measurement]
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  step.Result.PassFail = atsSettings.stabilized; // pre-expression
-  throw UnimplementedError(
-    'step type PassFailTest: action not exported yet',
-  ); // Test - Temperature Stabilized [PassFailTest]
+  testTemperatureStabilizedResult.PassFail =
+      atsSettings.stabilized; // pre-expression
+  // Test - Temperature Stabilized [PassFailTest]: judged by its status expression
+  testTemperatureStabilizedResult.Status =
+      ts.truthy(testTemperatureStabilizedResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(testTemperatureStabilizedResult.Status);
   // measurement: DAQ_FiniteAI_LabVIEW
   // measurement param: Physical_Channel (In TypeString) = "DAQ_4309_C1_S04/ai0"
   // measurement param: Min_Voltage (In TypeDouble) = -5
@@ -2485,6 +2498,8 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type NI_CloseIOSession: action not exported yet',
   ); // Close Sessions [NI_CloseIOSession]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -2508,13 +2523,10 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type NI_CreateIOSessionAndApplyIOConfig: action not exported yet
   //   step type NI_Measurement: action not exported yet
-  //   status expression of step "Test - Temperature Stabilized" not exported
-  //   Step engine access (no engine at run time)
-  //   step type PassFailTest: action not exported yet
   //   untranslated expression in body
   //   step type NI_MultipleNumericLimitTest: action not exported yet
   //   step type NI_CloseIOSession: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

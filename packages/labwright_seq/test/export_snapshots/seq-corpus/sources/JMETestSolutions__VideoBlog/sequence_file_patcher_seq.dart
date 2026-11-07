@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   String modelPath = ''; // Str
   String modelPatchesPath = ''; // Str
   String outputPath = ''; // Str
@@ -20,6 +20,8 @@ Future<void> mainSequence() async {
   dynamic originalModel = null; // Ref
   dynamic patchesFile = null; // Ref
   int loopingVariable = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   modelPath =
@@ -89,6 +91,8 @@ Future<void> mainSequence() async {
       patchedSequenceFile,
     ); // Close OutputFile
   }
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -113,6 +117,6 @@ void register() {
   //   RunState engine access (no engine at run time)
   //   untranslated expression in body
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

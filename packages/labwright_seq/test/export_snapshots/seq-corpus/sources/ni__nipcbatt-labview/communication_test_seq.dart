@@ -12,34 +12,74 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic i2CCommTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of I2C Comm Test
+  dynamic spiCommTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of SPI Comm Test
+  dynamic serialCommTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Serial Comm Test
+
   // ── setup ──
   // label: Note to run with Simulation: Test sequence cannot be executed in simulation mode
 
   // ── main ──
   // label: Example demonstrates simple read and write data operations through I2C protocol communication using NI 845x Device
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await i2CCommTest(); // I2C Comm Test
+  i2CCommTestResult.Status = await i2CCommTest(); // I2C Comm Test
+  i2CCommTestResult.Status = i2CCommTestResult.Status == 'Done'
+      ? 'Passed'
+      : i2CCommTestResult.Status; // status expression
+  run.record(i2CCommTestResult.Status);
   // label: Example demonstrates simple read and write data operations through SPI protocol communication using NI 845x Device
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await spiCommTest(); // SPI Comm Test
+  spiCommTestResult.Status = await spiCommTest(); // SPI Comm Test
+  spiCommTestResult.Status = spiCommTestResult.Status == 'Done'
+      ? 'Passed'
+      : spiCommTestResult.Status; // status expression
+  run.record(spiCommTestResult.Status);
   // label: Example demonstrates simple read and write data operations through Serial COM port
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await serialCommTest(); // Serial Comm Test
+  serialCommTestResult.Status = await serialCommTest(); // Serial Comm Test
+  serialCommTestResult.Status = serialCommTestResult.Status == 'Done'
+      ? 'Passed'
+      : serialCommTestResult.Status; // status expression
+  run.record(serialCommTestResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `-------Examples------`.
-Future<void> examples() async {
+Future<String> examples() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `I2C Comm Test`.
-Future<void> i2CCommTest() async {
+Future<String> i2CCommTest() async {
   dynamic deviceId = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
   dynamic data = ts.PropObj({'I2CReadData': <dynamic>[]}); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Example demonstrates simple read and write data operations through I2C protocol communication using NI 845x Device
@@ -75,15 +115,19 @@ Future<void> i2CCommTest() async {
   //   Write Delay Between Pages (ms) <- 4
   //   error out <- Step.Result.Error
   await callv845xI2CWrite(); // I2C Write - Write Register Data [Action]
+
+  return run.status;
 }
 
 /// Sequence `SPI Comm Test`.
-Future<void> spiCommTest() async {
+Future<String> spiCommTest() async {
   dynamic deviceId = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
   dynamic data = ts.PropObj({'SPIReadData': <dynamic>[]}); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Example demonstrates simple read and write data operations through SPI protocol communication using NI 845x Device
@@ -110,15 +154,19 @@ Future<void> spiCommTest() async {
   //   Write Delay Between Pages (ms) <- 5
   //   error out <- Step.Result.Error
   await callv845xSpiWrite(); // SPI Write - Write Register Data [Action]
+
+  return run.status;
 }
 
 /// Sequence `Serial Comm Test`.
-Future<void> serialCommTest() async {
+Future<String> serialCommTest() async {
   dynamic serialVisa = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
   dynamic data = ts.PropObj({'SerialResponse': '', 'BytesRead': 0}); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Example demonstrates simple read and write data operations through Serial COM port
@@ -136,16 +184,22 @@ Future<void> serialCommTest() async {
   //   bytes read <- Locals.Data.BytesRead
   //   error out <- Step.Result.Error
   await callVisaSimpleSerial(); // Simple Serial Comm - Write and Read data from Serial COM port [Action]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: "About This Example"
   // popup message: "This example automation sequence demonstrates simple read and write data operations through  | I2C and SPI communication protocol using NI 845x device and through Serial COM port.  | The purpose of this automation sequence template is to provide a method for understanding | the use of the values returned by the library in a real world scenario.  | Ensure that all the prerequisite software mentioned in the user manual are installed. | For more information about the Automation Test Sequences, refer to the link mentioned below. | https://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html"
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Message Popup [MessagePopup]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -190,22 +244,19 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "I2C Comm Test" not exported
-  //   status expression of step "SPI Comm Test" not exported
-  //   status expression of step "Serial Comm Test" not exported
   //   845x\845x_I2C Read.vi
   //   845x\845x_I2C Write.vi
   //   Communication\Serial\VISA_Simple Serial.vi
   //   Communication\845x\845x_SPI Write.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   lw.test('-------Examples------', () async {
-    await examples();
+    lw.expect(await examples(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

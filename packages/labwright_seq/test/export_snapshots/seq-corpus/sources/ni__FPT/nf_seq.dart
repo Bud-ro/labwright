@@ -12,9 +12,11 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   int rxNfDutnfMean = 0; // Num — default: 0
   List<dynamic> rxNfDutnFvsFreqFull = <dynamic>[]; // Nums
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
@@ -115,6 +117,8 @@ Future<void> mainSequence() async {
   //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
   //   error out <- Step.Result.Error
   await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -176,6 +180,6 @@ void register() {
   //   C:\Program Files\National Instruments\NI FPT\Application\Power Sequencing\Power Off Dut.vi
   //   C:\Program Files\National Instruments\NI FPT\Application\Power Sequencing\Disconnect All Switches.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

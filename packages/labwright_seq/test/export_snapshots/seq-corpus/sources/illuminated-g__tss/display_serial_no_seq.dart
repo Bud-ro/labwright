@@ -12,8 +12,10 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic cluster = ts.PropObj(); // Obj
+
+  final run = ts.SequenceRun();
 
   // popup title: NameOf(Step)
   // popup message: Parameters.SerialNo
@@ -26,6 +28,8 @@ Future<void> mainSequence() async {
   //   Cluster <- Locals.Cluster
   //   error out <- Step.Result.Error
   await callTestCluster(); // Action [Action]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -56,6 +60,6 @@ void register() {
   //   step type MessagePopup: action not exported yet
   //   Test Cluster.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

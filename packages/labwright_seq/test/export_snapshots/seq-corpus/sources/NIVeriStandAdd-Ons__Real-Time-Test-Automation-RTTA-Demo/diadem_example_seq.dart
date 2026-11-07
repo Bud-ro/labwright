@@ -9,9 +9,10 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic diAdemReference = null; // DIAdem_Reference
   List<dynamic> dataToCopy = List<dynamic>.filled(
     16,
@@ -21,6 +22,8 @@ Future<void> mainSequence() async {
   List<dynamic> dataReturned = <dynamic>[]; // Nums
   String diAdemPath =
       'C:\\Program Files\\National Instruments\\DIAdem 9.1'; // Str
+
+  final run = ts.SequenceRun();
 
   throw UnimplementedError(
     'step type DIAdem_OpenReference: action not exported yet',
@@ -43,16 +46,22 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type DIAdem_Close_Reference: action not exported yet',
   ); // Close DIAdem [DIAdem_Close_Reference]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: "Example Information"
   // popup message: "This example sends channel data to DIAdem, runs a script, and returns the channel from DIAdem.  Be sure to make sure the Locals.DIAdemPath is set to the path of DIAdem.  This example requires DIAdem 9.1 or higher to run."
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Display Example Information [MessagePopup]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -81,11 +90,11 @@ void register() {
   //   step type DIAdem_RunScript: action not exported yet
   //   step type DIAdem_Close_Reference: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

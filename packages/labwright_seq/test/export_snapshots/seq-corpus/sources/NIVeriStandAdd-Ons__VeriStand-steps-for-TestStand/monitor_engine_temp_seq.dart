@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   int i = 0; // Num — default: 0
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
   dynamic thermalMonitorThread = null; // Ref
@@ -23,6 +23,26 @@ Future<void> mainSequence() async {
     '2500',
     '3000',
   ]; // Nums
+
+  final run = ts.SequenceRun();
+  dynamic launchTemperatureMonitorResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Launch Temperature Monitor
+  dynamic callEnginePowerResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Engine Power
+  dynamic callCheckEngineRpmResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Check Engine RPM
 
   // ── setup ──
   // Open and launch Engine Demo VeriStand project.
@@ -41,10 +61,21 @@ Future<void> mainSequence() async {
   // Asynchronously launch temperature monitor
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // sequence call spawns a new thread in the engine — exported as a plain awaited call
-  await monitorTemperature(readWait: 0.1); // Launch Temperature Monitor
+  launchTemperatureMonitorResult.Status = await monitorTemperature(
+    readWait: 0.1,
+  ); // Launch Temperature Monitor
+  launchTemperatureMonitorResult.Status =
+      launchTemperatureMonitorResult.Status == 'Done' && false
+      ? 'Passed'
+      : launchTemperatureMonitorResult.Status; // status expression
+  run.record(launchTemperatureMonitorResult.Status);
   // Turn engine on and wait until engine RPM reaches idle
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await enginePower(); // Call Engine Power
+  callEnginePowerResult.Status = await enginePower(); // Call Engine Power
+  callEnginePowerResult.Status = callEnginePowerResult.Status == 'Done'
+      ? 'Passed'
+      : callEnginePowerResult.Status; // status expression
+  run.record(callEnginePowerResult.Status);
 
   // ── main ──
   // Check that engine can settle at RPM setpoints +/- 50 RPM within 5 seconds
@@ -54,11 +85,21 @@ Future<void> mainSequence() async {
     i += 1
   ) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await checkEngineRpm(
+    callCheckEngineRpmResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    callCheckEngineRpmResult.Status = await checkEngineRpm(
       setpoint: rpmSetpoints[i],
       settleTime: 5,
       tolerance: 50,
     ); // Call Check Engine RPM
+    callCheckEngineRpmResult.Status = callCheckEngineRpmResult.Status == 'Done'
+        ? 'Passed'
+        : callCheckEngineRpmResult.Status; // status expression
+    run.record(callCheckEngineRpmResult.Status);
   }
 
   // ── cleanup ──
@@ -76,13 +117,17 @@ Future<void> mainSequence() async {
     // precondition of Wait
     await Future<void>.delayed(const Duration(seconds: 5));
   }
+
+  return run.status;
 }
 
 /// Sequence `Monitor Temperature`.
-Future<void> monitorTemperature({double readWait = 0}) async {
+Future<String> monitorTemperature({double readWait = 0}) async {
   int local = 0; // Num — default: 0
   bool done = false; // Bool — default: false
   List<dynamic> temperatureValues = <dynamic>[]; // Nums
+
+  final run = ts.SequenceRun();
 
   while (done == 0) {
     // Add a new element to the TemperatureValues result array
@@ -110,14 +155,32 @@ Future<void> monitorTemperature({double readWait = 0}) async {
   throw UnimplementedError(
     'step type AdditionalResults: action not exported yet',
   ); // Log Temperature Graph [AdditionalResults]
+
+  return run.status;
 }
 
 /// Sequence `Check Engine RPM`.
-Future<void> checkEngineRpm({
+Future<String> checkEngineRpm({
   double setpoint = 0,
   int settleTime = 0,
   int tolerance = 0,
 }) async {
+  final run = ts.SequenceRun();
+  dynamic channelValueLimitTestResult = ts.PropObj({
+    'Veristand': ts.PropObj({
+      'ChannelName': '',
+      'Description': '',
+      'ChannelInfo': null,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'VeristandError': null,
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Channel Value Limit Test
+
   throw UnimplementedError(
     'step type SetChannelValue: action not exported yet',
   ); // Set Channel Value [SetChannelValue]
@@ -130,13 +193,24 @@ Future<void> checkEngineRpm({
   throw UnimplementedError(
     'step type LimitTestChannelValue: action not exported yet',
   ); // Channel Value Limit Test [LimitTestChannelValue]
+  channelValueLimitTestResult.Status = ts.checkLimits(
+    channelValueLimitTestResult.Numeric,
+    step.Limits.High,
+    step.Limits.Low,
+    'GELE',
+  ); // status expression
+  run.record(channelValueLimitTestResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `Engine Power`.
-Future<void> enginePower() async {
+Future<String> enginePower() async {
   double idleRpm = 0; // Num — default: 0
   bool settled = false; // Bool — default: false
   double currentRpm = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // Initialize the settled local variable to be false
@@ -167,6 +241,8 @@ Future<void> enginePower() async {
   throw UnimplementedError(
     'step type AdditionalResults: action not exported yet',
   ); // Additional Results [AdditionalResults]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -204,20 +280,17 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type InitializeVeriStand: action not exported yet
   //   step type NI_Notification: action not exported yet
-  //   status expression of step "Launch Temperature Monitor" not exported
   //   step "Launch Temperature Monitor" runs its sequence call in a new thread (not exported)
-  //   status expression of step "Call Engine Power" not exported
   //   untranslated expression in body
-  //   status expression of step "Call Check Engine RPM" not exported
   //   step type SetMultipleChannelValues: action not exported yet
   //   step type GetChannelValue: action not exported yet
   //   step type AdditionalResults: action not exported yet
   //   step type GetModelParameterValue: action not exported yet
   //   RunState engine access (no engine at run time)
   //   step type SetChannelValue: action not exported yet
-  //   status expression of step "Channel Value Limit Test" not exported
   //   step type LimitTestChannelValue: action not exported yet
+  //   Step engine access (no engine at run time)
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

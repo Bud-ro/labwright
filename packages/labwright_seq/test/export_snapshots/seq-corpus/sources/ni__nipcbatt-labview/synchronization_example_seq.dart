@@ -12,8 +12,45 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   String hardwareConfigPath = ''; // Str
+
+  final run = ts.SequenceRun();
+  dynamic callSignalVoltageGenerationAndTimeDomainMeasurementResult =
+      ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      }); // result of Call SignalVoltageGeneration and TimeDomainMeasurement
+  dynamic
+  callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult =
+      ts.PropObj(
+        {
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        },
+      ); // result of Call DynamicDigitalPatternGeneration and DynamicDigitalPatternMeasurement
+  dynamic callDigitalPwmGenerationAndDigitalPwmMeasurementResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call DigitalPWMGeneration and DigitalPWMMeasurement
+  dynamic powerDownAllAoChannelsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Power down all AO Channels
+  dynamic callTurnOffAllDoChannelsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Turn Off all DO Channels
 
   // ── setup ──
   ts.eval(
@@ -30,33 +67,79 @@ Future<void> mainSequence() async {
   // label:
   // label: Synchronization using Analog Libraries
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await signalVoltageGenerationAndTimeDomainMeasurement(); // Call SignalVoltageGeneration and TimeDomainMeasurement
+  callSignalVoltageGenerationAndTimeDomainMeasurementResult.Status =
+      await signalVoltageGenerationAndTimeDomainMeasurement(); // Call SignalVoltageGeneration and TimeDomainMeasurement
+  callSignalVoltageGenerationAndTimeDomainMeasurementResult.Status =
+      callSignalVoltageGenerationAndTimeDomainMeasurementResult.Status == 'Done'
+      ? 'Passed'
+      : callSignalVoltageGenerationAndTimeDomainMeasurementResult
+            .Status; // status expression
+  run.record(callSignalVoltageGenerationAndTimeDomainMeasurementResult.Status);
   // label:
   // label: Synchronization using Digital Libraries
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await dynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurement(); // Call DynamicDigitalPatternGeneration and DynamicDigitalPatternMeasurement
+  callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
+          .Status =
+      await dynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurement(); // Call DynamicDigitalPatternGeneration and DynamicDigitalPatternMeasurement
+  callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
+          .Status =
+      callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
+              .Status ==
+          'Done'
+      ? 'Passed'
+      : callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
+            .Status; // status expression
+  run.record(
+    callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
+        .Status,
+  );
   // label:
   // label: Synchronization using Digital Counter Libraries
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await digitalClockGenerationAndDigitalPwmMeasurement(); // Call DigitalPWMGeneration and DigitalPWMMeasurement
+  callDigitalPwmGenerationAndDigitalPwmMeasurementResult.Status =
+      await digitalClockGenerationAndDigitalPwmMeasurement(); // Call DigitalPWMGeneration and DigitalPWMMeasurement
+  callDigitalPwmGenerationAndDigitalPwmMeasurementResult.Status =
+      callDigitalPwmGenerationAndDigitalPwmMeasurementResult.Status == 'Done'
+      ? 'Passed'
+      : callDigitalPwmGenerationAndDigitalPwmMeasurementResult
+            .Status; // status expression
+  run.record(callDigitalPwmGenerationAndDigitalPwmMeasurementResult.Status);
   // label:
 
   // ── cleanup ──
   // Turn off all configured AO channels by configuring to 0V
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await turnOffAllAoChannels(); // Power down all AO Channels
+  powerDownAllAoChannelsResult.Status =
+      await turnOffAllAoChannels(); // Power down all AO Channels
+  powerDownAllAoChannelsResult.Status =
+      powerDownAllAoChannelsResult.Status == 'Done'
+      ? 'Passed'
+      : powerDownAllAoChannelsResult.Status; // status expression
+  run.record(powerDownAllAoChannelsResult.Status);
   // Turn off all configured DO channels by setting Digital LOW state
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await turnOffAllDoChannels(); // Call Turn Off all DO Channels
+  callTurnOffAllDoChannelsResult.Status =
+      await turnOffAllDoChannels(); // Call Turn Off all DO Channels
+  callTurnOffAllDoChannelsResult.Status =
+      callTurnOffAllDoChannelsResult.Status == 'Done'
+      ? 'Passed'
+      : callTurnOffAllDoChannelsResult.Status; // status expression
+  run.record(callTurnOffAllDoChannelsResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `-------Examples------`.
-Future<void> examples() async {
+Future<String> examples() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `SignalVoltageGeneration and TimeDomainMeasurement`.
-Future<void> signalVoltageGenerationAndTimeDomainMeasurement() async {
+Future<String> signalVoltageGenerationAndTimeDomainMeasurement() async {
   dynamic signalGenTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
@@ -74,6 +157,8 @@ Future<void> signalVoltageGenerationAndTimeDomainMeasurement() async {
     'Period': <dynamic>[],
     'Dutycycle': <dynamic>[],
   }); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example demonstrates synchronization using Signal Voltage Generation Library to generate a Analog Sine waveform from one DAQ module and capture it using Time Domain Measuerment library in another DAQ module
@@ -129,10 +214,12 @@ Future<void> signalVoltageGenerationAndTimeDomainMeasurement() async {
   //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqTdvMeasClose(); // Time Domain Measurement - Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `DynamicDigitalPatternGeneration and DynamicDigitalPatternMeasurement`.
-Future<void>
+Future<String>
 dynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurement() async {
   dynamic digitalPatternGenTask = ts.PropObj({
     'DeviceName': '',
@@ -155,6 +242,8 @@ dynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurement() async {
       'attributes': <dynamic>[],
     }),
   }); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example demonstrates synchronization using Dynamic Digital Pattern Generation Library to generate Digital Pattern from one DAQ module and capture it using Dynamic Digital Pattern Measuerment library in another DAQ module
@@ -219,10 +308,12 @@ dynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurement() async {
   //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqDynDigMeasClose(); // Dynamic Digital Pattern Measurement- Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `DigitalClockGeneration and DigitalPWMMeasurement`.
-Future<void> digitalClockGenerationAndDigitalPwmMeasurement() async {
+Future<String> digitalClockGenerationAndDigitalPwmMeasurement() async {
   dynamic digitalPwmGenTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
@@ -238,6 +329,8 @@ Future<void> digitalClockGenerationAndDigitalPwmMeasurement() async {
     'Duty_Cycle____': 0,
     'Frequency__Hz_': 0,
   }); // Digital_PWM_Measurements
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example demonstrates generation of Digital Clock signal using Digital Clock Generation Library and measurement of the same signal using Digital PWM Measurement Library
@@ -287,21 +380,29 @@ Future<void> digitalClockGenerationAndDigitalPwmMeasurement() async {
   //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqDigPwmMeasClose(); // Digital PWM Measurement - Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `-------Reusable Sequences------`.
-Future<void> reusableSequences() async {
+Future<String> reusableSequences() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Turn Off all AO Channels`.
-Future<void> turnOffAllAoChannels() async {
+Future<String> turnOffAllAoChannels() async {
   dynamic dcVoltageGenTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
   List<dynamic> outputVoltagesV =
       <dynamic>[]; // Nums — Update the Array based on AO Channels to Turn OFF
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example resets all configured Analog output channels voltage to 0 Volts
@@ -330,10 +431,12 @@ Future<void> turnOffAllAoChannels() async {
   //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
   //   error out <- Step.Result.Error
   await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+
+  return run.status;
 }
 
 /// Sequence `Turn Off all DO Channels`.
-Future<void> turnOffAllDoChannels() async {
+Future<String> turnOffAllDoChannels() async {
   int i = 0; // Num — default: 0
   List<dynamic> channelNames = <dynamic>[
     'Simulated_DAQ/port0/line0:31',
@@ -343,19 +446,40 @@ Future<void> turnOffAllDoChannels() async {
   List<dynamic> numDigLinesPerChannel = <dynamic>['32', '32']; // Nums
   int currentNumberOfChannels = 0; // Num — default: 0
 
+  final run = ts.SequenceRun();
+  dynamic turnOffSingleDoChannelResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Turn Off Single DO Channel
+
   // label: All the DO lines in every device are turned Off by setting the lines to low.
   // This loop iterates over Channel names and corresponding number of lines, and set lines to low.
   for (i = 0; i < 2; i += 1) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await turnOffSingleDoChannel(
+    turnOffSingleDoChannelResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    turnOffSingleDoChannelResult.Status = await turnOffSingleDoChannel(
       channelName: channelNames[i],
       numDigLines: numDigLinesPerChannel[i],
     ); // Turn Off Single DO Channel
+    turnOffSingleDoChannelResult.Status =
+        turnOffSingleDoChannelResult.Status == 'Done'
+        ? 'Passed'
+        : turnOffSingleDoChannelResult.Status; // status expression
+    run.record(turnOffSingleDoChannelResult.Status);
   }
+
+  return run.status;
 }
 
 /// Sequence `Turn Off Single DO Channel`.
-Future<void> turnOffSingleDoChannel({
+Future<String> turnOffSingleDoChannel({
   String channelName = '',
   double numDigLines = 0,
 }) async {
@@ -364,6 +488,8 @@ Future<void> turnOffSingleDoChannel({
     'SessionNumber': 0,
   }); // LabVIEWIOControl
   List<dynamic> offStateToWrite = <dynamic>[]; // Bools
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example resets all configured Digital output channels voltage to 0 Volts
@@ -392,16 +518,22 @@ Future<void> turnOffSingleDoChannel({
   //   DAQmx Task In <- Locals.Digital_IO_Gen_Task
   //   error out <- Step.Result.Error
   await callDaqStaticDigGenClose(); // Static Digital State Generation - Close DO Channels [Action]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: "About This Example"
   // popup message: "These automation test sequences utilize PCBA libraries to conduct basic electrical functional tests, | which can be adapted or modified to fit your specific procedures. The sequences employ simulated DAQ  | hardware and do not include limit testing.  |   | Make sure all prerequisite software and configurations outlined in the user manual are installed. |   | For detailed help on how to use the test sequences, please refer to the online manual provided in the link below. | https://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html"
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Explanation [MessagePopup]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -600,11 +732,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   Common\Import Hardware Config.vi
-  //   status expression of step "Call SignalVoltageGeneration and TimeDomainMeasurement" not exported
-  //   status expression of step "Call DynamicDigitalPatternGeneration and DynamicDigitalPatternMeasurement" not exported
-  //   status expression of step "Call DigitalPWMGeneration and DigitalPWMMeasurement" not exported
-  //   status expression of step "Power down all AO Channels" not exported
-  //   status expression of step "Call Turn Off all DO Channels" not exported
   //   Signal Voltage Generation\DAQ_SV Gen Initialize.vi
   //   Time Domain Measurement\DAQ_TDV Meas Initialize.vi
   //   Synchronization\DAQ_Route synchronization signals.vi
@@ -628,22 +755,21 @@ void register() {
   //   DC Voltage Generation\DAQ_DC Voltage Gen Initialize.vi
   //   DC Voltage Generation\DAQ_DC Voltage Gen Configure and Generate.vi
   //   DC Voltage Generation\DAQ_DC Voltage Gen Close.vi
-  //   status expression of step "Turn Off Single DO Channel" not exported
   //   Static Digital State Generation\DAQ_Static Dig Gen Initialize.vi
   //   Static Digital State Generation\DAQ_Static Dig Gen Configure and Generate.vi
   //   Static Digital State Generation\DAQ_Static Dig Gen Close.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   lw.test('-------Examples------', () async {
-    await examples();
+    lw.expect(await examples(), 'Passed');
   });
   lw.test('-------Reusable Sequences------', () async {
-    await reusableSequences();
+    lw.expect(await reusableSequences(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

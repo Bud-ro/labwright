@@ -12,13 +12,15 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `Is Process Running`.
-Future<void> isProcessRunning({
+Future<String> isProcessRunning({
   String processName = 'LabVIEW',
   String descriptionToSearch = 'LabVIEW 18.*',
   bool processFound = false,
 }) async {
   List<dynamic> processes = <dynamic>[]; // Refs
   String description = ''; // Str
+
+  final run = ts.SequenceRun();
 
   // ── main ──
   // custom flow: if (Parameters.ProcessFound = (GetNumElements(Locals.Processes) != 0 && Locals.Processes[0] != Nothing), | Parameters.ProcessFound | ) Next else Goto -> <Cleanup>
@@ -46,6 +48,8 @@ Future<void> isProcessRunning({
   // ── cleanup ──
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.Processes); increment RunState.LoopIndex += 1; status "Done"
   processes[runState.LoopIndex] = null; // Release Process
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -74,6 +78,6 @@ void register() {
   //   step "Release Process" loops (Custom) — per-step looping not exported
   //   RunState engine access (no engine at run time)
   lw.skipTest('Is Process Running', () async {
-    await isProcessRunning();
+    lw.expect(await isProcessRunning(), 'Passed');
   });
 }

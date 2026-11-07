@@ -9,9 +9,12 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+
   // ── setup ──
   throw UnimplementedError(
     'step type NI_VeriStand_OpenProject: action not exported yet',
@@ -27,6 +30,8 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type NI_VeriStand_Close: action not exported yet',
   ); // Close VeriStand [NI_VeriStand_Close]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -53,6 +58,6 @@ void register() {
   //   step type NI_VeriStand_Disconnect: action not exported yet
   //   step type NI_VeriStand_Close: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

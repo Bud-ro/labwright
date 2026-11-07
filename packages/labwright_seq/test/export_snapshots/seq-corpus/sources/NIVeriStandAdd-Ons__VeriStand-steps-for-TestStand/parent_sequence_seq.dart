@@ -13,8 +13,22 @@ import 'package:labwright/shims.dart' as ts;
 import 'child_sequence_seq.dart' as child_sequence_seq;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
+
+  final run = ts.SequenceRun();
+  dynamic callChildSequenceInSameFileResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Child Sequence in Same File
+  dynamic callChildSequenceInDifferentFileResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Child Sequence in Different File
 
   // ── setup ──
   throw UnimplementedError(
@@ -26,12 +40,24 @@ Future<void> mainSequence() async {
     'step type RunRTSequenceAction: action not exported yet',
   ); // RT Sequence Action [RunRTSequenceAction]
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await childSequenceSameFile(); // Call Child Sequence in Same File
+  callChildSequenceInSameFileResult.Status =
+      await childSequenceSameFile(); // Call Child Sequence in Same File
+  callChildSequenceInSameFileResult.Status =
+      callChildSequenceInSameFileResult.Status == 'Done'
+      ? 'Passed'
+      : callChildSequenceInSameFileResult.Status; // status expression
+  run.record(callChildSequenceInSameFileResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // sequence call spawns a new thread in the engine — exported as a plain awaited call
-  await child_sequence_seq.mainSequence(
-    gatewayIp: fileGlobals.Veristand.GatewayIP,
-  ); // Call Child Sequence in Different File: external sequence
+  callChildSequenceInDifferentFileResult.Status = await child_sequence_seq
+      .mainSequence(
+        gatewayIp: fileGlobals.Veristand.GatewayIP,
+      ); // Call Child Sequence in Different File: external sequence
+  callChildSequenceInDifferentFileResult.Status =
+      callChildSequenceInDifferentFileResult.Status == 'Done' && false
+      ? 'Passed'
+      : callChildSequenceInDifferentFileResult.Status; // status expression
+  run.record(callChildSequenceInDifferentFileResult.Status);
 
   // ── cleanup ──
   // waits for sequence call step "ID#:toyzAMhaP0KUec0ek9zdHA"
@@ -41,13 +67,19 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type StopVeriStand: action not exported yet',
   ); // Stop VeriStand [StopVeriStand]
+
+  return run.status;
 }
 
 /// Sequence `ChildSequence_SameFile`.
-Future<void> childSequenceSameFile() async {
+Future<String> childSequenceSameFile() async {
+  final run = ts.SequenceRun();
+
   throw UnimplementedError(
     'step type RunRTSequenceAction: action not exported yet',
   ); // RT Sequence Action [RunRTSequenceAction]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -84,12 +116,10 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type InitializeVeriStand: action not exported yet
   //   step type RunRTSequenceAction: action not exported yet
-  //   status expression of step "Call Child Sequence in Same File" not exported
-  //   status expression of step "Call Child Sequence in Different File" not exported
   //   step "Call Child Sequence in Different File" runs its sequence call in a new thread (not exported)
   //   cross-file sequence MainSequence (see its module TODOs)
   //   step type StopVeriStand: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

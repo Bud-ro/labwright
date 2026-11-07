@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic pythonAdapterRef = null; // Ref
   String cachedPythonVersion = ''; // Str
   String cachedPythonEnvironmentPath = ''; // Str
@@ -25,6 +25,14 @@ Future<void> mainSequence() async {
   String commandLineSequenceFilePath = ''; // Str
   String commandLinePythonVersion = ''; // Str
   String commandLinePythonEnvironmentPath = ''; // Str
+
+  final run = ts.SequenceRun();
+  dynamic callSequenceFileResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Sequence File
 
   // ── setup ──
   ts.eval(
@@ -96,12 +104,19 @@ Future<void> mainSequence() async {
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // sequence call spawns a new execution in the engine — exported as a plain awaited call
   await localsCommandLineEntryPoint(); // Call Sequence File: external sequence call
+  callSequenceFileResult.Status =
+      callSequenceFileResult.Status == 'Done' && false
+      ? 'Passed'
+      : callSequenceFileResult.Status; // status expression
+  run.record(callSequenceFileResult.Status);
 
   // ── cleanup ──
   pythonAdapterRef.AsPythonAdapter.PythonVersion =
       cachedPythonVersion; // Restore Python Version
   pythonAdapterRef.AsPythonAdapter.PythonVirtualEnvironmentPath =
       cachedPythonEnvironmentPath; // Restore Python Environment Path
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -139,10 +154,9 @@ void register() {
   //   cModule call: Get Command Line Sequence File Path
   //   cModule call: Get Command Line Python Version
   //   cModule call: Get Command Line Python Environment Path
-  //   status expression of step "Call Sequence File" not exported
   //   step "Call Sequence File" runs its sequence call in a new execution (not exported)
   //   external sequence: Locals.CommandLineEntryPoint
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

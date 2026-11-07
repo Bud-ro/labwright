@@ -9,11 +9,30 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   int sequenceCounter = 0; // Num — default: 0
   int sequencesToRun = 500; // Num
+
+  final run = ts.SequenceRun();
+  dynamic rtSequenceNumericLimitTestResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Numeric': 0,
+    'Units': '',
+  }); // result of RT Sequence Numeric Limit Test
+  dynamic rtSequencePassFailTestResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of RT Sequence Pass/Fail Test
 
   for (
     sequenceCounter = 0;
@@ -25,14 +44,44 @@ Future<void> mainSequence() async {
     ); // RT Sequence Action [RunRTSequenceAction]
     // checks: Step.Result.Numeric GELE [low 0, high 100, nominal 100] (PERCENTAGE)
     // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
+    rtSequenceNumericLimitTestResult = ts.PropObj({
+      'VeriStand': ts.PropObj({'Path': ''}),
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Numeric': 0,
+      'Units': '',
+    });
     throw UnimplementedError(
       'step type RunRTSequenceNumericLimit: action not exported yet',
     ); // RT Sequence Numeric Limit Test [RunRTSequenceNumericLimit]
+    rtSequenceNumericLimitTestResult.Status = ts.checkLimits(
+      rtSequenceNumericLimitTestResult.Numeric,
+      100,
+      0,
+      'GELE',
+    ); // status expression
+    run.record(rtSequenceNumericLimitTestResult.Status);
     // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
+    rtSequencePassFailTestResult = ts.PropObj({
+      'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
     throw UnimplementedError(
       'step type RunRTSequencePassFail: action not exported yet',
     ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+    rtSequencePassFailTestResult.Status =
+        ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(rtSequencePassFailTestResult.Status);
   }
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -55,11 +104,9 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type RunRTSequenceAction: action not exported yet
-  //   status expression of step "RT Sequence Numeric Limit Test" not exported
   //   step type RunRTSequenceNumericLimit: action not exported yet
-  //   status expression of step "RT Sequence Pass/Fail Test" not exported
   //   step type RunRTSequencePassFail: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic currentResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': 'Done',
@@ -32,30 +32,119 @@ Future<void> mainSequence() async {
     }),
   }); // TEResult
 
+  final run = ts.SequenceRun();
+  dynamic numericLimitTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Numeric Limit Test
+  dynamic stringValueTestResult = ts.PropObj({
+    'TestData': ts.PropObj({
+      'TestNumber': 0,
+      'DefectNote': '',
+      'MoreInfoToOI': '',
+      'TestType': 2,
+      'SPC': false,
+      'NotRInstTest': false,
+      'BoardNr': 1,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'String': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of String Value Test
+  dynamic numericLimitTestResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'TestData': ts.PropObj({
+      'TestNumber': 1050,
+      'DefectNote': '',
+      'MoreInfoToOI': 'TAG_NAME',
+      'TestType': 1,
+      'SPC': false,
+      'NotRInstTest': false,
+      'BoardNr': 1,
+    }),
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': 'V',
+  }); // result of Numeric Limit Test
+
   // checks: Step.Result.Numeric GELE [low 9, high 11, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-  throw UnimplementedError(
-    'step type NumericLimitTest: action not exported yet',
-  ); // Numeric Limit Test [NumericLimitTest]
+  // Numeric Limit Test [NumericLimitTest]: judged by its status expression
+  numericLimitTestResult.Status = ts.checkLimits(
+    numericLimitTestResult.Numeric,
+    11,
+    9,
+    'GELE',
+    true,
+    100,
+    'PERCENTAGE',
+  ); // status expression
+  run.record(numericLimitTestResult.Status);
   // checks: Step.Result.String IgnoreCase
   // status expression: Step.DataSource != "Step.Result.String" ? Step.Result.String = Evaluate(Step.DataSource) : False,CheckStrLimit(Step.Result.String,Step.Limits.String,Step.Comp)
-  throw UnimplementedError(
-    'step type DanfossStringValueTest: action not exported yet',
-  ); // String Value Test [DanfossStringValueTest]
+  // String Value Test [DanfossStringValueTest]: judged by its status expression
+  stringValueTestResult.Status = ts.checkStrLimit(
+    stringValueTestResult.String,
+    'String Limit',
+    'IgnoreCase',
+  ); // status expression
+  run.record(stringValueTestResult.Status);
   // checks: 10 GELE [low 9, high 11, nominal 100] (PERCENTAGE) V
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-  throw UnimplementedError(
-    'step type DanfossNumericLimitTest: action not exported yet',
-  ); // Numeric Limit Test [DanfossNumericLimitTest]
+  // Numeric Limit Test [DanfossNumericLimitTest]: judged by its status expression
+  numericLimitTestResult2.Status = ts.checkLimits(
+    numericLimitTestResult2.Numeric = 10,
+    11,
+    9,
+    'GELE',
+    true,
+    100,
+    'PERCENTAGE',
+  ); // status expression
+  run.record(numericLimitTestResult2.Status);
+
+  return run.status;
 }
 
 /// Sequence `Sequence`.
-Future<void> sequence() async {
+Future<String> sequence() async {
+  final run = ts.SequenceRun();
+  dynamic subseqResult = ts.PropObj({
+    'TestData': ts.PropObj({
+      'TestNumber': 0,
+      'DefectNote': '',
+      'MoreInfoToOI': '',
+      'TestType': 2,
+      'SPC': false,
+      'NotRInstTest': false,
+      'BoardNr': 1,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'String': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Subseq
+
   // checks: Step.Result.String IgnoreCase
   // status expression: Step.DataSource != "Step.Result.String" ? Step.Result.String = Evaluate(Step.DataSource) : False,CheckStrLimit(Step.Result.String,Step.Limits.String,Step.Comp)
-  throw UnimplementedError(
-    'step type DanfossStringValueTest: action not exported yet',
-  ); // Subseq [DanfossStringValueTest]
+  // Subseq [DanfossStringValueTest]: judged by its status expression
+  subseqResult.Status = ts.checkStrLimit(
+    subseqResult.String,
+    'String Limit',
+    'IgnoreCase',
+  ); // status expression
+  run.record(subseqResult.Status);
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -76,19 +165,10 @@ final dynamic step = null;
 // ── generated labwright harness ─────────────────────────────────────────────
 
 void register() {
-  // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Numeric Limit Test" not exported
-  //   step type NumericLimitTest: action not exported yet
-  //   status expression of step "String Value Test" not exported
-  //   step type DanfossStringValueTest: action not exported yet
-  //   step type DanfossNumericLimitTest: action not exported yet
-  lw.skipTest('MainSequence', () async {
-    await mainSequence();
+  lw.test('MainSequence', () async {
+    lw.expect(await mainSequence(), 'Passed');
   });
-  // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Subseq" not exported
-  //   step type DanfossStringValueTest: action not exported yet
-  lw.skipTest('Sequence', () async {
-    await sequence();
+  lw.test('Sequence', () async {
+    lw.expect(await sequence(), 'Passed');
   });
 }

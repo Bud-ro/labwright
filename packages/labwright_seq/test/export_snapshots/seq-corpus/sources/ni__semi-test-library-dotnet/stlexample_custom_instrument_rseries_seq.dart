@@ -9,19 +9,24 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `ProcessSetup` — Runs once at lot start.
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.RSeries.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.SetupRSeries7822RInstrumentation
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.SetupRSeries7822RInstrumentation',
   ); // Setup RSeries7822R Instrumentation [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 /// Sequence `MainSequence` — Runs for each UUT.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   int tolerance = 1; // Num
   List<dynamic> expectedDigtalData = <dynamic>['127', '255']; // Nums
   List<dynamic> dutDigitalOutputPorts = <dynamic>[
@@ -34,6 +39,8 @@ Future<void> mainSequence() async {
   ]; // Strs
   List<dynamic> portData = <dynamic>['127', '255']; // Nums
 
+  final run = ts.SequenceRun();
+
   // Provides different digital values to the digital input port and measures the values at digital output port to ensure the measured values match the input values provided.
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.RSeries.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.TestStep.DigitalReadWriteTest
@@ -44,12 +51,16 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.TestStep.DigitalReadWriteTest',
   ); // Digital Read Write Test [NI_SemiconductorModule_MultiTest]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
   String sequenceFileFolder = ''; // Path
   String readMeFile = ''; // Path
+
+  final run = ts.SequenceRun();
 
   // This example demonstrates using the STL's custom instrument feature to perform digital read write operations with an RSeries device.
   // popup title: "About This Example"
@@ -66,16 +77,22 @@ Future<void> sequenceFileLoad() async {
       'step type CallExecutable: action not exported yet',
     ); // Launch Readme [CallExecutable]
   }
+
+  return run.status;
 }
 
 /// Sequence `ProcessCleanup` — Runs once at lot end.
-Future<void> processCleanup() async {
+Future<String> processCleanup() async {
+  final run = ts.SequenceRun();
+
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.RSeries.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.CleanupRSeries7822RInstrumentation
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.CleanupRSeries7822RInstrumentation',
   ); // Cleanup RSeries7822R Instrumentation [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -100,23 +117,23 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.SetupRSeries7822RInstrumentation
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.TestStep.DigitalReadWriteTest
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   //   RunState engine access (no engine at run time)
   //   step type CallExecutable: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.CleanupRSeries7822RInstrumentation
   lw.skipTest('ProcessCleanup', () async {
-    await processCleanup();
+    lw.expect(await processCleanup(), 'Passed');
   });
 }

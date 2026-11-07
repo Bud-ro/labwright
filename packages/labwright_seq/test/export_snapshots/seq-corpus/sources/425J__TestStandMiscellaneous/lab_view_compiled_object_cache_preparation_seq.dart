@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `Create Compiled Object Cache`.
-Future<void> createCompiledObjectCache({
+Future<String> createCompiledObjectCache({
   dynamic error,
   String labviewProjectPath = '',
   String labviewDirectory =
@@ -24,14 +24,27 @@ Future<void> createCompiledObjectCache({
   double startTime = 0; // Num — default: 0
   String cliErrorText = ''; // Str
 
+  final run = ts.SequenceRun();
+  dynamic enableLabViewTcpServerResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Enable LabVIEW TCP server
+
   // ── setup ──
   ts.eval('Locals.StartTime = Seconds()'); // Save StartTime
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // custom flow: if (!Parameters.Error.Occurred) Next else Goto -> <Cleanup>
-  await enableLabViewTcpServer(
+  enableLabViewTcpServerResult.Status = await enableLabViewTcpServer(
     error: error,
     labviewDirectory: labviewDirectory,
   ); // Enable LabVIEW TCP server
+  enableLabViewTcpServerResult.Status =
+      enableLabViewTcpServerResult.Status == 'Done'
+      ? 'Passed'
+      : enableLabViewTcpServerResult.Status; // status expression
+  run.record(enableLabViewTcpServerResult.Status);
 
   // ── main ──
   throw UnimplementedError(
@@ -58,10 +71,12 @@ Future<void> createCompiledObjectCache({
         cliErrorText; // Error (cont.)
     error.Occurred = true; // Error (cont.)
   }
+
+  return run.status;
 }
 
 /// Sequence `Enable LabVIEW TCP Server`.
-Future<void> enableLabViewTcpServer({
+Future<String> enableLabViewTcpServer({
   dynamic error,
   String labviewDirectory =
       'C:\\Program Files (x86)\\National Instruments\\LabVIEW 2018',
@@ -69,6 +84,8 @@ Future<void> enableLabViewTcpServer({
   bool labviewExists = false; // Bool — default: false
   bool labviewIniExists = false; // Bool — default: false
   String labviewIniText = ''; // Str
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // .NET call: System.IO.File.Exists
@@ -124,10 +141,12 @@ Future<void> enableLabViewTcpServer({
       'dotNet call: System.IO.File.WriteAllText',
     ); // Write LabVIEW.ini [Action]
   }
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
   List<dynamic> tmpPaths = <dynamic>[]; // Strs
   bool success = false; // Bool — default: false
   String labviewProjectPath = ''; // Path
@@ -137,6 +156,22 @@ Future<void> sequenceFileLoad() async {
       'C:\\Program Files (x86)\\National Instruments\\Shared\\LabVIEW CLI\\LabVIEWCLI.exe'; // Path
   int timeout = 30; // Num — sec
 
+  final run = ts.SequenceRun();
+  dynamic prepareLabViewProjectCompiledObjectCacheResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Prepare LabVIEW project compiled object cache?
+  dynamic openLabViewProjectResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Open LabVIEW project
+
   // ── setup ──
   // custom flow: if (Step.Result.ButtonHit == 1) Next else Goto -> <Cleanup>
   // popup title: NameOf(Step)
@@ -145,6 +180,8 @@ Future<void> sequenceFileLoad() async {
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Prepare LabVIEW project compiled object cache? [MessagePopup]
+  prepareLabViewProjectCompiledObjectCacheResult.Status = 'Done';
+  run.record(prepareLabViewProjectCompiledObjectCacheResult.Status);
   // custom flow: if (Locals.Success) Next else Goto -> <Cleanup>
   ts.eval(
     'Locals.Success = RunState.Engine.DisplayFileDialog(\n   "Select LabVIEW project file...", \' dlgTitle\n   "", \' okButtonText\n   "", \' initialPath\n   {""}, \' selectedPaths\n   Locals.TmpPaths, \' absolutePaths\n   OpenFile_UseAbsolutePath, \' openFileDialogFlags\n   "", \' defaultExtension\n   WinFileDlg_FILEMUSTEXIST OR WinFileDlg_HIDEREADONLY, \' win32Flags\n   "LabVIEW Project (*.lvproj)|*.lvproj||" \' fileFilter\n),\n\nLocals.Success ? (\n   Locals.LabviewProjectPath = Locals.TmpPaths[0]\n) : Nothing',
@@ -152,13 +189,19 @@ Future<void> sequenceFileLoad() async {
 
   // ── main ──
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await createCompiledObjectCache(
-    error: step.Result.Error,
+  openLabViewProjectResult.Status = await createCompiledObjectCache(
+    error: openLabViewProjectResult.Error,
     labviewProjectPath: labviewProjectPath,
     labviewDirectory: labviewDirectory,
     labviewCliPath: labviewCliPath,
     timeout: timeout,
   ); // Open LabVIEW project
+  openLabViewProjectResult.Status = openLabViewProjectResult.Status == 'Done'
+      ? 'Passed'
+      : openLabViewProjectResult.Status; // status expression
+  run.record(openLabViewProjectResult.Status);
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -184,10 +227,7 @@ void register() {
   //   step type MessagePopup: action not exported yet
   //   flow action of step "Select LabVIEW project file" (Next/Next) not exported
   //   untranslated expression in body
-  //   status expression of step "Open LabVIEW project" not exported
-  //   Step engine access (no engine at run time)
   //   flow action of step "Enable LabVIEW TCP server" (Next/Next) not exported
-  //   status expression of step "Enable LabVIEW TCP server" not exported
   //   step type CallExecutable: action not exported yet
   //   dotNet call: System.IO.File.Exists
   //   flow action of step "Error" (Next/Next) not exported
@@ -195,6 +235,6 @@ void register() {
   //   dotNet call: System.IO.File.WriteAllText
   //   dotNet call: System.IO.File.Create
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

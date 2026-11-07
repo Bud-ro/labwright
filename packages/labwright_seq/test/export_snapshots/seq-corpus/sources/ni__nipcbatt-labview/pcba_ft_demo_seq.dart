@@ -12,8 +12,52 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   String hardwareConfigPath = ''; // Str
+
+  final run = ts.SequenceRun();
+  dynamic powerDiagnosticsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Power Diagnostics
+  dynamic batteryChargerVoltageAndCurrentSleepModeResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Battery/Charger Voltage and Current Sleep Mode
+  dynamic resetAndSelfTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Reset and Self-Test
+  dynamic animationAndSoundUserInputTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Animation and Sound User Input Test
+  dynamic audioFilterTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Audio Filter Test
+  dynamic turnOffAllAoChannelsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Turn Off all AO Channels
+  dynamic powerDownSupplyResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Power Down Supply
 
   // ── setup ──
   ts.eval(
@@ -26,30 +70,72 @@ Future<void> mainSequence() async {
 
   // ── main ──
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await powerDiagnostics(); // Power Diagnostics
+  powerDiagnosticsResult.Status = await powerDiagnostics(); // Power Diagnostics
+  powerDiagnosticsResult.Status = powerDiagnosticsResult.Status == 'Done'
+      ? 'Passed'
+      : powerDiagnosticsResult.Status; // status expression
+  run.record(powerDiagnosticsResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await batteryChargerVoltageAndCurrentSleepMode(); // Battery/Charger Voltage and Current Sleep Mode
+  batteryChargerVoltageAndCurrentSleepModeResult.Status =
+      await batteryChargerVoltageAndCurrentSleepMode(); // Battery/Charger Voltage and Current Sleep Mode
+  batteryChargerVoltageAndCurrentSleepModeResult.Status =
+      batteryChargerVoltageAndCurrentSleepModeResult.Status == 'Done'
+      ? 'Passed'
+      : batteryChargerVoltageAndCurrentSleepModeResult
+            .Status; // status expression
+  run.record(batteryChargerVoltageAndCurrentSleepModeResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await resetAndSelfTest(); // Reset and Self-Test
+  resetAndSelfTestResult.Status =
+      await resetAndSelfTest(); // Reset and Self-Test
+  resetAndSelfTestResult.Status = resetAndSelfTestResult.Status == 'Done'
+      ? 'Passed'
+      : resetAndSelfTestResult.Status; // status expression
+  run.record(resetAndSelfTestResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await animationAndSoundUserInputTest(); // Animation and Sound User Input Test
+  animationAndSoundUserInputTestResult.Status =
+      await animationAndSoundUserInputTest(); // Animation and Sound User Input Test
+  animationAndSoundUserInputTestResult.Status =
+      animationAndSoundUserInputTestResult.Status == 'Done'
+      ? 'Passed'
+      : animationAndSoundUserInputTestResult.Status; // status expression
+  run.record(animationAndSoundUserInputTestResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await audioFilterTest(); // Audio Filter Test
+  audioFilterTestResult.Status = await audioFilterTest(); // Audio Filter Test
+  audioFilterTestResult.Status = audioFilterTestResult.Status == 'Done'
+      ? 'Passed'
+      : audioFilterTestResult.Status; // status expression
+  run.record(audioFilterTestResult.Status);
 
   // ── cleanup ──
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await turnOffAllAoChannels(); // Turn Off all AO Channels
+  turnOffAllAoChannelsResult.Status =
+      await turnOffAllAoChannels(); // Turn Off all AO Channels
+  turnOffAllAoChannelsResult.Status =
+      turnOffAllAoChannelsResult.Status == 'Done'
+      ? 'Passed'
+      : turnOffAllAoChannelsResult.Status; // status expression
+  run.record(turnOffAllAoChannelsResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await powerDownSupply2(); // Power Down Supply: external sequence call
+  powerDownSupplyResult.Status = powerDownSupplyResult.Status == 'Done'
+      ? 'Passed'
+      : powerDownSupplyResult.Status; // status expression
+  run.record(powerDownSupplyResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `---------------Tests---------------------`.
-Future<void> tests() async {
+Future<String> tests() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Power Diagnostics`.
-Future<void> powerDiagnostics() async {
+Future<String> powerDiagnostics() async {
   dynamic psTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
@@ -80,6 +166,8 @@ Future<void> powerDiagnostics() async {
     'Voltage_Waveform': <dynamic>[],
     'Avg_Voltage': <dynamic>[],
   }); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Power Supply test demonstrates Powering up and Validation of Start-up Transition Max pic Current, Idle Power Consumption and DC Regulators
@@ -122,10 +210,12 @@ Future<void> powerDiagnostics() async {
   //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `Battery/Charger Voltage and Current Sleep Mode`.
-Future<void> batteryChargerVoltageAndCurrentSleepMode() async {
+Future<String> batteryChargerVoltageAndCurrentSleepMode() async {
   dynamic resourceHandles = ts.PropObj({
     'DMM_Handle': ts.PropObj({'DeviceName': '', 'SessionNumber': 0}),
     'MUX_Handle': ts.PropObj({'DeviceName': '', 'SessionNumber': 0}),
@@ -157,6 +247,8 @@ Future<void> batteryChargerVoltageAndCurrentSleepMode() async {
     }),
   }); // Scan_Resources_Names
 
+  final run = ts.SequenceRun();
+
   // ── setup ──
   //   Powerline Frequency <- 1
   //   Close all Shunts? <- True
@@ -185,10 +277,12 @@ Future<void> batteryChargerVoltageAndCurrentSleepMode() async {
   //   Scan Resources Handles In <- Locals.Resource_Handles
   //   error out <- Step.Result.Error
   await callDmmScanPmps16V15CClose(); // DMM Scan - Close TPs [Action]
+
+  return run.status;
 }
 
 /// Sequence `Reset and Self-Test`.
-Future<void> resetAndSelfTest() async {
+Future<String> resetAndSelfTest() async {
   dynamic digitalStateGenTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
@@ -205,6 +299,8 @@ Future<void> resetAndSelfTest() async {
     ts.PropObj({'DeviceName': '', 'SessionNumber': 0}),
     ts.PropObj({'DeviceName': '', 'SessionNumber': 0}),
   ]; // Objs
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Power On Self Test demonstrates Switching of Push Reset Button and Verifies the LEDs state
@@ -252,10 +348,12 @@ Future<void> resetAndSelfTest() async {
   //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `Animation and Sound User Input Test`.
-Future<void> animationAndSoundUserInputTest() async {
+Future<String> animationAndSoundUserInputTest() async {
   dynamic dcVoltageGenTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
@@ -272,6 +370,8 @@ Future<void> animationAndSoundUserInputTest() async {
     'Period': <dynamic>[],
     'Dutycycle': <dynamic>[],
   }); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Action Button Test demonstrates Button Switch and validates Dutycycle of PWM signal on Volume LED and Frequency on Tweeter
@@ -325,10 +425,12 @@ Future<void> animationAndSoundUserInputTest() async {
   //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqTdvMeasClose(); // Time Domain Measurement - Close TP [Action]
+
+  return run.status;
 }
 
 /// Sequence `Audio Filter Test`.
-Future<void> audioFilterTest() async {
+Future<String> audioFilterTest() async {
   dynamic signalVoltageGenTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
@@ -343,6 +445,8 @@ Future<void> audioFilterTest() async {
   }); // Obj
   int freqTolerancePercentage = 10; // Num
   int ampTolerancePercentage = 10; // Num
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Audio Test demonstrates Audio Filter Check, sends multi-tone Audio signal and validates the frequency and Amplitude of measured Tones
@@ -387,21 +491,29 @@ Future<void> audioFilterTest() async {
   //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqFdvMeasClose(); // Freq Domain Measurement - Close TP [Action]
+
+  return run.status;
 }
 
 /// Sequence `----------Other Sequences--------`.
-Future<void> otherSequences() async {
+Future<String> otherSequences() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Turn Off all AO Channels`.
-Future<void> turnOffAllAoChannels() async {
+Future<String> turnOffAllAoChannels() async {
   dynamic dcVoltageGenTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
   List<dynamic> outputVoltagesV =
       <dynamic>[]; // Nums — Update the Array based on AO Channels to Turn OFF
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example resets all configured Analog output channels voltage to 0 Volts
@@ -432,14 +544,18 @@ Future<void> turnOffAllAoChannels() async {
   //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
   //   error out <- Step.Result.Error
   await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+
+  return run.status;
 }
 
 /// Sequence `Power Down Supply`.
-Future<void> powerDownSupply() async {
+Future<String> powerDownSupply() async {
   dynamic psTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Powers down the output of power supply module
@@ -461,12 +577,16 @@ Future<void> powerDownSupply() async {
   //   DAQmx Task In <- Locals.PS_Task
   //   error out <- Step.Result.Error
   await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
   String seqFileDirectoryPath = ''; // Str
   String helpPath = ''; // Str
+
+  final run = ts.SequenceRun();
 
   // popup title: "About This Example"
   // popup message: "This example demonstration sequence uses the real hardware library and simulated values from DAQmx.  | The limit tests will return a FAIL status until we use physical DAQ devices and the unit under test. The  | purpose of this demo is to provide a method for understanding the use of the values returned by the library  | in a real world scenario. | Ensure that all the prerequisite software mentioned in the user manual are installed. | For more information about the FT Demo Sequence, refer to the link mentioned below. | https://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/pcb-assembly-functional-test-seq.html"
@@ -474,6 +594,8 @@ Future<void> sequenceFileLoad() async {
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Explanation [MessagePopup]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -667,13 +789,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   Import Hardware Config.vi
-  //   status expression of step "Power Diagnostics" not exported
-  //   status expression of step "Battery/Charger Voltage and Current Sleep Mode" not exported
-  //   status expression of step "Reset and Self-Test" not exported
-  //   status expression of step "Animation and Sound User Input Test" not exported
-  //   status expression of step "Audio Filter Test" not exported
-  //   status expression of step "Turn Off all AO Channels" not exported
-  //   status expression of step "Power Down Supply" not exported
   //   external sequence: Power down supply
   //   Power Supply Source and Measure\DAQ_PS Initialize.vi
   //   DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Initialize.vi
@@ -700,24 +815,24 @@ void register() {
   //   Signal Voltage Generation\DAQ_SV Gen Close.vi
   //   Frequency Domain Measurement\DAQ_FDV Meas Close.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   lw.test('---------------Tests---------------------', () async {
-    await tests();
+    lw.expect(await tests(), 'Passed');
   });
   lw.test('----------Other Sequences--------', () async {
-    await otherSequences();
+    lw.expect(await otherSequences(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   Power Supply Source and Measure\DAQ_PS Initialize.vi
   //   Power Supply Source and Measure\DAQ_PS Configure and Measure.vi
   //   Power Supply Source and Measure\DAQ_PS Close.vi
   lw.skipTest('Power Down Supply', () async {
-    await powerDownSupply();
+    lw.expect(await powerDownSupply(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

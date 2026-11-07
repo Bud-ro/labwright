@@ -9,25 +9,68 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic v1PassFailTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of 1. Pass/Fail Test
+  dynamic v2NumericLimitTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': 'DEC',
+  }); // result of 2. Numeric Limit Test
+  dynamic v3StringValueTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'String': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of 3. String Value Test
+
   // checks: True
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type PassFailTest: action not exported yet',
-  ); // 1. Pass/Fail Test [PassFailTest]
+  // 1. Pass/Fail Test [PassFailTest]: judged by its status expression
+  v1PassFailTestResult.PassFail = true; // status expression
+  v1PassFailTestResult.Status = ts.truthy(v1PassFailTestResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(v1PassFailTestResult.Status);
   // Filler: Statement with no expression
   // checks: 3 GELE [low 0, high 10, nominal 100] (PERCENTAGE) DEC
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-  throw UnimplementedError(
-    'step type NumericLimitTest: action not exported yet',
-  ); // 2. Numeric Limit Test [NumericLimitTest]
+  // 2. Numeric Limit Test [NumericLimitTest]: judged by its status expression
+  v2NumericLimitTestResult.Status = ts.checkLimits(
+    v2NumericLimitTestResult.Numeric = 3,
+    10,
+    0,
+    'GELE',
+    true,
+    100,
+    'PERCENTAGE',
+  ); // status expression
+  run.record(v2NumericLimitTestResult.Status);
   // checks: "Lorem ipsum" IgnoreCase
   // status expression: Step.DataSource != "Step.Result.String" ? Step.Result.String = Evaluate(Step.DataSource) : False,CheckStrLimit(Step.Result.String,Step.Limits.String,Step.Comp)
-  throw UnimplementedError(
-    'step type StringValueTest: action not exported yet',
-  ); // 3. String Value Test [StringValueTest]
+  // 3. String Value Test [StringValueTest]: judged by its status expression
+  v3StringValueTestResult.String = 'Lorem ipsum'; // status expression
+  v3StringValueTestResult.Status = ts.checkStrLimit(
+    v3StringValueTestResult.String,
+    'Lorem ipsum',
+    'IgnoreCase',
+  ); // status expression
+  run.record(v3StringValueTestResult.Status);
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -48,14 +91,7 @@ final dynamic step = null;
 // ── generated labwright harness ─────────────────────────────────────────────
 
 void register() {
-  // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "1. Pass/Fail Test" not exported
-  //   step type PassFailTest: action not exported yet
-  //   status expression of step "2. Numeric Limit Test" not exported
-  //   step type NumericLimitTest: action not exported yet
-  //   status expression of step "3. String Value Test" not exported
-  //   step type StringValueTest: action not exported yet
-  lw.skipTest('MainSequence', () async {
-    await mainSequence();
+  lw.test('MainSequence', () async {
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

@@ -12,21 +12,59 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `LoginLogout`.
-Future<void> loginLogout() async {
+Future<String> loginLogout() async {
+  final run = ts.SequenceRun();
+  dynamic autoLoginIfInitialLoginResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Auto Login If Initial Login
+  dynamic sequenceCallResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of SequenceCall
+
   // description: This sequence will automatically login the user specified in FileGlobals.userToLogin and will bypass the login dialog.  Only the initial login is automatic and only if the user specified is a valid user.
   // label: Explain
+  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // on pass: Goto -> <End>
   // custom flow: if (True) Goto -> <End> else Next
   if (ts.cond('Parameters.isInitialLogin')) {
     // precondition of Auto Login If Initial Login
-    await autoLogin(); // Auto Login If Initial Login
+    autoLoginIfInitialLoginResult.Status =
+        await autoLogin(); // Auto Login If Initial Login
+    autoLoginIfInitialLoginResult.Status =
+        autoLoginIfInitialLoginResult.Status == 'Done' &&
+            (step.TS.SData.ThreadOpt == 0 || step.TS.SData.ThreadOpt == 3)
+        ? 'Passed'
+        : autoLoginIfInitialLoginResult.Status; // status expression
+    run.record(autoLoginIfInitialLoginResult.Status);
+  } else {
+    autoLoginIfInitialLoginResult.Status = 'Skipped';
   }
-  await logout(); // SequenceCall
+  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+  sequenceCallResult.Status = await logout(); // SequenceCall
+  sequenceCallResult.Status =
+      sequenceCallResult.Status == 'Done' &&
+          (step.TS.SData.ThreadOpt == 0 || step.TS.SData.ThreadOpt == 3)
+      ? 'Passed'
+      : sequenceCallResult.Status; // status expression
+  run.record(sequenceCallResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `AutoLogin`.
-Future<void> autoLogin() async {
+Future<String> autoLogin() async {
   dynamic userToLogin = null; // Ref
+
+  final run = ts.SequenceRun();
+  dynamic getUserToLoginResult = ts.PropObj({
+    'Status': '',
+  }); // result of Get User To Login
 
   // checks: Locals.userToLogin != Nothing
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
@@ -35,19 +73,31 @@ Future<void> autoLogin() async {
   throw UnimplementedError(
     'cModule call: Get User To Login',
   ); // Get User To Login [PassFailTest]
-  if (runState.Sequence.Main['ID#:9HZQhNVCbE6cpXZ3LXT6AB'].Result.Status ==
-      'Passed') {
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  getUserToLoginResult.Status = ts.truthy(getUserToLoginResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(getUserToLoginResult.Status);
+  if (getUserToLoginResult.Status == 'Passed') {
     // precondition of Set Current User
     //   newValue <- Locals.userToLogin
     throw UnimplementedError(
       'cModule call: Set Current User',
     ); // Set Current User [Action]
   }
+
+  return run.status;
 }
 
 /// Sequence `Logout`.
-Future<void> logout() async {
+Future<String> logout() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -71,11 +121,10 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   flow action of step "Auto Login If Initial Login" (Goto→<End>/Next) not exported
   //   untranslated expression in body
-  //   status expression of step "Get User To Login" not exported
+  //   Step engine access (no engine at run time)
   //   cModule call: Get User To Login
-  //   RunState engine access (no engine at run time)
   //   cModule call: Set Current User
   lw.skipTest('LoginLogout', () async {
-    await loginLogout();
+    lw.expect(await loginLogout(), 'Passed');
   });
 }

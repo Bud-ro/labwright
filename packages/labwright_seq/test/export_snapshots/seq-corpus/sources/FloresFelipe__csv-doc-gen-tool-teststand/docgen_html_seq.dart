@@ -12,7 +12,10 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `Sequence File Doc`.
-Future<void> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
+Future<String> sequenceFileDoc({
+  dynamic sequenceFile,
+  dynamic docOptions,
+}) async {
   String docResult = ''; // Str
   String tableHtml =
       '<TABLE FRAME=BOX RULES=ALL WIDTH=100% CELLPADDING=1 CELLSPACING=1>'; // Str
@@ -23,6 +26,39 @@ Future<void> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
   int tmpNum = 0; // Num — default: 0
   String charsetMetaTag = ''; // Str
   double totalNumSteps = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
+  dynamic processRequirementsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Process Requirements
+  dynamic processSubPropsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Process SubProps
+  dynamic processSubPropsResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Process SubProps
+  dynamic forEachSequenceResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of For Each Sequence
+  dynamic saveDocToFileResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Save Doc To File
 
   // ── setup ──
   //   Return Value -> FileGlobals.Locked
@@ -116,10 +152,17 @@ Future<void> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   if (!(fileGlobals.Locked && fileGlobals.Protection == 2)) {
     // precondition of Process Requirements
-    await writeRequirementsElements(
+    processRequirementsResult.Status = await writeRequirementsElements(
       requirements: sequenceFile.Data.Requirements,
       docResult: docResult,
     ); // Process Requirements
+    processRequirementsResult.Status =
+        processRequirementsResult.Status == 'Done'
+        ? 'Passed'
+        : processRequirementsResult.Status; // status expression
+    run.record(processRequirementsResult.Status);
+  } else {
+    processRequirementsResult.Status = 'Skipped';
   }
   docResult += '</TABLE><br>\n'; // Sequence File Footer
   // label: --- SeqFile Globals ---
@@ -150,7 +193,14 @@ Future<void> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   if (tmpNum > 0) {
     // precondition of Process SubProps
-    await writeSubproperties(); // Process SubProps
+    processSubPropsResult.Status =
+        await writeSubproperties(); // Process SubProps
+    processSubPropsResult.Status = processSubPropsResult.Status == 'Done'
+        ? 'Passed'
+        : processSubPropsResult.Status; // status expression
+    run.record(processSubPropsResult.Status);
+  } else {
+    processSubPropsResult.Status = 'Skipped';
   }
   if (tmpNum > 0) {
     // precondition of Footer
@@ -185,7 +235,14 @@ Future<void> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   if (tmpNum > 0) {
     // precondition of Process SubProps
-    await writeSubproperties(); // Process SubProps
+    processSubPropsResult2.Status =
+        await writeSubproperties(); // Process SubProps
+    processSubPropsResult2.Status = processSubPropsResult2.Status == 'Done'
+        ? 'Passed'
+        : processSubPropsResult2.Status; // status expression
+    run.record(processSubPropsResult2.Status);
+  } else {
+    processSubPropsResult2.Status = 'Skipped';
   }
   if (tmpNum > 0) {
     // precondition of Footer
@@ -195,17 +252,27 @@ Future<void> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
   docResult += '<BLOCKQUOTE>\n'; // Begin block quote
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.SequenceFile.Data.Seq); increment RunState.LoopIndex += 1; status "Passed"
-  await sequenceDoc(); // For Each Sequence
+  forEachSequenceResult.Status = await sequenceDoc(); // For Each Sequence
+  forEachSequenceResult.Status = forEachSequenceResult.Status == 'Done'
+      ? 'Passed'
+      : forEachSequenceResult.Status; // status expression
+  run.record(forEachSequenceResult.Status);
   docResult += '</BLOCKQUOTE></FONT></BODY></HTML>\n'; // End HTML
   // checks: Step.Result.PassFail
   // status expression: Step.Result.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'cModule call: Save Doc To File',
   ); // Save Doc To File [PassFailTest]
+  saveDocToFileResult.Status = ts.truthy(saveDocToFileResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(saveDocToFileResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `Sequence Doc`.
-Future<void> sequenceDoc({
+Future<String> sequenceDoc({
   dynamic sequence,
   String docResult = '',
   dynamic docOptions,
@@ -222,6 +289,44 @@ Future<void> sequenceDoc({
   double totalNumSteps = 0; // Num — default: 0
   int stepsSoFar = 0; // Num — default: 0
   int previousBlockLevel = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
+  dynamic processRequirementsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Process Requirements
+  dynamic processSubPropsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Process SubProps
+  dynamic processSubPropsResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Process SubProps
+  dynamic forEachSetupStepResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of For Each Setup Step
+  dynamic forEachMainStepResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of For Each Main Step
+  dynamic forEachCleanupStepResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of For Each Cleanup Step
 
   ts.eval(
     'Parameters.DocResult += "<HR>" + Locals.TableHTML + Locals.RowHTML + Locals.TitleColHTML +\n	"<FONT COLOR=WHITE SIZE=+2><B>" +\n	GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NAME") +\n	NameOf(Parameters.Sequence) + "</B></FONT>\\n"\n',
@@ -264,10 +369,15 @@ Future<void> sequenceDoc({
       '\nParameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_CLEANUP_STEPS"), "%-30s") +\n	Locals.ValColHTML +\n	Str(GetNumElements(Parameters.Sequence.Cleanup)) + "\\n"\n',
     ); // Num Cleanup Steps
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await writeRequirementsElements(
+    processRequirementsResult.Status = await writeRequirementsElements(
       requirements: sequence.Requirements,
       docResult: docResult,
     ); // Process Requirements
+    processRequirementsResult.Status =
+        processRequirementsResult.Status == 'Done'
+        ? 'Passed'
+        : processRequirementsResult.Status; // status expression
+    run.record(processRequirementsResult.Status);
   }
   docResult += '</TABLE><br>\n'; // Sequence Footer
   // label: --- Parameters ---
@@ -298,7 +408,14 @@ Future<void> sequenceDoc({
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   if (tmpNum > 0) {
     // precondition of Process SubProps
-    await writeSubproperties(); // Process SubProps
+    processSubPropsResult.Status =
+        await writeSubproperties(); // Process SubProps
+    processSubPropsResult.Status = processSubPropsResult.Status == 'Done'
+        ? 'Passed'
+        : processSubPropsResult.Status; // status expression
+    run.record(processSubPropsResult.Status);
+  } else {
+    processSubPropsResult.Status = 'Skipped';
   }
   if (tmpNum > 0) {
     // precondition of Footer
@@ -333,7 +450,14 @@ Future<void> sequenceDoc({
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   if (tmpNum > 0) {
     // precondition of Process SubProps
-    await writeSubproperties(); // Process SubProps
+    processSubPropsResult2.Status =
+        await writeSubproperties(); // Process SubProps
+    processSubPropsResult2.Status = processSubPropsResult2.Status == 'Done'
+        ? 'Passed'
+        : processSubPropsResult2.Status; // status expression
+    run.record(processSubPropsResult2.Status);
+  } else {
+    processSubPropsResult2.Status = 'Skipped';
   }
   if (tmpNum > 0) {
     // precondition of Footer
@@ -357,13 +481,17 @@ Future<void> sequenceDoc({
   previousBlockLevel = 0; // Reset Previous Block Level
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Sequence.Setup); increment RunState.LoopIndex += 1; status "Passed"
-  await stepDoc(
+  forEachSetupStepResult.Status = await stepDoc(
     step$: sequence.Setup[runState.LoopIndex],
     docResult: docResult,
     totalNumSteps: totalNumSteps,
     stepsSoFar: stepsSoFar,
     previousBlockLevel: previousBlockLevel,
   ); // For Each Setup Step
+  forEachSetupStepResult.Status = forEachSetupStepResult.Status == 'Done'
+      ? 'Passed'
+      : forEachSetupStepResult.Status; // status expression
+  run.record(forEachSetupStepResult.Status);
   if (ts.getNumElements(sequence.Main) > 0) {
     // precondition of Main Steps Header
     ts.eval(
@@ -373,13 +501,17 @@ Future<void> sequenceDoc({
   previousBlockLevel = 0; // Reset Previous Block Level_Copy
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Sequence.Main); increment RunState.LoopIndex += 1; status "Passed"
-  await stepDoc(
+  forEachMainStepResult.Status = await stepDoc(
     step$: sequence.Main[runState.LoopIndex],
     docResult: docResult,
     totalNumSteps: totalNumSteps,
     stepsSoFar: stepsSoFar,
     previousBlockLevel: previousBlockLevel,
   ); // For Each Main Step
+  forEachMainStepResult.Status = forEachMainStepResult.Status == 'Done'
+      ? 'Passed'
+      : forEachMainStepResult.Status; // status expression
+  run.record(forEachMainStepResult.Status);
   if (ts.getNumElements(sequence.Cleanup) > 0) {
     // precondition of Cleanup Steps Header
     ts.eval(
@@ -389,17 +521,23 @@ Future<void> sequenceDoc({
   previousBlockLevel = 0; // Reset Previous Block Level_Copy2
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Sequence.Cleanup); increment RunState.LoopIndex += 1; status "Passed"
-  await stepDoc(
+  forEachCleanupStepResult.Status = await stepDoc(
     step$: sequence.Cleanup[runState.LoopIndex],
     docResult: docResult,
     totalNumSteps: totalNumSteps,
     stepsSoFar: stepsSoFar,
     previousBlockLevel: previousBlockLevel,
   ); // For Each Cleanup Step
+  forEachCleanupStepResult.Status = forEachCleanupStepResult.Status == 'Done'
+      ? 'Passed'
+      : forEachCleanupStepResult.Status; // status expression
+  run.record(forEachCleanupStepResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `Step Doc`.
-Future<void> stepDoc({
+Future<String> stepDoc({
   dynamic step$,
   String docResult = '',
   double totalNumSteps = 0,
@@ -419,6 +557,27 @@ Future<void> stepDoc({
   String execFlow = ''; // Str
   String stepKeyName = ''; // Str
   int blockLevel = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
+  dynamic getStepTypeNameResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get StepType Name
+  dynamic addRequirementsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Add Requirements
+  dynamic addMultipleNumericLimitsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Add Multiple Numeric Limits
 
   //   Return Value -> Locals.BlockLevel
   throw UnimplementedError(
@@ -445,6 +604,10 @@ Future<void> stepDoc({
   throw UnimplementedError(
     'cModule call: Get StepType Name',
   ); // Get StepType Name [PassFailTest]
+  getStepTypeNameResult.Status = ts.truthy(getStepTypeNameResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(getStepTypeNameResult.Status);
   //   Return Value -> Locals.StepKeyName
   throw UnimplementedError(
     'cModule call: GetStepKeyName',
@@ -519,10 +682,14 @@ Future<void> stepDoc({
     ); // InBuf
   }
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await writeRequirementsElements(
+  addRequirementsResult.Status = await writeRequirementsElements(
     requirements: step$.TS.Requirements,
     docResult: docResult,
   ); // Add Requirements
+  addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
+      ? 'Passed'
+      : addRequirementsResult.Status; // status expression
+  run.record(addRequirementsResult.Status);
   ts.eval(
     'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_LOAD_AND_UNLOAD_OPTION"), "%-30s") +\n	Locals.ValColHTML +\n	GetResourceString("LOAD OPTION STRINGS", Parameters.Step.TS.LoadOpt) + ", " + GetResourceString("UNLOAD OPTION STRINGS", Parameters.Step.TS.UnloadOpt) + "\\n"\n',
   ); // Load and Unload Option
@@ -582,7 +749,15 @@ Future<void> stepDoc({
     'AllOf(Locals.StepTypeName == "NI_MultipleNumericLimitTest", PropertyExists("Parameters.Step.Result.Measurement"))',
   )) {
     // precondition of Add Multiple Numeric Limits
-    await writeMultipleNumericLimitLimits(); // Add Multiple Numeric Limits
+    addMultipleNumericLimitsResult.Status =
+        await writeMultipleNumericLimitLimits(); // Add Multiple Numeric Limits
+    addMultipleNumericLimitsResult.Status =
+        addMultipleNumericLimitsResult.Status == 'Done'
+        ? 'Passed'
+        : addMultipleNumericLimitsResult.Status; // status expression
+    run.record(addMultipleNumericLimitsResult.Status);
+  } else {
+    addMultipleNumericLimitsResult.Status = 'Skipped';
   }
   //   Return Value -> Locals.ExecFlow
   //   options <- 0x1 ' StepDescOption_Long
@@ -596,10 +771,12 @@ Future<void> stepDoc({
     ); // Execution Flow
   }
   docResult += '</TABLE></BLOCKQUOTE>\n'; // Step Footer
+
+  return run.status;
 }
 
 /// Sequence `Write Subproperties`.
-Future<void> writeSubproperties({
+Future<String> writeSubproperties({
   dynamic root,
   String docResult = '',
   String parentPropLookupStr = '',
@@ -612,6 +789,20 @@ Future<void> writeSubproperties({
   String subpropLookupStr = ''; // Str
   bool isHidden = false; // Bool — default: false
   int subpropFlags = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
+  dynamic displayPropertyResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of DisplayProperty
+  dynamic displaySubpropertiesOfSubpropertyResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of DisplaySubpropertiesOfSubproperty
 
   //   Return Value -> Locals.NumSubproperties
   //   lookupString <- Parameters.ParentPropLookupStr
@@ -643,13 +834,28 @@ Future<void> writeSubproperties({
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   if (isHidden == false || ts.truthy(docOptions.ShowHidden)) {
     // precondition of DisplayProperty
-    await writePropertyDetails(); // DisplayProperty
+    displayPropertyResult.Status =
+        await writePropertyDetails(); // DisplayProperty
+    displayPropertyResult.Status = displayPropertyResult.Status == 'Done'
+        ? 'Passed'
+        : displayPropertyResult.Status; // status expression
+    run.record(displayPropertyResult.Status);
+  } else {
+    displayPropertyResult.Status = 'Skipped';
   }
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   if ((isHidden == false || ts.truthy(docOptions.ShowHidden)) &&
       ts.truthy(docOptions.ShowSubproperties)) {
     // precondition of DisplaySubpropertiesOfSubproperty
-    await writeSubproperties(); // DisplaySubpropertiesOfSubproperty
+    displaySubpropertiesOfSubpropertyResult.Status =
+        await writeSubproperties(); // DisplaySubpropertiesOfSubproperty
+    displaySubpropertiesOfSubpropertyResult.Status =
+        displaySubpropertiesOfSubpropertyResult.Status == 'Done'
+        ? 'Passed'
+        : displaySubpropertiesOfSubpropertyResult.Status; // status expression
+    run.record(displaySubpropertiesOfSubpropertyResult.Status);
+  } else {
+    displaySubpropertiesOfSubpropertyResult.Status = 'Skipped';
   }
   i += 1; // Increment index
   if (isRecursiveCall == false) {
@@ -662,10 +868,12 @@ Future<void> writeSubproperties({
   throw UnimplementedError(
     'step type Goto: action not exported yet',
   ); // Loop back around [Goto]
+
+  return run.status;
 }
 
 /// Sequence `Write Array Elements`.
-Future<void> writeArrayElements({
+Future<String> writeArrayElements({
   dynamic root,
   String docResult = '',
   String arrayPropLookupStr = '',
@@ -677,6 +885,20 @@ Future<void> writeArrayElements({
   String rowHtml = '<TR>'; // Str
   String colHtml =
       '<TD WIDTH=33% colspan=3 NOWRAP=NOWRAP BGCOLOR=LIGHTBLUE>'; // Str
+
+  final run = ts.SequenceRun();
+  dynamic displayPropertyResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of DisplayProperty
+  dynamic displaySubpropertiesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of DisplaySubproperties
 
   //   lookupString <- Parameters.ArrayPropLookupStr
   //   options <- 0
@@ -711,9 +933,20 @@ Future<void> writeArrayElements({
     'cModule call: GetArrayIndexFromOffset',
   ); // GetArrayIndexFromOffset [Action]
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await writePropertyDetails(); // DisplayProperty
+  displayPropertyResult.Status =
+      await writePropertyDetails(); // DisplayProperty
+  displayPropertyResult.Status = displayPropertyResult.Status == 'Done'
+      ? 'Passed'
+      : displayPropertyResult.Status; // status expression
+  run.record(displayPropertyResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await writeSubproperties(); // DisplaySubproperties
+  displaySubpropertiesResult.Status =
+      await writeSubproperties(); // DisplaySubproperties
+  displaySubpropertiesResult.Status =
+      displaySubpropertiesResult.Status == 'Done'
+      ? 'Passed'
+      : displaySubpropertiesResult.Status; // status expression
+  run.record(displaySubpropertiesResult.Status);
   currentOffset += 1; // Inc Loop Var
   // goto -> --- Start of Loop ---
   throw UnimplementedError(
@@ -723,10 +956,12 @@ Future<void> writeArrayElements({
   ts.eval(
     'Parameters.DocResult += Locals.RowHTML+ Locals.ColHTML +\n	Parameters.ArrayPropLookupStr + "[...] --- " +\nResStr("SEQ_FILE_DOC", "DOC_MAX_ARRAY_DISPLAY_EXCEEDED") \n',
   ); // Add Max Exceeded Msg
+
+  return run.status;
 }
 
 /// Sequence `Write Property Details`.
-Future<void> writePropertyDetails({
+Future<String> writePropertyDetails({
   String docResult = '',
   dynamic root,
   String propertyToDisplayName = '',
@@ -745,6 +980,20 @@ Future<void> writePropertyDetails({
   String valColHtml = '<TD WIDTH=33% BGCOLOR=LIGHTGREEN>'; // Str
   String unused = ''; // Str
 
+  final run = ts.SequenceRun();
+  dynamic tryToEvaluateResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TryToEvaluate
+  dynamic displayArrayElementsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of DisplayArrayElements
+
   //   Return Value -> Locals.valueType
   //   lookupString <- Parameters.PropertyToDisplayName
   //   options <- 0
@@ -760,17 +1009,13 @@ Future<void> writePropertyDetails({
   ts.eval(
     'Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName)',
   ); // TryToEvaluate
-  if (runState.Sequence.Main['TryToEvaluate'].Result.Status == 'Error') {
+  tryToEvaluateResult.Status = 'Done';
+  if (tryToEvaluateResult.Status == 'Error') {
     // precondition of Document Error
-    subpropValue = runState
-        .Sequence
-        .Main['TryToEvaluate']
-        .Result
-        .Error
-        .Msg; // Document Error
+    subpropValue = tryToEvaluateResult.Error.Msg; // Document Error
   }
   // goto -> --- Skip Evaluate ---
-  if (runState.Sequence.Main['TryToEvaluate'].Result.Status == 'Error') {
+  if (tryToEvaluateResult.Status == 'Error') {
     // precondition of Skip Evaluate
     throw UnimplementedError(
       'step type Goto: action not exported yet',
@@ -831,12 +1076,22 @@ Future<void> writePropertyDetails({
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   if (isArray && ts.truthy(docOptions.ShowArrayElements)) {
     // precondition of DisplayArrayElements
-    await writeArrayElements(); // DisplayArrayElements
+    displayArrayElementsResult.Status =
+        await writeArrayElements(); // DisplayArrayElements
+    displayArrayElementsResult.Status =
+        displayArrayElementsResult.Status == 'Done'
+        ? 'Passed'
+        : displayArrayElementsResult.Status; // status expression
+    run.record(displayArrayElementsResult.Status);
+  } else {
+    displayArrayElementsResult.Status = 'Skipped';
   }
+
+  return run.status;
 }
 
 /// Sequence `Write Multiple Numeric Limit Limits`.
-Future<void> writeMultipleNumericLimitLimits({
+Future<String> writeMultipleNumericLimitLimits({
   dynamic step$,
   String docResult = '',
 }) async {
@@ -848,6 +1103,8 @@ Future<void> writeMultipleNumericLimitLimits({
   bool oneLimitOnly = false; // Bool — default: false
   String lowLimitFmt = ''; // Str
   String highLimitFmt = ''; // Str
+
+  final run = ts.SequenceRun();
 
   //   lookupString <- ""
   //   options <- 0
@@ -954,10 +1211,12 @@ Future<void> writeMultipleNumericLimitLimits({
       'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DATASOURCE"), "%-30s") +\n	Locals.ValColHTML +\n	LocalizeExpression(Parameters.Step.DataSource) + "\\n"\n',
     ); // Data Source
   }
+
+  return run.status;
 }
 
 /// Sequence `Write Requirements Elements`.
-Future<void> writeRequirementsElements({
+Future<String> writeRequirementsElements({
   dynamic requirements,
   String docResult = '',
 }) async {
@@ -966,6 +1225,8 @@ Future<void> writeRequirementsElements({
   String rowHtml = '<TR>'; // Str
   String propColHtml = '<TD WIDTH=30% NOWRAP=NOWRAP BGCOLOR=LIGHTBLUE>'; // Str
   String valColHtml = '<TD WIDTH=70% BGCOLOR=LIGHTGREEN>'; // Str
+
+  final run = ts.SequenceRun();
 
   // label: Process Requirements
   for (final element in ts.iterate(requirements.Links)) {
@@ -985,6 +1246,8 @@ Future<void> writeRequirementsElements({
       '\nParameters.DocResult += Locals.RowHTML+ Locals.PropColHTML + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_REQUIREMENTS"),"%-30s") + Locals.ValColHTML + Locals.tmpString + "\\n"',
     ); // Requirements (cont.)
   }
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -1029,40 +1292,33 @@ void register() {
   //   untranslated expression in body
   //   step "Update TotalNumSteps" loops (Custom) — per-step looping not exported
   //   RunState engine access (no engine at run time)
-  //   status expression of step "Process Requirements" not exported
   //   by-ref writeback of parameter DocResult of sequence Write Requirements Elements not exported
   //   flow action of step "skip if not displayed" (Next/Next) not exported
   //   step type Goto: action not exported yet
   //   cModule call: GetNumSubProperties
   //   cModule call: SetProgressMsg
-  //   status expression of step "Process SubProps" not exported
   //   call parameters of sequence Write Subproperties: no parameter named arg0 (stale binding)
   //   call parameters of sequence Write Subproperties: no parameter named arg1 (stale binding)
   //   call parameters of sequence Write Subproperties: no parameter named arg2 (stale binding)
   //   call parameters of sequence Write Subproperties: no parameter named arg3 (stale binding)
   //   call parameters of sequence Write Subproperties: no parameter named arg4 (stale binding)
   //   step "For Each Sequence" loops (Custom) — per-step looping not exported
-  //   status expression of step "For Each Sequence" not exported
   //   call parameters of sequence Sequence Doc: no parameter named arg0 (stale binding)
   //   call parameters of sequence Sequence Doc: no parameter named arg1 (stale binding)
   //   call parameters of sequence Sequence Doc: no parameter named arg2 (stale binding)
-  //   status expression of step "Save Doc To File" not exported
   //   cModule call: Save Doc To File
   //   flow action of step "Goto End When Done" (Next/Next) not exported
   //   cModule call: GetSubPropName
   //   cModule call: GetFlags
-  //   status expression of step "DisplayProperty" not exported
   //   call parameters of sequence Write Property Details: no parameter named arg0 (stale binding)
   //   call parameters of sequence Write Property Details: no parameter named arg1 (stale binding)
   //   call parameters of sequence Write Property Details: no parameter named arg2 (stale binding)
   //   call parameters of sequence Write Property Details: no parameter named arg3 (stale binding)
-  //   status expression of step "DisplaySubpropertiesOfSubproperty" not exported
   //   cModule call: Update Percent Done
   //   flow action of step "Loop back around" (Next/Next) not exported
   //   cModule call: GetTypeInfo
   //   flow action of step "TryToEvaluate" (Next/Next) not exported
   //   flow action of step "Skip Evaluate" (Next/Next) not exported
-  //   status expression of step "DisplayArrayElements" not exported
   //   call parameters of sequence Write Array Elements: no parameter named arg0 (stale binding)
   //   call parameters of sequence Write Array Elements: no parameter named arg1 (stale binding)
   //   call parameters of sequence Write Array Elements: no parameter named arg2 (stale binding)
@@ -1070,24 +1326,17 @@ void register() {
   //   cModule call: GetNumElements
   //   flow action of step "Check for Max Num Array Elements" (Next/Next) not exported
   //   cModule call: GetArrayIndexFromOffset
-  //   status expression of step "DisplaySubproperties" not exported
   //   step "For Each Setup Step" loops (Custom) — per-step looping not exported
-  //   status expression of step "For Each Setup Step" not exported
   //   by-ref writeback of parameter DocResult of sequence Step Doc not exported
   //   by-ref writeback of parameter StepsSoFar of sequence Step Doc not exported
   //   by-ref writeback of parameter PreviousBlockLevel of sequence Step Doc not exported
   //   step "For Each Main Step" loops (Custom) — per-step looping not exported
-  //   status expression of step "For Each Main Step" not exported
   //   step "For Each Cleanup Step" loops (Custom) — per-step looping not exported
-  //   status expression of step "For Each Cleanup Step" not exported
   //   cModule call: Get Block Level
-  //   status expression of step "Get StepType Name" not exported
   //   cModule call: Get StepType Name
   //   cModule call: GetStepKeyName
   //   cModule call: Get Step Desc
-  //   status expression of step "Add Requirements" not exported
   //   flow action of step "Skip to Multiple Limits Section" (Next/Next) not exported
-  //   status expression of step "Add Multiple Numeric Limits" not exported
   //   call parameters of sequence Write Multiple Numeric Limit Limits: no parameter named arg0 (stale binding)
   //   call parameters of sequence Write Multiple Numeric Limit Limits: no parameter named arg1 (stale binding)
   //   cModule call: Get Execution Flow
@@ -1097,6 +1346,6 @@ void register() {
   //   root parameter 'SequenceFile' is an engine object (nothing binds it when run as a test)
   //   root parameter 'DocOptions' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Sequence File Doc', () async {
-    await sequenceFileDoc();
+    lw.expect(await sequenceFileDoc(), 'Passed');
   });
 }

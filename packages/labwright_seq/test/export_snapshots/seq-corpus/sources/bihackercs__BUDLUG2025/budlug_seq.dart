@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `ArrayManipulations`.
-Future<void> arrayManipulations() async {
+Future<String> arrayManipulations() async {
   List<dynamic> starFleet = List<dynamic>.filled(
     10,
     '0',
@@ -20,6 +20,8 @@ Future<void> arrayManipulations() async {
   ); // Nums
   int maxFleetSize = 15; // Num
   double nrOfShips = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   ts.eval(
     'Locals.NrOfShips = Locals.StarFleet.GetNumElements()',
@@ -33,10 +35,12 @@ Future<void> arrayManipulations() async {
   ts.eval(
     'InsertElements(Locals.StarFleet,"[1]",Locals.NrOfShips)',
   ); // Insert an element into an array#2
+
+  return run.status;
 }
 
 /// Sequence `ContainerManipulation`.
-Future<void> containerManipulation() async {
+Future<String> containerManipulation() async {
   String userName = 'Arthur Philip Dent'; // Str
   dynamic spaceShip = ts.PropObj({
     'Id': 'Heart of Gold',
@@ -46,6 +50,8 @@ Future<void> containerManipulation() async {
   int answer = 42; // Num
   String thisString = ''; // Str
   double thisNumber = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   ts.eval(
     'Locals.ThisString = ThisContext.Locals.SpaceShip.GetValString("Id",0x0)\n',
@@ -65,13 +71,17 @@ Future<void> containerManipulation() async {
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Message Popup [MessagePopup]
+
+  return run.status;
 }
 
 /// Sequence `ValueType`.
-Future<void> valueType() async {
+Future<String> valueType() async {
   String columbia = ''; // Str
   int endevour = 0; // Num — default: 0
   double valueType2 = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   ts.eval(
     'Locals.ValueType = Locals.Columbia.Type.ValueType',
@@ -99,28 +109,38 @@ Future<void> valueType() async {
       'step type MessagePopup: action not exported yet',
     ); // Message Popup [MessagePopup]
   }
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: NameOf(Step)
   // popup message: "BUDLUG Greetings | I hope you enjoyed the presentation, and find some usefull examples in this sequence file. | If you'd like to reach out contact me at  | www.linkedin.com/in/csaba-bihacker"
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Message Popup [MessagePopup]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFilePostStepFailure`.
-Future<void> sequenceFilePostStepFailure({
+Future<String> sequenceFilePostStepFailure({
   dynamic step$,
   dynamic result,
 }) async {
+  final run = ts.SequenceRun();
+
   runState.Caller.Locals.Write(
     'C:\\Temp\\error.log',
     '',
     1,
   ); // Save locals to file in case of
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -144,30 +164,30 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   lw.skipTest('ArrayManipulations', () async {
-    await arrayManipulations();
+    lw.expect(await arrayManipulations(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   step type MessagePopup: action not exported yet
   lw.skipTest('ContainerManipulation', () async {
-    await containerManipulation();
+    lw.expect(await containerManipulation(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   step type MessagePopup: action not exported yet
   lw.skipTest('ValueType', () async {
-    await valueType();
+    lw.expect(await valueType(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
   //   root parameter 'Step' is an engine object (nothing binds it when run as a test)
   //   root parameter 'Result' is an engine object (nothing binds it when run as a test)
   lw.skipTest('SequenceFilePostStepFailure', () async {
-    await sequenceFilePostStepFailure();
+    lw.expect(await sequenceFilePostStepFailure(), 'Passed');
   });
 }

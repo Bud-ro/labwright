@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   int signalAmplitude = 0; // Num — default: 0
   int inputFrequency = 0; // Num — default: 0
   List<dynamic> thdn = List<dynamic>.filled(10, '0', growable: true); // Nums
@@ -938,6 +938,8 @@ Future<void> mainSequence() async {
     }),
   }); // NI_IOSession
 
+  final run = ts.SequenceRun();
+
   // ── setup ──
   throw UnimplementedError(
     'step type NI_CreateIOSessionAndApplyIOConfig: action not exported yet',
@@ -1032,6 +1034,8 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type NI_CloseIOSession: action not exported yet',
   ); // Close Sessions [NI_CloseIOSession]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -1058,6 +1062,6 @@ void register() {
   //   step type NI_Measurement: action not exported yet
   //   step type NI_CloseIOSession: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

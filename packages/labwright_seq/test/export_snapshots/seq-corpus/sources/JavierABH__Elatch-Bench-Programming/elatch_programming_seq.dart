@@ -13,9 +13,23 @@ import 'package:labwright/shims.dart' as ts;
 import 'lw_runtime.dart';
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+  dynamic loadVarInitResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Load var init
+
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await loadVariables(variableList: 'Init'); // Load var init
+  loadVarInitResult.Status = await loadVariables(
+    variableList: 'Init',
+  ); // Load var init
+  loadVarInitResult.Status = loadVarInitResult.Status == 'Done'
+      ? 'Passed'
+      : loadVarInitResult.Status; // status expression
+  run.record(loadVarInitResult.Status);
   ts.eval(
     'StationGlobals.isTraceEnable = FileGlobals.isTraceEnable',
   ); // Assign TraceabilityEnabled Var
@@ -28,10 +42,12 @@ Future<void> processSetup() async {
   ts.eval(
     '\nStationGlobals.ProcessName = FileGlobals.ProcessName',
   ); // Assign TraceabilityEnabled Var (cont.)
+
+  return run.status;
 }
 
 /// Sequence `PreUUT` — Displays a dialog box in which the operator enters the UUTserial number.  Override this in client file to change or replace this action..
-Future<void> preUut({
+Future<String> preUut({
   bool continueTesting = true,
   dynamic uut,
   dynamic testSocket,
@@ -41,6 +57,14 @@ Future<void> preUut({
   int backCheck = 0; // Num — default: 0
   String replyBackCheck = ''; // Str
 
+  final run = ts.SequenceRun();
+  dynamic callDoPreUutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call DoPreUUT
+
   // ── setup ──
   stationGlobals.IsBackcheckOK = false; // Reset Traceability Variables
   backCheck = 0; // Reset Traceability Variables (cont.)
@@ -48,6 +72,10 @@ Future<void> preUut({
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await doPreUut(); // Call DoPreUUT: external sequence call
+  callDoPreUutResult.Status = callDoPreUutResult.Status == 'Done'
+      ? 'Passed'
+      : callDoPreUutResult.Status; // status expression
+  run.record(callDoPreUutResult.Status);
 
   // ── main ──
   //   Time <- FileGlobals.Ent_Time
@@ -96,10 +124,21 @@ Future<void> preUut({
       'step type MessagePopup: action not exported yet',
     ); // Msg Trace disable [MessagePopup]
   }
+
+  return run.status;
 }
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic uutNotForThisProcessResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of UUT Not For This Process
+
   // ── setup ──
   runState.Engine.StationOptions.AlwaysGotoCleanupOnFailure ==
       true; // Go to cleanup on failure
@@ -107,9 +146,13 @@ Future<void> mainSequence() async {
       stationGlobals.isTraceEnable == 'True') {
     // checks: False
     // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-    throw UnimplementedError(
-      'step type PassFailTest: action not exported yet',
-    ); // UUT Not For This Process [PassFailTest]
+    // UUT Not For This Process [PassFailTest]: judged by its status expression
+    uutNotForThisProcessResult.PassFail = false; // status expression
+    uutNotForThisProcessResult.Status =
+        ts.truthy(uutNotForThisProcessResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(uutNotForThisProcessResult.Status);
     // goto -> step "Failed Point"
     throw UnimplementedError(
       'step type Goto: action not exported yet',
@@ -118,20 +161,34 @@ Future<void> mainSequence() async {
 
   // ── cleanup ──
   // label: Failed Point
+
+  return run.status;
 }
 
 /// Sequence `PostUUT` — Displays a pass, fail, error, or terminated banner. Override this in client file to change or replace this action..
-Future<void> postUut({
+Future<String> postUut({
   dynamic result,
   dynamic uut,
   dynamic testSocket,
   dynamic modelData,
   dynamic modelPluginConfiguration,
 }) async {
+  final run = ts.SequenceRun();
+  dynamic callDoPostUutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call DoPostUUT
+
   // ── setup ──
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await doPreUut(); // Call DoPostUUT: external sequence call
+  callDoPostUutResult.Status = callDoPostUutResult.Status == 'Done'
+      ? 'Passed'
+      : callDoPostUutResult.Status; // status expression
+  run.record(callDoPostUutResult.Status);
 
   // ── main ──
   //   error out <- Step.Result.Error
@@ -172,10 +229,12 @@ Future<void> postUut({
     }
   }
   // label: End Of Traceability Section
+
+  return run.status;
 }
 
 /// Sequence `Load_Variables`.
-Future<void> loadVariables({String variableList = ''}) async {
+Future<String> loadVariables({String variableList = ''}) async {
   String filePath =
       'C:\\Elatch-Bench-Programming\\Load_Data\\Variables.ini'; // Str
   List<dynamic> testName = <dynamic>[]; // Strs
@@ -186,6 +245,8 @@ Future<void> loadVariables({String variableList = ''}) async {
   int arrayIndex = 0; // Num — default: 0
   int tempNum = 0; // Num — default: 0
   int tempLoop = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   //   FilePath <- Locals.File_Path
   //   OutPutValue <- 1
@@ -205,6 +266,8 @@ Future<void> loadVariables({String variableList = ''}) async {
       tempStr,
     ); // CreateLimits
   }
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -268,15 +331,13 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Load var init" not exported
   //   untranslated expression in body
   //   ..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi
   //   RunState engine access (no engine at run time)
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Call DoPreUUT" not exported
   //   external sequence: DoPreUUT
   //   ..\LabVIEW_VIs\Traceability\WSP2_GetDateTimeStr.vi
   //   flow action of step "Jump if Traceability is Disabled" (Next/Next) not exported
@@ -290,20 +351,17 @@ void register() {
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('PreUUT', () async {
-    await preUut();
+    lw.expect(await preUut(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
   //   StationGlobals read (station-level state not set here)
-  //   status expression of step "UUT Not For This Process" not exported
-  //   step type PassFailTest: action not exported yet
   //   flow action of step "Goto" (Next/Next) not exported
   //   step type Goto: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Call DoPostUUT" not exported
   //   external sequence: DoPreUUT
   //   ..\LabVIEW_VIs\Traceability\WSP2_GetDateTimeStr.vi
   //   flow action of step "Jump if Traceability is Disabled" (Next/Next) not exported
@@ -316,6 +374,6 @@ void register() {
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('PostUUT', () async {
-    await postUut();
+    lw.expect(await postUut(), 'Passed');
   });
 }

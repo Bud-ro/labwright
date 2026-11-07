@@ -12,10 +12,14 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence({bool test = false}) async {
+Future<String> mainSequence({bool test = false}) async {
   bool test2 = false; // Bool — default: false
 
+  final run = ts.SequenceRun();
+
   // Statement: Statement with no expression
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -98,6 +102,6 @@ final dynamic step = null;
 
 void register() {
   lw.test('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

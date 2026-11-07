@@ -12,8 +12,22 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   String hardwareConfigPath = ''; // Path
+
+  final run = ts.SequenceRun();
+  dynamic actionButtonTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Action Button Test
+  dynamic powerDownAllAoChannelsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Power down all AO Channels
 
   // ── setup ──
   ts.eval(
@@ -28,21 +42,38 @@ Future<void> mainSequence() async {
   // ── main ──
   // label: Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await actionButtonTest(); // Action Button Test
+  actionButtonTestResult.Status =
+      await actionButtonTest(); // Action Button Test
+  actionButtonTestResult.Status = actionButtonTestResult.Status == 'Done'
+      ? 'Passed'
+      : actionButtonTestResult.Status; // status expression
+  run.record(actionButtonTestResult.Status);
 
   // ── cleanup ──
   // label: Turn off all configured AO channels by configuring to 0V
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await turnOffAllAoChannels(); // Power down all AO Channels
+  powerDownAllAoChannelsResult.Status =
+      await turnOffAllAoChannels(); // Power down all AO Channels
+  powerDownAllAoChannelsResult.Status =
+      powerDownAllAoChannelsResult.Status == 'Done'
+      ? 'Passed'
+      : powerDownAllAoChannelsResult.Status; // status expression
+  run.record(powerDownAllAoChannelsResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `-------Examples------`.
-Future<void> examples() async {
+Future<String> examples() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Action Button Test`.
-Future<void> actionButtonTest() async {
+Future<String> actionButtonTest() async {
   dynamic dcVoltageGenTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
@@ -56,6 +87,8 @@ Future<void> actionButtonTest() async {
     'Average_DC_Voltage__V_': <dynamic>[],
     'RMS_DC_Voltage__V_': <dynamic>[],
   }); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points
@@ -106,21 +139,29 @@ Future<void> actionButtonTest() async {
   //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
   //   error out <- Step.Result.Error
   await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close TP [Action]
+
+  return run.status;
 }
 
 /// Sequence `-------Reusable Sequences------`.
-Future<void> reusableSequences() async {
+Future<String> reusableSequences() async {
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Turn Off all AO Channels`.
-Future<void> turnOffAllAoChannels() async {
+Future<String> turnOffAllAoChannels() async {
   dynamic dcVoltageGenTask = ts.PropObj({
     'DeviceName': '',
     'SessionNumber': 0,
   }); // LabVIEWIOControl
   List<dynamic> outputVoltagesV =
       <dynamic>[]; // Nums — Update the Array based on AO Channels to Turn OFF
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example resets all configured Analog output channels voltage to 0 Volts
@@ -151,16 +192,22 @@ Future<void> turnOffAllAoChannels() async {
   //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
   //   error out <- Step.Result.Error
   await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: "About This Example"
   // popup message: "These automation test sequences utilize PCBA libraries to conduct basic electrical functional tests, | which can be adapted or modified to fit your specific procedures. The sequences employ simulated DAQ  | hardware and do not include limit testing.  |   | Make sure all prerequisite software and configurations outlined in the user manual are installed. |   | For detailed help on how to use the test sequences, please refer to the online manual provided in the link below. | https://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html"
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Explanation [MessagePopup]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -231,8 +278,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   Common\Import Hardware Config.vi
-  //   status expression of step "Action Button Test" not exported
-  //   status expression of step "Power down all AO Channels" not exported
   //   DC Voltage Generation\DAQ_DC Voltage Gen Initialize.vi
   //   DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Initialize.vi
   //   DC Voltage Generation\DAQ_DC Voltage Gen Configure and Generate.vi
@@ -240,17 +285,17 @@ void register() {
   //   DC Voltage Generation\DAQ_DC Voltage Gen Close.vi
   //   DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Close.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   lw.test('-------Examples------', () async {
-    await examples();
+    lw.expect(await examples(), 'Passed');
   });
   lw.test('-------Reusable Sequences------', () async {
-    await reusableSequences();
+    lw.expect(await reusableSequences(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

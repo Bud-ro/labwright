@@ -9,9 +9,12 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `ProcessSetup` — Runs once at lot start.
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+
   // ── setup ──
   throw UnimplementedError(
     'step type NI_SemiconductorModule_GetTestSettings: action not exported yet',
@@ -67,11 +70,15 @@ Future<void> processSetup() async {
       'dotNet call: Code Modules\\TestSteps\\ConfigureTemperatureController.cs',
     ); // Configure temperature controller [NI_SemiconductorModule_Action]
   }
+
+  return run.status;
 }
 
 /// Sequence `MainSequence` — Runs for each UUT.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   int vrefDcValue = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // description: Place any test flow agnostic setup steps here, to run before the test flow, for each unit under test.
@@ -199,10 +206,14 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\DisableInstrumentOutputs.cs',
   ); // Disable instrument outputs [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 /// Sequence `ProcessCleanup` — Runs once at lot end.
-Future<void> processCleanup() async {
+Future<String> processCleanup() async {
+  final run = ts.SequenceRun();
+
   // ── main ──
   // description: Place any steps here to run once at the end of a lot.
   // label: Lot End Steps
@@ -227,10 +238,14 @@ Future<void> processCleanup() async {
   throw UnimplementedError(
     'step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet',
   ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: "About This Example"
   // popup message: "This example demonstrates testing an imagined part on up to 4 sites.  |   | Prerequisites | You must have the following software installed if you want to use the example: | - STS Software 25.0.0 or later |   | Review the README file accompanying the sequence file  | for information about how to use this example."
   // popup buttons: "Help" | "OK"
@@ -245,6 +260,8 @@ Future<void> sequenceFileLoad() async {
       'step type CallExecutable: action not exported yet',
     ); // Launch Readme [CallExecutable]
   }
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -278,7 +295,7 @@ void register() {
   //   dotNet call: Code Modules\TestSteps\SetupNIScopeForVref.cs
   //   dotNet call: Code Modules\TestSteps\ConfigureTemperatureController.cs
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: Code Modules\TestSteps\WaitForTemperature.cs
@@ -295,20 +312,20 @@ void register() {
   //   dotNet call: Code Modules\TestSteps\TrimVrefValue.cs
   //   dotNet call: Code Modules\TestSteps\DisableInstrumentOutputs.cs
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: Code Modules\TestSteps\PowerToggle.cs
   //   dotNet call: Code Modules\TestSteps\ResetAndCloseTemperatureController.cs
   //   step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet
   lw.skipTest('ProcessCleanup', () async {
-    await processCleanup();
+    lw.expect(await processCleanup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   //   RunState engine access (no engine at run time)
   //   step type CallExecutable: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

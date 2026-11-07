@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   int thd = 0; // Num — default: 0
   int micSensitivity = 0; // Num — default: 0
   int outputVoltageRatio = 0; // Num — default: 0
@@ -936,6 +936,8 @@ Future<void> mainSequence() async {
   int frequency = 0; // Num — default: 0
   int soundLevel = 0; // Num — default: 0
 
+  final run = ts.SequenceRun();
+
   // ── setup ──
   throw UnimplementedError(
     'step type NI_CreateIOSessionAndApplyIOConfig: action not exported yet',
@@ -1005,6 +1007,8 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type NI_CloseIOSession: action not exported yet',
   ); // Close Sessions [NI_CloseIOSession]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -1031,6 +1035,6 @@ void register() {
   //   sweep loop "Sweep Loop": parameter sweep not exported
   //   step type NI_CloseIOSession: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

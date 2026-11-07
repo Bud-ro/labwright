@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `Output to Stream`.
-Future<void> outputToStream() async {
+Future<String> outputToStream() async {
   String streamFilePath = ''; // Path
   dynamic stream = null; // Ref
   List<dynamic> fields = <dynamic>[
@@ -37,6 +37,8 @@ Future<void> outputToStream() async {
     'Execution': '',
     'ThreadID': '',
   }); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // description: Sequence Editor Report view uses Resource Strings stored in: | C:\Program Files (x86)\National Instruments\TestStand 2020\Components\Language\English\EngineStrings.ini | These entries can be used to change the text displayed by default: | [EXECUTION_OUTPUT_RECORD_STREAM] | HEADER_STREAM_NAME = "Stream Name: " | FOOTER_RECORDS_TO_DISPLAY = "Records to Display: " | FOOTER_RECORDS_WRITTEN = "Total Records Written: " | FOOTER_ALL_RECORDS = "All" | [CSV_FILE_OUTPUT_RECORD_STREAM] | DESCRIPTION = "CSV File Output Record Stream"
@@ -101,16 +103,22 @@ Future<void> outputToStream() async {
   ts.eval(
     '\n\n\'Severity:\n\'0 = Information\n\'1 = Warning\n\'2 = Error',
   ); // Write output message (cont.)
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: NameOf(Step)
   // popup message: "1. Run current sequence and see the report view (View»Execution»Report).\n2. Compare it with the output (View»Output).\n3. Inspect the Output.log file located in the current sequence directory."
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // How to use this example [MessagePopup]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -137,11 +145,11 @@ void register() {
   //   step "Write output message" loops (FixedNumLoops) — per-step looping not exported
   //   Step engine access (no engine at run time)
   lw.skipTest('Output to Stream', () async {
-    await outputToStream();
+    lw.expect(await outputToStream(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

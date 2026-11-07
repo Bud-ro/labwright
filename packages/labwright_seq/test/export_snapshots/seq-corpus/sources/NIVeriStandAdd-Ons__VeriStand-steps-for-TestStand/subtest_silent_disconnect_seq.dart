@@ -12,8 +12,10 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   throw UnimplementedError(
@@ -33,6 +35,8 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type GetChannelValue: action not exported yet',
   ); // Get Channel Value [GetChannelValue]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -72,6 +76,6 @@ void register() {
   //   step type ConnectProject: action not exported yet
   //   step type GetChannelValue: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

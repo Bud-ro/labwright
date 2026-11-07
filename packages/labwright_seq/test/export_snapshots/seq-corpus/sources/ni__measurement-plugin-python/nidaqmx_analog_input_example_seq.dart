@@ -12,8 +12,10 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   String pinMapId = ''; // Str
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // pin map: "NIDAQmxAnalogInput.pinmap"
@@ -39,6 +41,8 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'python call: teststand_nidaqmx.py',
   ); // Destroy and unregister NI-DAQmx tasks [Action]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -64,6 +68,6 @@ void register() {
   //   python call: teststand_nidaqmx.py
   //   step type NI_Measurement: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

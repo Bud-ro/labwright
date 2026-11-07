@@ -12,7 +12,9 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+
   // ── setup ──
   // pin map: @"C:\Users\8880_AN\Documents\Customers\National Instruments\AppNote_ModernLab\InstrumentStudio\AppNote_LabSetUp\PinMap.pinmap"
   throw UnimplementedError(
@@ -64,14 +66,18 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type NI_DestroyAndUnregisterSessions: action not exported yet',
   ); // Destroy and Unregister Sessions [NI_DestroyAndUnregisterSessions]
+
+  return run.status;
 }
 
 /// Sequence `ReportOptions` — The report generator result processing component calls this from its Begin sequence.  Override it to modify the options..
-Future<void> reportOptions({
+Future<String> reportOptions({
   dynamic reportOptions2,
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
 }) async {
+  final run = ts.SequenceRun();
+
   reportOptions2.GeneratePDFReport = true; // Update Report Options
   reportOptions2.SaveTransformedHtmlForXmlReport =
       false; // Update Report Options (cont.)
@@ -83,6 +89,8 @@ Future<void> reportOptions({
   reportOptions2.Colors.ReportTextBg =
       '#000000'; // Update Report Options (cont.)
   reportOptions2.ArrayMeasurementMax = 1000; // Update Report Options (cont.)
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -110,13 +118,13 @@ void register() {
   //   step type NI_Instrument: action not exported yet
   //   step type NI_DestroyAndUnregisterSessions: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ReportOptions' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('ReportOptions', () async {
-    await reportOptions();
+    lw.expect(await reportOptions(), 'Passed');
   });
 }

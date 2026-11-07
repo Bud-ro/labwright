@@ -12,13 +12,15 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   List<dynamic> specificationsPaths = <dynamic>[]; // Strs
   List<dynamic> levelsPaths = <dynamic>[]; // Strs
   List<dynamic> timingPaths = <dynamic>[]; // Strs
   List<dynamic> patternPaths = <dynamic>[]; // Strs
   List<dynamic> sourceWaveformPaths = <dynamic>[]; // Strs
   List<dynamic> captureWaveformPaths = <dynamic>[]; // Strs
+
+  final run = ts.SequenceRun();
 
   //   tsm_context <- Step.SemiconductorModuleContext
   //   pins <- {"DUTPin1", "DUTPin2"}
@@ -68,10 +70,14 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'python call: nidigital_codemodules.py',
   ); // Project Paths Test [NI_SemiconductorModule_MultiTest]
+
+  return run.status;
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+
   ts.eval(
     'RunState.Engine.StationOptions.RTEOption = RTEOption_Continue',
   ); // Set run-time error option to avoid dialog
@@ -79,24 +85,34 @@ Future<void> processSetup() async {
   throw UnimplementedError(
     'python call: nidigital_codemodules.py',
   ); // Open Sessions [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
-Future<void> processCleanup() async {
+Future<String> processCleanup() async {
+  final run = ts.SequenceRun();
+
   //   tsm_context <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'python call: nidigital_codemodules.py',
   ); // Close Sessions [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 /// Sequence `PreBatch` — Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action..
-Future<void> preBatch({
+Future<String> preBatch({
   bool continueTesting = true,
   dynamic modelData,
   dynamic modelPluginConfiguration,
 }) async {
+  final run = ts.SequenceRun();
+
   continueTesting =
       modelData.BatchLoopIndex <= 5; // Stop testing after 5 batches
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -126,23 +142,23 @@ void register() {
   //   cModule call: Get Source Waveform Paths
   //   cModule call: Get Capture Waveform Paths
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   python call: nidigital_codemodules.py
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   python call: nidigital_codemodules.py
   lw.skipTest('ProcessCleanup', () async {
-    await processCleanup();
+    lw.expect(await processCleanup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('PreBatch', () async {
-    await preBatch();
+    lw.expect(await preBatch(), 'Passed');
   });
 }

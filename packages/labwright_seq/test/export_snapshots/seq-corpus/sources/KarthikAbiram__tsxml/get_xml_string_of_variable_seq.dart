@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   String xmlString = ''; // Str
   dynamic mySimpleContainer = ts.PropObj({
     'MyNum1': 0,
@@ -39,6 +39,8 @@ Future<void> mainSequence() async {
     growable: true,
   ); // Strs
 
+  final run = ts.SequenceRun();
+
   xmlString = mySimpleContainer.GetXML(0, 0); // GetXMLString
   // popup title: NameOf(Step)
   // popup message: Locals.XMLString
@@ -46,6 +48,8 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // DisplayXMLString [MessagePopup]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -69,6 +73,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

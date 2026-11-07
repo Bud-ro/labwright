@@ -9,9 +9,12 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence` — Runs for each UUT.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+
   // Forces a basic voltage ramp sequence on specified SMU pins.
   // .NET assembly: Code Modules\bin\STLExample.SMUHardwareLevelSequence.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.ForceVoltageRamp
@@ -45,10 +48,14 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\InitiateSMUAdvancedSequence.cs',
   ); // InitiateSMUAdvancedSequence [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 /// Sequence `ProcessSetup` — Runs once at lot start.
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+
   // ── setup ──
   throw UnimplementedError(
     'step type NI_SemiconductorTest_SetupNIDCPowerInstrumentation: action not exported yet',
@@ -70,20 +77,28 @@ Future<void> processSetup() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\ConfigureSMUAdvancedSequence.cs',
   ); // ConfigureSMUAdvancedSequence [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 /// Sequence `ProcessCleanup` — Runs once at lot end.
-Future<void> processCleanup() async {
+Future<String> processCleanup() async {
+  final run = ts.SequenceRun();
+
   // .NET assembly: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll
   // .NET call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation',
   ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: "About This Example"
   // popup message: "This example demonstrates how to configure and force synchronized and asynchronized voltage ramp of the Semiconductor Test Library. | It showcases four different approaches for forcing voltage ramp sequences on SMU pins: | 1. ForceVoltageRamp: |     Forces a basic voltage ramp sequence on specified SMU pins. | 2. ConfigureVoltageRampInitiateAndMeasureCurrent: |     Configures and initiates a voltage ramp sequence and publishes the max current measured during sequence execution. | 3. ForceSynchronizedVoltageRamp: |     Forces a voltage ramp sequence synchronized across pins. | 4. ConfigureSMUAdvancedSequence: |     Configures an advanced sequence upfront without initializing it, allowing later initiation in the test flow. | 5. InitiateSMUAdvancedSequence: |     Initiates a previously configured advanced sequence for the specified SMU pins. | Prerequisites: | 1. You must have the following software installed if you want to use the example with real instruments or in Offline Mode: |    - STS Software 24.5.0 or later | 2. Hardware Requirements: |    - A NI-DCPower instrument named 'SMU_4147_C2_S03' (or update the pin map with your desired SMU name) as defined in NI MAX | Review the README file accompanying the sequence file for information about how to use this example."
   // popup buttons: "Help" | "OK"
@@ -97,6 +112,8 @@ Future<void> sequenceFileLoad() async {
       'step type CallExecutable: action not exported yet',
     ); // LaunchHelp [CallExecutable]
   }
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -124,25 +141,25 @@ void register() {
   //   dotNet call: Code Modules\TestSteps\ForceSynchronizedVoltageRamp.cs
   //   dotNet call: Code Modules\TestSteps\InitiateSMUAdvancedSequence.cs
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type NI_SemiconductorTest_SetupNIDCPowerInstrumentation: action not exported yet
   //   dotNet call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions
   //   dotNet call: Code Modules\TestSteps\ConfigureSMUAdvancedSequence.cs
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation
   lw.skipTest('ProcessCleanup', () async {
-    await processCleanup();
+    lw.expect(await processCleanup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   //   RunState engine access (no engine at run time)
   //   step type CallExecutable: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

@@ -12,13 +12,28 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic actionButtonTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Action Button Test
+
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await actionButtonTest(); // Action Button Test
+  actionButtonTestResult.Status =
+      await actionButtonTest(); // Action Button Test
+  actionButtonTestResult.Status = actionButtonTestResult.Status == 'Done'
+      ? 'Passed'
+      : actionButtonTestResult.Status; // status expression
+  run.record(actionButtonTestResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `Action Button Test`.
-Future<void> actionButtonTest({
+Future<String> actionButtonTest({
   dynamic terminalConfiguration,
   int minimumValueVolts = -10,
   int maximumValueVolts = 10,
@@ -32,6 +47,8 @@ Future<void> actionButtonTest({
   dynamic artifactsManagerDcvg = null; // Ref
   dynamic artifactsManagerDcvm = null; // Ref
   String documentPath = ''; // Str
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points.
@@ -201,6 +218,8 @@ Future<void> actionButtonTest({
   throw UnimplementedError(
     'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Close',
   ); // DC-RMS Voltage Measurement -  Close Action TP [Action]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -222,7 +241,6 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Action Button Test" not exported
   //   untranslated expression in body
   //   dotNet call: System.Environment.GetFolderPath
   //   dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
@@ -235,6 +253,6 @@ void register() {
   //   dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Close
   //   dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Close
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

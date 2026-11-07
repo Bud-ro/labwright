@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic currentWaveformConfig = ts.PropObj({
     'Absolute_Disk_Path': '',
     'Test_Config': '',
@@ -44,6 +44,20 @@ Future<void> mainSequence() async {
   int waveFormConfigsIdx = 0; // Num — default: 0
   dynamic currentRFmxLteSignal = null; // Ref
   dynamic currentRFmxSpecAnSignal = null; // Ref
+
+  final run = ts.SequenceRun();
+  dynamic applyConfigurationsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Apply Configurations
+  dynamic measureResultsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Measure Results
 
   // ── setup ──
   // Files must use an absolute path. This statement expression programmatically stores an absolute path relative to the directory of the example.
@@ -132,9 +146,31 @@ Future<void> mainSequence() async {
   // TODO: sweep loop (FileGlobals.Configurations.Generator.RFSGConfig.CarrierFrequency_Hz, FileGlobals.Configurations.Generator.RFSGConfig.DutAverageInputPower_dBm, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Name) not exported; the body runs once
   {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await configure(); // Apply Configurations
+    applyConfigurationsResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    applyConfigurationsResult.Status =
+        await configure(); // Apply Configurations
+    applyConfigurationsResult.Status =
+        applyConfigurationsResult.Status == 'Done'
+        ? 'Passed'
+        : applyConfigurationsResult.Status; // status expression
+    run.record(applyConfigurationsResult.Status);
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await measure(); // Measure Results
+    measureResultsResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    measureResultsResult.Status = await measure(); // Measure Results
+    measureResultsResult.Status = measureResultsResult.Status == 'Done'
+        ? 'Passed'
+        : measureResultsResult.Status; // status expression
+    run.record(measureResultsResult.Status);
     fileGlobals.Current_Sweep_Step.Input_and_Output.DUT_Serial =
         runState.Root.Locals.UUT.SerialNumber; // Store Serial Number in Output
     // Record the results record to disk
@@ -162,10 +198,14 @@ Future<void> mainSequence() async {
   // With theData Streams API, the reference to the output stream file is closed.
   fileGlobals.OutputFile.AsOutputRecordStream
       .Close(); // Close Output Stream Reference
+
+  return run.status;
 }
 
 /// Sequence `Configure`.
-Future<void> configure() async {
+Future<String> configure() async {
+  final run = ts.SequenceRun();
+
   // ── setup ──
   // Applies all configurations that are dependent upon calculated or previous values to the correct variables
   fileGlobals
@@ -376,12 +416,16 @@ Future<void> configure() async {
           .Generator
           .RFSGConfig
           .DutAverageInputPower_dBm; // Map Input Power
+
+  return run.status;
 }
 
 /// Sequence `Measure`.
-Future<void> measure() async {
+Future<String> measure() async {
   String currentMeasurement = ''; // Str
   List<dynamic> measurementNames = <dynamic>['EVM', 'SEM']; // Strs
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   ts.eval(
@@ -576,16 +620,22 @@ Future<void> measure() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration',
   ); // RFSG Abort Generation [Action]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: NameOf(Step)
   // popup message: @"If this is your first time opening this example sequence, please make sure to check the following: | - To use the proper RF devices, in the Variable pane navigate to FileGlobals.Static_Station_Configs.Device_Names  |   and enter the device identifiers there.  | - When using a PXIe 5830/31 enter the respective portnames in FileGlobals.Configurations.Analyzer.Common_Config.SelectedPorts and in |   FileGlobals.Configurations.Generator.RFSGConfig.SelectedPorts. | - You can change the waveform configuration under FileGlobals.Static_Station_Configs.Waveform_Configs.  | - All other Analyzer and Generator configurations can be found in the Configurations Container. | - The sequence will write a CSV result file in <./DataFiles/Results/>. You can change the parameters and measurements written to the file in  |   FileGlobals.Current_Sweep_Step.Input_and_Output and by adapting the 'Map Results' expression step in the Measure subsequence. | Feel free to keep this message from appearing next time you load the sequence by removing the 'SequenceFileLoad' callback from the Sequences pane."
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // First Launch Message [MessagePopup]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -851,8 +901,6 @@ void register() {
   //   dotNet call: NationalInstruments.RFmx.InstrMX.RFmxLteMXExtension.GetLteSignalConfiguration
   //   dotNet call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration
   //   sweep loop "Sweep Loop": parameter sweep not exported
-  //   status expression of step "Apply Configurations" not exported
-  //   status expression of step "Measure Results" not exported
   //   RunState engine access (no engine at run time)
   //   step type NI_WriteRecord: action not exported yet
   //   dotNet call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close
@@ -878,11 +926,11 @@ void register() {
   //   dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxLTE.FetchModAcc
   //   dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

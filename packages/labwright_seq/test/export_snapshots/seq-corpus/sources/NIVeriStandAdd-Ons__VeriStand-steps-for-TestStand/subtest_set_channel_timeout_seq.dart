@@ -12,7 +12,9 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+
   throw UnimplementedError(
     'step type SetChannelFaultValue: action not exported yet',
   ); // Set Channel Fault Value [SetChannelFaultValue]
@@ -29,6 +31,8 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type ClearFault: action not exported yet',
   ); // Clear Fault [ClearFault]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -55,6 +59,6 @@ void register() {
   //   step type SetChannelValue: action not exported yet
   //   step type ClearFault: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

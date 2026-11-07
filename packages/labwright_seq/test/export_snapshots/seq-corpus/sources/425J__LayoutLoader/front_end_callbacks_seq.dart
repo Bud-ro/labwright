@@ -12,10 +12,18 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `LoginLogout`.
-Future<void> loginLogout({
+Future<String> loginLogout({
   bool logout = false,
   bool isInitialLogin = false,
 }) async {
+  final run = ts.SequenceRun();
+  dynamic restartResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Restart
+
   // custom flow: if (True) Goto -> <End> else Next
   if (logout) {
     // precondition of Logout
@@ -31,15 +39,33 @@ Future<void> loginLogout({
     'RunState.Engine.CurrentUser.AsPropertyObject.Attributes.Exists("UIConfig", PropOption_NoOptions)',
   )) {
     // precondition of Restart
-    await restart(); // Restart
+    restartResult.Status = await restart(); // Restart
+    restartResult.Status = restartResult.Status == 'Done'
+        ? 'Passed'
+        : restartResult.Status; // status expression
+    run.record(restartResult.Status);
+  } else {
+    restartResult.Status = 'Skipped';
   }
+
+  return run.status;
 }
 
 /// Sequence `Restart`.
-Future<void> restart() async {
+Future<String> restart() async {
   String currentUiConfigFilePath = ''; // Path
   String newUiConfigPath = ''; // Path
   bool newUiConfigExists = false; // Bool — default: false
+
+  final run = ts.SequenceRun();
+  dynamic messageResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message
 
   if (ts.cond(
     '#NoValidation(FindFile(RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\\\\CurrentUIConfigFilePath.log"))',
@@ -78,12 +104,16 @@ Future<void> restart() async {
       throw UnimplementedError(
         'step type MessagePopup: action not exported yet',
       ); // Message [MessagePopup]
+      messageResult.Status = 'Done';
+      run.record(messageResult.Status);
       // runs executable: Restart.bat "\"" + RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\" \"" + RunState.Engine.CurrentUser.AsPropertyObject.Attributes.UIConfig + "\" \"" + RunState.Engine.GetEnvironmentPath() + "\"" (WAIT_NONE)
       throw UnimplementedError(
         'step type CallExecutable: action not exported yet',
       ); // Restart [CallExecutable]
     }
   }
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -109,7 +139,6 @@ void register() {
   //   cModule call: Logout
   //   flow action of step "Login" (Next/Next) not exported
   //   cModule call: Login
-  //   status expression of step "Restart" not exported
   //   untranslated expression in body
   //   dotNet call: System.IO.File.ReadAllText
   //   dotNet call: System.Environment.ExpandEnvironmentVariables
@@ -119,6 +148,6 @@ void register() {
   //   step type MessagePopup: action not exported yet
   //   step type CallExecutable: action not exported yet
   lw.skipTest('LoginLogout', () async {
-    await loginLogout();
+    lw.expect(await loginLogout(), 'Passed');
   });
 }

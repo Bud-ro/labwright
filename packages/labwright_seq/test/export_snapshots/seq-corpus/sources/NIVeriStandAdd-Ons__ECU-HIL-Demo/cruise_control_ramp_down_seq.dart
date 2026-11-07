@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   List<dynamic> tdmsFile = <dynamic>['']; // Strs
   dynamic diAdemRef = ts.PropObj({
     'CommandReference': null,
@@ -24,6 +24,37 @@ Future<void> mainSequence() async {
     'gatewayIP': 'localhost',
   }); // Obj
 
+  final run = ts.SequenceRun();
+  dynamic rtSequencePassFailTestResult = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of RT Sequence Pass/Fail Test
+  dynamic ccRampDownResult = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of CC ramp down
+  dynamic stopVsLoggingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Location': <dynamic>[]}),
+  }); // result of Stop VS Logging
+
   // ── setup ──
   throw UnimplementedError(
     'step type InitializeVeriStand: action not exported yet',
@@ -33,6 +64,11 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+  rtSequencePassFailTestResult.Status =
+      ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(rtSequencePassFailTestResult.Status);
 
   // ── main ──
   throw UnimplementedError(
@@ -43,10 +79,16 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // CC ramp down [RunRTSequencePassFail]
+  ccRampDownResult.Status = ts.truthy(ccRampDownResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(ccRampDownResult.Status);
   throw UnimplementedError(
     'step type StopLogging: action not exported yet',
   ); // Stop VS Logging [StopLogging]
-  tdmsFile = step.Result.Veristand.Location; // post-expression
+  tdmsFile = stopVsLoggingResult.Veristand.Location; // post-expression
+  stopVsLoggingResult.Status = 'Done';
+  run.record(stopVsLoggingResult.Status);
   // failure does NOT fail the sequence
   throw UnimplementedError(
     'step type DIAdem_OpenReference: action not exported yet',
@@ -59,6 +101,8 @@ Future<void> mainSequence() async {
     'step type DIAdem_RunScript: action not exported yet',
   ); // Run Script [DIAdem_RunScript]
   await Future<void>.delayed(const Duration(seconds: 1));
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -94,16 +138,13 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type InitializeVeriStand: action not exported yet
-  //   status expression of step "RT Sequence Pass/Fail Test" not exported
   //   step type RunRTSequencePassFail: action not exported yet
   //   step type StartLogging: action not exported yet
-  //   status expression of step "CC ramp down" not exported
   //   step type StopLogging: action not exported yet
-  //   Step engine access (no engine at run time)
   //   step type DIAdem_OpenReference: action not exported yet
   //   step type DIAdem_ExportChannels: action not exported yet
   //   step type DIAdem_RunScript: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `Convert`.
-Future<void> convert() async {
+Future<String> convert() async {
   List<dynamic> tmpPaths = <dynamic>[]; // Strs
   dynamic tags = ts.PropObj({
     'Front': '<?xml-stylesheet type="text/xsl" href="',
@@ -26,6 +26,8 @@ Future<void> convert() async {
   dynamic xml = null; // Ref
   dynamic xsl = null; // Ref
   bool success = false; // Bool — default: false
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // custom flow: if (Locals.Success) Next else Goto -> <Cleanup>
@@ -91,6 +93,8 @@ Future<void> convert() async {
   // ── cleanup ──
   xml = null; // Release
   xsl = null; // Release (cont.)
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -129,6 +133,6 @@ void register() {
   //   cModule call: Transform
   //   dotNet call: System.IO.File.WriteAllText
   lw.skipTest('Convert', () async {
-    await convert();
+    lw.expect(await convert(), 'Passed');
   });
 }

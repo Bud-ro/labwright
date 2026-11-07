@@ -17,8 +17,76 @@ import 'subtest_set_channel_timeout_seq.dart'
     as subtest_set_channel_timeout_seq;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
+
+  final run = ts.SequenceRun();
+  dynamic channelValueLimitTestResult = ts.PropObj({
+    'Veristand': ts.PropObj({
+      'ChannelName': '',
+      'Description': '',
+      'ChannelInfo': null,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'VeristandError': null,
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Channel Value Limit Test
+  dynamic setChannelTimeoutSubtestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Set Channel Timeout Subtest
+  dynamic extendedRtSequenceTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Extended RT Sequence Test
+  dynamic testSequenceParametersReturnValuesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Test sequence parameters & return values
+  dynamic rtSequencePassFailTestResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of RT Sequence Pass/Fail Test
+  dynamic rtSequenceNumericLimitResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Numeric': 0,
+    'Units': '',
+  }); // result of RT Sequence Numeric Limit
+  dynamic callSubsequenceSeperateFileResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Subsequence (seperate file)
+  dynamic callSubsequenceSameFileResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Subsequence (same file)
+  dynamic silentDisconnectTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Silent disconnect test
 
   // ── setup ──
   throw UnimplementedError(
@@ -41,6 +109,13 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type LimitTestChannelValue: action not exported yet',
   ); // Channel Value Limit Test [LimitTestChannelValue]
+  channelValueLimitTestResult.Status = ts.checkLimits(
+    channelValueLimitTestResult.Numeric,
+    11,
+    1,
+    'EQ',
+  ); // status expression
+  run.record(channelValueLimitTestResult.Status);
   throw UnimplementedError(
     'step type SetMultipleChannelValues: action not exported yet',
   ); // Set Multiple Channel Values [SetMultipleChannelValues]
@@ -49,12 +124,23 @@ Future<void> mainSequence() async {
   ); // Get Multiple Channel Values [GetMultipleChannelValues]
   // label:
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await subtest_set_channel_timeout_seq
+  setChannelTimeoutSubtestResult.Status = await subtest_set_channel_timeout_seq
       .mainSequence(); // Set Channel Timeout Subtest: external sequence
+  setChannelTimeoutSubtestResult.Status =
+      setChannelTimeoutSubtestResult.Status == 'Done'
+      ? 'Passed'
+      : setChannelTimeoutSubtestResult.Status; // status expression
+  run.record(setChannelTimeoutSubtestResult.Status);
   // [skipped in source] Extended RT Sequence Test
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await subtest_rt_sequence_parameter_return_test_seq
+  testSequenceParametersReturnValuesResult
+      .Status = await subtest_rt_sequence_parameter_return_test_seq
       .mainSequence(); // Test sequence parameters & return values: external sequence
+  testSequenceParametersReturnValuesResult.Status =
+      testSequenceParametersReturnValuesResult.Status == 'Done'
+      ? 'Passed'
+      : testSequenceParametersReturnValuesResult.Status; // status expression
+  run.record(testSequenceParametersReturnValuesResult.Status);
   // label:
   throw UnimplementedError(
     'step type CloseWorkspace: action not exported yet',
@@ -67,11 +153,22 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+  rtSequencePassFailTestResult.Status =
+      ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
   // checks: Step.Result.Numeric EQ [low 10, high 1, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
   throw UnimplementedError(
     'step type RunRTSequenceNumericLimit: action not exported yet',
   ); // RT Sequence Numeric Limit [RunRTSequenceNumericLimit]
+  rtSequenceNumericLimitResult.Status = ts.checkLimits(
+    rtSequenceNumericLimitResult.Numeric,
+    1,
+    10,
+    'EQ',
+  ); // status expression
+  run.record(rtSequenceNumericLimitResult.Status);
   throw UnimplementedError(
     'step type RunRTSequenceAction: action not exported yet',
   ); // Test RT Sequence Timeout [RunRTSequenceAction]
@@ -139,10 +236,21 @@ Future<void> mainSequence() async {
   ); // Test Stimulus Profile Timeout [RunStimulusProfileBlocking]
   // label:
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await main_sub_seq
+  callSubsequenceSeperateFileResult.Status = await main_sub_seq
       .mainSequence(); // Call Subsequence (seperate file): external sequence
+  callSubsequenceSeperateFileResult.Status =
+      callSubsequenceSeperateFileResult.Status == 'Done'
+      ? 'Passed'
+      : callSubsequenceSeperateFileResult.Status; // status expression
+  run.record(callSubsequenceSeperateFileResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await subsequence(); // Call Subsequence (same file)
+  callSubsequenceSameFileResult.Status =
+      await subsequence(); // Call Subsequence (same file)
+  callSubsequenceSameFileResult.Status =
+      callSubsequenceSameFileResult.Status == 'Done'
+      ? 'Passed'
+      : callSubsequenceSameFileResult.Status; // status expression
+  run.record(callSubsequenceSameFileResult.Status);
   // label:
   // [skipped in source] Silent disconnect test
 
@@ -154,34 +262,106 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type CallExecutable: action not exported yet',
   ); // Call Executable [CallExecutable]
+
+  return run.status;
 }
 
 /// Sequence `PreUUT` — Displays a dialog box in which the operator enters the UUTserial number.  Override this in client file to change or replace this action..
-Future<void> preUut({
+Future<String> preUut({
   bool continueTesting = true,
   dynamic uut,
   dynamic testSocket,
   dynamic modelData,
   dynamic modelPluginConfiguration,
 }) async {
+  final run = ts.SequenceRun();
+  dynamic callDoPreUutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call DoPreUUT
+
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
   // [skipped in source] Call DoPreUUT
+
+  return run.status;
 }
 
 /// Sequence `PostUUT` — Displays a pass, fail, error, or terminated banner. Override this in client file to change or replace this action..
-Future<void> postUut({
+Future<String> postUut({
   dynamic result,
   dynamic uut,
   dynamic testSocket,
   dynamic modelData,
   dynamic modelPluginConfiguration,
 }) async {
+  final run = ts.SequenceRun();
+  dynamic callDoPostUutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call DoPostUUT
+
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
   // [skipped in source] Call DoPostUUT
+
+  return run.status;
 }
 
 /// Sequence `Subsequence`.
-Future<void> subsequence() async {
+Future<String> subsequence() async {
+  final run = ts.SequenceRun();
+  dynamic channelValueLimitTestResult = ts.PropObj({
+    'Veristand': ts.PropObj({
+      'ChannelName': '',
+      'Description': '',
+      'ChannelInfo': null,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'VeristandError': null,
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Channel Value Limit Test
+  dynamic setChannelTimeoutSubtestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Set Channel Timeout Subtest
+  dynamic extendedRtSequenceTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Extended RT Sequence Test
+  dynamic testSequenceParametersReturnValuesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Test sequence parameters & return values
+  dynamic rtSequencePassFailTestResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of RT Sequence Pass/Fail Test
+  dynamic rtSequenceNumericLimitResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Numeric': 0,
+    'Units': '',
+  }); // result of RT Sequence Numeric Limit
+
   throw UnimplementedError(
     'step type OpenWorkspace: action not exported yet',
   ); // OpenWorkspace [OpenWorkspace]
@@ -196,6 +376,13 @@ Future<void> subsequence() async {
   throw UnimplementedError(
     'step type LimitTestChannelValue: action not exported yet',
   ); // Channel Value Limit Test [LimitTestChannelValue]
+  channelValueLimitTestResult.Status = ts.checkLimits(
+    channelValueLimitTestResult.Numeric,
+    11,
+    1,
+    'EQ',
+  ); // status expression
+  run.record(channelValueLimitTestResult.Status);
   throw UnimplementedError(
     'step type SetMultipleChannelValues: action not exported yet',
   ); // Set Multiple Channel Values [SetMultipleChannelValues]
@@ -204,12 +391,23 @@ Future<void> subsequence() async {
   ); // Get Multiple Channel Values [GetMultipleChannelValues]
   // label:
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await subtest_set_channel_timeout_seq
+  setChannelTimeoutSubtestResult.Status = await subtest_set_channel_timeout_seq
       .mainSequence(); // Set Channel Timeout Subtest: external sequence
+  setChannelTimeoutSubtestResult.Status =
+      setChannelTimeoutSubtestResult.Status == 'Done'
+      ? 'Passed'
+      : setChannelTimeoutSubtestResult.Status; // status expression
+  run.record(setChannelTimeoutSubtestResult.Status);
   // [skipped in source] Extended RT Sequence Test
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await subtest_rt_sequence_parameter_return_test_seq
+  testSequenceParametersReturnValuesResult
+      .Status = await subtest_rt_sequence_parameter_return_test_seq
       .mainSequence(); // Test sequence parameters & return values: external sequence
+  testSequenceParametersReturnValuesResult.Status =
+      testSequenceParametersReturnValuesResult.Status == 'Done'
+      ? 'Passed'
+      : testSequenceParametersReturnValuesResult.Status; // status expression
+  run.record(testSequenceParametersReturnValuesResult.Status);
   // label:
   throw UnimplementedError(
     'step type CloseWorkspace: action not exported yet',
@@ -222,11 +420,22 @@ Future<void> subsequence() async {
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+  rtSequencePassFailTestResult.Status =
+      ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
   // checks: Step.Result.Numeric EQ [low 10, high 1, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
   throw UnimplementedError(
     'step type RunRTSequenceNumericLimit: action not exported yet',
   ); // RT Sequence Numeric Limit [RunRTSequenceNumericLimit]
+  rtSequenceNumericLimitResult.Status = ts.checkLimits(
+    rtSequenceNumericLimitResult.Numeric,
+    1,
+    10,
+    'EQ',
+  ); // status expression
+  run.record(rtSequenceNumericLimitResult.Status);
   throw UnimplementedError(
     'step type RunRTSequenceAction: action not exported yet',
   ); // Test RT Sequence Timeout [RunRTSequenceAction]
@@ -292,6 +501,8 @@ Future<void> subsequence() async {
   throw UnimplementedError(
     'step type RunStimulusProfileBlocking: action not exported yet',
   ); // Test Stimulus Profile Timeout [RunStimulusProfileBlocking]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -330,18 +541,13 @@ void register() {
   //   step type OpenWorkspace: action not exported yet
   //   step type SetChannelValue: action not exported yet
   //   step type GetChannelValue: action not exported yet
-  //   status expression of step "Channel Value Limit Test" not exported
   //   step type LimitTestChannelValue: action not exported yet
   //   step type SetMultipleChannelValues: action not exported yet
   //   step type GetMultipleChannelValues: action not exported yet
-  //   status expression of step "Set Channel Timeout Subtest" not exported
   //   cross-file sequence MainSequence (see its module TODOs)
-  //   status expression of step "Test sequence parameters & return values" not exported
   //   step type CloseWorkspace: action not exported yet
   //   step type RunRTSequenceAction: action not exported yet
-  //   status expression of step "RT Sequence Pass/Fail Test" not exported
   //   step type RunRTSequencePassFail: action not exported yet
-  //   status expression of step "RT Sequence Numeric Limit" not exported
   //   step type RunRTSequenceNumericLimit: action not exported yet
   //   step type SetAlarmState: action not exported yet
   //   step type GetAlarmState: action not exported yet
@@ -355,12 +561,10 @@ void register() {
   //   step type GetModelParameterValue: action not exported yet
   //   step type StopLogging: action not exported yet
   //   step type RunStimulusProfileBlocking: action not exported yet
-  //   status expression of step "Call Subsequence (seperate file)" not exported
-  //   status expression of step "Call Subsequence (same file)" not exported
   //   step type StopVeriStand: action not exported yet
   //   step type CallExecutable: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
@@ -368,7 +572,7 @@ void register() {
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('PreUUT', () async {
-    await preUut();
+    lw.expect(await preUut(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'Result' is an engine object (nothing binds it when run as a test)
@@ -377,6 +581,6 @@ void register() {
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('PostUUT', () async {
-    await postUut();
+    lw.expect(await postUut(), 'Passed');
   });
 }

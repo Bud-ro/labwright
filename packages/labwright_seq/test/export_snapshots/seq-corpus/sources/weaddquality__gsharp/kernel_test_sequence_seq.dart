@@ -9,191 +9,1248 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic tcA010011ObjectCreationBaseClass10ObjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-001-1 Object creation base class 10 obj
+  dynamic tcA010012ObjectCreationBaseClass50ObjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-001-2 Object creation base class 50 obj
+  dynamic tcA010013ObjectCreationBaseClass300ObjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-001-3 Object creation base class 300 obj
+  dynamic tcA010014ObjectCreationBaseClass10ObjExtCreateResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-001-4 Object creation base class 10 obj Ext Create
+  dynamic tcA010021ObjectCreationSubClass10ObjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-002-1 Object creation sub class 10 obj
+  dynamic tcA010022ObjectCreationSubClass50ObjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-002-2 Object creation sub class 50 obj
+  dynamic tcA010023ObjectCreationSubClass300ObjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-002-3 Object creation sub class 300 obj
+  dynamic tcA010024ObjectCreationSubClass10ObjExtCreateResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-002-4 Object creation sub class 10 obj Ext Create
+  dynamic tcA010031ObjectCreationMultipleClasses1ObjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-003-1 Object creation multiple classes 1 obj
+  dynamic tcA010032ObjectCreationMultipleClasses50ObjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-003-2 Object creation multiple classes 50 obj
+  dynamic tcA010033ObjectCreationMultipleClasses100OvjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-003-3 Object creation multiple classes 100 ovj
+  dynamic tcA010041ObjectCreationDefaultConstructorResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-004-1 Object creation default constructor
+  dynamic tcA010042ObjectCreationDefaultConstructorExtCreateResult = ts.PropObj(
+    {
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'PassFail': true,
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    },
+  ); // result of TcA01-004-2 Object creation default constructor Ext Create
+  dynamic tcA010051ObjectCreationGenericCreateResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-005-1 Object creation generic create
+  dynamic tcA010052ObjectCreationGenericCreateExtCreateResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-005-2 Object creation generic create Ext Create
+  dynamic tcA010061ObjectsCanBeNamedWhenCreatedResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-006-1 Objects can be named when created
+  dynamic tcA010062ObjectsCanBeNamedWhenCreatedResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-006-2 Objects can be named when created
+  dynamic tcA010063ObjectsCanBeNamedWhenCreatedResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-006-3 Objects can be named when created
+  dynamic tcA010064ObjectsCanBeNamedWhenCreatedResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-006-4 Objects can be named when created
+  dynamic tcA010065ObjectsCanBeNamedWhenCreatedResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-006-5 Objects can be named when created
+  dynamic tcA010071ObjectsCanBeLookedUpByNameResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-007-1 Objects can be looked up by name
+  dynamic tcA010072ObjectsCanBeLookedUpByNameExtCreateResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-007-2 Objects can be looked up by name Ext Create
+  dynamic tcA010081NameObjectsWithUserCounterResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-008-1 Name Objects with User Counter
+  dynamic tcA010091ObjectCreationWithNoRegistration10ObjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-009-1 Object creation with no registration 10 obj
+  dynamic tcA010101GarbageCollectorWithSameOwnerResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-010-1 Garbage Collector with same owner
+  dynamic tcA020011ReadingLockingSettingAttributesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA02-001-1 Reading Locking Setting Attributes
+  dynamic tcA020021ModifyingAttributesFromInheritedMethodsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA02-002-1 Modifying attributes from inherited methods
+  dynamic
+  tcA020031ModifyingObjectAttributesMultipleTimes1Obj100TimesResult = ts.PropObj(
+    {
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'PassFail': true,
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    },
+  ); // result of TcA02-003-1 Modifying object attributes multiple times 1 obj 100 times
+  dynamic
+  tcA020032ModifyingObjectAttributesMultipleTimes10Obj10TimesResult = ts.PropObj(
+    {
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'PassFail': true,
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    },
+  ); // result of TcA02-003-2 Modifying object attributes multiple times 10 obj 10 times
+  dynamic
+  tcA020043AttributesCouldBeModifiedFasterThatGoop1100Obj100TimesResult =
+      ts.PropObj(
+        {
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'PassFail': true,
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        },
+      ); // result of TcA02-004-3 Attributes could be modified faster that GOOP1 100 obj 100 times
+  dynamic tcA020052AttributesCouldBeResizedFasterThatGoop110Obj1000TimesResult =
+      ts.PropObj(
+        {
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'PassFail': true,
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        },
+      ); // result of TcA02-005-2 Attributes could be resized faster that GOOP1 10 obj 1000 times
+  dynamic
+  tcA020071AttributesCanBeUnlockedWithoutBeingModifiedResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA02-007-1 Attributes can be unlocked without being modified
+  dynamic tcA020081MutualExclusionWhenModifyingAttributesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA02-008-1 Mutual exclusion when modifying attributes
+  dynamic tcA020091TimeoutWhenWaitingForModifyingAttributesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA02-009-1 Timeout when waiting for modifying attributes
+  dynamic tcA030021ReadingLockingAndSettingClassAttributesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA03-002-1 Reading, locking and setting class attributes
+  dynamic
+  tcA030022ReadingLockingAndSettingClassAttributesExtCreatorResult = ts.PropObj(
+    {
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'PassFail': true,
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    },
+  ); // result of TcA03-002-2 Reading, locking and setting class attributes Ext Creator
+  dynamic
+  tcA030031MutualExclustionWhenModifyingClassAttributesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA03-003-1 Mutual exclustion when modifying class attributes
+  dynamic
+  tcA030032MutualExclustionWhenModifyingClassAttributesExtCreatorResult =
+      ts.PropObj(
+        {
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'PassFail': true,
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        },
+      ); // result of TcA03-003-2 Mutual exclustion when modifying class attributes Ext Creator
+  dynamic
+  tcA030061ClassAttributesCanBeUnlockedWithoutBeingModifiedResult = ts.PropObj(
+    {
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'PassFail': true,
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    },
+  ); // result of TcA03-006-1 Class attributes can be unlocked without being modified
+  dynamic
+  tcA030062ClassAttributesCanBeUnlockedWithoutBeingModifiedExtCreatorResult =
+      ts.PropObj(
+        {
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'PassFail': true,
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        },
+      ); // result of TcA03-006-2 Class attributes can be unlocked without being modified Ext Creator
+  dynamic
+  tcA030071TimeoutWhenWaitingForModifyingClassAttributesResult = ts.PropObj(
+    {
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'PassFail': true,
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    },
+  ); // result of TcA03-007-1 Timeout when waiting for modifying class attributes
+  dynamic tcA040012DynamicallyCallSubClassMethods10ObjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA04-001-2 Dynamically call sub class methods 10 obj
+  dynamic tcA040041NestedObjectsCallsDynamicMethodsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA04-004-1 Nested objects calls dynamic methods
+  dynamic tcA050011ImplementingInterfacesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA05-001-1 Implementing Interfaces
+  dynamic tcA060021DestroyedReferenceErrorHandlingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA06-002-1 Destroyed reference error handling
+  dynamic tcA060031ConstructorErrorHandlingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA06-003-1 Constructor error handling
+  dynamic tcA060041ObjectsAreDestroyedEvenIfErrorIn1ObjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA06-004-1 Objects are destroyed even if error in 1 obj
+  dynamic tcA060042ObjectsAreDestroyedEvenIfErrorIn10ObjResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA06-004-2 Objects are destroyed even if error in 10 obj
+  dynamic tcA060051MissingAbstractMethodResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA06-005-1 Missing abstract method
+  dynamic tcA070011ObjectStatusInformationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA07-001-1 Object status information
+  dynamic tcA070021SupportMethodsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA07-002-1 Support methods
+  dynamic tcA070031SerializationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA07-003-1 Serialization
+  dynamic tcA070032SerializationWithFileResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA07-003-2 Serialization with file
+  dynamic tcA070033SerializationXmlResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA07-003-3 Serialization XML
+  dynamic tcA070034SerializationWithFileXmlResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA07-003-4 Serialization with file XML
+  dynamic tcA070041GenericOpenResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA07-004-1 Generic Open
+  dynamic tcA070042GenericOpenExtCreatorResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA07-004-2 Generic Open Ext Creator
+  dynamic tcA070051InterfaceSupportMethodsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA07-005-1 Interface Support Methods
+  dynamic tcA070061CastFromLabViewObjectResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA07-006-1 Cast from LabVIEW Object
+  dynamic tcA010111CloneObjectResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of TcA01-011-1 Clone Object
+
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01001ObjectCreationAndDestructionOfBaseclass(); // TcA01-001-1 Object creation base class 10 obj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010011ObjectCreationBaseClass10ObjResult.Status =
+      ts.truthy(tcA010011ObjectCreationBaseClass10ObjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010011ObjectCreationBaseClass10ObjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01001ObjectCreationAndDestructionOfBaseclass(); // TcA01-001-2 Object creation base class 50 obj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010012ObjectCreationBaseClass50ObjResult.Status =
+      ts.truthy(tcA010012ObjectCreationBaseClass50ObjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010012ObjectCreationBaseClass50ObjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 3; // pre-expression
   await callTcA01001ObjectCreationAndDestructionOfBaseclass(); // TcA01-001-3 Object creation base class 300 obj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010013ObjectCreationBaseClass300ObjResult.Status =
+      ts.truthy(tcA010013ObjectCreationBaseClass300ObjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010013ObjectCreationBaseClass300ObjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 4; // pre-expression
   await callTcA01001ObjectCreationAndDestructionOfBaseclass(); // TcA01-001-4 Object creation base class 10 obj Ext Create [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010014ObjectCreationBaseClass10ObjExtCreateResult.Status =
+      ts.truthy(tcA010014ObjectCreationBaseClass10ObjExtCreateResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010014ObjectCreationBaseClass10ObjExtCreateResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01002ObjectCreationAndDestructionOfSubclass(); // TcA01-002-1 Object creation sub class 10 obj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010021ObjectCreationSubClass10ObjResult.Status =
+      ts.truthy(tcA010021ObjectCreationSubClass10ObjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010021ObjectCreationSubClass10ObjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01002ObjectCreationAndDestructionOfSubclass(); // TcA01-002-2 Object creation sub class 50 obj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010022ObjectCreationSubClass50ObjResult.Status =
+      ts.truthy(tcA010022ObjectCreationSubClass50ObjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010022ObjectCreationSubClass50ObjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 3; // pre-expression
   await callTcA01002ObjectCreationAndDestructionOfSubclass(); // TcA01-002-3 Object creation sub class 300 obj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010023ObjectCreationSubClass300ObjResult.Status =
+      ts.truthy(tcA010023ObjectCreationSubClass300ObjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010023ObjectCreationSubClass300ObjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 4; // pre-expression
   await callTcA01002ObjectCreationAndDestructionOfSubclass(); // TcA01-002-4 Object creation sub class 10 obj Ext Create [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010024ObjectCreationSubClass10ObjExtCreateResult.Status =
+      ts.truthy(tcA010024ObjectCreationSubClass10ObjExtCreateResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010024ObjectCreationSubClass10ObjExtCreateResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01003ObjectCreationAndDestructionOfMultipleClasses(); // TcA01-003-1 Object creation multiple classes 1 obj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010031ObjectCreationMultipleClasses1ObjResult.Status =
+      ts.truthy(tcA010031ObjectCreationMultipleClasses1ObjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010031ObjectCreationMultipleClasses1ObjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01003ObjectCreationAndDestructionOfMultipleClasses(); // TcA01-003-2 Object creation multiple classes 50 obj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010032ObjectCreationMultipleClasses50ObjResult.Status =
+      ts.truthy(tcA010032ObjectCreationMultipleClasses50ObjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010032ObjectCreationMultipleClasses50ObjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 3; // pre-expression
   await callTcA01003ObjectCreationAndDestructionOfMultipleClasses(); // TcA01-003-3 Object creation multiple classes 100 ovj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010033ObjectCreationMultipleClasses100OvjResult.Status =
+      ts.truthy(tcA010033ObjectCreationMultipleClasses100OvjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010033ObjectCreationMultipleClasses100OvjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01004ObjectCreationAndDestructionWithDefaultConstructor(); // TcA01-004-1 Object creation default constructor [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010041ObjectCreationDefaultConstructorResult.Status =
+      ts.truthy(tcA010041ObjectCreationDefaultConstructorResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010041ObjectCreationDefaultConstructorResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01004ObjectCreationAndDestructionWithDefaultConstructor(); // TcA01-004-2 Object creation default constructor Ext Create [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010042ObjectCreationDefaultConstructorExtCreateResult.Status =
+      ts.truthy(
+        tcA010042ObjectCreationDefaultConstructorExtCreateResult.PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010042ObjectCreationDefaultConstructorExtCreateResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01005ObjectCreationAndDestructionWithGenericConstructor(); // TcA01-005-1 Object creation generic create [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010051ObjectCreationGenericCreateResult.Status =
+      ts.truthy(tcA010051ObjectCreationGenericCreateResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010051ObjectCreationGenericCreateResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01005ObjectCreationAndDestructionWithGenericConstructor(); // TcA01-005-2 Object creation generic create Ext Create [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010052ObjectCreationGenericCreateExtCreateResult.Status =
+      ts.truthy(tcA010052ObjectCreationGenericCreateExtCreateResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010052ObjectCreationGenericCreateExtCreateResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01006ObjectsCanBeNamedWhenCreated(); // TcA01-006-1 Objects can be named when created [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010061ObjectsCanBeNamedWhenCreatedResult.Status =
+      ts.truthy(tcA010061ObjectsCanBeNamedWhenCreatedResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010061ObjectsCanBeNamedWhenCreatedResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01006ObjectsCanBeNamedWhenCreated(); // TcA01-006-2 Objects can be named when created [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010062ObjectsCanBeNamedWhenCreatedResult.Status =
+      ts.truthy(tcA010062ObjectsCanBeNamedWhenCreatedResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010062ObjectsCanBeNamedWhenCreatedResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 3; // pre-expression
   await callTcA01006ObjectsCanBeNamedWhenCreated(); // TcA01-006-3 Objects can be named when created [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010063ObjectsCanBeNamedWhenCreatedResult.Status =
+      ts.truthy(tcA010063ObjectsCanBeNamedWhenCreatedResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010063ObjectsCanBeNamedWhenCreatedResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 4; // pre-expression
   await callTcA01006ObjectsCanBeNamedWhenCreated(); // TcA01-006-4 Objects can be named when created [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010064ObjectsCanBeNamedWhenCreatedResult.Status =
+      ts.truthy(tcA010064ObjectsCanBeNamedWhenCreatedResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010064ObjectsCanBeNamedWhenCreatedResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 5; // pre-expression
   await callTcA01006ObjectsCanBeNamedWhenCreated(); // TcA01-006-5 Objects can be named when created [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010065ObjectsCanBeNamedWhenCreatedResult.Status =
+      ts.truthy(tcA010065ObjectsCanBeNamedWhenCreatedResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010065ObjectsCanBeNamedWhenCreatedResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01007ObjectsCanBeLookedUpByName(); // TcA01-007-1 Objects can be looked up by name [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010071ObjectsCanBeLookedUpByNameResult.Status =
+      ts.truthy(tcA010071ObjectsCanBeLookedUpByNameResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010071ObjectsCanBeLookedUpByNameResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01007ObjectsCanBeLookedUpByName(); // TcA01-007-2 Objects can be looked up by name Ext Create [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010072ObjectsCanBeLookedUpByNameExtCreateResult.Status =
+      ts.truthy(tcA010072ObjectsCanBeLookedUpByNameExtCreateResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010072ObjectsCanBeLookedUpByNameExtCreateResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01008NameObjectsWithUserCounter(); // TcA01-008-1 Name Objects with User Counter [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010081NameObjectsWithUserCounterResult.Status =
+      ts.truthy(tcA010081NameObjectsWithUserCounterResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010081NameObjectsWithUserCounterResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01009ObjectCreationWithNoRegistration(); // TcA01-009-1 Object creation with no registration 10 obj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010091ObjectCreationWithNoRegistration10ObjResult.Status =
+      ts.truthy(tcA010091ObjectCreationWithNoRegistration10ObjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010091ObjectCreationWithNoRegistration10ObjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01010GarbageCollectorWithSameOwner(); // TcA01-010-1 Garbage Collector with same owner [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010101GarbageCollectorWithSameOwnerResult.Status =
+      ts.truthy(tcA010101GarbageCollectorWithSameOwnerResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010101GarbageCollectorWithSameOwnerResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA02001ReadingLockingAndSettingAnObjectsAttributes(); // TcA02-001-1 Reading Locking Setting Attributes [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA020011ReadingLockingSettingAttributesResult.Status =
+      ts.truthy(tcA020011ReadingLockingSettingAttributesResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA020011ReadingLockingSettingAttributesResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA02002ModifyingObjectsAttributesFromInheritedMethods(); // TcA02-002-1 Modifying attributes from inherited methods [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA020021ModifyingAttributesFromInheritedMethodsResult.Status =
+      ts.truthy(tcA020021ModifyingAttributesFromInheritedMethodsResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA020021ModifyingAttributesFromInheritedMethodsResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA02003ModifyingObjectAttributesMultipleTimes(); // TcA02-003-1 Modifying object attributes multiple times 1 obj 100 times [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA020031ModifyingObjectAttributesMultipleTimes1Obj100TimesResult.Status =
+      ts.truthy(
+        tcA020031ModifyingObjectAttributesMultipleTimes1Obj100TimesResult
+            .PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(
+    tcA020031ModifyingObjectAttributesMultipleTimes1Obj100TimesResult.Status,
+  );
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA02003ModifyingObjectAttributesMultipleTimes(); // TcA02-003-2 Modifying object attributes multiple times 10 obj 10 times [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA020032ModifyingObjectAttributesMultipleTimes10Obj10TimesResult.Status =
+      ts.truthy(
+        tcA020032ModifyingObjectAttributesMultipleTimes10Obj10TimesResult
+            .PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(
+    tcA020032ModifyingObjectAttributesMultipleTimes10Obj10TimesResult.Status,
+  );
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 3; // pre-expression
   await callTcA02004AttributesCanBeModifiedFasterThanGoop1(); // TcA02-004-3 Attributes could be modified faster that GOOP1 100 obj 100 times [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA020043AttributesCouldBeModifiedFasterThatGoop1100Obj100TimesResult.Status =
+      ts.truthy(
+        tcA020043AttributesCouldBeModifiedFasterThatGoop1100Obj100TimesResult
+            .PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(
+    tcA020043AttributesCouldBeModifiedFasterThatGoop1100Obj100TimesResult
+        .Status,
+  );
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA02005ResizingAttributesCanBeModifiedFasterThanGoop1(); // TcA02-005-2 Attributes could be resized faster that GOOP1 10 obj 1000 times [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA020052AttributesCouldBeResizedFasterThatGoop110Obj1000TimesResult.Status =
+      ts.truthy(
+        tcA020052AttributesCouldBeResizedFasterThatGoop110Obj1000TimesResult
+            .PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(
+    tcA020052AttributesCouldBeResizedFasterThatGoop110Obj1000TimesResult.Status,
+  );
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA02007AttributesCanBeUnlockedWithoutBeingModified(); // TcA02-007-1 Attributes can be unlocked without being modified [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA020071AttributesCanBeUnlockedWithoutBeingModifiedResult.Status =
+      ts.truthy(
+        tcA020071AttributesCanBeUnlockedWithoutBeingModifiedResult.PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA020071AttributesCanBeUnlockedWithoutBeingModifiedResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA02008MutualExclusionWhenModifyingAttributes(); // TcA02-008-1 Mutual exclusion when modifying attributes [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA020081MutualExclusionWhenModifyingAttributesResult.Status =
+      ts.truthy(tcA020081MutualExclusionWhenModifyingAttributesResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA020081MutualExclusionWhenModifyingAttributesResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA02009TimeoutWhenWaitingForModifyingAttributes(); // TcA02-009-1 Timeout when waiting for modifying attributes [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA020091TimeoutWhenWaitingForModifyingAttributesResult.Status =
+      ts.truthy(
+        tcA020091TimeoutWhenWaitingForModifyingAttributesResult.PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA020091TimeoutWhenWaitingForModifyingAttributesResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA03002ReadingLockingAndSettingClassAttributes(); // TcA03-002-1 Reading, locking and setting class attributes [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA030021ReadingLockingAndSettingClassAttributesResult.Status =
+      ts.truthy(tcA030021ReadingLockingAndSettingClassAttributesResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA030021ReadingLockingAndSettingClassAttributesResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA03002ReadingLockingAndSettingClassAttributes(); // TcA03-002-2 Reading, locking and setting class attributes Ext Creator [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA030022ReadingLockingAndSettingClassAttributesExtCreatorResult.Status =
+      ts.truthy(
+        tcA030022ReadingLockingAndSettingClassAttributesExtCreatorResult
+            .PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(
+    tcA030022ReadingLockingAndSettingClassAttributesExtCreatorResult.Status,
+  );
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA03003MutualExclusionWhenModifyingClassAttributes(); // TcA03-003-1 Mutual exclustion when modifying class attributes [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA030031MutualExclustionWhenModifyingClassAttributesResult.Status =
+      ts.truthy(
+        tcA030031MutualExclustionWhenModifyingClassAttributesResult.PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(
+    tcA030031MutualExclustionWhenModifyingClassAttributesResult.Status,
+  );
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA03003MutualExclusionWhenModifyingClassAttributes(); // TcA03-003-2 Mutual exclustion when modifying class attributes Ext Creator [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA030032MutualExclustionWhenModifyingClassAttributesExtCreatorResult.Status =
+      ts.truthy(
+        tcA030032MutualExclustionWhenModifyingClassAttributesExtCreatorResult
+            .PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(
+    tcA030032MutualExclustionWhenModifyingClassAttributesExtCreatorResult
+        .Status,
+  );
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA03006ClassAttributesCanBeUnlockedWithoutBeingModified(); // TcA03-006-1 Class attributes can be unlocked without being modified [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA030061ClassAttributesCanBeUnlockedWithoutBeingModifiedResult.Status =
+      ts.truthy(
+        tcA030061ClassAttributesCanBeUnlockedWithoutBeingModifiedResult
+            .PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(
+    tcA030061ClassAttributesCanBeUnlockedWithoutBeingModifiedResult.Status,
+  );
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA03006ClassAttributesCanBeUnlockedWithoutBeingModified(); // TcA03-006-2 Class attributes can be unlocked without being modified Ext Creator [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA030062ClassAttributesCanBeUnlockedWithoutBeingModifiedExtCreatorResult
+          .Status =
+      ts.truthy(
+        tcA030062ClassAttributesCanBeUnlockedWithoutBeingModifiedExtCreatorResult
+            .PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(
+    tcA030062ClassAttributesCanBeUnlockedWithoutBeingModifiedExtCreatorResult
+        .Status,
+  );
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA03007TimeoutWhenWaitingForModifyingClassAttributes(); // TcA03-007-1 Timeout when waiting for modifying class attributes [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA030071TimeoutWhenWaitingForModifyingClassAttributesResult.Status =
+      ts.truthy(
+        tcA030071TimeoutWhenWaitingForModifyingClassAttributesResult.PassFail,
+      )
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(
+    tcA030071TimeoutWhenWaitingForModifyingClassAttributesResult.Status,
+  );
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA04001DynamicallyCallSubClassMethods(); // TcA04-001-2 Dynamically call sub class methods 10 obj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA040012DynamicallyCallSubClassMethods10ObjResult.Status =
+      ts.truthy(tcA040012DynamicallyCallSubClassMethods10ObjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA040012DynamicallyCallSubClassMethods10ObjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA04004NestedObjectsCallsDynamicMethods(); // TcA04-004-1 Nested objects calls dynamic methods [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA040041NestedObjectsCallsDynamicMethodsResult.Status =
+      ts.truthy(tcA040041NestedObjectsCallsDynamicMethodsResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA040041NestedObjectsCallsDynamicMethodsResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA05001ImplementingInterfaces(); // TcA05-001-1 Implementing Interfaces [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA050011ImplementingInterfacesResult.Status =
+      ts.truthy(tcA050011ImplementingInterfacesResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA050011ImplementingInterfacesResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA06002DestroyedReferenceErrorHandling(); // TcA06-002-1 Destroyed reference error handling [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA060021DestroyedReferenceErrorHandlingResult.Status =
+      ts.truthy(tcA060021DestroyedReferenceErrorHandlingResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA060021DestroyedReferenceErrorHandlingResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA06003ConstructorErrorHandling(); // TcA06-003-1 Constructor error handling [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA060031ConstructorErrorHandlingResult.Status =
+      ts.truthy(tcA060031ConstructorErrorHandlingResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA060031ConstructorErrorHandlingResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA06004ObjectsAreDestroyedEvenIfErrorIn(); // TcA06-004-1 Objects are destroyed even if error in 1 obj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA060041ObjectsAreDestroyedEvenIfErrorIn1ObjResult.Status =
+      ts.truthy(tcA060041ObjectsAreDestroyedEvenIfErrorIn1ObjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA060041ObjectsAreDestroyedEvenIfErrorIn1ObjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA06004ObjectsAreDestroyedEvenIfErrorIn(); // TcA06-004-2 Objects are destroyed even if error in 10 obj [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA060042ObjectsAreDestroyedEvenIfErrorIn10ObjResult.Status =
+      ts.truthy(tcA060042ObjectsAreDestroyedEvenIfErrorIn10ObjResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA060042ObjectsAreDestroyedEvenIfErrorIn10ObjResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA06005MissingAbstractMethod(); // TcA06-005-1 Missing abstract method [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA060051MissingAbstractMethodResult.Status =
+      ts.truthy(tcA060051MissingAbstractMethodResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA060051MissingAbstractMethodResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA07001ObjectStatusInformation(); // TcA07-001-1 Object status information [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA070011ObjectStatusInformationResult.Status =
+      ts.truthy(tcA070011ObjectStatusInformationResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA070011ObjectStatusInformationResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA07002SupportMethods(); // TcA07-002-1 Support methods [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA070021SupportMethodsResult.Status =
+      ts.truthy(tcA070021SupportMethodsResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA070021SupportMethodsResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA07003Serialization(); // TcA07-003-1 Serialization [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA070031SerializationResult.Status =
+      ts.truthy(tcA070031SerializationResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA070031SerializationResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA07003Serialization(); // TcA07-003-2 Serialization with file [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA070032SerializationWithFileResult.Status =
+      ts.truthy(tcA070032SerializationWithFileResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA070032SerializationWithFileResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 3; // pre-expression
   await callTcA07003Serialization(); // TcA07-003-3 Serialization XML [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA070033SerializationXmlResult.Status =
+      ts.truthy(tcA070033SerializationXmlResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA070033SerializationXmlResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 4; // pre-expression
   await callTcA07003Serialization(); // TcA07-003-4 Serialization with file XML [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA070034SerializationWithFileXmlResult.Status =
+      ts.truthy(tcA070034SerializationWithFileXmlResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA070034SerializationWithFileXmlResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA07004GenericOpen(); // TcA07-004-1 Generic Open [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA070041GenericOpenResult.Status =
+      ts.truthy(tcA070041GenericOpenResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA070041GenericOpenResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA07004GenericOpen(); // TcA07-004-2 Generic Open Ext Creator [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA070042GenericOpenExtCreatorResult.Status =
+      ts.truthy(tcA070042GenericOpenExtCreatorResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA070042GenericOpenExtCreatorResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA07005InterfaceSupportMethods(); // TcA07-005-1 Interface Support Methods [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA070051InterfaceSupportMethodsResult.Status =
+      ts.truthy(tcA070051InterfaceSupportMethodsResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA070051InterfaceSupportMethodsResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA07006CastFromLabViewObject(); // TcA07-006-1 Cast from LabVIEW Object [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA070061CastFromLabViewObjectResult.Status =
+      ts.truthy(tcA070061CastFromLabViewObjectResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA070061CastFromLabViewObjectResult.Status);
   // checks: Step.Result.PassFail
+  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01011CloneObject(); // TcA01-011-1 Clone Object [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  tcA010111CloneObjectResult.Status =
+      ts.truthy(tcA010111CloneObjectResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(tcA010111CloneObjectResult.Status);
   step.InBuf = 1; // pre-expression
   await callTcA04002ForceParentCallMethods(); // TcA04-002-1 Force Parent Call Methods.vi
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -479,6 +1536,7 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   Step engine access (no engine at run time)
   //   TcA01-001_ObjectCreationAndDestructionOfBaseclass.vi
+  //   untranslated expression in body
   //   TcA01-002_ObjectCreationAndDestructionOfSubclass.vi
   //   TcA01-003_ObjectCreationAndDestructionOfMultipleClasses.vi
   //   TcA01-004_ObjectCreationAndDestructionWithDefaultConstructor.vi
@@ -516,6 +1574,6 @@ void register() {
   //   TcA01-011_CloneObject.vi
   //   TcA04-002_ForceParentCallMethods.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

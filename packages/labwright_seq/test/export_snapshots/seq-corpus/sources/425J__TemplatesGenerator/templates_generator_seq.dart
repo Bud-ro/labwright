@@ -12,10 +12,18 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `CreateTemplates`.
-Future<void> createTemplates({bool createViTemplates = true}) async {
+Future<String> createTemplates({bool createViTemplates = true}) async {
   dynamic templatesFile = null; // Ref
   List<dynamic> folderPlaceholder = <dynamic>[]; // Objs — NI_TEMPLATE_CATEGORY
   String toolFolderName = ''; // Str
+
+  final run = ts.SequenceRun();
+  dynamic createSequenceFileTemplatesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Create Sequence File Templates
 
   // ── main ──
   ts.eval(
@@ -31,13 +39,18 @@ Future<void> createTemplates({bool createViTemplates = true}) async {
   templatesFile.AsPropertyObjectFile.Data.Root['FolderPlaceholder'].Name =
       toolFolderName; // Create Templates Folder (cont.)
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await createSfTemplates(
+  createSequenceFileTemplatesResult.Status = await createSfTemplates(
     sequenceFilePath: runState.InitialSelection.SelectedFile.Path,
     templatesFile: templatesFile,
     templatesFolder: ts.eval(
       '#NoValidation,\n&Locals.TemplatesFile.AsPropertyObjectFile.Data.Root[Locals.ToolFolderName]',
     ),
   ); // Create Sequence File Templates
+  createSequenceFileTemplatesResult.Status =
+      createSequenceFileTemplatesResult.Status == 'Done'
+      ? 'Passed'
+      : createSequenceFileTemplatesResult.Status; // status expression
+  run.record(createSequenceFileTemplatesResult.Status);
   templatesFile
       .AsPropertyObjectFile.IncChangeCount(); // Increment the Change Count of the Templates File
   ts.eval(
@@ -46,10 +59,12 @@ Future<void> createTemplates({bool createViTemplates = true}) async {
 
   // ── cleanup ──
   templatesFile = null; // Release Templates File
+
+  return run.status;
 }
 
 /// Sequence `CreateSFTemplates`.
-Future<void> createSfTemplates({
+Future<String> createSfTemplates({
   String sequenceFilePath = '',
   dynamic templatesFile,
   dynamic templatesFolder,
@@ -59,6 +74,8 @@ Future<void> createSfTemplates({
   dynamic tmpStep = null; // Ref
   double numberOfSequences = 0; // Num — default: 0
   int index = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   // ── main ──
   ts.eval(
@@ -107,6 +124,8 @@ Future<void> createSfTemplates({
   ); // Release
   sf = null; // Release (cont.)
   tmpStep = null; // Release (cont.)
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -129,10 +148,9 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
-  //   status expression of step "Create Sequence File Templates" not exported
   //   RunState engine access (no engine at run time)
   //   step "Set Default Parameters" loops (Custom) — per-step looping not exported
   lw.skipTest('CreateTemplates', () async {
-    await createTemplates();
+    lw.expect(await createTemplates(), 'Passed');
   });
 }

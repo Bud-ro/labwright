@@ -12,22 +12,26 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `Model Plugin - Configure Standard Options`.
-Future<void> modelPluginConfigureStandardOptions({
+Future<String> modelPluginConfigureStandardOptions({
   bool changed = false,
   dynamic processModel,
   String modelType = '',
   dynamic modelPlugin,
 }) async {
+  final run = ts.SequenceRun();
+
   // The Result Processing dialog invokes the "Model Plugin - Configure Standard Options" callback when the user presses the Options button for this plug-in.  "Model Plugin - Configure Standard Options" is not called during a UUT run.  This implementation simply passes the entire Parameters.ModelPlugin container to the configuration dialog.  Most "Model Plugin - Configure Standard Options" callbacks (as well as "Configure Additional Options" when present) should be implemented similarly.
   //   Engine <- RunState.Engine
   //   Sequence Context In <- ThisContext
   //   Changed <- Parameters.Changed
   //   error out <- Step.Result.Error
   await callConfigurationUi(); // Launch Options Dialog [Action]
+
+  return run.status;
 }
 
 /// Sequence `Model Plugin - Initialize`.
-Future<void> modelPluginInitialize({
+Future<String> modelPluginInitialize({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
 }) async {
@@ -42,11 +46,15 @@ Future<void> modelPluginInitialize({
     ts.PropObj({'DisplayName': 'Sequence File', 'Key': '[SEQUENCE_FILE]'}),
   ]; // Objs
 
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Model Plugin - Begin`.
-Future<void> modelPluginBegin({
+Future<String> modelPluginBegin({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -56,6 +64,8 @@ Future<void> modelPluginBegin({
   String processModelClientPath = '',
   dynamic parentThread,
 }) async {
+  final run = ts.SequenceRun();
+
   if (ts.truthy(modelThreadType.IsController)) {
     // File names should contain the batch serial number if and only if the "Batch" process model is used.
     modelPlugin.PluginSpecific.RuntimeVariables.ReportBatchSerialNumber =
@@ -100,23 +110,29 @@ Future<void> modelPluginBegin({
     //   error out <- Step.Result.Error
     await callViewLauncher(); // Action [Action]
   }
+
+  return run.status;
 }
 
 /// Sequence `Model Plugin - End` — This plug-in does nothing in the "Model Plugin - End" callback.  It could be deleted..
-Future<void> modelPluginEnd({
+Future<String> modelPluginEnd({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
   dynamic modelData,
 }) async {
+  final run = ts.SequenceRun();
+
   if (ts.truthy(modelThreadType.IsController)) {
     //   error out <- Step.Result.Error
     await callViewShutdown(); // Action [Action]
   }
+
+  return run.status;
 }
 
 /// Sequence `Model Plugin - UUT Start`.
-Future<void> modelPluginUutStart({
+Future<String> modelPluginUutStart({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -131,11 +147,15 @@ Future<void> modelPluginUutStart({
   dynamic reportSection = null; // Ref
   dynamic reportToRemove = null; // Ref
 
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Model Plugin - UUT Done`.
-Future<void> modelPluginUutDone({
+Future<String> modelPluginUutDone({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -155,11 +175,15 @@ Future<void> modelPluginUutDone({
   String reportPath = ''; // Str
   dynamic reportSection = null; // Ref
 
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Model Plugin - OnTheFly Step Results`.
-Future<void> modelPluginOnTheFlyStepResults({
+Future<String> modelPluginOnTheFlyStepResults({
   dynamic modelPlugin,
   dynamic modelData,
   dynamic startTime,
@@ -183,15 +207,19 @@ Future<void> modelPluginOnTheFlyStepResults({
   dynamic step$ = null; // Ref
   dynamic firstValidStep = null; // Ref
 
+  final run = ts.SequenceRun();
+
   //   Result List In <- Parameters.Steps
   //   UUT.SerialNumber <- Parameters.UUT.SerialNumber
   //   Site <- Parameters.UUT.TestSocketIndex
   //   error out <- Step.Result.Error
   await callResultPublisher(); // Action [Action]
+
+  return run.status;
 }
 
 /// Sequence `Create Header` — Create the report header, appending to Parameters.ReportSection..
-Future<void> createHeader({
+Future<String> createHeader({
   String partNumber = '',
   String stationId = '',
   String operator = '',
@@ -206,11 +234,15 @@ Future<void> createHeader({
   List<dynamic> headerColumnData = <dynamic>['', '']; // Strs
   String tsrFileBaseName = ''; // Str
 
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Create Column Headers` — Create the column headings for the report body, appending to Parameters.ReportSection..
-Future<void> createColumnHeaders({
+Future<String> createColumnHeaders({
   dynamic options,
   dynamic reportSection,
 }) async {
@@ -218,11 +250,15 @@ Future<void> createColumnHeaders({
   dynamic columnDefinition = null; // Ref
   int columnIndex = 0; // Num — default: 0
 
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Create Footer` — Create the report footer, appending to Parameters.ReportSection..
-Future<void> createFooter({
+Future<String> createFooter({
   String status = '',
   String errorMessage = '',
   bool errorOccurred = false,
@@ -231,11 +267,15 @@ Future<void> createFooter({
 }) async {
   List<dynamic> footerColumnData = <dynamic>['', '', '']; // Strs
 
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 /// Sequence `Generate Report Path` — Create the full report path, constructing the file name of the form "[Station ID][Sequence File][Date][Time][Batch Serial Number (if needed)][UUT Serial Number][Test Socket Index (if needed)].log", and combining with Parameters.Options.ResultDirectory..
-Future<void> generateReportPath({
+Future<String> generateReportPath({
   String stationId = '',
   String sequenceFilePath = '',
   String batchSerialNumber = '',
@@ -252,7 +292,11 @@ Future<void> generateReportPath({
   String timeStr = ''; // Str
   String reportBaseName = ''; // Str
 
+  final run = ts.SequenceRun();
+
   // (no steps in the source sequence)
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -377,13 +421,13 @@ void register() {
   //   root parameter 'ProcessModel' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - Configure Standard Options', () async {
-    await modelPluginConfigureStandardOptions();
+    lw.expect(await modelPluginConfigureStandardOptions(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - Initialize', () async {
-    await modelPluginInitialize();
+    lw.expect(await modelPluginInitialize(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
@@ -397,7 +441,7 @@ void register() {
   //   root parameter 'StartTime' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ParentThread' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - Begin', () async {
-    await modelPluginBegin();
+    lw.expect(await modelPluginBegin(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\View Shutdown.vi
@@ -406,7 +450,7 @@ void register() {
   //   root parameter 'ModelThreadType' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - End', () async {
-    await modelPluginEnd();
+    lw.expect(await modelPluginEnd(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
@@ -417,7 +461,7 @@ void register() {
   //   root parameter 'StartTime' is an engine object (nothing binds it when run as a test)
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - UUT Start', () async {
-    await modelPluginUutStart();
+    lw.expect(await modelPluginUutStart(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
@@ -432,7 +476,7 @@ void register() {
   //   root parameter 'NotificationToUnblockCallingThread' is an engine object (nothing binds it when run as a test)
   //   root parameter 'PostProcessingThreadForPriorUUT' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - UUT Done', () async {
-    await modelPluginUutDone();
+    lw.expect(await modelPluginUutDone(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\Utilities\TestStand APIs\SubVIs\Result Publisher.vi
@@ -443,7 +487,7 @@ void register() {
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
   //   root parameter 'Context' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - OnTheFly Step Results', () async {
-    await modelPluginOnTheFlyStepResults();
+    lw.expect(await modelPluginOnTheFlyStepResults(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'Options' is an engine object (nothing binds it when run as a test)
@@ -451,19 +495,19 @@ void register() {
   //   root parameter 'OfflineProcessingResultLog' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ReportSection' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Create Header', () async {
-    await createHeader();
+    lw.expect(await createHeader(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'Options' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ReportSection' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Create Column Headers', () async {
-    await createColumnHeaders();
+    lw.expect(await createColumnHeaders(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'Options' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ReportSection' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Create Footer', () async {
-    await createFooter();
+    lw.expect(await createFooter(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   root parameter 'StartTime' is an engine object (nothing binds it when run as a test)
@@ -471,6 +515,6 @@ void register() {
   //   root parameter 'Options' is an engine object (nothing binds it when run as a test)
   //   root parameter 'RuntimeVariables' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Generate Report Path', () async {
-    await generateReportPath();
+    lw.expect(await generateReportPath(), 'Passed');
   });
 }

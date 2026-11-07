@@ -12,8 +12,17 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
+
+  final run = ts.SequenceRun();
+  dynamic rtSequencePassFailTestResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of RT Sequence Pass/Fail Test
 
   // ── setup ──
   throw UnimplementedError(
@@ -32,6 +41,11 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+  rtSequencePassFailTestResult.Status =
+      ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(rtSequencePassFailTestResult.Status);
   // description: The step is used to run the Get Rise Time RT sequence.
   // label: Run Get Rise Time RT Sequence
   throw UnimplementedError(
@@ -48,6 +62,8 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type StopVeriStand: action not exported yet',
   ); // Stop VeriStand [StopVeriStand]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -84,12 +100,11 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type InitializeVeriStand: action not exported yet
   //   step type GetChannelValue: action not exported yet
-  //   status expression of step "RT Sequence Pass/Fail Test" not exported
   //   step type RunRTSequencePassFail: action not exported yet
   //   step type RunRTSequenceAction: action not exported yet
   //   step type MessagePopup: action not exported yet
   //   step type StopVeriStand: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

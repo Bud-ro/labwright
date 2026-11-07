@@ -12,13 +12,28 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic audioLineCheckTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Audio Line Check Test
+
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await audioLineCheckTest(); // Audio Line Check Test
+  audioLineCheckTestResult.Status =
+      await audioLineCheckTest(); // Audio Line Check Test
+  audioLineCheckTestResult.Status = audioLineCheckTestResult.Status == 'Done'
+      ? 'Passed'
+      : audioLineCheckTestResult.Status; // status expression
+  run.record(audioLineCheckTestResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `Audio Line Check Test`.
-Future<void> audioLineCheckTest({
+Future<String> audioLineCheckTest({
   dynamic generationType,
   double durationSeconds = 0.1,
   int offsetVolts = 0,
@@ -37,6 +52,8 @@ Future<void> audioLineCheckTest({
   dynamic artifactsManagerSvg = null; // Ref
   dynamic artifactsManagerFdm = null; // Ref
   String documentPath = ''; // Str
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: Example  - Demonstrates extraction of tones (Frequency domain measurement) from the captured Audio Signal (Single tone sine wave)
@@ -201,6 +218,8 @@ Future<void> audioLineCheckTest({
   throw UnimplementedError(
     'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Close',
   ); // Signal Voltage Generation -  Close TP [Action]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -222,7 +241,6 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Audio Line Check Test" not exported
   //   untranslated expression in body
   //   dotNet call: System.Environment.GetFolderPath
   //   dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
@@ -235,6 +253,6 @@ void register() {
   //   dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Close
   //   dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Close
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

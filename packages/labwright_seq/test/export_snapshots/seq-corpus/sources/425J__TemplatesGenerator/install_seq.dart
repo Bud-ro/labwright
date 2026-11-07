@@ -12,7 +12,17 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+  dynamic promptResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Prompt
+
   // custom flow: if (Step.Result.ButtonHit == 1) Cback -> Install else Goto -> <End>
   // popup title: "Installer"
   // popup message: "Do you want to install Templates Generator?"
@@ -20,10 +30,14 @@ Future<void> sequenceFileLoad() async {
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Prompt [MessagePopup]
+  promptResult.Status = 'Done';
+  run.record(promptResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `Install`.
-Future<void> install() async {
+Future<String> install() async {
   String testStandPublic = ''; // Path
   String currentDir = ''; // Path
   String toolsDir = ''; // Path
@@ -31,6 +45,8 @@ Future<void> install() async {
   String toolMenusToInstallDir = ''; // Path
   dynamic source = ts.PropObj({'Tool': '', 'ExportFile': ''}); // Obj
   dynamic target = ts.PropObj({'Tool': '', 'ExportFile': ''}); // Obj
+
+  final run = ts.SequenceRun();
 
   ts.eval(
     'Locals.CurrentDir = Left(ThisContext.SequenceFile.Path, Find(ThisContext.SequenceFile.Path, "\\\\", 0, True, True)),\nLocals.Source.Tool = Locals.CurrentDir + @"\\Resources\\TemplatesGenerator.seq",\nLocals.Source.ExportFile = Locals.CurrentDir + @"\\Resources\\Tools.ini",\n',
@@ -90,6 +106,8 @@ Future<void> install() async {
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Success Message [MessagePopup]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -114,7 +132,7 @@ void register() {
   //   flow action of step "Prompt" (Next/Next) not exported
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
@@ -122,6 +140,6 @@ void register() {
   //   dotNet call: System.IO.File.Copy
   //   step type MessagePopup: action not exported yet
   lw.skipTest('Install', () async {
-    await install();
+    lw.expect(await install(), 'Passed');
   });
 }

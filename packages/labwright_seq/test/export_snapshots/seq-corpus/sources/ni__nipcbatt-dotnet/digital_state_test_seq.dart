@@ -12,13 +12,28 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic digitalStateTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Digital State Test
+
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await digitalStateTest(); // Digital State Test
+  digitalStateTestResult.Status =
+      await digitalStateTest(); // Digital State Test
+  digitalStateTestResult.Status = digitalStateTestResult.Status == 'Done'
+      ? 'Passed'
+      : digitalStateTestResult.Status; // status expression
+  run.record(digitalStateTestResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `Digital State Test`.
-Future<void> digitalStateTest({
+Future<String> digitalStateTest({
   List<dynamic>? dataToWrite,
   dynamic sdsgResultData,
   dynamic sdsmResultData,
@@ -30,6 +45,8 @@ Future<void> digitalStateTest({
   dynamic artifactsManagerSdsg = null; // Ref
   dynamic artifactsManagerSdsm = null; // Ref
   String documentPath = ''; // Str
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example demonstrates how to set Digital High & Low states using Digital output modules and Measure the digital states of test points using digital input modules
@@ -173,6 +190,8 @@ Future<void> digitalStateTest({
   throw UnimplementedError(
     'dotNet call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Close',
   ); // Static Digital State Measurement - Close [Action]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -194,7 +213,6 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Digital State Test" not exported
   //   untranslated expression in body
   //   dotNet call: System.Environment.GetFolderPath
   //   dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
@@ -207,6 +225,6 @@ void register() {
   //   dotNet call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Close
   //   dotNet call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Close
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

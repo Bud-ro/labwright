@@ -12,8 +12,24 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   String reply = ''; // Str
+
+  final run = ts.SequenceRun();
+  dynamic downloadTestFunctionsScriptResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Download Test Functions / Script
+  dynamic interactWithDeviceResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Interact with Device
 
   // ── setup ──
   //   Timeout <- 100
@@ -30,6 +46,11 @@ Future<void> mainSequence() async {
   //   DownloadSuccessful <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callUploadScript(); // Download Test Functions / Script [PassFailTest]
+  downloadTestFunctionsScriptResult.Status =
+      ts.truthy(downloadTestFunctionsScriptResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(downloadTestFunctionsScriptResult.Status);
 
   // ── main ──
   // Invoke one of these previously test functions and assess the response.
@@ -45,11 +66,20 @@ Future<void> mainSequence() async {
   //   Last Reply Entry <- Locals.Reply
   //   error out <- Step.Result.Error
   await callSendCommand(); // Interact with Device [PassFailTest]
+  ts.eval(
+    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+  ); // status expression
+  interactWithDeviceResult.Status = ts.truthy(interactWithDeviceResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(interactWithDeviceResult.Status);
 
   // ── cleanup ──
   //   Comport <- FileGlobals.UUT.Serial.SessionReference
   //   error out <- Step.Result.Error
   await callClose(); // Close Connection [Action]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -103,12 +133,11 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   ..\..\MicroPythonClient\Public\Initialize.vi
-  //   status expression of step "Download Test Functions / Script" not exported
   //   ..\..\MicroPythonClient\Public\UploadScript.vi
-  //   status expression of step "Interact with Device" not exported
   //   ..\..\MicroPythonClient\Public\SendCommand.vi
+  //   untranslated expression in body
   //   ..\..\MicroPythonClient\Public\Close.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

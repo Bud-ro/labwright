@@ -9,9 +9,12 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+
   // [force-pass in source] Pass
   // [force-fail in source] Fail
   // [skipped in source] Skip
@@ -20,6 +23,8 @@ Future<void> mainSequence() async {
   runState.Step.Result.Error.Occurred = true; // Error
   runState.Step.Result.Error.Code = 123; // Error (cont.)
   runState.Step.Result.Error.Msg = 'Error occurred'; // Error (cont.)
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -44,6 +49,6 @@ void register() {
   //   force-fail step "Fail" (status semantics not exported)
   //   RunState engine access (no engine at run time)
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

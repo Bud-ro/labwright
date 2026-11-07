@@ -9,25 +9,62 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic numericLimitTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Numeric Limit Test
+  dynamic numericLimitTestResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Numeric Limit Test
+
   // checks: 15 GELE [low 1, high 20, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-  throw UnimplementedError(
-    'step type NumericLimitTest: action not exported yet',
-  ); // Numeric Limit Test [NumericLimitTest]
+  // Numeric Limit Test [NumericLimitTest]: judged by its status expression
+  numericLimitTestResult.Status = ts.checkLimits(
+    numericLimitTestResult.Numeric = 15,
+    20,
+    1,
+    'GELE',
+    true,
+    100,
+    'PERCENTAGE',
+  ); // status expression
+  run.record(numericLimitTestResult.Status);
   // checks: 9 GELE [low 9, high 11, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-  throw UnimplementedError(
-    'step type NumericLimitTest: action not exported yet',
-  ); // Numeric Limit Test [NumericLimitTest]
+  // Numeric Limit Test [NumericLimitTest]: judged by its status expression
+  numericLimitTestResult2.Status = ts.checkLimits(
+    numericLimitTestResult2.Numeric = 9,
+    11,
+    9,
+    'GELE',
+    true,
+    100,
+    'PERCENTAGE',
+  ); // status expression
+  run.record(numericLimitTestResult2.Status);
   // popup title: NameOf(Step)
   // popup message: "Test sequence for Example TestStand API server.  | This sequence has only three steps,one of which that fails. It completes after five seconds."
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Message Popup [MessagePopup]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -49,10 +86,8 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Numeric Limit Test" not exported
-  //   step type NumericLimitTest: action not exported yet
   //   step type MessagePopup: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

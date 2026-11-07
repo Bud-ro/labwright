@@ -9,10 +9,46 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   double oldTracingSpeed = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
+  dynamic numericLimitTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Numeric Limit Test
+  dynamic passFailTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Pass/Fail Test
+  dynamic callSequence1Result = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Sequence1
+  dynamic callSequence2InANewExecutionResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Sequence 2 In A New Execution
+  dynamic callSequence3InANewThreadResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call Sequence 3 In A New Thread
 
   // ── setup ──
   oldTracingSpeed =
@@ -23,18 +59,28 @@ Future<void> mainSequence() async {
   // ── main ──
   // checks: 10 GELE [low 9, high 11, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-  throw UnimplementedError(
-    'step type NumericLimitTest: action not exported yet',
-  ); // Numeric Limit Test [NumericLimitTest]
+  // Numeric Limit Test [NumericLimitTest]: judged by its status expression
+  numericLimitTestResult.Status = ts.checkLimits(
+    numericLimitTestResult.Numeric = 10,
+    11,
+    9,
+    'GELE',
+    true,
+    100,
+    'PERCENTAGE',
+  ); // status expression
+  run.record(numericLimitTestResult.Status);
   // checks: Step.NumericArray
   throw UnimplementedError(
     'step type NI_MultipleNumericLimitTest: action not exported yet',
   ); // Multiple Numeric Limit Test [NI_MultipleNumericLimitTest]
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type PassFailTest: action not exported yet',
-  ); // Pass/Fail Test [PassFailTest]
+  // Pass/Fail Test [PassFailTest]: judged by its status expression
+  passFailTestResult.Status = ts.truthy(passFailTestResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(passFailTestResult.Status);
   // [skipped in source] This step is skipped
   // ignores run-time errors
   // failure does NOT fail the sequence
@@ -42,13 +88,29 @@ Future<void> mainSequence() async {
     'cModule call: Generate Run-Time Error',
   ); // Generate Run-Time Error [Action]
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await sequence1(); // Call Sequence1
+  callSequence1Result.Status = await sequence1(); // Call Sequence1
+  callSequence1Result.Status = callSequence1Result.Status == 'Done'
+      ? 'Passed'
+      : callSequence1Result.Status; // status expression
+  run.record(callSequence1Result.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // sequence call spawns a new execution in the engine — exported as a plain awaited call
-  await sequence2(); // Call Sequence 2 In A New Execution
+  callSequence2InANewExecutionResult.Status =
+      await sequence2(); // Call Sequence 2 In A New Execution
+  callSequence2InANewExecutionResult.Status =
+      callSequence2InANewExecutionResult.Status == 'Done' && false
+      ? 'Passed'
+      : callSequence2InANewExecutionResult.Status; // status expression
+  run.record(callSequence2InANewExecutionResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // sequence call spawns a new thread in the engine — exported as a plain awaited call
-  await sequence3(); // Call Sequence 3 In A New Thread
+  callSequence3InANewThreadResult.Status =
+      await sequence3(); // Call Sequence 3 In A New Thread
+  callSequence3InANewThreadResult.Status =
+      callSequence3InANewThreadResult.Status == 'Done' && false
+      ? 'Passed'
+      : callSequence3InANewThreadResult.Status; // status expression
+  run.record(callSequence3InANewThreadResult.Status);
   // waits for sequence call step "ID#:jsLVsE4q7RGUKgANOl8gKA"
   await Future<void>.delayed(
     const Duration(seconds: 3),
@@ -72,10 +134,14 @@ Future<void> mainSequence() async {
   // ── cleanup ──
   runState.Engine.StationOptions.UIMessageDelay =
       oldTracingSpeed; // Restore Tracing Speed
+
+  return run.status;
 }
 
 /// Sequence `Sequence1`.
-Future<void> sequence1() async {
+Future<String> sequence1() async {
+  final run = ts.SequenceRun();
+
   throw UnimplementedError(
     'step type Action: action not exported yet',
   ); // Sequence1-Step1 [Action]
@@ -85,10 +151,14 @@ Future<void> sequence1() async {
   throw UnimplementedError(
     'step type Action: action not exported yet',
   ); // Sequence1-Step3 [Action]
+
+  return run.status;
 }
 
 /// Sequence `Sequence2`.
-Future<void> sequence2() async {
+Future<String> sequence2() async {
+  final run = ts.SequenceRun();
+
   throw UnimplementedError(
     'step type Action: action not exported yet',
   ); // Sequence2-Step11 [Action]
@@ -99,10 +169,20 @@ Future<void> sequence2() async {
   throw UnimplementedError(
     'step type Action: action not exported yet',
   ); // Sequence2-Step33 [Action]
+
+  return run.status;
 }
 
 /// Sequence `Sequence3`.
-Future<void> sequence3() async {
+Future<String> sequence3() async {
+  final run = ts.SequenceRun();
+  dynamic sequence3CallSequence4Result = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Sequence3-Call Sequence 4
+
   throw UnimplementedError(
     'step type Action: action not exported yet',
   ); // Sequence3-Step133 [Action]
@@ -111,14 +191,24 @@ Future<void> sequence3() async {
     'step type Action: action not exported yet',
   ); // Sequence3-Step233 [Action]
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await sequence4(); // Sequence3-Call Sequence 4
+  sequence3CallSequence4Result.Status =
+      await sequence4(); // Sequence3-Call Sequence 4
+  sequence3CallSequence4Result.Status =
+      sequence3CallSequence4Result.Status == 'Done'
+      ? 'Passed'
+      : sequence3CallSequence4Result.Status; // status expression
+  run.record(sequence3CallSequence4Result.Status);
   throw UnimplementedError(
     'step type Action: action not exported yet',
   ); // Sequence3-Step333 [Action]
+
+  return run.status;
 }
 
 /// Sequence `Sequence4`.
-Future<void> sequence4() async {
+Future<String> sequence4() async {
+  final run = ts.SequenceRun();
+
   throw UnimplementedError(
     'step type Action: action not exported yet',
   ); // Sequence4-Step144 [Action]
@@ -134,6 +224,8 @@ Future<void> sequence4() async {
   throw UnimplementedError(
     'step type Action: action not exported yet',
   ); // Sequence4-Step344 [Action]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -156,21 +248,13 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
-  //   status expression of step "Numeric Limit Test" not exported
-  //   step type NumericLimitTest: action not exported yet
   //   step type NI_MultipleNumericLimitTest: action not exported yet
-  //   status expression of step "Pass/Fail Test" not exported
-  //   step type PassFailTest: action not exported yet
   //   cModule call: Generate Run-Time Error
-  //   status expression of step "Call Sequence1" not exported
-  //   status expression of step "Call Sequence 2 In A New Execution" not exported
   //   step "Call Sequence 2 In A New Execution" runs its sequence call in a new execution (not exported)
-  //   status expression of step "Call Sequence 3 In A New Thread" not exported
   //   step "Call Sequence 3 In A New Thread" runs its sequence call in a new thread (not exported)
   //   step type Action: action not exported yet
-  //   status expression of step "Sequence3-Call Sequence 4" not exported
   //   cModule call: Sequence4-GeneratesError
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

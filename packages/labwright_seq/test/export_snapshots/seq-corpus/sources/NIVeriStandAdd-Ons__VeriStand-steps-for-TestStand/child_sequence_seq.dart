@@ -12,7 +12,9 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence({String gatewayIp = ''}) async {
+Future<String> mainSequence({String gatewayIp = ''}) async {
+  final run = ts.SequenceRun();
+
   // ── setup ──
   fileGlobals.Veristand.GatewayIP =
       gatewayIp; // Assign GatewayIP from Calling Sequence
@@ -24,6 +26,8 @@ Future<void> mainSequence({String gatewayIp = ''}) async {
   throw UnimplementedError(
     'step type RunRTSequenceAction: action not exported yet',
   ); // RT Sequence Action [RunRTSequenceAction]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -61,6 +65,6 @@ void register() {
   //   step type OpenReferences: action not exported yet
   //   step type RunRTSequenceAction: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

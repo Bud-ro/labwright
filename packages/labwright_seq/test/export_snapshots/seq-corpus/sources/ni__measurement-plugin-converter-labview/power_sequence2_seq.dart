@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic task = ts.PropObj({'DevName': '', 'SesNumber': 0}); // Obj
   String channel = 'PowerModule/power'; // Str
   dynamic channelSettings = ts.PropObj({
@@ -45,6 +45,8 @@ Future<void> mainSequence() async {
   }); // Obj
   String operation = 'Configure and Measure'; // Str
 
+  final run = ts.SequenceRun();
+
   // ── setup ──
   //   Physical Channel <- Locals.Channel
   //   error out <- Step.Result.Error
@@ -72,6 +74,8 @@ Future<void> mainSequence() async {
   //   error in (no error) <- Step.Result.Error
   //   error out <- Step.Result.Error
   await callPowMeasClose(); // Action [Action]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -114,6 +118,6 @@ void register() {
   //   step type MessagePopup: action not exported yet
   //   Pow Meas Close.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

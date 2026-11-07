@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   int cycle = 0; // Num — default: 0
   dynamic assets = null; // Ref
   int capacity = 2000; // Num
@@ -20,6 +20,8 @@ Future<void> mainSequence() async {
   String emailAddress = ''; // Str
   String amplitude = '10'; // Str
   String filePath = ''; // Str
+
+  final run = ts.SequenceRun();
 
   throw UnimplementedError(
     'step type AddProperty: action not exported yet',
@@ -50,10 +52,14 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type UploadFile: action not exported yet',
   ); // UploadFile [UploadFile]
+
+  return run.status;
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+
   // [skipped in source] Update Saved File Global Cache
   // [skipped in source] Update Runtime File Global
   ts.eval(
@@ -63,6 +69,8 @@ Future<void> processSetup() async {
       'HR-3UTG-AMZN'; // Set Process Model Part Number to File Global
   // [skipped in source] Increment Change Count
   // [skipped in source] Action
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -96,12 +104,12 @@ void register() {
   //   My Computer\Charge and Discharge.vi
   //   step type UploadFile: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   RunState engine access (no engine at run time)
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
 }

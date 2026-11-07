@@ -12,33 +12,165 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic numericLimitTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Numeric Limit Test
+  dynamic numericLimitTest2Result = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Numeric Limit Test 2
+  dynamic numericLimitTest3Result = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Numeric Limit Test 3
+  dynamic numericLimitTest4Result = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Numeric Limit Test 4
+  dynamic numericLimitTest5Result = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Numeric Limit Test 5
+
   while (true) {
     // checks: 10 GELE [low 9, high 11, nominal 100] (PERCENTAGE)
     // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
+    numericLimitTestResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'Numeric': 0,
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Units': '',
+    });
     throw UnimplementedError(
       'cModule call: Numeric Limit Test',
     ); // Numeric Limit Test [NumericLimitTest]
+    numericLimitTestResult.Status = ts.checkLimits(
+      numericLimitTestResult.Numeric = 10,
+      11,
+      9,
+      'GELE',
+      true,
+      100,
+      'PERCENTAGE',
+    ); // status expression
+    run.record(numericLimitTestResult.Status);
     // checks: 12 GELE [low 9, high 11, nominal 100] (PERCENTAGE)
     // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
+    numericLimitTest2Result = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'Numeric': 0,
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Units': '',
+    });
     throw UnimplementedError(
       'cModule call: Numeric Limit Test 2',
     ); // Numeric Limit Test 2 [NumericLimitTest]
+    numericLimitTest2Result.Status = ts.checkLimits(
+      numericLimitTest2Result.Numeric = 12,
+      11,
+      9,
+      'GELE',
+      true,
+      100,
+      'PERCENTAGE',
+    ); // status expression
+    run.record(numericLimitTest2Result.Status);
     // checks: Random(8, 12) GELE [low 9, high 11, nominal 100] (PERCENTAGE)
     // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
+    numericLimitTest3Result = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'Numeric': 0,
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Units': '',
+    });
     throw UnimplementedError(
       'cModule call: Numeric Limit Test 3',
     ); // Numeric Limit Test 3 [NumericLimitTest]
+    numericLimitTest3Result.Status = ts.checkLimits(
+      numericLimitTest3Result.Numeric = lw.rand(8, 12),
+      11,
+      9,
+      'GELE',
+      true,
+      100,
+      'PERCENTAGE',
+    ); // status expression
+    run.record(numericLimitTest3Result.Status);
     // checks: Random(8, 12) GELE [low 9, high 11, nominal 100] (PERCENTAGE)
     // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
+    numericLimitTest4Result = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'Numeric': 0,
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Units': '',
+    });
     throw UnimplementedError(
       'cModule call: Numeric Limit Test 4',
     ); // Numeric Limit Test 4 [NumericLimitTest]
+    numericLimitTest4Result.Status = ts.checkLimits(
+      numericLimitTest4Result.Numeric = lw.rand(8, 12),
+      11,
+      9,
+      'GELE',
+      true,
+      100,
+      'PERCENTAGE',
+    ); // status expression
+    run.record(numericLimitTest4Result.Status);
     // checks: Random(8, 12) GELE [low 9, high 11, nominal 100] (PERCENTAGE)
     // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
+    numericLimitTest5Result = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'Numeric': 0,
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Units': '',
+    });
     throw UnimplementedError(
       'cModule call: Numeric Limit Test 5',
     ); // Numeric Limit Test 5 [NumericLimitTest]
+    numericLimitTest5Result.Status = ts.checkLimits(
+      numericLimitTest5Result.Numeric = lw.rand(8, 12),
+      11,
+      9,
+      'GELE',
+      true,
+      100,
+      'PERCENTAGE',
+    ); // status expression
+    run.record(numericLimitTest5Result.Status);
     if (ts.cond('GetNumElements(Locals.ResultList) > 50')) {
       // precondition of Remove Excess Results
       ts.eval(
@@ -46,6 +178,8 @@ Future<void> mainSequence() async {
       ); // Remove Excess Results
     }
   }
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -67,18 +201,13 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Numeric Limit Test" not exported
   //   cModule call: Numeric Limit Test
-  //   status expression of step "Numeric Limit Test 2" not exported
   //   cModule call: Numeric Limit Test 2
-  //   status expression of step "Numeric Limit Test 3" not exported
   //   cModule call: Numeric Limit Test 3
-  //   status expression of step "Numeric Limit Test 4" not exported
   //   cModule call: Numeric Limit Test 4
-  //   status expression of step "Numeric Limit Test 5" not exported
   //   cModule call: Numeric Limit Test 5
   //   untranslated expression in body
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

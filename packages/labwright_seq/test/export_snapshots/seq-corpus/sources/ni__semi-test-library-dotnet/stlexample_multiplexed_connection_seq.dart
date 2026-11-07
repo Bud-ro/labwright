@@ -9,9 +9,12 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+
   // For each site, applies the relay route, reads the shared
   // DMM, publishes the result, and restores the relays.
   // .NET assembly: Code Modules\bin\STLExample.MultiplexedConnection.dll
@@ -23,10 +26,14 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.TestStep.OneInstrumentChannelToManySitesForOneDutPin',
   ); // Serial DMM Read - Multiplexed [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // Displays a brief overview of the example.
   // popup title: "About This Example"
   // popup message: "This example sequence demonstrates how to use site-multiplexed connections with Semiconductor Test Library (STL). | You can explore the sequence callbacks to see the workflow for site-multiplexed connections. | Prerequisites: To use this example sequence with real instruments or in offline mode, you must have the following software installed: | - STS Software 25.5.0 or later | The example sequence performs the following steps: |    1. Initizalizes the NI Generic Multiplexer session. |    2. Invokes the multiplexer measurement method, which performs the following functions: |       - Retrieves per-site routes |       - Applies relay configurations |       - Performs STL DMM reads |       - Publishes per-site results |       - Applies the end relay configuration |    3. Cleans up the NI Generic Multiplexer session. | For more information on how to use this example sequence, click the help button to open the README.md file."
@@ -42,10 +49,14 @@ Future<void> sequenceFileLoad() async {
       'step type CallExecutable: action not exported yet',
     ); // LaunchHelp [CallExecutable]
   }
+
+  return run.status;
 }
 
 /// Sequence `ProcessCleanup` — Runs once at lot end.
-Future<void> processCleanup() async {
+Future<String> processCleanup() async {
+  final run = ts.SequenceRun();
+
   // Clean Up Multiplexer Sessions
   // .NET assembly: Code Modules\bin\STLExample.MultiplexedConnection.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.CleanupGenericMultiplexerSession
@@ -58,10 +69,14 @@ Future<void> processCleanup() async {
   throw UnimplementedError(
     'step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet',
   ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
+
+  return run.status;
 }
 
 /// Sequence `ProcessSetup` — Runs once at lot start.
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+
   // Initialize Realy Module Sessions
   throw UnimplementedError(
     'step type NI_SemiconductorTest_SetupNIRelayModules: action not exported yet',
@@ -78,6 +93,8 @@ Future<void> processSetup() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.InitializeGenericMultiplexerSession',
   ); // Setup NI Generic Multiplexer [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -101,26 +118,26 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.TestStep.OneInstrumentChannelToManySitesForOneDutPin
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   //   RunState engine access (no engine at run time)
   //   step type CallExecutable: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.CleanupGenericMultiplexerSession
   //   step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet
   lw.skipTest('ProcessCleanup', () async {
-    await processCleanup();
+    lw.expect(await processCleanup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type NI_SemiconductorTest_SetupNIRelayModules: action not exported yet
   //   step type NI_SemiconductorTest_SetupNIDMMInstrumentation: action not exported yet
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.InitializeGenericMultiplexerSession
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
 }

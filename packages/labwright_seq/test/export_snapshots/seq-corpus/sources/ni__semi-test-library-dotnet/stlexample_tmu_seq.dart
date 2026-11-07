@@ -12,7 +12,9 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence` — Runs for each UUT.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+
   // Measure the rise time of a digital signal using the PXIe-657x's TMU.
   // .NET assembly: Code Modules\bin\STLExample.TMU.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureRiseTimeWithSTL
@@ -55,10 +57,14 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\MeasurePulseWidthTMU.cs',
   ); // Measure Pulse Width [NI_SemiconductorModule_MultiTest]
+
+  return run.status;
 }
 
 /// Sequence `ProcessSetup` — Runs once at lot start.
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+
   throw UnimplementedError(
     'step type NI_SemiconductorModule_GetTestSettings: action not exported yet',
   ); // Get Offline Mode Information [NI_SemiconductorModule_GetTestSettings]
@@ -78,20 +84,28 @@ Future<void> processSetup() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions',
   ); // Cache Session Mapping [NI_SemiconductorModule_Action]
+
+  return run.status;
 }
 
 /// Sequence `ProcessCleanup` — Runs once at lot end.
-Future<void> processCleanup() async {
+Future<String> processCleanup() async {
+  final run = ts.SequenceRun();
+
   // .NET assembly: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll
   // .NET call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation',
   ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: "About This Example"
   // popup message: "This example demonstrates how to configure different TMU measurements using the Semiconductor Test Library. | It showcases six different TMU measurement types on digital pins: | 1. MeasurePeriod: |     Measures the period of a digital signal using rising edge detection and publishes the averaged result using the \"Period\" Published Data Id. | 2. MeasurePulseWidth: |     Measures the high pulse width of a digital signal, from the rising edge to the subsequent falling edge at Voh, and publishes the averaged result using the \"PulseWidth\" Published Data Id. | 3. MeasureDutyCycle: |     Measures the duration the signal spends in the high state and publishes it using the \"DutyCycleTime\" Published Data Id, then performs a period measurement to convert that duration into a ratio, which is published using the \"DutyCycleRatio\" Published Data Id. | 4. MeasureRiseTime: |     Measures the rise time of a digital signal, from the low voltage threshold (Vol) to the high voltage threshold (Voh), and publishes the averaged result using the \"RiseTime\" Published Data Id. | 5. MeasureFallTime: |     Measures the fall time of a digital signal, from the high voltage threshold (Voh) to the low voltage threshold (Vol), and publishes the averaged result using the \"FallTime\" Published Data Id. | 6. MeasureSkew: |     Measures the skew between the same edge type occurring on a reference pin (\"C0\") and a target pin (\"C1\"), and publishes the averaged result using the \"Skew\" Published Data Id. | Prerequisites: | 1. Software Requirements: |    - STS Software 26.5.0 or later | 2. Hardware Requirements: |    - An NI Digital Pattern Instrument (PXIe-657x) named \"HSD_6571_C1_S03\" (or update the pin map to use the name of the NI Digital Pattern Instrument in your system, as defined in NI MAX) |    - A signal source driving the measured pins \"C0\" and \"C1\" | Note: | - You do not need the required instruments physically installed in your system to run the example, as it can be run with simulated instruments using Offline Mode. |    However, the TMU measures the timing characteristics of a real signal present on the pin under test. |    Therefore, to obtain actual measurement results from the test steps, you must have the required hardware installed and drive a continuously toggling digital signal onto the measured pins,  |    with the pin levels (Vol/Voh) matching the amplitude of the incoming signal, since edge detection depends on these thresholds. | - Not all digital pattern instruments support the TMU. Refer to the NI Digital Pattern Instruments (PXIe-657x) documentation for details. | Click the Help button below to review the README file accompanying the sequence file for information on how to use this example."
   // popup buttons: "Help" | "OK"
@@ -105,6 +119,8 @@ Future<void> sequenceFileLoad() async {
       'step type CallExecutable: action not exported yet',
     ); // LaunchHelp [CallExecutable]
   }
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -143,7 +159,7 @@ void register() {
   //   dotNet call: Code Modules\TestSteps\MeasureDutyCycleTMU.cs
   //   dotNet call: Code Modules\TestSteps\MeasurePulseWidthTMU.cs
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type NI_SemiconductorModule_GetTestSettings: action not exported yet
@@ -151,18 +167,18 @@ void register() {
   //   dotNet call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.SetupNIDigitalPatternInstrumentation
   //   dotNet call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation
   lw.skipTest('ProcessCleanup', () async {
-    await processCleanup();
+    lw.expect(await processCleanup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   //   RunState engine access (no engine at run time)
   //   step type CallExecutable: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

@@ -12,7 +12,9 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+
   // ── setup ──
   // pin map: "..\pinmap\FileSessionSharing.pinmap"
   throw UnimplementedError(
@@ -71,6 +73,8 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'python call: teststand_json_logger.py',
   ); // Destroy and unregister File sessions [Action]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -98,6 +102,6 @@ void register() {
   //   python call: teststand_json_logger.py
   //   step type NI_Measurement: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

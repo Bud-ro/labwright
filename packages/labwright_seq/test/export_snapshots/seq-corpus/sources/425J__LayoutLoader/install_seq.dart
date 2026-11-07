@@ -12,7 +12,17 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+  dynamic promptResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Prompt
+
   // custom flow: if (Step.Result.ButtonHit == 1) Cback -> Install else Goto -> <End>
   // popup title: "Installer"
   // popup message: "Do you want to install Layout Loader?"
@@ -20,10 +30,14 @@ Future<void> sequenceFileLoad() async {
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Prompt [MessagePopup]
+  promptResult.Status = 'Done';
+  run.record(promptResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `Install`.
-Future<void> install() async {
+Future<String> install() async {
   String testStandPublic = ''; // Path
   String testStandCfg = ''; // Path
   String testStandGlobalCfg = ''; // Path
@@ -38,6 +52,20 @@ Future<void> install() async {
     'UsersDir': '',
     'FrontEndCallbackDir': '',
   }); // Obj
+
+  final run = ts.SequenceRun();
+  dynamic copySeqEditResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Copy SeqEdit
+  dynamic copyFrontEndCallbackResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Copy FrontEnd Callback
 
   ts.eval(
     'Locals.CurrentDir = Left(ThisContext.SequenceFile.Path, Find(ThisContext.SequenceFile.Path, "\\\\", 0, True, True)),\nLocals.Source.SeqEdit = Locals.CurrentDir + @"\\Resources\\SeqEdit",\nLocals.Source.Users = Locals.CurrentDir + @"\\Resources\\Users.ini",\nLocals.Source.FrontEndCallback = Locals.CurrentDir + @"\\Resources\\FrontEnd"',
@@ -59,13 +87,17 @@ Future<void> install() async {
       testStandPublic +
       '\\Components\\Callbacks\\FrontEnd'; // Set Target Directories (cont.)
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await copy(
+  copySeqEditResult.Status = await copy(
     sourceDirectoryPath: source.SeqEdit,
     targetDirectoryPath: target.SeqEditDir,
   ); // Copy SeqEdit
   ts.eval(
     'OutputMessage("SeqEdit configuration copied: " + Locals.Source.SeqEdit + " » " + Locals.Target.SeqEditDir)',
   ); // post-expression
+  copySeqEditResult.Status = copySeqEditResult.Status == 'Done'
+      ? 'Passed'
+      : copySeqEditResult.Status; // status expression
+  run.record(copySeqEditResult.Status);
   // .NET call: System.IO.File.Copy
   //   sourceFileName <- Locals.Source.Users
   //   destFileName <- Locals.Target.UsersDir
@@ -77,28 +109,43 @@ Future<void> install() async {
     'OutputMessage("Users file copied: " + Locals.Source.Users + " » " + Locals.Target.UsersDir)',
   ); // post-expression
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await copy(
+  copyFrontEndCallbackResult.Status = await copy(
     sourceDirectoryPath: source.FrontEndCallback,
     targetDirectoryPath: target.FrontEndCallbackDir,
   ); // Copy FrontEnd Callback
   ts.eval(
     'OutputMessage("FrontEnd Callback copied: " + Locals.Source.FrontEndCallback + " » " + Locals.Target.FrontEndCallbackDir)',
   ); // post-expression
+  copyFrontEndCallbackResult.Status =
+      copyFrontEndCallbackResult.Status == 'Done'
+      ? 'Passed'
+      : copyFrontEndCallbackResult.Status; // status expression
+  run.record(copyFrontEndCallbackResult.Status);
   // popup title: "Success"
   // popup message: "Layout Loader successfully installed."
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Success Message [MessagePopup]
+
+  return run.status;
 }
 
 /// Sequence `Copy`.
-Future<void> copy({
+Future<String> copy({
   String sourceDirectoryPath = '',
   String targetDirectoryPath = '',
 }) async {
   dynamic diSourceDirectory = null; // Ref
   dynamic diTargetDirectory = null; // Ref
+
+  final run = ts.SequenceRun();
+  dynamic copyAllResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of CopyAll
 
   // ── main ──
   // .NET call: System.IO.DirectoryInfo.DirectoryInfo
@@ -114,15 +161,21 @@ Future<void> copy({
     'dotNet call: System.IO.DirectoryInfo.DirectoryInfo',
   ); // Get Target DirectoryInfo [Action]
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await copyAll(); // CopyAll
+  copyAllResult.Status = await copyAll(); // CopyAll
+  copyAllResult.Status = copyAllResult.Status == 'Done'
+      ? 'Passed'
+      : copyAllResult.Status; // status expression
+  run.record(copyAllResult.Status);
 
   // ── cleanup ──
   diSourceDirectory = null; // Release
   diTargetDirectory = null; // Release (cont.)
+
+  return run.status;
 }
 
 /// Sequence `CopyAll`.
-Future<void> copyAll({
+Future<String> copyAll({
   dynamic diSourceDirectory,
   dynamic diTargetDirectory,
 }) async {
@@ -134,6 +187,14 @@ Future<void> copyAll({
   dynamic fiSourceFile = null; // Ref
   dynamic diSourceSubdirectory = null; // Ref
   dynamic diTargetSubdirectory = null; // Ref
+
+  final run = ts.SequenceRun();
+  dynamic copyAllResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of CopyAll
 
   // ── main ──
   // .NET call: System.IO.DirectoryInfo.Use Existing Object
@@ -198,10 +259,20 @@ Future<void> copyAll({
       'dotNet call: System.IO.DirectoryInfo.CreateSubdirectory',
     ); // Create Subdirectory [Action]
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await copyAll(
+    copyAllResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    copyAllResult.Status = await copyAll(
       diSourceDirectory: diSourceSubdirectory,
       diTargetDirectory: diTargetSubdirectory,
     ); // CopyAll
+    copyAllResult.Status = copyAllResult.Status == 'Done'
+        ? 'Passed'
+        : copyAllResult.Status; // status expression
+    run.record(copyAllResult.Status);
   }
 
   // ── cleanup ──
@@ -211,6 +282,8 @@ Future<void> copyAll({
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.diSourceSubdirectories); increment RunState.LoopIndex += 1; status "Done"
   diSourceSubdirectories[runState.LoopIndex] =
       null; // Release diSourceSubdirectories
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -235,16 +308,13 @@ void register() {
   //   flow action of step "Prompt" (Next/Next) not exported
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
-  //   status expression of step "Copy SeqEdit" not exported
   //   dotNet call: System.IO.File.Copy
-  //   status expression of step "Copy FrontEnd Callback" not exported
   //   step type MessagePopup: action not exported yet
   //   dotNet call: System.IO.DirectoryInfo.DirectoryInfo
-  //   status expression of step "CopyAll" not exported
   //   call parameters of sequence CopyAll: no parameter named SourceDirectory (stale binding)
   //   call parameters of sequence CopyAll: no parameter named TargetDirectory (stale binding)
   //   dotNet call: System.IO.DirectoryInfo.FullName
@@ -259,6 +329,6 @@ void register() {
   //   RunState engine access (no engine at run time)
   //   step "Release diSourceSubdirectories" loops (Custom) — per-step looping not exported
   lw.skipTest('Install', () async {
-    await install();
+    lw.expect(await install(), 'Passed');
   });
 }

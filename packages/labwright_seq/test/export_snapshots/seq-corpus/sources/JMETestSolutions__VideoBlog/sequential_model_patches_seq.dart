@@ -9,38 +9,61 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `PreUUT` — Displays a dialog box in which the operator enters the UUTserial number.  Override this in client file to change or replace this action..
-Future<void> preUut({
+Future<String> preUut({
   bool continueTesting = true,
   dynamic uut,
   dynamic testSocket,
   dynamic modelData,
   dynamic modelPluginConfiguration,
 }) async {
+  final run = ts.SequenceRun();
+  dynamic callDoPreUutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Call DoPreUUT
+
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await doPreUut(); // Call DoPreUUT: external sequence call
+  callDoPreUutResult.Status = callDoPreUutResult.Status == 'Done'
+      ? 'Passed'
+      : callDoPreUutResult.Status; // status expression
+  run.record(callDoPreUutResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+
   // popup title: NameOf(Step)
   // popup message: "Initializing Instruments"
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Initializing Instruments [MessagePopup]
+
+  return run.status;
 }
 
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
-Future<void> processCleanup() async {
+Future<String> processCleanup() async {
+  final run = ts.SequenceRun();
+
   // popup title: NameOf(Step)
   // popup message: "Shutting down Instruments"
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Shutting down Instruments [MessagePopup]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -70,23 +93,22 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Call DoPreUUT" not exported
   //   external sequence: DoPreUUT
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
   //   root parameter 'TestSocket' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('PreUUT', () async {
-    await preUut();
+    lw.expect(await preUut(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('ProcessCleanup', () async {
-    await processCleanup();
+    lw.expect(await processCleanup(), 'Passed');
   });
 }

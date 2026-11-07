@@ -12,12 +12,36 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({
     'VSDialogs': null,
     'ProjectReference': null,
     'gatewayIP': 'localhost',
   }); // Obj
+
+  final run = ts.SequenceRun();
+  dynamic rtSequencePassFailTestResult = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of RT Sequence Pass/Fail Test
+  dynamic rtSequencePassFailTestResult2 = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of RT Sequence Pass/Fail Test
 
   // ── setup ──
   throw UnimplementedError(
@@ -28,6 +52,11 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+  rtSequencePassFailTestResult.Status =
+      ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(rtSequencePassFailTestResult.Status);
 
   // ── main ──
   throw UnimplementedError(
@@ -38,9 +67,16 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+  rtSequencePassFailTestResult2.Status =
+      ts.truthy(rtSequencePassFailTestResult2.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(rtSequencePassFailTestResult2.Status);
   throw UnimplementedError(
     'step type StopLogging: action not exported yet',
   ); // Stop VS Logging [StopLogging]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -76,11 +112,10 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type InitializeVeriStand: action not exported yet
-  //   status expression of step "RT Sequence Pass/Fail Test" not exported
   //   step type RunRTSequencePassFail: action not exported yet
   //   step type StartLogging: action not exported yet
   //   step type StopLogging: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

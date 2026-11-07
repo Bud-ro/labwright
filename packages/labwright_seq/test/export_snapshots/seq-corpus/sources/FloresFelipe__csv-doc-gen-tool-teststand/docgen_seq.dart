@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic docOptions = ts.PropObj({
     'ShowLocals': true,
     'ShowParameters': true,
@@ -27,6 +27,8 @@ Future<void> mainSequence() async {
     'DestFileAbsPath': '',
   }); // DocOptions
 
+  final run = ts.SequenceRun();
+
   throw UnimplementedError(
     'cModule call: ReadDocOptions',
   ); // ReadDocOptions [Action]
@@ -36,6 +38,8 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'cModule call: WriteDocOptions',
   ); // WriteDocOptions [Action]
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -61,6 +65,6 @@ void register() {
   //   cModule call: DisplayDocDlg
   //   cModule call: WriteDocOptions
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

@@ -13,9 +13,23 @@ import 'package:labwright/shims.dart' as ts;
 import 'lw_runtime.dart';
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
-Future<void> processSetup() async {
+Future<String> processSetup() async {
+  final run = ts.SequenceRun();
+  dynamic loadVarInitResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Load var init
+
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await loadVariables(variableList: 'FirstRun'); // Load var init
+  loadVarInitResult.Status = await loadVariables(
+    variableList: 'FirstRun',
+  ); // Load var init
+  loadVarInitResult.Status = loadVarInitResult.Status == 'Done'
+      ? 'Passed'
+      : loadVarInitResult.Status; // status expression
+  run.record(loadVarInitResult.Status);
   ts.eval(
     'StationGlobals.isTraceEnable = FileGlobals.isTraceEnable',
   ); // Assign TraceabilityEnabled Var
@@ -32,16 +46,38 @@ Future<void> processSetup() async {
       ''; // Assign TraceabilityEnabled Var (cont.)
   stationGlobals.Init_PN_withsequence ==
       ''; // Assign TraceabilityEnabled Var (cont.)
+
+  return run.status;
 }
 
 /// Sequence `PreBatch` — Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action..
-Future<void> preBatch({
+Future<String> preBatch({
   bool continueTesting = true,
   dynamic modelData,
   dynamic modelPluginConfiguration,
 }) async {
   int backCheck = 0; // Num — default: 0
   String replyBackCheck = ''; // Str
+
+  final run = ts.SequenceRun();
+  dynamic waitForDialogResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Wait For Dialog
+  dynamic getPartNumberResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get_PartNumber
+  dynamic getFwPathsForPnResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get FW paths for PN
 
   // ── setup ──
   backCheck = 0; // Reset Traceability Variables
@@ -129,6 +165,12 @@ Future<void> preBatch({
       )) {
     // precondition of Wait For Dialog
     await processDialogRequests(); // Wait For Dialog: external sequence call
+    waitForDialogResult.Status = waitForDialogResult.Status == 'Done'
+        ? 'Passed'
+        : waitForDialogResult.Status; // status expression
+    run.record(waitForDialogResult.Status);
+  } else {
+    waitForDialogResult.Status = 'Skipped';
   }
 
   // ── main ──
@@ -168,11 +210,17 @@ Future<void> preBatch({
   //   AssemblyPartNumber <- Parameters.ModelData.BatchUUT.PartNumber
   //   error out <- Step.Result.Error
   await callWsp2PartNumberRef(); // Get_PartNumber [Action]
+  getPartNumberResult.Status = stationGlobals.PartNumber; // status expression
+  run.record(getPartNumberResult.Status);
   // [skipped in source] Activar para mostrar PN
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await loadVariables(
+  getFwPathsForPnResult.Status = await loadVariables(
     variableList: modelData.BatchUUT.PartNumber,
   ); // Get FW paths for PN
+  getFwPathsForPnResult.Status = getFwPathsForPnResult.Status == 'Done'
+      ? 'Passed'
+      : getFwPathsForPnResult.Status; // status expression
+  run.record(getFwPathsForPnResult.Status);
   ts.eval('StationGlobals.ModelID = FileGlobals.Model_ID'); // Set FW Paths
   ts.eval(
     '\nStationGlobals.Path_flex_provision = FileGlobals.Path_flex_provision',
@@ -336,43 +384,180 @@ Future<void> preBatch({
   }
   //   error out <- Step.Result.Error
   await callAllOffRelays(); // Set relays to init state [Action]
+
+  return run.status;
 }
 
 /// Sequence `PreUUTLoop` — Test UUTs calls this before looping on UUTs.  Is empty in model file.  Override this in the client file to perform an action before any UUTs are tested..
-Future<void> preUutLoop({dynamic modelPluginConfiguration}) async {
+Future<String> preUutLoop({dynamic modelPluginConfiguration}) async {
+  final run = ts.SequenceRun();
+  dynamic loadVarUut1Result = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Load_Var_UUT 1
+  dynamic loadVarUut2Result = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Load_Var_UUT 2
+  dynamic loadVarUut3Result = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Load_Var_UUT 3
+  dynamic loadVarUut4Result = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Load_Var_UUT 4
+  dynamic loadVarUut5Result = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Load_Var_UUT 5
+  dynamic loadVarUut6Result = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Load_Var_UUT 6
+
   if (runState.TestSockets.MyIndex == 0) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await loadVariables(variableList: 'UUT_1'); // Load_Var_UUT 1
+    loadVarUut1Result.Status = await loadVariables(
+      variableList: 'UUT_1',
+    ); // Load_Var_UUT 1
+    loadVarUut1Result.Status = loadVarUut1Result.Status == 'Done'
+        ? 'Passed'
+        : loadVarUut1Result.Status; // status expression
+    run.record(loadVarUut1Result.Status);
   } else if (runState.TestSockets.MyIndex == 1) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await loadVariables(variableList: 'UUT_2'); // Load_Var_UUT 2
+    loadVarUut2Result.Status = await loadVariables(
+      variableList: 'UUT_2',
+    ); // Load_Var_UUT 2
+    loadVarUut2Result.Status = loadVarUut2Result.Status == 'Done'
+        ? 'Passed'
+        : loadVarUut2Result.Status; // status expression
+    run.record(loadVarUut2Result.Status);
   } else if (runState.TestSockets.MyIndex == 2) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await loadVariables(variableList: 'UUT_3'); // Load_Var_UUT 3
+    loadVarUut3Result.Status = await loadVariables(
+      variableList: 'UUT_3',
+    ); // Load_Var_UUT 3
+    loadVarUut3Result.Status = loadVarUut3Result.Status == 'Done'
+        ? 'Passed'
+        : loadVarUut3Result.Status; // status expression
+    run.record(loadVarUut3Result.Status);
   } else if (runState.TestSockets.MyIndex == 3) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await loadVariables(variableList: 'UUT_4'); // Load_Var_UUT 4
+    loadVarUut4Result.Status = await loadVariables(
+      variableList: 'UUT_4',
+    ); // Load_Var_UUT 4
+    loadVarUut4Result.Status = loadVarUut4Result.Status == 'Done'
+        ? 'Passed'
+        : loadVarUut4Result.Status; // status expression
+    run.record(loadVarUut4Result.Status);
   } else if (runState.TestSockets.MyIndex == 4) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await loadVariables(variableList: 'UUT_5'); // Load_Var_UUT 5
+    loadVarUut5Result.Status = await loadVariables(
+      variableList: 'UUT_5',
+    ); // Load_Var_UUT 5
+    loadVarUut5Result.Status = loadVarUut5Result.Status == 'Done'
+        ? 'Passed'
+        : loadVarUut5Result.Status; // status expression
+    run.record(loadVarUut5Result.Status);
   } else if (runState.TestSockets.MyIndex == 5) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await loadVariables(variableList: 'UUT_6'); // Load_Var_UUT 6
+    loadVarUut6Result.Status = await loadVariables(
+      variableList: 'UUT_6',
+    ); // Load_Var_UUT 6
+    loadVarUut6Result.Status = loadVarUut6Result.Status == 'Done'
+        ? 'Passed'
+        : loadVarUut6Result.Status; // status expression
+    run.record(loadVarUut6Result.Status);
   }
   // [skipped in source] Save PN for check for PN at other panel
+
+  return run.status;
 }
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+  dynamic uutNotForThisProcessResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of UUT Not For This Process
+  dynamic jLinkConnectionTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink Connection Test
+  dynamic targetConnectionTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Target Connection Test
+  dynamic jLinkResetResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink_reset
+  dynamic flashFlexProvisionResetResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Flash Flex Provision Reset
+  dynamic flashFlexProvisionResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Flash Flex Provision
+  dynamic flashProgramCombinedResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Flash program combined
+  dynamic jLinkCloseTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink_close Test
+
   // ── setup ──
   // [skipped in source] Go to cleanup on failure
   if (stationGlobals.IsBackcheckOK[runState.TestSockets.MyIndex] == false &&
       stationGlobals.isTraceEnable == 'True') {
     // checks: False
     // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-    throw UnimplementedError(
-      'step type PassFailTest: action not exported yet',
-    ); // UUT Not For This Process [PassFailTest]
+    // UUT Not For This Process [PassFailTest]: judged by its status expression
+    uutNotForThisProcessResult.PassFail = false; // status expression
+    uutNotForThisProcessResult.Status =
+        ts.truthy(uutNotForThisProcessResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(uutNotForThisProcessResult.Status);
     // goto -> step "BackCheck Point"
     throw UnimplementedError(
       'step type Goto: action not exported yet',
@@ -425,6 +610,11 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink Connection Test [PassFailTest]
+  jLinkConnectionTestResult.Status =
+      ts.truthy(jLinkConnectionTestResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkConnectionTestResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   // step loop (PassFailCount): init RunState.LoopIndex = 0; while RunState.LoopIndex < 3 && RunState.LoopNumPassed < 1; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed >= 1 ? "Passed" : "Failed"
@@ -434,6 +624,11 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // Target Connection Test [PassFailTest]
+  targetConnectionTestResult.Status =
+      ts.truthy(targetConnectionTestResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(targetConnectionTestResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
@@ -441,15 +636,36 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink_reset [PassFailTest]
+  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkResetResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
-  await writeResetFlexProvision(); // Flash Flex Provision Reset
+  flashFlexProvisionResetResult.Status =
+      await writeResetFlexProvision(); // Flash Flex Provision Reset
+  flashFlexProvisionResetResult.Status =
+      flashFlexProvisionResetResult.Status == 'Done'
+      ? 'Passed'
+      : flashFlexProvisionResetResult.Status; // status expression
+  run.record(flashFlexProvisionResetResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
-  await writeFlexProvision(); // Flash Flex Provision
+  flashFlexProvisionResult.Status =
+      await writeFlexProvision(); // Flash Flex Provision
+  flashFlexProvisionResult.Status = flashFlexProvisionResult.Status == 'Done'
+      ? 'Passed'
+      : flashFlexProvisionResult.Status; // status expression
+  run.record(flashFlexProvisionResult.Status);
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
-  await writeProgramCombined(); // Flash program combined
+  flashProgramCombinedResult.Status =
+      await writeProgramCombined(); // Flash program combined
+  flashProgramCombinedResult.Status =
+      flashProgramCombinedResult.Status == 'Done'
+      ? 'Passed'
+      : flashProgramCombinedResult.Status; // status expression
+  run.record(flashProgramCombinedResult.Status);
   stationGlobals.isSequenceComplete[runState.TestSockets.MyIndex] =
       true; // Set Sequence complete to True
   stationGlobals.TestResult[runState.TestSockets.MyIndex] = 1; // UUT Pass
@@ -462,10 +678,14 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink_close Test [PassFailTest]
+  jLinkCloseTestResult.Status = ts.truthy(jLinkCloseTestResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkCloseTestResult.Status);
   // popup title: NameOf(Step)
   // popup message: "UUT " + Str(RunState.TestSockets.MyIndex) + " Fallo"
   // popup buttons: "OK"
-  if (ts.truthy(runState.SequenceFailed)) {
+  if (run.failed) {
     // precondition of Msg Failed
     throw UnimplementedError(
       'step type MessagePopup: action not exported yet',
@@ -494,13 +714,17 @@ Future<void> mainSequence() async {
     await Future<void>.delayed(const Duration(seconds: 2));
     stationGlobals.Rele_programmer[2] = true; // Change boolean group 3
   }
+
+  return run.status;
 }
 
 /// Sequence `PostBatch` — Displays a pass, fail, error, or terminated banner for each TestSocket and allows viewing of Batch and UUT reports. Override this in client file to change or replace this action..
-Future<void> postBatch({
+Future<String> postBatch({
   dynamic modelData,
   dynamic modelPluginConfiguration,
 }) async {
+  final run = ts.SequenceRun();
+
   // goto -> step "End Of Traceability Section"
   if (stationGlobals.isTraceEnable == 'False') {
     // precondition of Jump if Traceability is Disabled
@@ -745,10 +969,12 @@ Future<void> postBatch({
       'cModule call: Tell Dialog To Show Status',
     ); // Tell Dialog To Show Status [Action]
   }
+
+  return run.status;
 }
 
 /// Sequence `Load_Variables`.
-Future<void> loadVariables({String variableList = ''}) async {
+Future<String> loadVariables({String variableList = ''}) async {
   String filePath =
       'C:\\\\Elatch-Bench-Programming\\\\Load_Data\\\\Variables.ini'; // Str
   List<dynamic> testName = <dynamic>[]; // Strs
@@ -759,6 +985,8 @@ Future<void> loadVariables({String variableList = ''}) async {
   int arrayIndex = 0; // Num — default: 0
   int tempNum = 0; // Num — default: 0
   int tempLoop = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   //   FilePath <- Locals.File_Path
   //   OutPutValue <- 1
@@ -779,10 +1007,42 @@ Future<void> loadVariables({String variableList = ''}) async {
     ); // CreateLimits
   }
   // [skipped in source] Message Popup
+
+  return run.status;
 }
 
 /// Sequence `Write_reset_flex_provision`.
-Future<void> writeResetFlexProvision() async {
+Future<String> writeResetFlexProvision() async {
+  final run = ts.SequenceRun();
+  dynamic flashFlexProvisionResetResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Flash_Flex_Provision_Reset
+  dynamic jLinkResetResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink_reset
+  dynamic jLinkRestartResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink_restart
+  dynamic jLinkResetResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink_reset
+
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
@@ -790,18 +1050,31 @@ Future<void> writeResetFlexProvision() async {
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // Flash_Flex_Provision_Reset [PassFailTest]
+  flashFlexProvisionResetResult.Status =
+      ts.truthy(flashFlexProvisionResetResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(flashFlexProvisionResetResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink_reset [PassFailTest]
+  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkResetResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink_restart [PassFailTest]
+  jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 2));
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
@@ -809,10 +1082,46 @@ Future<void> writeResetFlexProvision() async {
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink_reset [PassFailTest]
+  jLinkResetResult2.Status = ts.truthy(jLinkResetResult2.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkResetResult2.Status);
+
+  return run.status;
 }
 
 /// Sequence `Write_flex_provision`.
-Future<void> writeFlexProvision() async {
+Future<String> writeFlexProvision() async {
+  final run = ts.SequenceRun();
+  dynamic fllashFlexProvisionResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Fllash_Flex_Provision
+  dynamic jLinkResetResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink_reset
+  dynamic jLinkRestartResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink_restart
+  dynamic jLinkResetResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink_reset
+
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
@@ -820,18 +1129,31 @@ Future<void> writeFlexProvision() async {
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // Fllash_Flex_Provision [PassFailTest]
+  fllashFlexProvisionResult.Status =
+      ts.truthy(fllashFlexProvisionResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(fllashFlexProvisionResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink_reset [PassFailTest]
+  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkResetResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink_restart [PassFailTest]
+  jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 12));
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
@@ -839,10 +1161,53 @@ Future<void> writeFlexProvision() async {
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink_reset [PassFailTest]
+  jLinkResetResult2.Status = ts.truthy(jLinkResetResult2.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkResetResult2.Status);
+
+  return run.status;
 }
 
 /// Sequence `Write_program_combined`.
-Future<void> writeProgramCombined() async {
+Future<String> writeProgramCombined() async {
+  final run = ts.SequenceRun();
+  dynamic fllashFlexCombinedResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Fllash_Flex_Combined
+  dynamic jLinkHaltResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink_halt
+  dynamic jLinkRestartResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink_restart
+  dynamic jLinkResetResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink_reset
+  dynamic jLinkRestartResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of JLink_restart
+
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
@@ -850,18 +1215,30 @@ Future<void> writeProgramCombined() async {
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // Fllash_Flex_Combined [PassFailTest]
+  fllashFlexCombinedResult.Status = ts.truthy(fllashFlexCombinedResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(fllashFlexCombinedResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink_halt [PassFailTest]
+  jLinkHaltResult.Status = ts.truthy(jLinkHaltResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkHaltResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink_restart [PassFailTest]
+  jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 12));
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
@@ -869,12 +1246,22 @@ Future<void> writeProgramCombined() async {
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink_reset [PassFailTest]
+  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkResetResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   throw UnimplementedError(
     'python call: ..\\Python\\ecu_programmer.py',
   ); // JLink_restart [PassFailTest]
+  jLinkRestartResult2.Status = ts.truthy(jLinkRestartResult2.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(jLinkRestartResult2.Status);
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -942,24 +1329,20 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Load var init" not exported
   //   untranslated expression in body
   //   StationGlobals read (station-level state not set here)
   //   ..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi
   //   RunState engine access (no engine at run time)
   lw.skipTest('ProcessSetup', () async {
-    await processSetup();
+    lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   StationGlobals read (station-level state not set here)
   //   cModule call: Tell Dialog To Get Next UUTs
-  //   status expression of step "Wait For Dialog" not exported
   //   external sequence: ProcessDialogRequests
   //   step type Action: action not exported yet
   //   dotNet call: WSConnector.Connector.CIMP_PanelBoardRef
-  //   status expression of step "Get_PartNumber" not exported
   //   ..\LabVIEW_VIs\Traceability\WSP2_PartNumberRef.vi
-  //   status expression of step "Get FW paths for PN" not exported
   //   untranslated expression in body
   //   flow step "If" is Skip in source (skipped flow semantics not pinned)
   //   flow step "End" is Skip in source (skipped flow semantics not pinned)
@@ -973,53 +1356,33 @@ void register() {
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('PreBatch', () async {
-    await preBatch();
+    lw.expect(await preBatch(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
-  //   status expression of step "Load_Var_UUT 1" not exported
-  //   status expression of step "Load_Var_UUT 2" not exported
-  //   status expression of step "Load_Var_UUT 3" not exported
-  //   status expression of step "Load_Var_UUT 4" not exported
-  //   status expression of step "Load_Var_UUT 5" not exported
-  //   status expression of step "Load_Var_UUT 6" not exported
   //   ..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('PreUUTLoop', () async {
-    await preUutLoop();
+    lw.expect(await preUutLoop(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
   //   StationGlobals read (station-level state not set here)
-  //   status expression of step "UUT Not For This Process" not exported
-  //   step type PassFailTest: action not exported yet
   //   flow action of step "Goto" (Next/Next) not exported
   //   step type Goto: action not exported yet
   //   python call: ..\Python\ecu_programmer.py
   //   step "JLink Connection Test" loops (PassFailCount) — per-step looping not exported
   //   flow action of step "JLink Connection Test" (Next/Next) not exported
-  //   status expression of step "JLink Connection Test" not exported
   //   step "Target Connection Test" loops (PassFailCount) — per-step looping not exported
   //   flow action of step "Target Connection Test" (Next/Next) not exported
-  //   status expression of step "Target Connection Test" not exported
   //   flow action of step "JLink_reset" (Next/Next) not exported
-  //   status expression of step "JLink_reset" not exported
   //   flow action of step "Flash Flex Provision Reset" (Next/Next) not exported
-  //   status expression of step "Flash Flex Provision Reset" not exported
   //   flow action of step "Flash Flex Provision" (Next/Next) not exported
-  //   status expression of step "Flash Flex Provision" not exported
   //   flow action of step "Flash program combined" (Next/Next) not exported
-  //   status expression of step "Flash program combined" not exported
-  //   status expression of step "JLink_close Test" not exported
   //   step type MessagePopup: action not exported yet
   //   ..\LabVIEW_VIs\USB-ERB24\Choose_nest.vi
-  //   status expression of step "Flash_Flex_Provision_Reset" not exported
-  //   status expression of step "JLink_restart" not exported
-  //   status expression of step "Fllash_Flex_Provision" not exported
-  //   status expression of step "Fllash_Flex_Combined" not exported
-  //   status expression of step "JLink_halt" not exported
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   flow action of step "Jump if Traceability is Disabled" (Next/Next) not exported
@@ -1031,6 +1394,6 @@ void register() {
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('PostBatch', () async {
-    await postBatch();
+    lw.expect(await postBatch(), 'Passed');
   });
 }

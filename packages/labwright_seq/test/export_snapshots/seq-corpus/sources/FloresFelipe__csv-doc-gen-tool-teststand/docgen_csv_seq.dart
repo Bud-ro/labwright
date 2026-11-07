@@ -12,10 +12,34 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `Sequence File Doc` — (Main Entry Point) Parses the target seqeunce file, builds the tab delimited string, and saves it to a file..
-Future<void> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
+Future<String> sequenceFileDoc({
+  dynamic sequenceFile,
+  dynamic docOptions,
+}) async {
   int tmpNum = 0; // Num — default: 0
   String docResult = ''; // Str
   dynamic currentSequence = null; // Ref
+
+  final run = ts.SequenceRun();
+  dynamic parseSequenceResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Parse Sequence
+  dynamic buildDocStringResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Build Doc String
+  dynamic saveDocToFileResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': true,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Save Doc To File
 
   // ── setup ──
   fileGlobals.SequenceFileObj = sequenceFile; // Set Sequence File Ref
@@ -26,29 +50,62 @@ Future<void> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
   for (final element in ts.iterate(fileGlobals.SequenceFileObj.Data.Seq)) {
     currentSequence = element;
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await parseSequence(
+    parseSequenceResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    parseSequenceResult.Status = await parseSequence(
       sequence: currentSequence,
       seqDocString: docResult,
     ); // Parse Sequence
+    parseSequenceResult.Status = parseSequenceResult.Status == 'Done'
+        ? 'Passed'
+        : parseSequenceResult.Status; // status expression
+    run.record(parseSequenceResult.Status);
   }
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await buildDocString(seqDocString: docResult); // Build Doc String
+  buildDocStringResult.Status = await buildDocString(
+    seqDocString: docResult,
+  ); // Build Doc String
+  buildDocStringResult.Status = buildDocStringResult.Status == 'Done'
+      ? 'Passed'
+      : buildDocStringResult.Status; // status expression
+  run.record(buildDocStringResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.Result.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'cModule call: Save Doc To File',
   ); // Save Doc To File [PassFailTest]
+  saveDocToFileResult.Status = ts.truthy(saveDocToFileResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(saveDocToFileResult.Status);
 
   // ── cleanup ──
   // Enable this step to test this sequence in isolation.
   // [skipped in source] Release Sequence File
+
+  return run.status;
 }
 
 /// Sequence `Parse Sequence` — Loops through the steps in a sequence to obtain their information..
-Future<void> parseSequence({dynamic sequence, String seqDocString = ''}) async {
+Future<String> parseSequence({
+  dynamic sequence,
+  String seqDocString = '',
+}) async {
   int tmpNum = 0; // Num — default: 0
   String currentGroup = ''; // Str
   dynamic currentStep = null; // Ref
+
+  final run = ts.SequenceRun();
+  dynamic extractStepDataResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Extract Step Data
 
   // ── setup ──
   throw UnimplementedError(
@@ -65,10 +122,20 @@ Future<void> parseSequence({dynamic sequence, String seqDocString = ''}) async {
     )) {
       currentStep = element2;
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      await parseStep(
+      extractStepDataResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      extractStepDataResult.Status = await parseStep(
         seqDocString: seqDocString,
         currentStep: currentStep,
       ); // Extract Step Data
+      extractStepDataResult.Status = extractStepDataResult.Status == 'Done'
+          ? 'Passed'
+          : extractStepDataResult.Status; // status expression
+      run.record(extractStepDataResult.Status);
       throw UnimplementedError(
         'cModule call: SetProgressMsg',
       ); // SetProgressMsg [Action]
@@ -79,14 +146,33 @@ Future<void> parseSequence({dynamic sequence, String seqDocString = ''}) async {
   throw UnimplementedError(
     'cModule call: SetProgressMsg',
   ); // SetProgressMsg [Action]
+
+  return run.status;
 }
 
 /// Sequence `Parse Step` — This string can extract properties of a step and return them as a tab-demilited string.
-Future<void> parseStep({String seqDocString = '', dynamic currentStep}) async {
+Future<String> parseStep({
+  String seqDocString = '',
+  dynamic currentStep,
+}) async {
   int numberOfParameters = 0; // Num — default: 0
   String currentRow = ''; // Str
   String parametersList = ''; // Str
   String blockLvlPadding = ''; // Str
+
+  final run = ts.SequenceRun();
+  dynamic getLabViewModuleParametersResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get LabVIEW Module Parameters
+  dynamic getSubSequenceParametersResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get SubSequence Parameters
 
   // description: ----------------------------------------------------------------------------------------------
   // label: Extract Parameters
@@ -94,7 +180,7 @@ Future<void> parseStep({String seqDocString = '', dynamic currentStep}) async {
     currentStep.AsPropertyObject.Exists('TS.SData.ViCall.Parms', 0),
   )) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await getLabViewModuleParameters(
+    getLabViewModuleParametersResult.Status = await getLabViewModuleParameters(
       numberOfParameters: numberOfParameters,
       currentStep: currentStep,
       parametersList: parametersList,
@@ -102,9 +188,14 @@ Future<void> parseStep({String seqDocString = '', dynamic currentStep}) async {
     ts.eval(
       '\nLocals.ParametersList = Trim(Locals.ParametersList, FileGlobals.SEPARATOR)',
     ); // post-expression
+    getLabViewModuleParametersResult.Status =
+        getLabViewModuleParametersResult.Status == 'Done'
+        ? 'Passed'
+        : getLabViewModuleParametersResult.Status; // status expression
+    run.record(getLabViewModuleParametersResult.Status);
   } else if (ts.truthy(currentStep.AsStep.IsSequenceCall)) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await getSubSequenceParameters(
+    getSubSequenceParametersResult.Status = await getSubSequenceParameters(
       numberOfParameters: numberOfParameters,
       currentStep: currentStep,
       parametersList: parametersList,
@@ -112,6 +203,11 @@ Future<void> parseStep({String seqDocString = '', dynamic currentStep}) async {
     ts.eval(
       '\nLocals.ParametersList = Trim(Locals.ParametersList, FileGlobals.SEPARATOR)',
     ); // post-expression
+    getSubSequenceParametersResult.Status =
+        getSubSequenceParametersResult.Status == 'Done'
+        ? 'Passed'
+        : getSubSequenceParametersResult.Status; // status expression
+    run.record(getSubSequenceParametersResult.Status);
   }
   // description: ----------------------------------------------------------------------------------------------
   // label: Build Step String
@@ -123,12 +219,16 @@ Future<void> parseStep({String seqDocString = '', dynamic currentStep}) async {
     'Locals.CurrentRow =\n\nRight(FileGlobals.SequenceFileObj.Path, Len(FileGlobals.SequenceFileObj.Path) - FindPattern(FileGlobals.SequenceFileObj.Path, "[^\\\\\\\\]+\\\\.seq\$")) + FileGlobals.SEPARATOR + \n\nParameters.CurrentStep.AsStep.Sequence.Name + FileGlobals.SEPARATOR + \n\nFileGlobals.SEQ_GROUP[Parameters.CurrentStep.AsStep.StepGroup] + FileGlobals.SEPARATOR + \n\nStr(Parameters.CurrentStep.StepIndex,"%02d") + FileGlobals.SEPARATOR +\n\nStr(Parameters.CurrentStep.AsStep.BlockLevel, "%02d") + FileGlobals.SEPARATOR +\n\nLocals.BlockLvlPadding + Parameters.CurrentStep.AsStep.Name + FileGlobals.SEPARATOR +\n\nParameters.CurrentStep.TS.Icon + FileGlobals.SEPARATOR +\n\nParameters.CurrentStep.AsStep.GetDescriptionEx() + FileGlobals.SEPARATOR + \n\nParameters.CurrentStep.AsStep.GetStepSettingsString() + FileGlobals.SEPARATOR + \n\n(Parameters.CurrentStep.Requirements.Links.GetNumElements() == 0 ? "" : Parameters.CurrentStep.Requirements.Links[0]) + FileGlobals.SEPARATOR +\n\nLocals.ParametersList\n\n+ "\\n"',
   ); // Build Step Data Row
   seqDocString += currentRow; // Add Row to DocString
+
+  return run.status;
 }
 
 /// Sequence `Build Doc String` — Concatenates the header parts and the body to produce the final delimited text..
-Future<void> buildDocString({String seqDocString = ''}) async {
+Future<String> buildDocString({String seqDocString = ''}) async {
   String stdHeader = ''; // Str
   String parametersHeader = ''; // Str
+
+  final run = ts.SequenceRun();
 
   stdHeader =
       'Sequence File' +
@@ -170,16 +270,20 @@ Future<void> buildDocString({String seqDocString = ''}) async {
       parametersHeader +
       '\n' +
       seqDocString; // Add Header To Steps Doc String
+
+  return run.status;
 }
 
 /// Sequence `Get SubSequence Parameters` — Extracts parameters of a SubSequence call and return them as a tab-separated string..
-Future<void> getSubSequenceParameters({
+Future<String> getSubSequenceParameters({
   int numberOfParameters = 0,
   dynamic currentStep,
   String parametersList = '',
 }) async {
   dynamic currentParameter = null; // Ref
   int x = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   // ── main ──
   for (
@@ -202,16 +306,20 @@ Future<void> getSubSequenceParameters({
 
   // ── cleanup ──
   numberOfParameters = ++x; // Set the Number of Parameters in the Module
+
+  return run.status;
 }
 
 /// Sequence `Get LabVIEW Module Parameters` — Extracts parameters of a LabVIEW Code Module and return them as a tab-separated string..
-Future<void> getLabViewModuleParameters({
+Future<String> getLabViewModuleParameters({
   int numberOfParameters = 0,
   dynamic currentStep,
   String parametersList = '',
 }) async {
   int x = 0; // Num — default: 0
   dynamic currentParameter = null; // Ref
+
+  final run = ts.SequenceRun();
 
   // ── main ──
   for (final element in ts.iterate(currentStep.TS.SData.ViCall.Parms)) {
@@ -226,6 +334,8 @@ Future<void> getLabViewModuleParameters({
 
   // ── cleanup ──
   numberOfParameters = ++x; // Set the Number of Parameters in the Module
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -250,19 +360,13 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   status expression of step "Parse Sequence" not exported
-  //   status expression of step "Build Doc String" not exported
   //   by-ref writeback of parameter SeqDocString of sequence Build Doc String not exported
-  //   status expression of step "Save Doc To File" not exported
   //   cModule call: Save Doc To File
   //   cModule call: SetProgressMsg
   //   untranslated expression in body
-  //   status expression of step "Extract Step Data" not exported
   //   by-ref writeback of parameter SeqDocString of sequence Parse Step not exported
-  //   status expression of step "Get LabVIEW Module Parameters" not exported
   //   by-ref writeback of parameter NumberOfParameters of sequence Get LabVIEW Module Parameters not exported
   //   by-ref writeback of parameter ParametersList of sequence Get LabVIEW Module Parameters not exported
-  //   status expression of step "Get SubSequence Parameters" not exported
   //   by-ref writeback of parameter NumberOfParameters of sequence Get SubSequence Parameters not exported
   //   by-ref writeback of parameter ParametersList of sequence Get SubSequence Parameters not exported
   //   step "Create Parameter's Header" loops (Custom) — per-step looping not exported
@@ -270,6 +374,6 @@ void register() {
   //   root parameter 'SequenceFile' is an engine object (nothing binds it when run as a test)
   //   root parameter 'DocOptions' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Sequence File Doc', () async {
-    await sequenceFileDoc();
+    lw.expect(await sequenceFileDoc(), 'Passed');
   });
 }

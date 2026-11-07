@@ -12,7 +12,9 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
+  final run = ts.SequenceRun();
+
   // ── setup ──
   // pin map: "PinMap.pinmap"
   throw UnimplementedError(
@@ -52,6 +54,8 @@ Future<void> mainSequence() async {
   // ── cleanup ──
   //   error out <- Step.Result.Error
   await callUnregisterAndCloseSessions(); // Unregister and close NI-Digital sessions [Action]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -121,6 +125,6 @@ void register() {
   //   step type NI_Measurement: action not exported yet
   //   My Computer\NIDigitalSPI.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

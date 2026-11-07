@@ -12,13 +12,154 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   List<dynamic> tdmsFile = <dynamic>['']; // Strs
   dynamic diademRef = ts.PropObj({
     'CommandReference': null,
     'DataSheetReference': null,
   }); // DIAdem_Reference
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
+
+  final run = ts.SequenceRun();
+  dynamic getToKnownStateResult = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get to known state
+  dynamic ccRampUpResult = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of CC Ramp Up
+  dynamic getToKnownStateResult2 = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get to known state
+  dynamic ccRampDownResult = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of CC ramp down
+  dynamic getToKnownStateResult3 = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get to known state
+  dynamic ccRampUpAndDownResult = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of CC ramp up and down
+  dynamic getToKnownStateResult4 = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get to known state
+  dynamic ccDisableResult = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of CC Disable
+  dynamic getToKnownStateResult5 = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get to known state
+  dynamic exitCcWithBrakeResult = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Exit CC with brake
+  dynamic getToKnownStateResult6 = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get to known state
+  dynamic resumeCcResult = ts.PropObj({
+    'VeriStand': ts.PropObj({
+      'PassFail': false,
+      'Path': '',
+      'Returnval': false,
+    }),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Resume CC
+  dynamic stopVsLoggingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Location': <dynamic>[]}),
+  }); // result of Stop VS Logging
 
   // ── setup ──
   throw UnimplementedError(
@@ -29,6 +170,11 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // Get to known state [RunRTSequencePassFail]
+  getToKnownStateResult.Status =
+      ts.truthy(getToKnownStateResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(getToKnownStateResult.Status);
 
   // ── main ──
   throw UnimplementedError(
@@ -39,60 +185,113 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // CC Ramp Up [RunRTSequencePassFail]
+  ccRampUpResult.Status = ts.truthy(ccRampUpResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(ccRampUpResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // Get to known state [RunRTSequencePassFail]
+  getToKnownStateResult2.Status =
+      ts.truthy(getToKnownStateResult2.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(getToKnownStateResult2.Status);
   // Ramp down the set speed. Check if actual speed stays within 5 kmph of set speed throughout.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // CC ramp down [RunRTSequencePassFail]
+  ccRampDownResult.Status = ts.truthy(ccRampDownResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(ccRampDownResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // Get to known state [RunRTSequencePassFail]
+  getToKnownStateResult3.Status =
+      ts.truthy(getToKnownStateResult3.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(getToKnownStateResult3.Status);
   // Ramp up the set speed and then ramp down. Check if actual speed stays within 5 kmph of set speed throughout.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // CC ramp up and down [RunRTSequencePassFail]
+  ccRampUpAndDownResult.Status =
+      ts.truthy(ccRampUpAndDownResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(ccRampUpAndDownResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // Get to known state [RunRTSequencePassFail]
+  getToKnownStateResult4.Status =
+      ts.truthy(getToKnownStateResult4.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(getToKnownStateResult4.Status);
   // Set Enable Cruise Control to false. Verify that cruise control is turned off. Check ECU status over XCP/CCP
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // CC Disable [RunRTSequencePassFail]
+  ccDisableResult.Status = ts.truthy(ccDisableResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(ccDisableResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // Get to known state [RunRTSequencePassFail]
+  getToKnownStateResult5.Status =
+      ts.truthy(getToKnownStateResult5.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(getToKnownStateResult5.Status);
   // Tap on the brakes. Check if cruise control turns off.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // Exit CC with brake [RunRTSequencePassFail]
+  exitCcWithBrakeResult.Status =
+      ts.truthy(exitCcWithBrakeResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(exitCcWithBrakeResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // Get to known state [RunRTSequencePassFail]
+  getToKnownStateResult6.Status =
+      ts.truthy(getToKnownStateResult6.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(getToKnownStateResult6.Status);
   // Tap on brake to disable Cruise Control. Tap Resume Cruise Control switch. Verify that cruise control is back on.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
   throw UnimplementedError(
     'step type RunRTSequencePassFail: action not exported yet',
   ); // Resume CC [RunRTSequencePassFail]
+  resumeCcResult.Status = ts.truthy(resumeCcResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(resumeCcResult.Status);
   throw UnimplementedError(
     'step type StopLogging: action not exported yet',
   ); // Stop VS Logging [StopLogging]
-  tdmsFile = step.Result.Veristand.Location; // post-expression
+  tdmsFile = stopVsLoggingResult.Veristand.Location; // post-expression
+  stopVsLoggingResult.Status = 'Done';
+  run.record(stopVsLoggingResult.Status);
   // failure does NOT fail the sequence
   throw UnimplementedError(
     'step type DIAdem_OpenReference: action not exported yet',
@@ -105,6 +304,8 @@ Future<void> mainSequence() async {
     'step type DIAdem_RunScript: action not exported yet',
   ); // Run Script [DIAdem_RunScript]
   await Future<void>.delayed(const Duration(seconds: 1));
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -141,21 +342,13 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type InitializeVeriStand: action not exported yet
-  //   status expression of step "Get to known state" not exported
   //   step type RunRTSequencePassFail: action not exported yet
   //   step type StartLogging: action not exported yet
-  //   status expression of step "CC Ramp Up" not exported
-  //   status expression of step "CC ramp down" not exported
-  //   status expression of step "CC ramp up and down" not exported
-  //   status expression of step "CC Disable" not exported
-  //   status expression of step "Exit CC with brake" not exported
-  //   status expression of step "Resume CC" not exported
   //   step type StopLogging: action not exported yet
-  //   Step engine access (no engine at run time)
   //   step type DIAdem_OpenReference: action not exported yet
   //   step type DIAdem_ExportChannels: action not exported yet
   //   step type DIAdem_RunScript: action not exported yet
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

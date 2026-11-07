@@ -9,28 +9,33 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
+import 'package:labwright/shims.dart' as ts;
 import 'quick_drop_seq.dart' as quick_drop_seq;
 
 /// Sequence `LoginLogout`.
-Future<void> loginLogout({
+Future<String> loginLogout({
   bool logout = false,
   bool isInitialLogin = false,
 }) async {
   bool quickDropRunning = false; // Bool — default: false
+
+  final run = ts.SequenceRun();
 
   // ── main ──
   if (logout) {
     throw UnimplementedError('cModule call: Logout'); // Logout [Action]
   } else {
     throw UnimplementedError('cModule call: Login'); // Login [Action]
-    await quick_drop_seq.isRunning(
-      running: quickDropRunning,
+    run.record(
+      await quick_drop_seq.isRunning(running: quickDropRunning),
     ); // Is Quick Drop Running?: external sequence
     // Start if not already running
     if (!quickDropRunning) {
       // precondition of Start Quick Drop
       // sequence call spawns a new execution in the engine — exported as a plain awaited call
-      await quick_drop_seq.start(); // Start Quick Drop: external sequence
+      run.record(
+        await quick_drop_seq.start(),
+      ); // Start Quick Drop: external sequence
     }
   }
 
@@ -38,8 +43,12 @@ Future<void> loginLogout({
   // If CurrentUser is NULL...
   if (runState.Engine.CurrentUser == null) {
     // precondition of Stop Quick Drop
-    await quick_drop_seq.stop(); // Stop Quick Drop: external sequence
+    run.record(
+      await quick_drop_seq.stop(),
+    ); // Stop Quick Drop: external sequence
   }
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -69,6 +78,6 @@ void register() {
   //   RunState engine access (no engine at run time)
   //   cross-file sequence Stop (see its module TODOs)
   lw.skipTest('LoginLogout', () async {
-    await loginLogout();
+    lw.expect(await loginLogout(), 'Passed');
   });
 }

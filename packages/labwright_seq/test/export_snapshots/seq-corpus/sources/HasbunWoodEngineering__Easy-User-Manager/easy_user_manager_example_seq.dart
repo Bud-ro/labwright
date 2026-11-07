@@ -12,13 +12,45 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   dynamic eum = null; // Ref
   String newUserName = ''; // Str
   bool userExists = false; // Bool — default: false
   bool saveUsersFile = false; // Bool — default: false
   bool groupExists = false; // Bool — default: false
   String groupName = ''; // Str
+
+  final run = ts.SequenceRun();
+  dynamic enterANewUserNameResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Enter a new user name
+  dynamic enterAGroupNameResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Enter a group name
+  dynamic userInGroupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of User in group?
+  dynamic userHasPrivilegeResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of User has privilege?
 
   // ── setup ──
   // Initialize EasyUserManager object using the VI "Initialize from Teststand.vi". This VI duplicates the engine reference to avoid automatic closing when the VI finishes execution.
@@ -28,17 +60,25 @@ Future<void> mainSequence() async {
   //   EasyUserManager out <- Locals.EUM
   //   error out <- Step.Result.Error
   await callInitializeFromTeststand(); // Initialize EasyUserManager [Action]
-  while (ts.cond(
-    'CheckStrLimit(Locals.NewUserName,"","CaseSensitive")=="Passed"',
-  )) {
+  while (ts.checkStrLimit(newUserName, '', 'CaseSensitive') == 'Passed') {
     // popup title: NameOf(Step)
     // popup message: "Enter a user name. The user password will be set to 12345"
     // popup buttons: "Done" | "Cancel"
     // popup collects a response (default "ExampleUser2025")
+    enterANewUserNameResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ButtonHit': 0,
+      'Response': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
     throw UnimplementedError(
       'step type MessagePopup: action not exported yet',
     ); // Enter a new user name [MessagePopup]
-    newUserName = step.Result.Response; // post-expression
+    newUserName = enterANewUserNameResult.Response; // post-expression
+    enterANewUserNameResult.Status = 'Done';
+    run.record(enterANewUserNameResult.Status);
     if (runState.PreviousStep.Result.ButtonHit == 2) {
       // precondition of Terminate execution if user cancels
       runState.Execution.Terminate(); // Terminate execution if user cancels
@@ -70,10 +110,20 @@ Future<void> mainSequence() async {
     // popup message: "Enter a group to which the new user shall be added.  | Pick a group that does not already have the privilege Configure.ConfigAdapter (e.g. Technician)."
     // popup buttons: "Done" | "Cancel"
     // popup collects a response (default "Technician")
+    enterAGroupNameResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ButtonHit': 0,
+      'Response': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
     throw UnimplementedError(
       'step type MessagePopup: action not exported yet',
     ); // Enter a group name [MessagePopup]
-    groupName = step.Result.Response; // post-expression
+    groupName = enterAGroupNameResult.Response; // post-expression
+    enterAGroupNameResult.Status = 'Done';
+    run.record(enterAGroupNameResult.Status);
     if (runState.PreviousStep.Result.ButtonHit == 2) {
       // precondition of Terminate execution if user cancels
       runState.Execution.Terminate(); // Terminate execution if user cancels
@@ -131,6 +181,10 @@ Future<void> mainSequence() async {
   //   User in Group <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callUserInGroup(); // User in group? [PassFailTest]
+  userInGroupResult.Status = ts.truthy(userInGroupResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(userInGroupResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   EasyUserManager in <- Locals.EUM
@@ -139,22 +193,32 @@ Future<void> mainSequence() async {
   //   User Has Privilege <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callCheckUserHasPrivilege(); // User has privilege? [PassFailTest]
+  userHasPrivilegeResult.Status = ts.truthy(userHasPrivilegeResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(userHasPrivilegeResult.Status);
 
   // ── cleanup ──
   // As the engine reference was duplicated you need to close it in the clean up process.
   //   EasyUserManager in <- Locals.EUM
   //   error out <- Step.Result.Error
   await callCloseEngineReference(); // Close duplicated reference [Action]
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<void> sequenceFileLoad() async {
+Future<String> sequenceFileLoad() async {
+  final run = ts.SequenceRun();
+
   // popup title: NameOf(Step)
   // popup message: "This example shows you how to use the EasyUserManager VIs directly from Teststand. | For this example to work properly, you need to add  | <LabVIEW>\vi.lib\Hasbun Wood Engineering\Easy User Manager  | to the search directories. | Use the local variable Local.SaveUsersFile to control whether changes are immediately  | saved to your users file. If this variable is False, you will see changes in your user |  manager denoted by a *, and you can save them manually.  | If this variable is True, changes will be immediately saved and you will not see the *. | "
   // popup buttons: "OK"
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Show Instructions to user [MessagePopup]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -233,9 +297,7 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   Initialize from Teststand.vi
-  //   untranslated expression in body
   //   step type MessagePopup: action not exported yet
-  //   Step engine access (no engine at run time)
   //   RunState engine access (no engine at run time)
   //   User Exists.vi
   //   Create User.vi
@@ -244,17 +306,15 @@ void register() {
   //   Add User to Group.vi
   //   Set User FullName.vi
   //   Set User Privilege.vi
-  //   status expression of step "User in group?" not exported
   //   User in Group.vi
-  //   status expression of step "User has privilege?" not exported
   //   Check User Has Privilege.vi
   //   Close Engine Reference.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
-    await sequenceFileLoad();
+    lw.expect(await sequenceFileLoad(), 'Passed');
   });
 }

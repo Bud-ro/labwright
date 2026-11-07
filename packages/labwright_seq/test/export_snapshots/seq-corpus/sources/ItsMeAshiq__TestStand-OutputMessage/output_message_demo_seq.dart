@@ -12,8 +12,10 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   int i = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
 
   // ── setup ──
   throw UnimplementedError(
@@ -41,6 +43,8 @@ Future<void> mainSequence() async {
   ts.eval(
     'OutputMessage( Str(Evaluate(Step.Message)), Str(Evaluate(Step.Category)), (Step.Use_Severity_Exp ? Evaluate(Step.Severiy_Exp) : Val(Step.Severity)) )',
   ); // post-expression
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -65,6 +69,6 @@ void register() {
   //   step type OutputMessage: action not exported yet
   //   untranslated expression in body
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
 }

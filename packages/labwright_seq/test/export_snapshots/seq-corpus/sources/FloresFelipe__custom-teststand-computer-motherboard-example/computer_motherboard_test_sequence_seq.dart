@@ -12,13 +12,101 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence` — Simulates testing a computer motherboard. | Tests Power On, ROM, RAM, Video, and Keyboard. | Then runs diagnostics for any areas which fail. | Sequence File:   Version 1.2 |                  Revision C | Test Fixture:    Part Number 3244.23 |                  Revision N |.
-Future<void> mainSequence() async {
+Future<String> mainSequence() async {
   bool powerFail = false; // Bool — default: false
   bool cpuFail = false; // Bool — default: false
   bool romFail = false; // Bool — default: false
   bool ramFail = false; // Bool — default: false
   int keyboardValue = 0; // Num — default: 0
   int videoValue = 0; // Num — default: 0
+
+  final run = ts.SequenceRun();
+  dynamic powerupTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Powerup Test
+  dynamic cpuTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of CPU Test
+  dynamic romTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of ROM Test
+  dynamic ramTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of RAM Test
+  dynamic videoTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': 'microseconds',
+  }); // result of Video Test
+  dynamic keyboardTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  }); // result of Keyboard Test
+  dynamic cpuDiagnosticsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of CPU Diagnostics
+  dynamic romDiagnosticsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of ROM Diagnostics
+  dynamic ramDiagnosticsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of RAM Diagnostics
+  dynamic videoDiagnosticsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': 'Volts',
+  }); // result of Video Diagnostics
+  dynamic keyboardDiagnosticsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Keyboard Diagnostics
+  dynamic powerupDiagnosticsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': 'ampere',
+  }); // result of Powerup Diagnostics
 
   // ── setup ──
   //   Sequence Context <- ThisContext
@@ -34,77 +122,147 @@ Future<void> mainSequence() async {
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callPowerupTest(); // Powerup Test [PassFailTest]
+  powerupTestResult.Status = ts.truthy(powerupTestResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(powerupTestResult.Status);
   // If the Powerup Test fails, do not test any additional components.
-  if (ts.truthy(runState.Sequence.Main['Powerup Test'].Result.PassFail)) {
+  if (ts.truthy(powerupTestResult.PassFail)) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await cpuTest(cpuFail: cpuFail); // CPU Test
+    cpuTestResult.Status = await cpuTest(cpuFail: cpuFail); // CPU Test
+    cpuTestResult.Status = cpuTestResult.Status == 'Done'
+        ? 'Passed'
+        : cpuTestResult.Status; // status expression
+    run.record(cpuTestResult.Status);
     // checks: Step.Result.PassFail
     // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
     //   ROMFail <- Locals.ROMFail
     //   Result <- Step.Result.PassFail
     //   error out <- Step.Result.Error
     await callRomTest(); // ROM Test [PassFailTest]
+    romTestResult.Status = ts.truthy(romTestResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(romTestResult.Status);
     // checks: Step.Result.PassFail
     // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
     //   RAMFail <- Locals.RAMFail
     //   Result <- Step.Result.PassFail
     //   error out <- Step.Result.Error
     await callRamTest(); // RAM Test [PassFailTest]
+    ramTestResult.Status = ts.truthy(ramTestResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(ramTestResult.Status);
     // checks: Step.Result.Numeric GTLT [low 0, high 10, nominal 100] (PERCENTAGE) microseconds
     // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
     //   VideoValue <- Locals.VideoValue
     //   Latency (µs) <- Step.Result.Numeric
     //   error out <- Step.Result.Error
     await callVideoTest(); // Video Test [NumericLimitTest]
+    videoTestResult.Status = ts.checkLimits(
+      videoTestResult.Numeric,
+      10,
+      0,
+      'GTLT',
+      true,
+      100,
+      'PERCENTAGE',
+    ); // status expression
+    run.record(videoTestResult.Status);
     // checks: Step.Result.Numeric GT [low 5, high 0, nominal 100] (PERCENTAGE)
     // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
     //   Number of Keystrokes <- Locals.KeyboardValue
     //   Result <- Step.Result.Numeric
     //   error out <- Step.Result.Error
     await callKeyboardTest(); // Keyboard Test [NumericLimitTest]
+    keyboardTestResult.Status = ts.checkLimits(
+      keyboardTestResult.Numeric,
+      0,
+      5,
+      'GT',
+      true,
+      100,
+      'PERCENTAGE',
+    ); // status expression
+    run.record(keyboardTestResult.Status);
     // If any of the preceding tests failed, perform diagnositcs on the failed component(s) to get more information on the mode of failure
     if (ts.cond('ThisContext.SequenceFailed')) {
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      if (runState.Sequence.Main['ID#:gcZLdWPO6BG1UABQVsAACA'].Result.Status ==
-          'Failed') {
+      if (cpuTestResult.Status == 'Failed') {
         // precondition of CPU Diagnostics
-        await cpuDiagnostics(cpuFail: cpuFail); // CPU Diagnostics
+        cpuDiagnosticsResult.Status = await cpuDiagnostics(
+          cpuFail: cpuFail,
+        ); // CPU Diagnostics
+        cpuDiagnosticsResult.Status = cpuDiagnosticsResult.Status == 'Done'
+            ? 'Passed'
+            : cpuDiagnosticsResult.Status; // status expression
+        run.record(cpuDiagnosticsResult.Status);
+      } else {
+        cpuDiagnosticsResult.Status = 'Skipped';
       }
       // checks: Step.Result.PassFail
       // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-      if (runState.Sequence.Main['ID#:gsZLdWPO6BG1UABQVsAACA'].Result.Status ==
-          'Failed') {
+      if (romTestResult.Status == 'Failed') {
         // precondition of ROM Diagnostics
         //   Result <- Step.Result.PassFail
         //   error out <- Step.Result.Error
         await callRomDiagnostics(); // ROM Diagnostics [PassFailTest]
+        romDiagnosticsResult.Status = ts.truthy(romDiagnosticsResult.PassFail)
+            ? 'Passed'
+            : 'Failed'; // status expression
+        run.record(romDiagnosticsResult.Status);
+      } else {
+        romDiagnosticsResult.Status = 'Skipped';
       }
       // checks: Step.Result.PassFail
       // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-      if (runState.Sequence.Main['ID#:g8ZLdWPO6BG1UABQVsAACA'].Result.Status ==
-          'Failed') {
+      if (ramTestResult.Status == 'Failed') {
         // precondition of RAM Diagnostics
         //   Result <- Step.Result.PassFail
         //   error out <- Step.Result.Error
         await callRamDiagnostics(); // RAM Diagnostics [PassFailTest]
+        ramDiagnosticsResult.Status = ts.truthy(ramDiagnosticsResult.PassFail)
+            ? 'Passed'
+            : 'Failed'; // status expression
+        run.record(ramDiagnosticsResult.Status);
+      } else {
+        ramDiagnosticsResult.Status = 'Skipped';
       }
       // checks: Step.Result.Numeric LT [low 0, high 10, nominal 100] (PERCENTAGE) Volts
       // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-      if (runState.Sequence.Main['ID#:hMZLdWPO6BG1UABQVsAACA'].Result.Status ==
-          'Failed') {
+      if (videoTestResult.Status == 'Failed') {
         // precondition of Video Diagnostics
         //   Voltage <- Step.Result.Numeric
         //   error out <- Step.Result.Error
         await callVideoDiagnostics(); // Video Diagnostics [NumericLimitTest]
+        videoDiagnosticsResult.Status = ts.checkLimits(
+          videoDiagnosticsResult.Numeric,
+          10,
+          0,
+          'LT',
+          true,
+          100,
+          'PERCENTAGE',
+        ); // status expression
+        run.record(videoDiagnosticsResult.Status);
+      } else {
+        videoDiagnosticsResult.Status = 'Skipped';
       }
       // checks: Step.Result.PassFail
       // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-      if (runState.Sequence.Main['ID#:hcZLdWPO6BG1UABQVsAACA'].Result.Status ==
-          'Failed') {
+      if (keyboardTestResult.Status == 'Failed') {
         // precondition of Keyboard Diagnostics
         //   Result <- Step.Result.PassFail
         //   error out <- Step.Result.Error
         await callKeyboardDiagnostics(); // Keyboard Diagnostics [PassFailTest]
+        keyboardDiagnosticsResult.Status =
+            ts.truthy(keyboardDiagnosticsResult.PassFail)
+            ? 'Passed'
+            : 'Failed'; // status expression
+        run.record(keyboardDiagnosticsResult.Status);
+      } else {
+        keyboardDiagnosticsResult.Status = 'Skipped';
       }
     }
   } else {
@@ -113,82 +271,204 @@ Future<void> mainSequence() async {
     //   Current <- Step.Result.Numeric
     //   error out <- Step.Result.Error
     await callPowerupDiagnostics(); // Powerup Diagnostics [NumericLimitTest]
+    powerupDiagnosticsResult.Status = ts.checkLimits(
+      powerupDiagnosticsResult.Numeric,
+      10,
+      0,
+      'LOG',
+      true,
+      100,
+      'PERCENTAGE',
+    ); // status expression
+    run.record(powerupDiagnosticsResult.Status);
   }
 
   // ── cleanup ──
   //   error out <- Step.Result.Error
   await callVacuumOff(); // Turn Vacuum Table Off [Action]
+
+  return run.status;
 }
 
 /// Sequence `CPU Test`.
-Future<void> cpuTest({bool cpuFail = false}) async {
+Future<String> cpuTest({bool cpuFail = false}) async {
+  final run = ts.SequenceRun();
+  dynamic registerTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Register Test
+  dynamic instructionSetTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Instruction Set Test
+  dynamic cacheTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Cache Test
+  dynamic fpuTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of FPU Test
+
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callRegisterTest(); // Register Test [PassFailTest]
+  registerTestResult.Status = ts.truthy(registerTestResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(registerTestResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   CPUFail <- Parameters.CPUFail
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callInstructionSetTest(); // Instruction Set Test [PassFailTest]
+  instructionSetTestResult.Status = ts.truthy(instructionSetTestResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(instructionSetTestResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callCacheTest(); // Cache Test [PassFailTest]
+  cacheTestResult.Status = ts.truthy(cacheTestResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(cacheTestResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callFpuTest(); // FPU Test [PassFailTest]
+  fpuTestResult.Status = ts.truthy(fpuTestResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(fpuTestResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `CPU Diagnostics`.
-Future<void> cpuDiagnostics({bool cpuFail = false}) async {
+Future<String> cpuDiagnostics({bool cpuFail = false}) async {
+  final run = ts.SequenceRun();
+  dynamic registerDiagnosticsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Register Diagnostics
+  dynamic instructionSetDiagnosticsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Instruction Set Diagnostics
+  dynamic cacheDiagnosticsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Cache Diagnostics
+  dynamic fpuDiagnosticsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'PassFail': false,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of FPU Diagnostics
+
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callRegisterDiagnostics(); // Register Diagnostics [PassFailTest]
+  registerDiagnosticsResult.Status =
+      ts.truthy(registerDiagnosticsResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(registerDiagnosticsResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   CPUFail <- Parameters.CPUFail
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callInstructionSetDiagnostics(); // Instruction Set Diagnostics [PassFailTest]
+  instructionSetDiagnosticsResult.Status =
+      ts.truthy(instructionSetDiagnosticsResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(instructionSetDiagnosticsResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callCacheDiagnostics(); // Cache Diagnostics [PassFailTest]
+  cacheDiagnosticsResult.Status = ts.truthy(cacheDiagnosticsResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(cacheDiagnosticsResult.Status);
   // checks: Step.Result.PassFail
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callFpuDiagnostics(); // FPU Diagnostics [PassFailTest]
+  fpuDiagnosticsResult.Status = ts.truthy(fpuDiagnosticsResult.PassFail)
+      ? 'Passed'
+      : 'Failed'; // status expression
+  run.record(fpuDiagnosticsResult.Status);
+
+  return run.status;
 }
 
 /// Sequence `SequenceFilePreStep`.
-Future<void> sequenceFilePreStep({dynamic step$, dynamic result}) async {
+Future<String> sequenceFilePreStep({dynamic step$, dynamic result}) async {
+  final run = ts.SequenceRun();
+
   ts.eval(
     'RunState.Thread.PostUIMessageEx(UIMsg_ProgressText, 0, Parameters.Step.Name + "," + Parameters.Step.Result.Status, "", False)\n',
   ); // PreStep Message
+
+  return run.status;
 }
 
 /// Sequence `SequenceFilePostStep`.
-Future<void> sequenceFilePostStep({dynamic step$, dynamic result}) async {
+Future<String> sequenceFilePostStep({dynamic step$, dynamic result}) async {
+  final run = ts.SequenceRun();
+
   ts.eval(
     'RunState.Thread.PostUIMessageEx(UIMsg_ProgressText, 0, Parameters.Step.Name + "," + Parameters.Step.Result.Status, "", False)\n',
   ); // PostStep Message
+
+  return run.status;
 }
 
 /// Sequence `SequenceFileUnload`.
-Future<void> sequenceFileUnload() async {
+Future<String> sequenceFileUnload() async {
+  final run = ts.SequenceRun();
+
   ts.eval(
     'RunState.Thread.PostUIMessageEx(UIMsg_UserMessageBase + 10, 0, "Uloading File", Nothing, False)',
   ); // Send Closing File Message
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -322,67 +602,46 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   Modules\Computer Sequence Simulation Dialog.vi
   //   Modules\Vacuum On.vi
-  //   status expression of step "Powerup Test" not exported
   //   Modules\Powerup Test.vi
-  //   RunState engine access (no engine at run time)
-  //   status expression of step "CPU Test" not exported
-  //   status expression of step "ROM Test" not exported
   //   Modules\ROM Test.vi
-  //   status expression of step "RAM Test" not exported
   //   Modules\RAM Test.vi
-  //   status expression of step "Video Test" not exported
   //   Modules\Video Test.vi
-  //   status expression of step "Keyboard Test" not exported
   //   Modules\Keyboard Test.vi
   //   untranslated expression in body
-  //   status expression of step "CPU Diagnostics" not exported
-  //   status expression of step "ROM Diagnostics" not exported
   //   Modules\ROM Diagnostics.vi
-  //   status expression of step "RAM Diagnostics" not exported
   //   Modules\RAM Diagnostics.vi
-  //   status expression of step "Video Diagnostics" not exported
   //   Modules\Video Diagnostics.vi
-  //   status expression of step "Keyboard Diagnostics" not exported
   //   Modules\Keyboard Diagnostics.vi
-  //   status expression of step "Powerup Diagnostics" not exported
   //   Modules\Powerup Diagnostics.vi
   //   Modules\Vacuum Off.vi
-  //   status expression of step "Register Test" not exported
   //   Modules\Register Test.vi
-  //   status expression of step "Instruction Set Test" not exported
   //   Modules\Instruction Set Test.vi
-  //   status expression of step "Cache Test" not exported
   //   Modules\Cache Test.vi
-  //   status expression of step "FPU Test" not exported
   //   Modules\FPU Test.vi
-  //   status expression of step "Register Diagnostics" not exported
   //   Modules\Register Diagnostics.vi
-  //   status expression of step "Instruction Set Diagnostics" not exported
   //   Modules\Instruction Set Diagnostics.vi
-  //   status expression of step "Cache Diagnostics" not exported
   //   Modules\Cache Diagnostics.vi
-  //   status expression of step "FPU Diagnostics" not exported
   //   Modules\FPU Diagnostics.vi
   lw.skipTest('MainSequence', () async {
-    await mainSequence();
+    lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   root parameter 'Step' is an engine object (nothing binds it when run as a test)
   //   root parameter 'Result' is an engine object (nothing binds it when run as a test)
   lw.skipTest('SequenceFilePreStep', () async {
-    await sequenceFilePreStep();
+    lw.expect(await sequenceFilePreStep(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   root parameter 'Step' is an engine object (nothing binds it when run as a test)
   //   root parameter 'Result' is an engine object (nothing binds it when run as a test)
   lw.skipTest('SequenceFilePostStep', () async {
-    await sequenceFilePostStep();
+    lw.expect(await sequenceFilePostStep(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   lw.skipTest('SequenceFileUnload', () async {
-    await sequenceFileUnload();
+    lw.expect(await sequenceFileUnload(), 'Passed');
   });
 }

@@ -12,8 +12,10 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `Start`.
-Future<void> start() async {
+Future<String> start() async {
   bool running = false; // Bool — default: false
+
+  final run = ts.SequenceRun();
 
   //   Engine <- RunState.Engine
   await callIsRunning(); // Is already running? [Action]
@@ -25,20 +27,30 @@ Future<void> start() async {
     //   Engine <- RunState.Engine
     await callStart(); // Start [Action]
   }
+
+  return run.status;
 }
 
 /// Sequence `Stop`.
-Future<void> stop() async {
+Future<String> stop() async {
+  final run = ts.SequenceRun();
+
   ts.eval('OutputMessage("Quick Drop stoped.")'); // pre-expression
   //   Engine <- RunState.Engine
   await callStop(); // Stop [Action]
+
+  return run.status;
 }
 
 /// Sequence `IsRunning`.
-Future<void> isRunning({bool running = false}) async {
+Future<String> isRunning({bool running = false}) async {
+  final run = ts.SequenceRun();
+
   //   Engine <- RunState.Engine
   //   Running <- Parameters.Running
   await callIsRunning(); // Is already running? [Action]
+
+  return run.status;
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
@@ -83,17 +95,17 @@ void register() {
   //   untranslated expression in body
   //   Resources\Seq Edit Quick Drop.lvlibp\Sources\Start.vi
   lw.skipTest('Start', () async {
-    await start();
+    lw.expect(await start(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   Resources\Seq Edit Quick Drop.lvlibp\Sources\Stop.vi
   lw.skipTest('Stop', () async {
-    await stop();
+    lw.expect(await stop(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   Resources\Seq Edit Quick Drop.lvlibp\Sources\Is Running.vi
   lw.skipTest('IsRunning', () async {
-    await isRunning();
+    lw.expect(await isRunning(), 'Passed');
   });
 }

@@ -12,7 +12,7 @@ import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `StationPostResults` — This callback can be used instead of ResultListEntry and PreStep, however, it requires enabled OTF result processing..
-Future<void> stationPostResults({
+Future<String> stationPostResults({
   List<dynamic>? steps,
   List<dynamic>? results,
   List<dynamic>? callbackNames,
@@ -27,6 +27,8 @@ Future<void> stationPostResults({
   String status = ''; // Str
   double color = 0; // Num — default: 0
   String icon = ''; // Path
+
+  final run = ts.SequenceRun();
 
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Results); increment RunState.LoopIndex += 1; status "Done"
   // ignores run-time errors
@@ -50,10 +52,12 @@ Future<void> stationPostResults({
       '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
     ); // Output Message (cont.)
   }
+
+  return run.status;
 }
 
 /// Sequence `StationPostResultListEntry`.
-Future<void> stationPostResultListEntry({
+Future<String> stationPostResultListEntry({
   dynamic step$,
   dynamic result,
   bool discardResult = false,
@@ -62,6 +66,8 @@ Future<void> stationPostResultListEntry({
   String status = ''; // Str
   double color = 0; // Num — default: 0
   String icon = ''; // Path
+
+  final run = ts.SequenceRun();
 
   // ignores run-time errors
   if (runState.Caller.Sequence.Id == runState.Main.Sequence.Id) {
@@ -82,14 +88,18 @@ Future<void> stationPostResultListEntry({
       '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
     ); // Output Message (cont.)
   }
+
+  return run.status;
 }
 
 /// Sequence `StationPreStep`.
-Future<void> stationPreStep({dynamic step$, dynamic result}) async {
+Future<String> stationPreStep({dynamic step$, dynamic result}) async {
   String name = ''; // Str
   String status = ''; // Str
   double color = 0; // Num — default: 0
   String icon = ''; // Path
+
+  final run = ts.SequenceRun();
 
   // ignores run-time errors
   if (runState.Caller.Sequence.Id == runState.Main.Sequence.Id &&
@@ -114,6 +124,8 @@ Future<void> stationPreStep({dynamic step$, dynamic result}) async {
       '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
     ); // Output Message (cont.)
   }
+
+  return run.status;
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -139,7 +151,7 @@ void register() {
   //   RunState engine access (no engine at run time)
   //   untranslated expression in body
   lw.skipTest('StationPostResults', () async {
-    await stationPostResults();
+    lw.expect(await stationPostResults(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
@@ -147,7 +159,7 @@ void register() {
   //   root parameter 'Step' is an engine object (nothing binds it when run as a test)
   //   root parameter 'Result' is an engine object (nothing binds it when run as a test)
   lw.skipTest('StationPostResultListEntry', () async {
-    await stationPostResultListEntry();
+    lw.expect(await stationPostResultListEntry(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
@@ -155,6 +167,6 @@ void register() {
   //   root parameter 'Step' is an engine object (nothing binds it when run as a test)
   //   root parameter 'Result' is an engine object (nothing binds it when run as a test)
   lw.skipTest('StationPreStep', () async {
-    await stationPreStep();
+    lw.expect(await stationPreStep(), 'Passed');
   });
 }
