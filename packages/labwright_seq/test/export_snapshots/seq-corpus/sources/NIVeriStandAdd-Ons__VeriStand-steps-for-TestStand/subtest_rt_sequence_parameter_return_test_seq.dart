@@ -68,9 +68,25 @@ Future<String> mainSequence() async {
   }); // result of Test DBL Paramater/Return
 
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Test Bool Parameter/Return [RunRTSequencePassFail]
+  // Test Bool Parameter/Return [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SeqTimeout': -1,
+        'Target': '',
+        'Timeout': 10000,
+        'SequenceFilePath':
+            '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\bool_parameter_with_bool_return.nivsseq"',
+        'ParamValuesArray': '{"True","0","0","0","0","0"}',
+        'ParamTypesArray': '{"Boolean","I32","I64","U32","U64","Double"}',
+        'ParamNamesArray':
+            '{"TestInput","I32Variable","I64Variable","U32Variable","U64Variable","DoubleVariable"}',
+      }),
+    }),
+    testBoolParameterReturnResult,
+  );
   testBoolParameterReturnResult.Status =
       ts.truthy(testBoolParameterReturnResult.VeriStand.PassFail)
       ? 'Passed'
@@ -78,9 +94,45 @@ Future<String> mainSequence() async {
   run.record(testBoolParameterReturnResult.Status);
   // checks: Step.Result.Numeric GELE [low 499, high 501, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-  throw UnimplementedError(
-    'step type RunRTSequenceNumericLimit: action not exported yet',
-  ); // Test U32 Parameter/Return [RunRTSequenceNumericLimit]
+  // Test U32 Parameter/Return [RunRTSequenceNumericLimit]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequenceNumericLimit',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SeqTimeout': -1,
+        'Target': '',
+        'Timeout': 10000,
+        'SequenceFilePath':
+            '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\uint32_parameter_with_uint32_return.nivsseq"',
+        'ParamValuesArray': '{"False","0","0","500","0","0"}',
+        'ParamTypesArray': '{"Boolean","I32","I64","U32","U64","Double"}',
+        'ParamNamesArray':
+            '{"Boolean","I32Variable","I64Variable","TestInput","U64Variable","DoubleVariable"}',
+        'NumericDataType': '"UInt32"',
+      }),
+      'Limits': ts.PropObj({
+        'UseNominalExpr': false,
+        'UseThresholdTypeExpr': false,
+        'Nominal': 100,
+        'NominalExpr': '',
+        'ThresholdTypeExpr': '',
+        'ThresholdType': 'PERCENTAGE',
+        'Low': 499,
+        'High': 501,
+        'LowExpr': '',
+        'HighExpr': '',
+        'UseLowExpr': false,
+        'UseHighExpr': false,
+      }),
+      'Comp': 'GELE',
+      'CompExpr': '',
+      'UseCompExpr': false,
+      'InBuf': '',
+      'DataSource': 'Step.Result.Numeric',
+    }),
+    testU32ParameterReturnResult,
+  );
   testU32ParameterReturnResult.Status = ts.checkLimits(
     testU32ParameterReturnResult.Numeric,
     501,
@@ -90,9 +142,45 @@ Future<String> mainSequence() async {
   run.record(testU32ParameterReturnResult.Status);
   // checks: Step.Result.Numeric GELE [low 9, high 11, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-  throw UnimplementedError(
-    'step type RunRTSequenceNumericLimit: action not exported yet',
-  ); // Test U64 Parameter/Return [RunRTSequenceNumericLimit]
+  // Test U64 Parameter/Return [RunRTSequenceNumericLimit]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequenceNumericLimit',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SeqTimeout': -1,
+        'Target': '',
+        'Timeout': 10000,
+        'SequenceFilePath':
+            '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\uint64_parameter_with_uint64_return.nivsseq"',
+        'ParamValuesArray': '{"0","0","0","0","10","0"}',
+        'ParamTypesArray': '{"Boolean","I32","I64","U32","U64","Double"}',
+        'ParamNamesArray':
+            '{"Boolean","I32Variable","I64Variable","U32Variable","TestInput","DoubleVariable"}',
+        'NumericDataType': '"UInt64"',
+      }),
+      'Limits': ts.PropObj({
+        'UseNominalExpr': false,
+        'UseThresholdTypeExpr': false,
+        'Nominal': 100,
+        'NominalExpr': '',
+        'ThresholdTypeExpr': '',
+        'ThresholdType': 'PERCENTAGE',
+        'Low': 9,
+        'High': 11,
+        'LowExpr': '',
+        'HighExpr': '',
+        'UseLowExpr': false,
+        'UseHighExpr': false,
+      }),
+      'Comp': 'GELE',
+      'CompExpr': '',
+      'UseCompExpr': false,
+      'InBuf': '',
+      'DataSource': 'Step.Result.Numeric',
+    }),
+    testU64ParameterReturnResult,
+  );
   testU64ParameterReturnResult.Status = ts.checkLimits(
     testU64ParameterReturnResult.Numeric,
     11,
@@ -102,9 +190,45 @@ Future<String> mainSequence() async {
   run.record(testU64ParameterReturnResult.Status);
   // checks: Step.Result.Numeric GELE [low 9, high 11, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-  throw UnimplementedError(
-    'step type RunRTSequenceNumericLimit: action not exported yet',
-  ); // Test I32 Parameter/Return [RunRTSequenceNumericLimit]
+  // Test I32 Parameter/Return [RunRTSequenceNumericLimit]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequenceNumericLimit',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SeqTimeout': -1,
+        'Target': '',
+        'Timeout': 10000,
+        'SequenceFilePath':
+            '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\int32_parameter_with_int32_return.nivsseq"',
+        'ParamValuesArray': '{"0","10","0","0","0","0"}',
+        'ParamTypesArray': '{"Boolean","I32","I64","U32","U64","Double"}',
+        'ParamNamesArray':
+            '{"Boolean","TestInput","I64Variable","U32Variable","U64Variable","DoubleVariable"}',
+        'NumericDataType': '"Int32"',
+      }),
+      'Limits': ts.PropObj({
+        'UseNominalExpr': false,
+        'UseThresholdTypeExpr': false,
+        'Nominal': 100,
+        'NominalExpr': '',
+        'ThresholdTypeExpr': '',
+        'ThresholdType': 'PERCENTAGE',
+        'Low': 9,
+        'High': 11,
+        'LowExpr': '',
+        'HighExpr': '',
+        'UseLowExpr': false,
+        'UseHighExpr': false,
+      }),
+      'Comp': 'GELE',
+      'CompExpr': '',
+      'UseCompExpr': false,
+      'InBuf': '',
+      'DataSource': 'Step.Result.Numeric',
+    }),
+    testI32ParameterReturnResult,
+  );
   testI32ParameterReturnResult.Status = ts.checkLimits(
     testI32ParameterReturnResult.Numeric,
     11,
@@ -114,9 +238,45 @@ Future<String> mainSequence() async {
   run.record(testI32ParameterReturnResult.Status);
   // checks: Step.Result.Numeric GELE [low 9, high 11, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-  throw UnimplementedError(
-    'step type RunRTSequenceNumericLimit: action not exported yet',
-  ); // Test I64 Parameter/Return [RunRTSequenceNumericLimit]
+  // Test I64 Parameter/Return [RunRTSequenceNumericLimit]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequenceNumericLimit',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SeqTimeout': -1,
+        'Target': '',
+        'Timeout': 10000,
+        'SequenceFilePath':
+            '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\int64_parameter_with_int64_return.nivsseq"',
+        'ParamValuesArray': '{"0","0","10","0","0","0"}',
+        'ParamTypesArray': '{"Boolean","I32","I64","U32","U64","Double"}',
+        'ParamNamesArray':
+            '{"Boolean","I32Variable","TestInput","U32Variable","U64Variable","DoubleVariable"}',
+        'NumericDataType': '"Int64"',
+      }),
+      'Limits': ts.PropObj({
+        'UseNominalExpr': false,
+        'UseThresholdTypeExpr': false,
+        'Nominal': 100,
+        'NominalExpr': '',
+        'ThresholdTypeExpr': '',
+        'ThresholdType': 'PERCENTAGE',
+        'Low': 9,
+        'High': 11,
+        'LowExpr': '',
+        'HighExpr': '',
+        'UseLowExpr': false,
+        'UseHighExpr': false,
+      }),
+      'Comp': 'GELE',
+      'CompExpr': '',
+      'UseCompExpr': false,
+      'InBuf': '',
+      'DataSource': 'Step.Result.Numeric',
+    }),
+    testI64ParameterReturnResult,
+  );
   testI64ParameterReturnResult.Status = ts.checkLimits(
     testI64ParameterReturnResult.Numeric,
     11,
@@ -126,9 +286,45 @@ Future<String> mainSequence() async {
   run.record(testI64ParameterReturnResult.Status);
   // checks: Step.Result.Numeric GELE [low 9, high 11, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-  throw UnimplementedError(
-    'step type RunRTSequenceNumericLimit: action not exported yet',
-  ); // Test DBL Paramater/Return [RunRTSequenceNumericLimit]
+  // Test DBL Paramater/Return [RunRTSequenceNumericLimit]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequenceNumericLimit',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SeqTimeout': -1,
+        'Target': '',
+        'Timeout': 10000,
+        'SequenceFilePath':
+            '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\dbl_parameter_with_dbl_return.nivsseq"',
+        'ParamValuesArray': '{"0","0","0","0","0","10"}',
+        'ParamTypesArray': '{"Boolean","I32","I64","U32","U64","Double"}',
+        'ParamNamesArray':
+            '{"Boolean","I32Variable","I64Variable","U32Variable","U64Variable","TestInput"}',
+        'NumericDataType': '"Double"',
+      }),
+      'Limits': ts.PropObj({
+        'UseNominalExpr': false,
+        'UseThresholdTypeExpr': false,
+        'Nominal': 100,
+        'NominalExpr': '',
+        'ThresholdTypeExpr': '',
+        'ThresholdType': 'PERCENTAGE',
+        'Low': 9,
+        'High': 11,
+        'LowExpr': '',
+        'HighExpr': '',
+        'UseLowExpr': false,
+        'UseHighExpr': false,
+      }),
+      'Comp': 'GELE',
+      'CompExpr': '',
+      'UseCompExpr': false,
+      'InBuf': '',
+      'DataSource': 'Step.Result.Numeric',
+    }),
+    testDblParamaterReturnResult,
+  );
   testDblParamaterReturnResult.Status = ts.checkLimits(
     testDblParamaterReturnResult.Numeric,
     11,
@@ -159,8 +355,8 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type RunRTSequencePassFail: action not exported yet
-  //   step type RunRTSequenceNumericLimit: action not exported yet
+  //   step type RunRTSequencePassFail acts through ts.stepHost
+  //   step type RunRTSequenceNumericLimit acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

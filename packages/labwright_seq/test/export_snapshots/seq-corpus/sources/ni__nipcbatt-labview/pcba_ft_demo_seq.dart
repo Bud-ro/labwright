@@ -172,6 +172,151 @@ Future<String> powerDiagnostics() async {
   }); // Obj
 
   final run = ts.SequenceRun();
+  dynamic
+  powerSupplySourceAndMeasurePowerOnMeasureStartupMaxPicCurrentResult = ts.PropObj(
+    {
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Measurement': <dynamic>[
+        ts.PropObj({
+          'Limits': ts.PropObj({
+            'ThresholdType': 'PERCENTAGE',
+            'Nominal': 100,
+            'Low': 0,
+            'High': 1,
+            'ThresholdTypeExpr': '',
+            'NominalExpr': '',
+            'LowExpr': '',
+            'HighExpr': '',
+            'UseThresholdTypeExpr': false,
+            'UseNominalExpr': false,
+            'UseLowExpr': false,
+            'UseHighExpr': false,
+          }),
+          'Units': 'A',
+          'Comp': 'GELE',
+          'CompExpr': '',
+          'UseCompExpr': false,
+          'Data': 0,
+          'Status': '',
+          'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+        }),
+      ],
+    },
+  ); // result of Power Supply Source and Measure - Power On & Measure startup max pic current
+  dynamic
+  powerSupplySourceAndMeasureMeasureIdlePowerConsumptionResult = ts.PropObj(
+    {
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Measurement': <dynamic>[
+        ts.PropObj({
+          'Limits': ts.PropObj({
+            'ThresholdType': 'PERCENTAGE',
+            'Nominal': 100,
+            'Low': 4.5,
+            'High': 5.5,
+            'ThresholdTypeExpr': '',
+            'NominalExpr': '',
+            'LowExpr': '',
+            'HighExpr': '',
+            'UseThresholdTypeExpr': false,
+            'UseNominalExpr': false,
+            'UseLowExpr': false,
+            'UseHighExpr': false,
+          }),
+          'Units': 'W',
+          'Comp': 'GELE',
+          'CompExpr': '',
+          'UseCompExpr': false,
+          'Data': 0,
+          'Status': '',
+          'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+        }),
+      ],
+    },
+  ); // result of Power Supply Source and Measure - Measure Idle power consumption
+  dynamic dcRmsVoltageMeasurementMeasureDcRegulatorVoltagesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Measurement': <dynamic>[
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 0.9,
+          'High': 1.1,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': 'V',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 3.1,
+          'High': 3.4,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': 'V',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 4.8,
+          'High': 5.2,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': 'V',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+    ],
+  }); // result of DC-RMS Voltage Measurement - Measure DC Regulator Voltages
 
   body:
   try {
@@ -197,17 +342,75 @@ Future<String> powerDiagnostics() async {
     //   Current Waveforms <- Locals.PS_Meas_Data.Current_Waveform
     //   error out <- Step.Result.Error
     await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Power On & Measure startup max pic current [NI_MultipleNumericLimitTest]
+    await ts.stepHost.runStepType(
+      'NI_MultipleNumericLimitTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'DataSource': 'Step.NumericArray',
+        'NumericArray': <dynamic>['0'],
+        'UseIndividualDataSources': true,
+        'DataSourceArray': <dynamic>['Locals.PS_Meas_Data.Max_Current'],
+        'ExpectedNumMeas': 1,
+        'ExtraDataAction': 'IgnoreExtraData',
+        'MeasToRepeat': 0,
+        'ExtraMeasAction': 'RunTimeError',
+      }),
+      powerSupplySourceAndMeasurePowerOnMeasureStartupMaxPicCurrentResult,
+    );
+    powerSupplySourceAndMeasurePowerOnMeasureStartupMaxPicCurrentResult.Status =
+        'Done';
+    run.record(
+      powerSupplySourceAndMeasurePowerOnMeasureStartupMaxPicCurrentResult
+          .Status,
+    );
     // checks: Step.NumericArray
     //   DAQmx Task In <- Locals.PS_Task
     //   DAQmx Task Out <- Locals.PS_Task
     //   error out <- Step.Result.Error
     await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Measure Idle power consumption [NI_MultipleNumericLimitTest]
+    await ts.stepHost.runStepType(
+      'NI_MultipleNumericLimitTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'DataSource': 'Step.NumericArray',
+        'NumericArray': <dynamic>['0'],
+        'UseIndividualDataSources': true,
+        'DataSourceArray': <dynamic>['Locals.PS_Meas_Data.Avg_Power'],
+        'ExpectedNumMeas': 1,
+        'ExtraDataAction': 'IgnoreExtraData',
+        'MeasToRepeat': 0,
+        'ExtraMeasAction': 'RunTimeError',
+      }),
+      powerSupplySourceAndMeasureMeasureIdlePowerConsumptionResult,
+    );
+    powerSupplySourceAndMeasureMeasureIdlePowerConsumptionResult.Status =
+        'Done';
+    run.record(
+      powerSupplySourceAndMeasureMeasureIdlePowerConsumptionResult.Status,
+    );
     // checks: Locals.DC_Meas_Data.Avg_Voltage
     //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
     //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
     //   Voltage Waveforms <- Locals.DC_Meas_Data.Voltage_Waveform
     //   error out <- Step.Result.Error
     await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure DC Regulator Voltages [NI_MultipleNumericLimitTest]
+    await ts.stepHost.runStepType(
+      'NI_MultipleNumericLimitTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'DataSource': 'Locals.DC_Meas_Data.Avg_Voltage',
+        'NumericArray': <dynamic>['0', '0', '0'],
+        'UseIndividualDataSources': false,
+        'DataSourceArray': <dynamic>['', '', ''],
+        'ExpectedNumMeas': 3,
+        'ExtraDataAction': 'IgnoreExtraData',
+        'MeasToRepeat': 0,
+        'ExtraMeasAction': 'RunTimeError',
+      }),
+      dcRmsVoltageMeasurementMeasureDcRegulatorVoltagesResult,
+    );
+    dcRmsVoltageMeasurementMeasureDcRegulatorVoltagesResult.Status = 'Done';
+    run.record(dcRmsVoltageMeasurementMeasureDcRegulatorVoltagesResult.Status);
   } finally {
     // ── cleanup ──
     //   DAQmx Task In <- Locals.PS_Task
@@ -255,6 +458,160 @@ Future<String> batteryChargerVoltageAndCurrentSleepMode() async {
   }); // Scan_Resources_Names
 
   final run = ts.SequenceRun();
+  dynamic dmmScanActiveModeVoltageCurrentResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Measurement': <dynamic>[
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 4.75,
+          'High': 5.25,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': '',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 2.5,
+          'High': 4.25,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': '',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 0,
+          'High': 0.5,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': '',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 0,
+          'High': 0.5,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': '',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+    ],
+  }); // result of DMM Scan - Active Mode Voltage & Current
+  dynamic dmmScanSleepModeVoltageCurrentResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Measurement': <dynamic>[
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 2.5,
+          'High': 4.25,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': '',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 0.000005,
+          'High': 0.000015,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': '',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+    ],
+  }); // result of DMM Scan - Sleep Mode Voltage & Current
 
   body:
   try {
@@ -273,6 +630,28 @@ Future<String> batteryChargerVoltageAndCurrentSleepMode() async {
     //   Raw Measurements <- Locals.Raw_Measurements_Active
     //   error out <- Step.Result.Error
     await callDmmScanPmps16V15CConfigureAndMeasure(); // DMM Scan - Active Mode Voltage & Current [NI_MultipleNumericLimitTest]
+    await ts.stepHost.runStepType(
+      'NI_MultipleNumericLimitTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'DataSource': 'Step.NumericArray',
+        'NumericArray': <dynamic>['0', '0', '0', '0'],
+        'UseIndividualDataSources': true,
+        'DataSourceArray': <dynamic>[
+          'Locals.Raw_Measurements_Active[0]._Value',
+          'Locals.Raw_Measurements_Active[1]._Value',
+          'Locals.Raw_Measurements_Active[2]._Value',
+          'Locals.Raw_Measurements_Active[3]._Value',
+        ],
+        'ExpectedNumMeas': 4,
+        'ExtraDataAction': 'IgnoreExtraData',
+        'MeasToRepeat': 0,
+        'ExtraMeasAction': 'RunTimeError',
+      }),
+      dmmScanActiveModeVoltageCurrentResult,
+    );
+    dmmScanActiveModeVoltageCurrentResult.Status = 'Done';
+    run.record(dmmScanActiveModeVoltageCurrentResult.Status);
     await Future<void>.delayed(
       const Duration(seconds: 2),
     ); // Wait for 2 seconds of inactivity, then scan ch1, ch17
@@ -281,6 +660,26 @@ Future<String> batteryChargerVoltageAndCurrentSleepMode() async {
     //   Raw Measurements <- Locals.Raw_Measurements_Sleep
     //   error out <- Step.Result.Error
     await callDmmScanPmps16V15CConfigureAndMeasure(); // DMM Scan - Sleep Mode Voltage & Current [NI_MultipleNumericLimitTest]
+    await ts.stepHost.runStepType(
+      'NI_MultipleNumericLimitTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'DataSource': 'Step.NumericArray',
+        'NumericArray': <dynamic>['0', '0'],
+        'UseIndividualDataSources': true,
+        'DataSourceArray': <dynamic>[
+          'Locals.Raw_Measurements_Sleep[0]._Value',
+          'Locals.Raw_Measurements_Sleep[1]._Value',
+        ],
+        'ExpectedNumMeas': 2,
+        'ExtraDataAction': 'IgnoreExtraData',
+        'MeasToRepeat': 0,
+        'ExtraMeasAction': 'RunTimeError',
+      }),
+      dmmScanSleepModeVoltageCurrentResult,
+    );
+    dmmScanSleepModeVoltageCurrentResult.Status = 'Done';
+    run.record(dmmScanSleepModeVoltageCurrentResult.Status);
   } finally {
     // ── cleanup ──
     //   Scan Resources Handles In <- Locals.Resource_Handles
@@ -311,6 +710,60 @@ Future<String> resetAndSelfTest() async {
   ]; // Objs
 
   final run = ts.SequenceRun();
+  dynamic dcRmsVoltageMeasurementMeasureLedStatesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Measurement': <dynamic>[
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 1.8,
+          'High': 2.2,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': 'V',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 2.6,
+          'High': 3.2,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': 'V',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+    ],
+  }); // result of DC-RMS Voltage Measurement - Measure LED states
 
   body:
   try {
@@ -352,6 +805,23 @@ Future<String> resetAndSelfTest() async {
     //   Voltage Waveforms <- Locals.DC_Meas_Data.Voltage_Waveform
     //   error out <- Step.Result.Error
     await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure LED states [NI_MultipleNumericLimitTest]
+    await ts.stepHost.runStepType(
+      'NI_MultipleNumericLimitTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'DataSource': 'Locals.DC_Meas_Data.Avg_Voltage',
+        'NumericArray': <dynamic>['0', '0'],
+        'UseIndividualDataSources': false,
+        'DataSourceArray': <dynamic>['', ''],
+        'ExpectedNumMeas': 2,
+        'ExtraDataAction': 'IgnoreExtraData',
+        'MeasToRepeat': 0,
+        'ExtraMeasAction': 'RunTimeError',
+      }),
+      dcRmsVoltageMeasurementMeasureLedStatesResult,
+    );
+    dcRmsVoltageMeasurementMeasureLedStatesResult.Status = 'Done';
+    run.record(dcRmsVoltageMeasurementMeasureLedStatesResult.Status);
   } finally {
     // ── cleanup ──
     //   DAQmx Task In <- Locals.Digital_State_Gen_Task
@@ -385,6 +855,64 @@ Future<String> animationAndSoundUserInputTest() async {
   }); // Obj
 
   final run = ts.SequenceRun();
+  dynamic
+  timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult =
+      ts.PropObj(
+        {
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'ReportText': '',
+          'Common': ts.PropObj(),
+          'Measurement': <dynamic>[
+            ts.PropObj({
+              'Limits': ts.PropObj({
+                'ThresholdType': 'PERCENTAGE',
+                'Nominal': 100,
+                'Low': 25,
+                'High': 35,
+                'ThresholdTypeExpr': '',
+                'NominalExpr': '',
+                'LowExpr': '',
+                'HighExpr': '',
+                'UseThresholdTypeExpr': false,
+                'UseNominalExpr': false,
+                'UseLowExpr': false,
+                'UseHighExpr': false,
+              }),
+              'Units': '%',
+              'Comp': 'GELE',
+              'CompExpr': '',
+              'UseCompExpr': false,
+              'Data': 0,
+              'Status': '',
+              'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+            }),
+            ts.PropObj({
+              'Limits': ts.PropObj({
+                'ThresholdType': 'PERCENTAGE',
+                'Nominal': 100,
+                'Low': 990,
+                'High': 1010,
+                'ThresholdTypeExpr': '',
+                'NominalExpr': '',
+                'LowExpr': '',
+                'HighExpr': '',
+                'UseThresholdTypeExpr': false,
+                'UseNominalExpr': false,
+                'UseLowExpr': false,
+                'UseHighExpr': false,
+              }),
+              'Units': 'Hz',
+              'Comp': 'GELE',
+              'CompExpr': '',
+              'UseCompExpr': false,
+              'Data': 0,
+              'Status': '',
+              'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+            }),
+          ],
+        },
+      ); // result of Time Domain Measurement - Fetch Volume LED Dutycycle and Tweeter Frequency
 
   body:
   try {
@@ -425,6 +953,31 @@ Future<String> animationAndSoundUserInputTest() async {
     //   Voltage Waveforms <- Locals.Meas_Data.Voltage_Waveform
     //   error out <- Step.Result.Error
     await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Fetch Volume LED Dutycycle and Tweeter Frequency [NI_MultipleNumericLimitTest]
+    await ts.stepHost.runStepType(
+      'NI_MultipleNumericLimitTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'DataSource': 'Step.NumericArray',
+        'NumericArray': <dynamic>['0', '0'],
+        'UseIndividualDataSources': true,
+        'DataSourceArray': <dynamic>[
+          'Locals.Meas_Data.Dutycycle[0]',
+          'Locals.Meas_Data.Frequency[1]',
+        ],
+        'ExpectedNumMeas': 2,
+        'ExtraDataAction': 'IgnoreExtraData',
+        'MeasToRepeat': 0,
+        'ExtraMeasAction': 'RunTimeError',
+      }),
+      timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult,
+    );
+    timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult
+            .Status =
+        'Done';
+    run.record(
+      timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult
+          .Status,
+    );
     // label: Note to run with Hardware: Review the Configurations for the intended use case
     // Note: To simulate the push on a volume button to generate a sound and a light animation to the LED
     //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
@@ -463,6 +1016,198 @@ Future<String> audioFilterTest() async {
   int ampTolerancePercentage = 10; // Num
 
   final run = ts.SequenceRun();
+  dynamic freqDomainMeasurementMeasureToneResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Measurement': <dynamic>[
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 10,
+          'Low': 0,
+          'High': 0,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': 'Locals.Freq_Tolerance_Percentage',
+          'HighExpr': 'Locals.Freq_Tolerance_Percentage',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': true,
+          'UseHighExpr': true,
+        }),
+        'Units': 'Hz',
+        'Comp': 'EQT',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 0,
+          'High': 0,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': 'Locals.Freq_Tolerance_Percentage',
+          'HighExpr': 'Locals.Freq_Tolerance_Percentage',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': true,
+          'UseHighExpr': true,
+        }),
+        'Units': 'Hz',
+        'Comp': 'EQT',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 1000,
+          'Low': 0,
+          'High': 0,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': 'Locals.Freq_Tolerance_Percentage',
+          'HighExpr': 'Locals.Freq_Tolerance_Percentage',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': true,
+          'UseHighExpr': true,
+        }),
+        'Units': 'Hz',
+        'Comp': 'EQT',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 10000,
+          'Low': 0,
+          'High': 0,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': 'Locals.Freq_Tolerance_Percentage',
+          'HighExpr': 'Locals.Freq_Tolerance_Percentage',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': true,
+          'UseHighExpr': true,
+        }),
+        'Units': 'Hz',
+        'Comp': 'EQT',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 1,
+          'Low': 0,
+          'High': 0,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': 'Locals.Amp_Tolerance_Percentage',
+          'HighExpr': 'Locals.Amp_Tolerance_Percentage',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': true,
+          'UseHighExpr': true,
+        }),
+        'Units': 'V',
+        'Comp': 'EQT',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 1,
+          'Low': 0,
+          'High': 0,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': 'Locals.Amp_Tolerance_Percentage',
+          'HighExpr': 'Locals.Amp_Tolerance_Percentage',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': true,
+          'UseHighExpr': true,
+        }),
+        'Units': 'V',
+        'Comp': 'EQT',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 1,
+          'Low': 0,
+          'High': 0,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': 'Locals.Amp_Tolerance_Percentage',
+          'HighExpr': 'Locals.Amp_Tolerance_Percentage',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': true,
+          'UseHighExpr': true,
+        }),
+        'Units': 'V',
+        'Comp': 'EQT',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 1,
+          'Low': 0,
+          'High': 0,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': 'Locals.Amp_Tolerance_Percentage',
+          'HighExpr': 'Locals.Amp_Tolerance_Percentage',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': true,
+          'UseHighExpr': true,
+        }),
+        'Units': 'V',
+        'Comp': 'EQT',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
+      }),
+    ],
+  }); // result of Freq Domain Measurement - Measure Tone
 
   body:
   try {
@@ -500,6 +1245,32 @@ Future<String> audioFilterTest() async {
     //   Voltage Waveforms <- Locals.Meas_Data.Voltage_Waveform
     //   error out <- Step.Result.Error
     await callDaqFdvMeasConfigureAndMeasure(); // Freq Domain Measurement - Measure Tone [NI_MultipleNumericLimitTest]
+    await ts.stepHost.runStepType(
+      'NI_MultipleNumericLimitTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'DataSource': 'Step.NumericArray',
+        'NumericArray': <dynamic>['0', '0', '0', '0', '0', '0', '0', '0'],
+        'UseIndividualDataSources': true,
+        'DataSourceArray': <dynamic>[
+          'Locals.Meas_Data.Detected_Tones[0].Frequencies__Hz_[0]',
+          'Locals.Meas_Data.Detected_Tones[0].Frequencies__Hz_[1]',
+          'Locals.Meas_Data.Detected_Tones[0].Frequencies__Hz_[2]',
+          'Locals.Meas_Data.Detected_Tones[0].Frequencies__Hz_[3]',
+          'Locals.Meas_Data.Detected_Tones[0].Amplitudes__V_[0]',
+          'Locals.Meas_Data.Detected_Tones[0].Amplitudes__V_[1]',
+          'Locals.Meas_Data.Detected_Tones[0].Amplitudes__V_[2]',
+          'Locals.Meas_Data.Detected_Tones[0].Amplitudes__V_[3]',
+        ],
+        'ExpectedNumMeas': 8,
+        'ExtraDataAction': 'IgnoreExtraData',
+        'MeasToRepeat': 0,
+        'ExtraMeasAction': 'RunTimeError',
+      }),
+      freqDomainMeasurementMeasureToneResult,
+    );
+    freqDomainMeasurementMeasureToneResult.Status = 'Done';
+    run.record(freqDomainMeasurementMeasureToneResult.Status);
   } finally {
     // ── cleanup ──
     // label: Close all Tasks
@@ -612,13 +1383,29 @@ Future<String> sequenceFileLoad() async {
   String helpPath = ''; // Str
 
   final run = ts.SequenceRun();
+  dynamic explanationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Explanation
 
   // popup title: "About This Example"
   // popup message: "This example demonstration sequence uses the real hardware library and simulated values from DAQmx.  | The limit tests will return a FAIL status until we use physical DAQ devices and the unit under test. The  | purpose of this demo is to provide a method for understanding the use of the values returned by the library  | in a real world scenario. | Ensure that all the prerequisite software mentioned in the user manual are installed. | For more information about the FT Demo Sequence, refer to the link mentioned below. | https://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/pcb-assembly-functional-test-seq.html"
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Explanation [MessagePopup]
+  // Explanation [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'About This Example',
+    message:
+        'This example demonstration sequence uses the real hardware library and simulated values from DAQmx. \nThe limit tests will return a FAIL status until we use physical DAQ devices and the unit under test. The \npurpose of this demo is to provide a method for understanding the use of the values returned by the library \nin a real world scenario.\n\nEnsure that all the prerequisite software mentioned in the user manual are installed.\n\nFor more information about the FT Demo Sequence, refer to the link mentioned below.\nhttps://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/pcb-assembly-functional-test-seq.html',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  explanationResult.ButtonHit = popup.buttonHit;
+  explanationResult.Response = popup.response;
+  explanationResult.Status = 'Done';
+  run.record(explanationResult.Status);
 
   return run.status;
 }
@@ -818,6 +1605,7 @@ void register() {
   //   Power Supply Source and Measure\DAQ_PS Initialize.vi
   //   DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Initialize.vi
   //   Power Supply Source and Measure\DAQ_PS Configure and Measure.vi
+  //   step type NI_MultipleNumericLimitTest acts through ts.stepHost
   //   DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Configure and Measure.vi
   //   Power Supply Source and Measure\DAQ_PS Close.vi
   //   DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Close.vi
@@ -856,7 +1644,7 @@ void register() {
     lw.expect(await powerDownSupply(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });

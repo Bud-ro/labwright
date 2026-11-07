@@ -14,14 +14,32 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic updatePinMapResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update pin map
+  dynamic performADmmMeasurementResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Perform a DMM measurement
 
   body:
   try {
     // ── setup ──
     // pin map: "Keysight 34401A DMM Measurement.pinmap"
-    throw UnimplementedError(
-      'step type NI_UpdatePinMap: action not exported yet',
-    ); // Update pin map [NI_UpdatePinMap]
+    // Update pin map [NI_UpdatePinMap]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_UpdatePinMap',
+      ts.StepPhase.post,
+      ts.PropObj({'PinMapPath': '"Keysight 34401A DMM Measurement.pinmap"'}),
+      updatePinMapResult,
+    );
+    updatePinMapResult.Status = 'Done';
+    run.record(updatePinMapResult.Status);
     //   sequence context <- ThisContext
     //   error out <- Step.Result.Error
     await callInitializeAndRegisterSessions(); // Initialize and register NI-DCPower Sessions [Action]
@@ -35,9 +53,119 @@ Future<String> mainSequence() async {
     // measurement param: resolution_digits (In TypeDouble) = 5.5
     // measurement param: measured_value (Out TypeDouble)
     // measurement param: signal_out_of_range (Out TypeBool)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Perform a DMM measurement [NI_Measurement]
+    // Perform a DMM measurement [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Measurement': ts.PropObj({
+          'Name': 'ni.examples.Keysight34401A_DMMMeasurement_LabVIEW',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'pin_name',
+              'ArgumentValue': '"Pin1"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'IOResource',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'measurement_type',
+              'ArgumentValue': '0i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeEnum',
+              'ID': 2,
+              'TypeSpecialization': 'Enum',
+              'EnumDefinition': <dynamic>[
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+              ],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'auto_range',
+              'ArgumentValue': 'True',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeBool',
+              'ID': 3,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'manual_range',
+              'ArgumentValue': '1',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 4,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'resolution_digits',
+              'ArgumentValue': '5.5',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 5,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'measured_value',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'signal_out_of_range',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeBool',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+          ],
+        }),
+      }),
+      performADmmMeasurementResult,
+    );
+    performADmmMeasurementResult.Status = 'Done';
+    run.record(performADmmMeasurementResult.Status);
   } finally {
     // ── cleanup ──
     //   error out <- Step.Result.Error
@@ -81,9 +209,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_UpdatePinMap: action not exported yet
+  //   step type NI_UpdatePinMap acts through ts.stepHost
   //   My Computer\Keysight 34401A DMM Measurement.lvlib\TestStand Code Modules\Initialize and Register Sessions.vi
-  //   step type NI_Measurement: action not exported yet
+  //   step type NI_Measurement acts through ts.stepHost
   //   My Computer\Keysight 34401A DMM Measurement.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

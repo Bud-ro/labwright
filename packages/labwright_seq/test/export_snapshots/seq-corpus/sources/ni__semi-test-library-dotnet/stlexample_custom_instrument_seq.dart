@@ -14,13 +14,72 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `ProcessSetup` — Runs once at lot start.
 Future<String> processSetup() async {
   final run = ts.SequenceRun();
+  dynamic setupCustomInstrumentResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup Custom Instrument
 
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupCustomInstrumentResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.SetupMyCustomInstruments
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.SetupMyCustomInstruments',
   ); // Setup Custom Instrument [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupCustomInstrumentResult,
+  );
+  setupCustomInstrumentResult.Status = 'Done';
+  run.record(setupCustomInstrumentResult.Status);
 
   return run.status;
 }
@@ -37,8 +96,422 @@ Future<String> mainSequence() async {
   List<dynamic> pinData = <dynamic>['1', '0', '0', '1']; // Nums
 
   final run = ts.SequenceRun();
+  dynamic zeroScaleTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'E',
+        'MeasurementId': 'Analog Output',
+        'TestNumberExpr': '',
+        'TestNumber': 0,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'ValidateAnalongOutput 1',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': 'Locals.OffsetVoltage - Locals.Tolerance',
+          'LowLimit': 0,
+          'HighLimitExpr': 'Locals.OffsetVoltage + Locals.Tolerance',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'F',
+        'MeasurementId': 'Analog Output',
+        'TestNumberExpr': '',
+        'TestNumber': 0,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'ValidateAnalongOutput 2',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': 'Locals.OffsetVoltage - Locals.Tolerance',
+          'LowLimit': 0,
+          'HighLimitExpr': 'Locals.OffsetVoltage + Locals.Tolerance',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Zero Scale Test
+  dynamic fullScaleTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'E',
+        'MeasurementId': 'Analog Output',
+        'TestNumberExpr': '',
+        'TestNumber': 0,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'ValidateAnalongOutput 1',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': 'Locals.VCC - Locals.Tolerance',
+          'LowLimit': 0,
+          'HighLimitExpr': 'Locals.VCC + Locals.Tolerance',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'F',
+        'MeasurementId': 'Analog Output',
+        'TestNumberExpr': '',
+        'TestNumber': 0,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'ValidateAnalongOutput 2',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': 'Locals.VCC - Locals.Tolerance',
+          'LowLimit': 0,
+          'HighLimitExpr': 'Locals.VCC + Locals.Tolerance',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Full Scale Test
+  dynamic functionalTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'E',
+        'MeasurementId': 'Analog Output',
+        'TestNumberExpr': '',
+        'TestNumber': 0,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'ValidateAnalongOutput 1',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': 'Locals.ExpectedAnalogOutput[0] - Locals.Tolerance',
+          'LowLimit': 0,
+          'HighLimitExpr': 'Locals.ExpectedAnalogOutput[0] + Locals.Tolerance',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'F',
+        'MeasurementId': 'Analog Output',
+        'TestNumberExpr': '',
+        'TestNumber': 0,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'ValidateAnalongOutput 2',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': 'Locals.ExpectedAnalogOutput[1] - Locals.Tolerance',
+          'LowLimit': 0,
+          'HighLimitExpr': 'Locals.ExpectedAnalogOutput[1] + Locals.Tolerance',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Functional Test
 
   // Provide '0' input to all digital pins (A, B, C, D) and measure offset voltage on analog pins (E, F). Then compare the measured values with expected offset voltage.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 1,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    zeroScaleTestResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -49,7 +522,75 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
   ); // Zero Scale Test [NI_SemiconductorModule_MultiTest]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 1,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    zeroScaleTestResult,
+  );
+  zeroScaleTestResult.Status = 'Done';
+  run.record(zeroScaleTestResult.Status);
   // Provide '1' input to all digital pins (A, B, C, D) and measure voltage on analog pins (E, F). Then compare the measured values with expected FullScale voltage (VCC).
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 1,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    fullScaleTestResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -60,7 +601,75 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
   ); // Full Scale Test [NI_SemiconductorModule_MultiTest]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 1,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    fullScaleTestResult,
+  );
+  fullScaleTestResult.Status = 'Done';
+  run.record(fullScaleTestResult.Status);
   // Provide different test inputs on digital pins (A, B, C, D) for e.g  provide {0,1,0,1} and measure analog  pins (E, F). Then compare the measured values with equivalent analog values.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 1,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    functionalTestResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -71,6 +680,41 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
   ); // Functional Test [NI_SemiconductorModule_MultiTest]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 1,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    functionalTestResult,
+  );
+  functionalTestResult.Status = 'Done';
+  run.record(functionalTestResult.Status);
 
   return run.status;
 }
@@ -78,20 +722,92 @@ Future<String> mainSequence() async {
 /// Sequence `SequenceFileLoad`.
 Future<String> sequenceFileLoad() async {
   final run = ts.SequenceRun();
+  dynamic explanationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Explanation
+  dynamic launchReadmeResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ExitCode': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Launch Readme
 
   // popup title: "About This Example"
   // popup message: "This example demonstrates how to use a Custom Instrument with the Semiconductor Test Library. |   | The example TestStand sequence contains three sample steps to test a hypothetical Device Under Test (DUT) using a custom instrument.  | The DUT is considered to be some kind of Digital to Analog Converter (DAC) and the Custom Instrument to be some kind of multi-functional Data Acquisition (DAQ). | The Custom Instrument device is capable of sourcing digital signals and acquiring analog signals.  | The DUT is connected to the CustomInstrument so that it can receive digital signals from the instrument and output an analog signal back to the instrument to be acquired. |   | Explore the main sequence to see the three sample test methods provided. |   | Sample Tests: | 1. ZeroScale Test | - Provides '0' input to all digital pins (A, B, C, D). | - Measures offset voltage on analog pins (E, F).  | - Compares the measured values with expected offset voltage. |   | 2. FullScale Test | - Provides '1' input to all digital pins (A, B, C, D). | - Measure voltage on analog pins (E, F).  | - Compares the measured values with expected FullScale voltage (VCC). |   | 3. Functional Test | - Provides different test inputs on digital pins (A, B, C, D), for example {0,1,0,1}. | - Measures analog  pins (E, F).  | - Compare the measured values with equivalent analog values. |   | Prerequisites | You must have the following software installed if you want to use the example: | - STS Software 25.5.0 or later |   | Review the README file accompanying the sequence file for information about how to use this example."
   // popup buttons: "Help" | "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Explanation [MessagePopup]
+  // Explanation [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'About This Example',
+    message:
+        'This example demonstrates how to use a Custom Instrument with the Semiconductor Test Library.\n \nThe example TestStand sequence contains three sample steps to test a hypothetical Device Under Test (DUT) using a custom instrument. \nThe DUT is considered to be some kind of Digital to Analog Converter (DAC) and the Custom Instrument to be some kind of multi-functional Data Acquisition (DAQ).\nThe Custom Instrument device is capable of sourcing digital signals and acquiring analog signals. \nThe DUT is connected to the CustomInstrument so that it can receive digital signals from the instrument and output an analog signal back to the instrument to be acquired.\n \nExplore the main sequence to see the three sample test methods provided.\n \nSample Tests:\n1. ZeroScale Test\n- Provides \'0\' input to all digital pins (A, B, C, D).\n- Measures offset voltage on analog pins (E, F). \n- Compares the measured values with expected offset voltage.\n \n2. FullScale Test\n- Provides \'1\' input to all digital pins (A, B, C, D).\n- Measure voltage on analog pins (E, F). \n- Compares the measured values with expected FullScale voltage (VCC).\n \n3. Functional Test\n- Provides different test inputs on digital pins (A, B, C, D), for example {0,1,0,1}.\n- Measures analog  pins (E, F). \n- Compare the measured values with equivalent analog values.\n \nPrerequisites\nYou must have the following software installed if you want to use the example:\n- STS Software 25.5.0 or later\n \nReview the README file accompanying the sequence file for information about how to use this example.',
+    buttons: ['Help', 'OK', '', '', '', ''],
+  );
+  explanationResult.ButtonHit = popup.buttonHit;
+  explanationResult.Response = popup.response;
+  explanationResult.Status = 'Done';
+  run.record(explanationResult.Status);
   // Launch README.md in notepad on clicking help.
   // runs executable: notepad.exe "README.md" (WAIT_NONE)
   if (runState.PreviousStep.Result.ButtonHit == 1) {
     // precondition of Launch Readme
-    throw UnimplementedError(
-      'step type CallExecutable: action not exported yet',
-    ); // Launch Readme [CallExecutable]
+    // Launch Readme [CallExecutable]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'CallExecutable',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Executable': 'notepad.exe',
+        'ExecutableExpr': '',
+        'SpecifyExeByExpr': false,
+        'ExecutableCalled': '',
+        'Arguments': '"README.md"',
+        'WaitCondition': 'WAIT_NONE',
+        'TimeToWait': 0,
+        'SetErrorCode': false,
+        'InitialWindowState': 'WINSTATE_SHOWNORM_A',
+        'TerminateOnAbort': false,
+        'StoreProcessHandle': false,
+        'ProcessHandleExpr': 'Step.ProcessHandlePtr',
+        'ProcessHandle': 0,
+        'ProcessHandlePtr': null,
+        'ExitCodeStatusAction': 'EXIT_CODE_NO_ACTION',
+        'ExitCodeErrorAction': 'EXIT_CODE_NO_ACTION',
+        'WorkingDir': ts.PropObj({'Source': 2, 'Expr': '', 'IsExpr': false}),
+        'RemoteSettings': ts.PropObj({
+          'Enabled': false,
+          'Host': '""',
+          'HostByExpr': true,
+          'Port': '13540',
+          'Password': '',
+          'PasswordByExpr': false,
+        }),
+        'StdInput': ts.PropObj({'Type': 0, 'Source': '""', 'IsExpr': false}),
+        'StdOutput': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdOutput.Text',
+          'IsExpr': false,
+          'Text': '',
+        }),
+        'StdError': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdError.Text',
+          'IsExpr': false,
+          'Text': '',
+          'Action': 0,
+          'SetErrorMsg': false,
+        }),
+      }),
+      launchReadmeResult,
+    );
+    launchReadmeResult.Status = 'Done';
+    run.record(launchReadmeResult.Status);
+  } else {
+    launchReadmeResult.Status = 'Skipped';
   }
 
   return run.status;
@@ -100,13 +816,72 @@ Future<String> sequenceFileLoad() async {
 /// Sequence `ProcessCleanup` — Runs once at lot end.
 Future<String> processCleanup() async {
   final run = ts.SequenceRun();
+  dynamic cleanupCustomInstrumentResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Cleanup Custom Instrument
 
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cleanupCustomInstrumentResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.CleanupMyCustomInstruments
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.CleanupMyCustomInstruments',
   ); // Cleanup Custom Instrument [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cleanupCustomInstrumentResult,
+  );
+  cleanupCustomInstrumentResult.Status = 'Done';
+  run.record(cleanupCustomInstrumentResult.Status);
 
   return run.status;
 }
@@ -131,23 +906,26 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.SetupMyCustomInstruments
   lw.skipTest('ProcessSetup', () async {
     lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_MultiTest acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   RunState engine access (no engine at run time)
-  //   step type CallExecutable: action not exported yet
+  //   step type CallExecutable acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.CleanupMyCustomInstruments
   lw.skipTest('ProcessCleanup', () async {
     lw.expect(await processCleanup(), 'Passed');

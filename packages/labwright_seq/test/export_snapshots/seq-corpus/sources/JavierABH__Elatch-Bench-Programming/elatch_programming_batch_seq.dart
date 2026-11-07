@@ -72,12 +72,84 @@ Future<String> preBatch({
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Get_PartNumber
+  dynamic activarParaMostrarPnResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Activar para mostrar PN
   dynamic getFwPathsForPnResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Get FW paths for PN
+  dynamic msgForPnDiferentResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Msg for pn diferent
+  dynamic msgBachcheckFailResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Msg Bachcheck fail
+  dynamic msgBachcheckFailResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Msg Bachcheck fail
+  dynamic msgBachcheckFailResult3 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Msg Bachcheck fail
+  dynamic msgBachcheckFailResult4 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Msg Bachcheck fail
+  dynamic msgBachcheckFailResult5 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Msg Bachcheck fail
+  dynamic msgBachcheckFailResult6 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Msg Bachcheck fail
+  dynamic msgTraceDisableResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Msg Trace disable
 
   // ── setup ──
   backCheck = 0; // Reset Traceability Variables
@@ -271,9 +343,16 @@ Future<String> preBatch({
       // popup title: NameOf(Step)
       // popup message: "UUT  0  reporta: " + Locals.Reply_BackCheck
       // popup buttons: "OK"
-      throw UnimplementedError(
-        'step type MessagePopup: action not exported yet',
-      ); // Msg Bachcheck fail [MessagePopup]
+      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
+      final popup = await ts.stepHost.messagePopup(
+        title: 'Msg Bachcheck fail',
+        message: 'UUT  0  reporta: ' + replyBackCheck,
+        buttons: ['OK', '', '', '', '', ''],
+      );
+      msgBachcheckFailResult.ButtonHit = popup.buttonHit;
+      msgBachcheckFailResult.Response = popup.response;
+      msgBachcheckFailResult.Status = 'Done';
+      run.record(msgBachcheckFailResult.Status);
     }
     // status expression: ""
     // label:
@@ -290,9 +369,16 @@ Future<String> preBatch({
       // popup title: NameOf(Step)
       // popup message: "UUT 1  reporta: " + Locals.Reply_BackCheck
       // popup buttons: "OK"
-      throw UnimplementedError(
-        'step type MessagePopup: action not exported yet',
-      ); // Msg Bachcheck fail [MessagePopup]
+      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
+      final popup2 = await ts.stepHost.messagePopup(
+        title: 'Msg Bachcheck fail',
+        message: 'UUT 1  reporta: ' + replyBackCheck,
+        buttons: ['OK', '', '', '', '', ''],
+      );
+      msgBachcheckFailResult2.ButtonHit = popup2.buttonHit;
+      msgBachcheckFailResult2.Response = popup2.response;
+      msgBachcheckFailResult2.Status = 'Done';
+      run.record(msgBachcheckFailResult2.Status);
     }
     // status expression: ""
     // label:
@@ -309,9 +395,16 @@ Future<String> preBatch({
       // popup title: NameOf(Step)
       // popup message: "UUT  2  reporta: " + Locals.Reply_BackCheck
       // popup buttons: "OK"
-      throw UnimplementedError(
-        'step type MessagePopup: action not exported yet',
-      ); // Msg Bachcheck fail [MessagePopup]
+      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
+      final popup3 = await ts.stepHost.messagePopup(
+        title: 'Msg Bachcheck fail',
+        message: 'UUT  2  reporta: ' + replyBackCheck,
+        buttons: ['OK', '', '', '', '', ''],
+      );
+      msgBachcheckFailResult3.ButtonHit = popup3.buttonHit;
+      msgBachcheckFailResult3.Response = popup3.response;
+      msgBachcheckFailResult3.Status = 'Done';
+      run.record(msgBachcheckFailResult3.Status);
     }
     // status expression: ""
     // label:
@@ -328,9 +421,16 @@ Future<String> preBatch({
       // popup title: NameOf(Step)
       // popup message: "UUT 3  reporta: " + Locals.Reply_BackCheck
       // popup buttons: "OK"
-      throw UnimplementedError(
-        'step type MessagePopup: action not exported yet',
-      ); // Msg Bachcheck fail [MessagePopup]
+      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
+      final popup4 = await ts.stepHost.messagePopup(
+        title: 'Msg Bachcheck fail',
+        message: 'UUT 3  reporta: ' + replyBackCheck,
+        buttons: ['OK', '', '', '', '', ''],
+      );
+      msgBachcheckFailResult4.ButtonHit = popup4.buttonHit;
+      msgBachcheckFailResult4.Response = popup4.response;
+      msgBachcheckFailResult4.Status = 'Done';
+      run.record(msgBachcheckFailResult4.Status);
     }
     // status expression: ""
     // label:
@@ -347,9 +447,16 @@ Future<String> preBatch({
       // popup title: NameOf(Step)
       // popup message: "UUT 4  reporta: " + Locals.Reply_BackCheck
       // popup buttons: "OK"
-      throw UnimplementedError(
-        'step type MessagePopup: action not exported yet',
-      ); // Msg Bachcheck fail [MessagePopup]
+      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
+      final popup5 = await ts.stepHost.messagePopup(
+        title: 'Msg Bachcheck fail',
+        message: 'UUT 4  reporta: ' + replyBackCheck,
+        buttons: ['OK', '', '', '', '', ''],
+      );
+      msgBachcheckFailResult5.ButtonHit = popup5.buttonHit;
+      msgBachcheckFailResult5.Response = popup5.response;
+      msgBachcheckFailResult5.Status = 'Done';
+      run.record(msgBachcheckFailResult5.Status);
     }
     // status expression: ""
     // label:
@@ -366,9 +473,16 @@ Future<String> preBatch({
       // popup title: NameOf(Step)
       // popup message: "UUT  5  reporta: " + Locals.Reply_BackCheck
       // popup buttons: "OK"
-      throw UnimplementedError(
-        'step type MessagePopup: action not exported yet',
-      ); // Msg Bachcheck fail [MessagePopup]
+      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
+      final popup6 = await ts.stepHost.messagePopup(
+        title: 'Msg Bachcheck fail',
+        message: 'UUT  5  reporta: ' + replyBackCheck,
+        buttons: ['OK', '', '', '', '', ''],
+      );
+      msgBachcheckFailResult6.ButtonHit = popup6.buttonHit;
+      msgBachcheckFailResult6.Response = popup6.response;
+      msgBachcheckFailResult6.Status = 'Done';
+      run.record(msgBachcheckFailResult6.Status);
     }
   }
   // label: End Of Traceability Section
@@ -379,9 +493,18 @@ Future<String> preBatch({
   // popup buttons: "OK"
   if (stationGlobals.isTraceEnable == 'False') {
     // precondition of Msg Trace disable
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Msg Trace disable [MessagePopup]
+    // Msg Trace disable [MessagePopup]: acts through ts.stepHost
+    final popup7 = await ts.stepHost.messagePopup(
+      title: 'Msg Trace disable',
+      message: 'Trazabilidad esta desactivada',
+      buttons: ['OK', '', '', '', '', ''],
+    );
+    msgTraceDisableResult.ButtonHit = popup7.buttonHit;
+    msgTraceDisableResult.Response = popup7.response;
+    msgTraceDisableResult.Status = 'Done';
+    run.record(msgTraceDisableResult.Status);
+  } else {
+    msgTraceDisableResult.Status = 'Skipped';
   }
   //   error out <- Step.Result.Error
   await callAllOffRelays(); // Set relays to init state [Action]
@@ -545,6 +668,14 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of JLink_close Test
+  dynamic msgFailedResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Msg Failed
 
   var cleanupFrom = 0;
   body:
@@ -752,9 +883,18 @@ Future<String> mainSequence() async {
       // popup buttons: "OK"
       if (run.failed) {
         // precondition of Msg Failed
-        throw UnimplementedError(
-          'step type MessagePopup: action not exported yet',
-        ); // Msg Failed [MessagePopup]
+        // Msg Failed [MessagePopup]: acts through ts.stepHost
+        final popup = await ts.stepHost.messagePopup(
+          title: 'Msg Failed',
+          message: 'UUT ' + ts.str(runState.TestSockets.MyIndex) + ' Fallo',
+          buttons: ['OK', '', '', '', '', ''],
+        );
+        msgFailedResult.ButtonHit = popup.buttonHit;
+        msgFailedResult.Response = popup.response;
+        msgFailedResult.Status = 'Done';
+        run.record(msgFailedResult.Status);
+      } else {
+        msgFailedResult.Status = 'Skipped';
       }
     }
     // label: BackCheck Point
@@ -1056,6 +1196,14 @@ Future<String> loadVariables({String variableList = ''}) async {
   int tempLoop = 0; // Num — default: 0
 
   final run = ts.SequenceRun();
+  dynamic messagePopupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message Popup
 
   //   FilePath <- Locals.File_Path
   //   OutPutValue <- 1
@@ -1415,7 +1563,7 @@ void register() {
   //   flow step "If" is Skip in source (skipped flow semantics not pinned)
   //   flow step "End" is Skip in source (skipped flow semantics not pinned)
   //   ..\LabVIEW_VIs\Traceability\WSP2_BackCheck_Serial.vi
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   ..\LabVIEW_VIs\USB-ERB24\All_Off_Relays.vi
   //   ..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi
   //   RunState engine access (no engine at run time)
@@ -1435,7 +1583,7 @@ void register() {
   //   RunState engine access (no engine at run time)
   //   StationGlobals read (station-level state not set here)
   //   python call: ..\Python\ecu_programmer.py
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   ..\LabVIEW_VIs\USB-ERB24\Choose_nest.vi
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

@@ -20,18 +20,14 @@ Future<String> mainSequence() async {
   body:
   try {
     // ── setup ──
-    throw UnimplementedError(
-      'step type OutputMessage: action not exported yet',
-    ); // Setup [OutputMessage]
+    // Setup [OutputMessage]: acts through its expressions
     ts.eval(
       'OutputMessage( Str(Evaluate(Step.Message)), Str(Evaluate(Step.Category)), (Step.Use_Severity_Exp ? Evaluate(Step.Severiy_Exp) : Val(Step.Severity)) )',
     ); // post-expression
 
     // ── main ──
     for (i = 0; i < 10; i += 1) {
-      throw UnimplementedError(
-        'step type OutputMessage: action not exported yet',
-      ); // Current Iteration [OutputMessage]
+      // Current Iteration [OutputMessage]: acts through its expressions
       ts.eval(
         'OutputMessage( Str(Evaluate(Step.Message)), Str(Evaluate(Step.Category)), (Step.Use_Severity_Exp ? Evaluate(Step.Severiy_Exp) : Val(Step.Severity)) )',
       ); // post-expression
@@ -41,9 +37,7 @@ Future<String> mainSequence() async {
     }
   } finally {
     // ── cleanup ──
-    throw UnimplementedError(
-      'step type OutputMessage: action not exported yet',
-    ); // Cleanup [OutputMessage]
+    // Cleanup [OutputMessage]: acts through its expressions
     ts.eval(
       'OutputMessage( Str(Evaluate(Step.Message)), Str(Evaluate(Step.Category)), (Step.Use_Severity_Exp ? Evaluate(Step.Severiy_Exp) : Val(Step.Severity)) )',
     ); // post-expression
@@ -71,7 +65,6 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type OutputMessage: action not exported yet
   //   untranslated expression in body
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

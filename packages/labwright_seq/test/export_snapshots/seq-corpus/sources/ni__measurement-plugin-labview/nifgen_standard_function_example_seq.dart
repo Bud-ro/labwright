@@ -14,14 +14,32 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic updatePinMapResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update pin map
+  dynamic generateStandardFunctionWaveformResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Generate standard function waveform
 
   body:
   try {
     // ── setup ──
     // pin map: "NIFgenStandardFunction.pinmap"
-    throw UnimplementedError(
-      'step type NI_UpdatePinMap: action not exported yet',
-    ); // Update pin map [NI_UpdatePinMap]
+    // Update pin map [NI_UpdatePinMap]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_UpdatePinMap',
+      ts.StepPhase.post,
+      ts.PropObj({'PinMapPath': '"NIFgenStandardFunction.pinmap"'}),
+      updatePinMapResult,
+    );
+    updatePinMapResult.Status = 'Done';
+    run.record(updatePinMapResult.Status);
     //   sequence context <- ThisContext
     //   error out <- Step.Result.Error
     await callInitializeAndRegisterSessions(); // Initialize and register NI-FGEN sessions [Action]
@@ -34,9 +52,93 @@ Future<String> mainSequence() async {
     // measurement param: amplitude (In TypeDouble) = 1
     // measurement param: duration (In TypeDouble) = 1
     // measurement param: actual_duration (Out TypeDouble)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Generate standard function waveform [NI_Measurement]
+    // Generate standard function waveform [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Measurement': ts.PropObj({
+          'Name': 'ni.examples.NIFgenStandardFunction_LabVIEW',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'pin_name',
+              'ArgumentValue': '"Pin1"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'IOResource',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'waveform',
+              'ArgumentValue': '0i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeEnum',
+              'ID': 2,
+              'TypeSpecialization': 'Enum',
+              'EnumDefinition': <dynamic>[0, 1, 2, 3, 4, 5, 6, 7],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'frequency',
+              'ArgumentValue': '1000000',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 3,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'amplitude',
+              'ArgumentValue': '1',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 4,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'duration',
+              'ArgumentValue': '1',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 5,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'actual_duration',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+          ],
+        }),
+      }),
+      generateStandardFunctionWaveformResult,
+    );
+    generateStandardFunctionWaveformResult.Status = 'Done';
+    run.record(generateStandardFunctionWaveformResult.Status);
   } finally {
     // ── cleanup ──
     //   error out <- Step.Result.Error
@@ -80,9 +182,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_UpdatePinMap: action not exported yet
+  //   step type NI_UpdatePinMap acts through ts.stepHost
   //   My Computer\NIFgenStandardFunction.lvlib\TestStand Code Modules\Initialize and Register Sessions.vi
-  //   step type NI_Measurement: action not exported yet
+  //   step type NI_Measurement acts through ts.stepHost
   //   My Computer\NIFgenStandardFunction.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

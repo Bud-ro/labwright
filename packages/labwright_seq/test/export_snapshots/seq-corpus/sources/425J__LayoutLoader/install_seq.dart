@@ -29,9 +29,14 @@ Future<String> sequenceFileLoad() async {
     // popup title: "Installer"
     // popup message: "Do you want to install Layout Loader?"
     // popup buttons: "Yes" | "No"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Prompt [MessagePopup]
+    // Prompt [MessagePopup]: acts through ts.stepHost
+    final popup = await ts.stepHost.messagePopup(
+      title: 'Installer',
+      message: 'Do you want to install Layout Loader?',
+      buttons: ['Yes', 'No', '', '', '', ''],
+    );
+    promptResult.ButtonHit = popup.buttonHit;
+    promptResult.Response = popup.response;
     promptResult.Status = 'Done';
     run.record(promptResult.Status);
     if (promptResult.ButtonHit == 1) {
@@ -75,6 +80,14 @@ Future<String> install() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Copy FrontEnd Callback
+  dynamic successMessageResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Success Message
 
   ts.eval(
     'Locals.CurrentDir = Left(ThisContext.SequenceFile.Path, Find(ThisContext.SequenceFile.Path, "\\\\", 0, True, True)),\nLocals.Source.SeqEdit = Locals.CurrentDir + @"\\Resources\\SeqEdit",\nLocals.Source.Users = Locals.CurrentDir + @"\\Resources\\Users.ini",\nLocals.Source.FrontEndCallback = Locals.CurrentDir + @"\\Resources\\FrontEnd"',
@@ -133,9 +146,16 @@ Future<String> install() async {
   // popup title: "Success"
   // popup message: "Layout Loader successfully installed."
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Success Message [MessagePopup]
+  // Success Message [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Success',
+    message: 'Layout Loader successfully installed.',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  successMessageResult.ButtonHit = popup.buttonHit;
+  successMessageResult.Response = popup.response;
+  successMessageResult.Status = 'Done';
+  run.record(successMessageResult.Status);
 
   return run.status;
 }
@@ -364,14 +384,14 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   dotNet call: System.IO.File.Copy
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   dotNet call: System.IO.DirectoryInfo.DirectoryInfo
   //   call parameters of sequence CopyAll: no parameter named SourceDirectory (stale binding)
   //   call parameters of sequence CopyAll: no parameter named TargetDirectory (stale binding)

@@ -14,14 +14,32 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic updatePinMapResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update pin map
+  dynamic performAMeasurementUsingAnDmmResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Perform a measurement using an DMM
 
   body:
   try {
     // ── setup ──
     // pin map: "DmmMeasurementHAL.pinmap"
-    throw UnimplementedError(
-      'step type NI_UpdatePinMap: action not exported yet',
-    ); // Update pin map [NI_UpdatePinMap]
+    // Update pin map [NI_UpdatePinMap]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_UpdatePinMap',
+      ts.StepPhase.post,
+      ts.PropObj({'PinMapPath': '"DmmMeasurementHAL.pinmap"'}),
+      updatePinMapResult,
+    );
+    updatePinMapResult.Status = 'Done';
+    run.record(updatePinMapResult.Status);
     //   sequence_context <- ThisContext
     throw UnimplementedError(
       'python call: ..\\measurements\\dmm_measurement_hal\\teststand_helper.py',
@@ -34,9 +52,98 @@ Future<String> mainSequence() async {
     // measurement param: range (In TypeDouble) = 10
     // measurement param: resolution_digits (In TypeDouble) = 5.5
     // measurement param: measured_value (Out TypeDouble)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Perform a measurement using an DMM [NI_Measurement]
+    // Perform a measurement using an DMM [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Measurement': ts.PropObj({
+          'Name': 'ni.examples.DmmMeasurementHAL_Python',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'pin_name',
+              'ArgumentValue': '"NI_DMM_Pin"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'IOResource',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'measurement_type',
+              'ArgumentValue': '1i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeEnum',
+              'ID': 2,
+              'TypeSpecialization': 'Enum',
+              'EnumDefinition': <dynamic>[
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                101,
+                104,
+                105,
+                108,
+                1001,
+                1002,
+                1003,
+                1004,
+                1005,
+                1006,
+              ],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'range',
+              'ArgumentValue': '10',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 3,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'resolution_digits',
+              'ArgumentValue': '5.5',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 4,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'measured_value',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+          ],
+        }),
+      }),
+      performAMeasurementUsingAnDmmResult,
+    );
+    performAMeasurementUsingAnDmmResult.Status = 'Done';
+    run.record(performAMeasurementUsingAnDmmResult.Status);
   } finally {
     // ── cleanup ──
     throw UnimplementedError(
@@ -66,9 +173,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_UpdatePinMap: action not exported yet
+  //   step type NI_UpdatePinMap acts through ts.stepHost
   //   python call: ..\measurements\dmm_measurement_hal\teststand_helper.py
-  //   step type NI_Measurement: action not exported yet
+  //   step type NI_Measurement acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

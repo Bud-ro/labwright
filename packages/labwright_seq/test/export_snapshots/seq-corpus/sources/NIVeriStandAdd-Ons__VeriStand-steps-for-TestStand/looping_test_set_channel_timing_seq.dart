@@ -18,17 +18,73 @@ Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
 
   final run = ts.SequenceRun();
+  dynamic initializeVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'VeristandError': null,
+    'Veristand': ts.PropObj({'Project': ''}),
+  }); // result of Initialize VeriStand
+  dynamic setChannelValueResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'ValueToSet': 0,
+      'ChannelName': '',
+      'Timeout': false,
+    }),
+  }); // result of Set Channel Value
 
   // ── setup ──
-  throw UnimplementedError(
-    'step type InitializeVeriStand: action not exported yet',
-  ); // Initialize VeriStand [InitializeVeriStand]
+  await ts.stepHost.runStepType(
+    'InitializeVeriStand',
+    ts.StepPhase.pre,
+    ts.PropObj(),
+    initializeVeriStandResult,
+  );
+  // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'InitializeVeriStand',
+    ts.StepPhase.post,
+    ts.PropObj(),
+    initializeVeriStandResult,
+  );
+  initializeVeriStandResult.Status = 'Done';
+  run.record(initializeVeriStandResult.Status);
 
   // ── main ──
   for (counter = 0; counter < timesToRun; counter += 1) {
-    throw UnimplementedError(
-      'step type SetChannelValue: action not exported yet',
-    ); // Set Channel Value [SetChannelValue]
+    setChannelValueResult = ts.PropObj({
+      'VeristandError': null,
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Veristand': ts.PropObj({
+        'ValueToSet': 0,
+        'ChannelName': '',
+        'Timeout': false,
+      }),
+    });
+    // Set Channel Value [SetChannelValue]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'SetChannelValue',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'Timeout_ms': -1,
+          'ValueToSet': '3000',
+          'ChannelName': '"Aliases/DesiredRPM"',
+        }),
+      }),
+      setChannelValueResult,
+    );
+    setChannelValueResult.Status = 'Done';
+    run.record(setChannelValueResult.Status);
   }
 
   return run.status;
@@ -66,8 +122,8 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type InitializeVeriStand: action not exported yet
-  //   step type SetChannelValue: action not exported yet
+  //   step type InitializeVeriStand acts through ts.stepHost
+  //   step type SetChannelValue acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

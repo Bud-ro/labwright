@@ -14,6 +14,14 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic rtSequenceActionResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Path': '', 'Returnval': 0}),
+  }); // result of RT Sequence Action
   dynamic rtSequenceNumericLimitTestResult = ts.PropObj({
     'VeriStand': ts.PropObj({'Path': ''}),
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -31,14 +39,64 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of RT Sequence Pass/Fail Test
 
-  throw UnimplementedError(
-    'step type RunRTSequenceAction_2: action not exported yet',
-  ); // RT Sequence Action [RunRTSequenceAction_2]
+  // RT Sequence Action [RunRTSequenceAction_2]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequenceAction_2',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'Target': '',
+        'Timeout': 10000,
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
+        'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+        'ParamTypesArray': '{"Path","Path"}',
+        'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+      }),
+    }),
+    rtSequenceActionResult,
+  );
+  rtSequenceActionResult.Status = 'Done';
+  run.record(rtSequenceActionResult.Status);
   // checks: Step.Result.Numeric GELE [low 9, high 11, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-  throw UnimplementedError(
-    'step type RunRTSequenceNumericLimit_2: action not exported yet',
-  ); // RT Sequence Numeric Limit Test [RunRTSequenceNumericLimit_2]
+  // RT Sequence Numeric Limit Test [RunRTSequenceNumericLimit_2]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequenceNumericLimit_2',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'Target': '',
+        'Timeout': 10000,
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
+        'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+        'ParamTypesArray': '{"Path","Path"}',
+        'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+        'NumericDataType': '"Void"',
+      }),
+      'Limits': ts.PropObj({
+        'UseNominalExpr': false,
+        'UseThresholdTypeExpr': false,
+        'Nominal': 100,
+        'NominalExpr': '',
+        'ThresholdTypeExpr': '',
+        'ThresholdType': 'PERCENTAGE',
+        'Low': 9,
+        'High': 11,
+        'LowExpr': '',
+        'HighExpr': '',
+        'UseLowExpr': false,
+        'UseHighExpr': false,
+      }),
+      'Comp': 'GELE',
+      'CompExpr': '',
+      'UseCompExpr': false,
+      'InBuf': '',
+      'DataSource': 'Step.Result.Numeric',
+    }),
+    rtSequenceNumericLimitTestResult,
+  );
   rtSequenceNumericLimitTestResult.Status = ts.checkLimits(
     rtSequenceNumericLimitTestResult.Numeric,
     11,
@@ -47,9 +105,23 @@ Future<String> mainSequence() async {
   ); // status expression
   run.record(rtSequenceNumericLimitTestResult.Status);
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail_2: action not exported yet',
-  ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail_2]
+  // RT Sequence Pass/Fail Test [RunRTSequencePassFail_2]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail_2',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'Target': '',
+        'Timeout': 10000,
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
+        'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+        'ParamTypesArray': '{"Path","Path"}',
+        'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+      }),
+    }),
+    rtSequencePassFailTestResult,
+  );
   rtSequencePassFailTestResult.Status =
       ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
       ? 'Passed'
@@ -89,9 +161,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type RunRTSequenceAction_2: action not exported yet
-  //   step type RunRTSequenceNumericLimit_2: action not exported yet
-  //   step type RunRTSequencePassFail_2: action not exported yet
+  //   step type RunRTSequenceAction_2 acts through ts.stepHost
+  //   step type RunRTSequenceNumericLimit_2 acts through ts.stepHost
+  //   step type RunRTSequencePassFail_2 acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

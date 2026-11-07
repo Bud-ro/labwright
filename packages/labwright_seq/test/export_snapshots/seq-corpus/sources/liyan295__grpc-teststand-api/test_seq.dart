@@ -30,6 +30,14 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
     'Units': '',
   }); // result of Numeric Limit Test
+  dynamic messagePopupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message Popup
 
   // checks: 15 GELE [low 1, high 20, nominal 100] (PERCENTAGE)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
@@ -60,9 +68,17 @@ Future<String> mainSequence() async {
   // popup title: NameOf(Step)
   // popup message: "Test sequence for Example TestStand API server.  | This sequence has only three steps,one of which that fails. It completes after five seconds."
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Message Popup [MessagePopup]
+  // Message Popup [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Message Popup',
+    message:
+        'Test sequence for Example TestStand API server. \r\n\r\nThis sequence has only three steps,one of which that fails. It completes after five seconds.',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  messagePopupResult.ButtonHit = popup.buttonHit;
+  messagePopupResult.Response = popup.response;
+  messagePopupResult.Status = 'Done';
+  run.record(messagePopupResult.Status);
 
   return run.status;
 }
@@ -86,7 +102,7 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

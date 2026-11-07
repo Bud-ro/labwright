@@ -19,6 +19,22 @@ Future<String> modelPluginConfigureStandardOptions({
   dynamic modelPlugin,
 }) async {
   final run = ts.SequenceRun();
+  dynamic setLogFileDirectoryResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Set Log File Directory
+  dynamic setBatchSampleRateResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Set Batch Sample Rate
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
@@ -27,9 +43,19 @@ Future<String> modelPluginConfigureStandardOptions({
   // popup message: "Set the log file directory. If empty string, it will be save in the test program directory"
   // popup buttons: "OK" | "Cancel"
   // popup collects a response (default Parameters.ModelPlugin.PluginSpecific.Options.LogFileFolder)
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Set Log File Directory [MessagePopup]
+  // Set Log File Directory [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Set Log File Directory',
+    message:
+        'Set the log file directory. If empty string, it will be save in the test program directory',
+    buttons: ['OK', 'Cancel', '', '', '', ''],
+    showResponse: true,
+    defaultResponse: modelPlugin.PluginSpecific.Options.LogFileFolder,
+  );
+  setLogFileDirectoryResult.ButtonHit = popup.buttonHit;
+  setLogFileDirectoryResult.Response = popup.response;
+  setLogFileDirectoryResult.Status = 'Done';
+  run.record(setLogFileDirectoryResult.Status);
   if (runState.PreviousStep.Result.ButtonHit == '1') {
     // precondition of Apply changes if user click OK
     changed = true; // Apply changes if user click OK
@@ -42,9 +68,19 @@ Future<String> modelPluginConfigureStandardOptions({
   // popup message: "Set the batch sample rate. If it is zero or one, the logger will sample log time of every batch.  | If you have concern of perforamance impact due to the logging, set this number higher to reduce the frequency of logging data"
   // popup buttons: "OK" | "Cancel"
   // popup collects a response (default Str(Parameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate))
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Set Batch Sample Rate [MessagePopup]
+  // Set Batch Sample Rate [MessagePopup]: acts through ts.stepHost
+  final popup2 = await ts.stepHost.messagePopup(
+    title: 'Set Batch Sample Rate',
+    message:
+        'Set the batch sample rate. If it is zero or one, the logger will sample log time of every batch. \nIf you have concern of perforamance impact due to the logging, set this number higher to reduce the frequency of logging data',
+    buttons: ['OK', 'Cancel', '', '', '', ''],
+    showResponse: true,
+    defaultResponse: ts.str(modelPlugin.PluginSpecific.Options.BatchSampleRate),
+  );
+  setBatchSampleRateResult.ButtonHit = popup2.buttonHit;
+  setBatchSampleRateResult.Response = popup2.response;
+  setBatchSampleRateResult.Status = 'Done';
+  run.record(setBatchSampleRateResult.Status);
   if (runState.PreviousStep.Result.ButtonHit == '1') {
     // precondition of Apply changes if user click OK
     ts.eval(
@@ -358,6 +394,17 @@ Future<String> reservedModelPluginConfigureAdditionalOptions({
   dynamic modelPlugin,
 }) async {
   final run = ts.SequenceRun();
+  dynamic
+  replaceThisStepWithACallToYourAdditionalOptionsDialogResult = ts.PropObj(
+    {
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ButtonHit': 0,
+      'Response': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    },
+  ); // result of Replace this step with a call to your additional options dialog
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
@@ -365,9 +412,24 @@ Future<String> reservedModelPluginConfigureAdditionalOptions({
   // popup title: ResStr("PLUGIN_TEMPLATE", "ADDITIONAL_OPTIONS_DIALOG_TITLE")
   // popup message: ResStr("PLUGIN_TEMPLATE", "ADDITIONAL_OPTIONS_DIALOG_MESSAGE")
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Replace this step with a call to your additional options dialog [MessagePopup]
+  // Replace this step with a call to your additional options dialog [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: ts.eval(
+      'ResStr("PLUGIN_TEMPLATE", "ADDITIONAL_OPTIONS_DIALOG_TITLE")',
+    ),
+    message: ts.eval(
+      'ResStr("PLUGIN_TEMPLATE", "ADDITIONAL_OPTIONS_DIALOG_MESSAGE")',
+    ),
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  replaceThisStepWithACallToYourAdditionalOptionsDialogResult.ButtonHit =
+      popup.buttonHit;
+  replaceThisStepWithACallToYourAdditionalOptionsDialogResult.Response =
+      popup.response;
+  replaceThisStepWithACallToYourAdditionalOptionsDialogResult.Status = 'Done';
+  run.record(
+    replaceThisStepWithACallToYourAdditionalOptionsDialogResult.Status,
+  );
 
   return run.status;
 }
@@ -501,6 +563,9 @@ Future<String> reservedModelPluginUutDone({
   dynamic controllerAndSocketSynchronizationManager = null; // Ref
 
   final run = ts.SequenceRun();
+  dynamic unblockCallingThreadResult = ts.PropObj({
+    'Status': '',
+  }); // result of Unblock Calling Thread
 
   // ── setup ──
   inNewThread =
@@ -520,9 +585,34 @@ Future<String> reservedModelPluginUutDone({
   // sync object: Parameters.CallingThreadBlocker, operation code 1, lifetime code 3
   if (callingThreadBlocker != null) {
     // precondition of Unblock Calling Thread
-    throw UnimplementedError(
-      'step type NI_Notification: action not exported yet',
-    ); // Unblock Calling Thread [NI_Notification]
+    // Unblock Calling Thread [NI_Notification]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Notification',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'NameOrRefExpr': 'Parameters.CallingThreadBlocker',
+        'LifetimeRefExpr': '',
+        'TimeoutEnabled': false,
+        'TimeoutExpr': '',
+        'ErrorOnTimeout': true,
+        'AlreadyExistsExpr': '',
+        'NumThreadsWaitingExpr': '',
+        'Operation': 1,
+        'Lifetime': 3,
+        'DataExpr': '',
+        'ByRef': false,
+        'WhichNotificationExpr': '',
+        'IsSetExpr': '',
+        'IsAutoClearExpr': '',
+        'AutoClear': true,
+        'PulseNotifyOpt': 1,
+      }),
+      unblockCallingThreadResult,
+    );
+    unblockCallingThreadResult.Status = 'Done';
+    run.record(unblockCallingThreadResult.Status);
+  } else {
+    unblockCallingThreadResult.Status = 'Skipped';
   }
 
   // ── main ──
@@ -553,6 +643,9 @@ Future<String> reservedModelPluginBatchDone({
   dynamic controllerAndSocketSynchronizationManager = null; // Ref
 
   final run = ts.SequenceRun();
+  dynamic unblockCallingThreadResult = ts.PropObj({
+    'Status': '',
+  }); // result of Unblock Calling Thread
 
   // ── setup ──
   inNewThread =
@@ -572,9 +665,34 @@ Future<String> reservedModelPluginBatchDone({
   // sync object: Parameters.CallingThreadBlocker, operation code 1, lifetime code 3
   if (callingThreadBlocker != null) {
     // precondition of Unblock Calling Thread
-    throw UnimplementedError(
-      'step type NI_Notification: action not exported yet',
-    ); // Unblock Calling Thread [NI_Notification]
+    // Unblock Calling Thread [NI_Notification]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Notification',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'NameOrRefExpr': 'Parameters.CallingThreadBlocker',
+        'LifetimeRefExpr': '',
+        'TimeoutEnabled': false,
+        'TimeoutExpr': '',
+        'ErrorOnTimeout': true,
+        'AlreadyExistsExpr': '',
+        'NumThreadsWaitingExpr': '',
+        'Operation': 1,
+        'Lifetime': 3,
+        'DataExpr': '',
+        'ByRef': false,
+        'WhichNotificationExpr': '',
+        'IsSetExpr': '',
+        'IsAutoClearExpr': '',
+        'AutoClear': true,
+        'PulseNotifyOpt': 1,
+      }),
+      unblockCallingThreadResult,
+    );
+    unblockCallingThreadResult.Status = 'Done';
+    run.record(unblockCallingThreadResult.Status);
+  } else {
+    unblockCallingThreadResult.Status = 'Skipped';
   }
 
   // ── main ──
@@ -677,7 +795,7 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   RunState engine access (no engine at run time)
   //   untranslated expression in body
   //   root parameter 'ProcessModel' is an engine object (nothing binds it when run as a test)
@@ -764,7 +882,8 @@ void register() {
     lw.expect(await reservedModelPluginEnd(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
+  //   untranslated expression in body
   //   root parameter 'ProcessModel' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   lw.skipTest(
@@ -823,7 +942,7 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
   //   Step engine access (no engine at run time)
-  //   step type NI_Notification: action not exported yet
+  //   step type NI_Notification acts through ts.stepHost
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelThreadType' is an engine object (nothing binds it when run as a test)
@@ -841,7 +960,7 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
   //   Step engine access (no engine at run time)
-  //   step type NI_Notification: action not exported yet
+  //   step type NI_Notification acts through ts.stepHost
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelThreadType' is an engine object (nothing binds it when run as a test)

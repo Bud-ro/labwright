@@ -498,9 +498,21 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
             'ReportText': '',
             'Common': ts.PropObj(),
           });
-          throw UnimplementedError(
-            'step type MessagePopup: action not exported yet',
-          ); // Handle Termination [MessagePopup]
+          // Handle Termination [MessagePopup]: acts through ts.stepHost
+          final popup = await ts.stepHost.messagePopup(
+            title: ts.eval('ResStr("MODEL", "HANDLE_TERMINATION_TITLE")'),
+            message: ts.eval('ResStr("MODEL", "HANDLE_TERMINATION_MESSAGE")'),
+            buttons: [
+              ts.eval('ResStr("MODEL", "NEXT_UUT_BUTTON")'),
+              ts.eval('ResStr("MODEL", "TERMINATE_BUTTON")'),
+              '',
+              '',
+              '',
+              '',
+            ],
+          );
+          handleTerminationResult.ButtonHit = popup.buttonHit;
+          handleTerminationResult.Response = popup.response;
           continueTesting =
               handleTerminationResult.ButtonHit != 2; // post-expression
           handleTerminationResult.Status = 'Done';
@@ -1796,7 +1808,7 @@ void register() {
   //   external sequence: Parameters.sequence
   //   external sequence: Model Plugins - UUT Done
   //   external sequence: Model Plugins - Post UUT
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   external sequence: Model Plugins - End
   //   external sequence: DoPreUUT
   lw.skipTest('Test UUTs', () async {

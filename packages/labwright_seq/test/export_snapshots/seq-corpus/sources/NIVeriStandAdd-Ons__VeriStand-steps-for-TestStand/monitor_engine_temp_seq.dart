@@ -25,6 +25,20 @@ Future<String> mainSequence() async {
   ]; // Nums
 
   final run = ts.SequenceRun();
+  dynamic initializeVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'VeristandError': null,
+    'Veristand': ts.PropObj({'Project': ''}),
+  }); // result of Initialize VeriStand
+  dynamic notificationResult = ts.PropObj({
+    'Status': '',
+  }); // result of Notification
+  dynamic notificationResult2 = ts.PropObj({
+    'Status': '',
+  }); // result of Notification
   dynamic launchTemperatureMonitorResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -43,23 +57,97 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Call Check Engine RPM
+  dynamic shutEngineDownResult = ts.PropObj({
+    'VeriStandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'Units': List<dynamic>.filled(10, '', growable: true),
+      'Timeout': false,
+      'ChannelNames': <dynamic>[],
+      'ChannelValues': <dynamic>[],
+    }),
+  }); // result of Shut Engine Down
+  dynamic notificationResult3 = ts.PropObj({
+    'Status': '',
+  }); // result of Notification
 
   body:
   try {
     // ── setup ──
     // Open and launch Engine Demo VeriStand project.
-    throw UnimplementedError(
-      'step type InitializeVeriStand: action not exported yet',
-    ); // Initialize VeriStand [InitializeVeriStand]
+    await ts.stepHost.runStepType(
+      'InitializeVeriStand',
+      ts.StepPhase.pre,
+      ts.PropObj(),
+      initializeVeriStandResult,
+    );
+    // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'InitializeVeriStand',
+      ts.StepPhase.post,
+      ts.PropObj(),
+      initializeVeriStandResult,
+    );
+    initializeVeriStandResult.Status = 'Done';
+    run.record(initializeVeriStandResult.Status);
     // Create and initialize notification to stop temperature monitor
     // sync object: FileGlobals.ThermalNotification, operation code 0, lifetime code 3
-    throw UnimplementedError(
-      'step type NI_Notification: action not exported yet',
-    ); // Notification [NI_Notification]
+    // Notification [NI_Notification]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Notification',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'NameOrRefExpr': 'FileGlobals.ThermalNotification',
+        'LifetimeRefExpr': '',
+        'TimeoutEnabled': false,
+        'TimeoutExpr': '',
+        'ErrorOnTimeout': true,
+        'AlreadyExistsExpr': '',
+        'NumThreadsWaitingExpr': '',
+        'Operation': 0,
+        'Lifetime': 3,
+        'DataExpr': '',
+        'ByRef': false,
+        'WhichNotificationExpr': '',
+        'IsSetExpr': '',
+        'IsAutoClearExpr': '',
+        'AutoClear': true,
+        'PulseNotifyOpt': 1,
+      }),
+      notificationResult,
+    );
+    notificationResult.Status = 'Done';
+    run.record(notificationResult.Status);
     // sync object: FileGlobals.ThermalNotification, operation code 2, lifetime code 3
-    throw UnimplementedError(
-      'step type NI_Notification: action not exported yet',
-    ); // Notification [NI_Notification]
+    // Notification [NI_Notification]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Notification',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'NameOrRefExpr': 'FileGlobals.ThermalNotification',
+        'LifetimeRefExpr': '',
+        'TimeoutEnabled': false,
+        'TimeoutExpr': '',
+        'ErrorOnTimeout': true,
+        'AlreadyExistsExpr': '',
+        'NumThreadsWaitingExpr': '',
+        'Operation': 2,
+        'Lifetime': 3,
+        'DataExpr': '',
+        'ByRef': false,
+        'WhichNotificationExpr': '',
+        'IsSetExpr': '',
+        'IsAutoClearExpr': '',
+        'AutoClear': true,
+        'PulseNotifyOpt': 1,
+      }),
+      notificationResult2,
+    );
+    notificationResult2.Status = 'Done';
+    run.record(notificationResult2.Status);
     // Asynchronously launch temperature monitor
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     // sequence call spawns a new thread in the engine — exported as a plain awaited call
@@ -107,14 +195,53 @@ Future<String> mainSequence() async {
   } finally {
     // ── cleanup ──
     // Turn engine off and set RPM setpoint to 0
-    throw UnimplementedError(
-      'step type SetMultipleChannelValues: action not exported yet',
-    ); // Shut Engine Down [SetMultipleChannelValues]
+    // Shut Engine Down [SetMultipleChannelValues]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'SetMultipleChannelValues',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'VeriStand': ts.PropObj({
+          'Timeout_ms': -1,
+          'BaseNodeArray': null,
+          'ValuesToSet': <dynamic>['0', '0'],
+          'ChannelNames': <dynamic>[
+            'Targets/Controller/Simulation Models/Models/Engine Demo/Inports/command_EngineOn',
+            'Targets/Controller/Simulation Models/Models/Engine Demo/Inports/command_RPM',
+          ],
+        }),
+      }),
+      shutEngineDownResult,
+    );
+    shutEngineDownResult.Status = 'Done';
+    run.record(shutEngineDownResult.Status);
     // Send notifcation to temperature monitor and wait until thread stops
     // sync object: FileGlobals.ThermalNotification, operation code 1, lifetime code 3
-    throw UnimplementedError(
-      'step type NI_Notification: action not exported yet',
-    ); // Notification [NI_Notification]
+    // Notification [NI_Notification]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Notification',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'NameOrRefExpr': 'FileGlobals.ThermalNotification',
+        'LifetimeRefExpr': '',
+        'TimeoutEnabled': false,
+        'TimeoutExpr': '',
+        'ErrorOnTimeout': true,
+        'AlreadyExistsExpr': '',
+        'NumThreadsWaitingExpr': '',
+        'Operation': 1,
+        'Lifetime': 3,
+        'DataExpr': '1',
+        'ByRef': false,
+        'WhichNotificationExpr': '',
+        'IsSetExpr': '',
+        'IsAutoClearExpr': '',
+        'AutoClear': true,
+        'PulseNotifyOpt': 1,
+      }),
+      notificationResult3,
+    );
+    notificationResult3.Status = 'Done';
+    run.record(notificationResult3.Status);
     // waits for sequence call step "ID#:B+Ta6a1P6BGcPqRMyNgrgD"
     if (thermalMonitorThread != null) {
       // precondition of Wait
@@ -132,15 +259,66 @@ Future<String> monitorTemperature({double readWait = 0}) async {
   List<dynamic> temperatureValues = <dynamic>[]; // Nums
 
   final run = ts.SequenceRun();
+  dynamic getChannelValueResult = ts.PropObj({
+    'Units': '',
+    'Numeric': 0,
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'ChannelUnit': '',
+      'ChannelName': '',
+      'ChannelInfo': null,
+      'Description': '',
+    }),
+  }); // result of Get Channel Value
+  dynamic notificationResult = ts.PropObj({
+    'Status': '',
+  }); // result of Notification
+  dynamic logTemperatureGraphResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Log Temperature Graph
 
   while (done == 0) {
     // Add a new element to the TemperatureValues result array
     ts.eval(
       'locals.TemperatureValues.SetNumElements(locals.TemperatureValues.GetNumElements()+1)',
     ); // Add Array Element
-    throw UnimplementedError(
-      'step type GetChannelValue: action not exported yet',
-    ); // Get Channel Value [GetChannelValue]
+    getChannelValueResult = ts.PropObj({
+      'Units': '',
+      'Numeric': 0,
+      'VeristandError': null,
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Veristand': ts.PropObj({
+        'ChannelUnit': '',
+        'ChannelName': '',
+        'ChannelInfo': null,
+        'Description': '',
+      }),
+    });
+    // Get Channel Value [GetChannelValue]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'GetChannelValue',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'ValueToSet': '0',
+          'ChannelName':
+              '"Targets/Controller/Simulation Models/Models/Engine Demo/Outports/EngineTemp"',
+        }),
+      }),
+      getChannelValueResult,
+    );
+    getChannelValueResult.Status = 'Done';
+    run.record(getChannelValueResult.Status);
     // Add recent temperature reading to the TemperatureValues result array
     ts.eval(
       'Locals.TemperatureValues[Locals.TemperatureValues.GetNumElements()-1] = RunState.PreviousStep.Result.Numeric',
@@ -151,14 +329,44 @@ Future<String> monitorTemperature({double readWait = 0}) async {
     );
     // Check to see if MainSequence has sent a notification to stop
     // sync object: FileGlobals.ThermalNotification, operation code 5, lifetime code 3
-    throw UnimplementedError(
-      'step type NI_Notification: action not exported yet',
-    ); // Notification [NI_Notification]
+    notificationResult = ts.PropObj({'Status': ''});
+    // Notification [NI_Notification]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Notification',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'NameOrRefExpr': 'FileGlobals.ThermalNotification',
+        'LifetimeRefExpr': '',
+        'TimeoutEnabled': false,
+        'TimeoutExpr': '',
+        'ErrorOnTimeout': true,
+        'AlreadyExistsExpr': '',
+        'NumThreadsWaitingExpr': '',
+        'Operation': 5,
+        'Lifetime': 3,
+        'DataExpr': '',
+        'ByRef': false,
+        'WhichNotificationExpr': '',
+        'IsSetExpr': 'Locals.Done',
+        'IsAutoClearExpr': '',
+        'AutoClear': true,
+        'PulseNotifyOpt': 1,
+      }),
+      notificationResult,
+    );
+    notificationResult.Status = 'Done';
+    run.record(notificationResult.Status);
   }
   // Add a graph of the TemperatureValues array to the report
-  throw UnimplementedError(
-    'step type AdditionalResults: action not exported yet',
-  ); // Log Temperature Graph [AdditionalResults]
+  // Log Temperature Graph [AdditionalResults]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'AdditionalResults',
+    ts.StepPhase.post,
+    ts.PropObj(),
+    logTemperatureGraphResult,
+  );
+  logTemperatureGraphResult.Status = 'Done';
+  run.record(logTemperatureGraphResult.Status);
 
   return run.status;
 }
@@ -170,6 +378,19 @@ Future<String> checkEngineRpm({
   int tolerance = 0,
 }) async {
   final run = ts.SequenceRun();
+  dynamic setChannelValueResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'Unit': '',
+      'ValueToSet': 0,
+      'ChannelName': '',
+      'Timeout': false,
+    }),
+  }); // result of Set Channel Value
   dynamic channelValueLimitTestResult = ts.PropObj({
     'Veristand': ts.PropObj({
       'ChannelName': '',
@@ -185,18 +406,60 @@ Future<String> checkEngineRpm({
     'Units': '',
   }); // result of Channel Value Limit Test
 
-  throw UnimplementedError(
-    'step type SetChannelValue: action not exported yet',
-  ); // Set Channel Value [SetChannelValue]
+  // Set Channel Value [SetChannelValue]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'SetChannelValue',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'Timeout_ms': -1,
+        'ValueToSet': 'Parameters.Setpoint',
+        'ChannelName':
+            '"Targets/Controller/Simulation Models/Models/Engine Demo/Inports/command_RPM"',
+      }),
+    }),
+    setChannelValueResult,
+  );
+  setChannelValueResult.Status = 'Done';
+  run.record(setChannelValueResult.Status);
   await Future<void>.delayed(
     Duration(microseconds: ((settleTime) * 1e6).round()),
   );
   // Check to see if the actual RPM has settled between the Setpoint +/- Tolerance
   // checks: Step.Result.Numeric GELE [low Parameters.Setpoint-Parameters.Tolerance, high Parameters.Setpoint+Parameters.Tolerance, nominal 0] (DELTA)
   // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-  throw UnimplementedError(
-    'step type LimitTestChannelValue: action not exported yet',
-  ); // Channel Value Limit Test [LimitTestChannelValue]
+  // Channel Value Limit Test [LimitTestChannelValue]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'LimitTestChannelValue',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'ValueToSet': '0',
+        'ChannelName':
+            '"Targets/Controller/Simulation Models/Models/Engine Demo/Outports/RPM"',
+      }),
+      'Limits': ts.PropObj({
+        'UseNominalExpr': true,
+        'UseThresholdTypeExpr': false,
+        'Nominal': 0,
+        'NominalExpr': 'Parameters.Setpoint',
+        'ThresholdTypeExpr': '',
+        'ThresholdType': 'DELTA',
+        'Low': 0,
+        'High': 0,
+        'LowExpr': 'Parameters.Setpoint-Parameters.Tolerance',
+        'HighExpr': 'Parameters.Setpoint+Parameters.Tolerance',
+        'UseLowExpr': true,
+        'UseHighExpr': true,
+      }),
+      'Comp': 'GELE',
+      'CompExpr': '',
+      'UseCompExpr': false,
+      'InBuf': '',
+      'DataSource': 'Step.Result.Numeric',
+    }),
+    channelValueLimitTestResult,
+  );
   channelValueLimitTestResult.Status = ts.checkLimits(
     channelValueLimitTestResult.Numeric,
     step.Limits.High,
@@ -215,6 +478,53 @@ Future<String> enginePower() async {
   double currentRpm = 0; // Num — default: 0
 
   final run = ts.SequenceRun();
+  dynamic getModelParameterValueResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'Target': '',
+      'Description': '',
+      'ModelParameter': '',
+      'Numeric': 0,
+    }),
+  }); // result of Get Model Parameter Value
+  dynamic setChannelValueResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'Unit': '',
+      'ValueToSet': 0,
+      'ChannelName': '',
+      'Timeout': false,
+    }),
+  }); // result of Set Channel Value
+  dynamic getChannelValueResult = ts.PropObj({
+    'Units': '',
+    'Numeric': 0,
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'ChannelUnit': '',
+      'ChannelName': '',
+      'ChannelInfo': null,
+      'Description': '',
+    }),
+  }); // result of Get Channel Value
+  dynamic additionalResultsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Additional Results
 
   // ── setup ──
   // Initialize the settled local variable to be false
@@ -222,29 +532,89 @@ Future<String> enginePower() async {
 
   // ── main ──
   // Get the idle RPM parameter from the engine model
-  throw UnimplementedError(
-    'step type GetModelParameterValue: action not exported yet',
-  ); // Get Model Parameter Value [GetModelParameterValue]
+  // Get Model Parameter Value [GetModelParameterValue]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'GetModelParameterValue',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'FullChannelPath':
+            '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/idle speed (RPM)"',
+        'TargetName': '"Controller"',
+        'ValueToSet': '',
+        'ChannelName': '"idle speed (RPM)"',
+      }),
+    }),
+    getModelParameterValueResult,
+  );
+  getModelParameterValueResult.Status = 'Done';
+  run.record(getModelParameterValueResult.Status);
   idleRpm = runState.PreviousStep.Result.Veristand.Numeric; // Set Idle Speed
   // Turn the engine on
-  throw UnimplementedError(
-    'step type SetChannelValue: action not exported yet',
-  ); // Set Channel Value [SetChannelValue]
+  // Set Channel Value [SetChannelValue]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'SetChannelValue',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'Timeout_ms': -1,
+        'ValueToSet': '1',
+        'ChannelName':
+            '"Targets/Controller/Simulation Models/Models/Engine Demo/Inports/command_EngineOn"',
+      }),
+    }),
+    setChannelValueResult,
+  );
+  setChannelValueResult.Status = 'Done';
+  run.record(setChannelValueResult.Status);
   // Wait until the actual RPM of the engine has reached the idle RPM
   while (settled == 0) {
     await Future<void>.delayed(const Duration(milliseconds: 500));
-    throw UnimplementedError(
-      'step type GetChannelValue: action not exported yet',
-    ); // Get Channel Value [GetChannelValue]
+    getChannelValueResult = ts.PropObj({
+      'Units': '',
+      'Numeric': 0,
+      'VeristandError': null,
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Veristand': ts.PropObj({
+        'ChannelUnit': '',
+        'ChannelName': '',
+        'ChannelInfo': null,
+        'Description': '',
+      }),
+    });
+    // Get Channel Value [GetChannelValue]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'GetChannelValue',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'ValueToSet': '0',
+          'ChannelName':
+              '"Targets/Controller/Simulation Models/Models/Engine Demo/Outports/RPM"',
+        }),
+      }),
+      getChannelValueResult,
+    );
+    getChannelValueResult.Status = 'Done';
+    run.record(getChannelValueResult.Status);
     currentRpm = runState.PreviousStep.Result.Numeric; // Set Current RPM
     settled =
         currentRpm >= idleRpm - 50 &&
         currentRpm <= idleRpm + 50; // Evaluate Settled
   }
   // Add the actual engine RPM to the results
-  throw UnimplementedError(
-    'step type AdditionalResults: action not exported yet',
-  ); // Additional Results [AdditionalResults]
+  // Additional Results [AdditionalResults]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'AdditionalResults',
+    ts.StepPhase.post,
+    ts.PropObj(),
+    additionalResultsResult,
+  );
+  additionalResultsResult.Status = 'Done';
+  run.record(additionalResultsResult.Status);
 
   return run.status;
 }
@@ -282,17 +652,17 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type InitializeVeriStand: action not exported yet
-  //   step type NI_Notification: action not exported yet
+  //   step type InitializeVeriStand acts through ts.stepHost
+  //   step type NI_Notification acts through ts.stepHost
   //   step "Launch Temperature Monitor" runs its sequence call in a new thread (not exported)
   //   untranslated expression in body
-  //   step type SetMultipleChannelValues: action not exported yet
-  //   step type GetChannelValue: action not exported yet
-  //   step type AdditionalResults: action not exported yet
-  //   step type GetModelParameterValue: action not exported yet
+  //   step type SetMultipleChannelValues acts through ts.stepHost
+  //   step type GetChannelValue acts through ts.stepHost
+  //   step type AdditionalResults acts through ts.stepHost
+  //   step type GetModelParameterValue acts through ts.stepHost
   //   RunState engine access (no engine at run time)
-  //   step type SetChannelValue: action not exported yet
-  //   step type LimitTestChannelValue: action not exported yet
+  //   step type SetChannelValue acts through ts.stepHost
+  //   step type LimitTestChannelValue acts through ts.stepHost
   //   Step engine access (no engine at run time)
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

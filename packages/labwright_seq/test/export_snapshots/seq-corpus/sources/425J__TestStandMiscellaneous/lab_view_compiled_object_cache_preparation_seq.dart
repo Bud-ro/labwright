@@ -31,6 +31,20 @@ Future<String> createCompiledObjectCache({
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Enable LabVIEW TCP server
+  dynamic openLabViewProjectResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ExitCode': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Open LabVIEW project
+  dynamic closeLabViewGracefullyResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ExitCode': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Close LabVIEW gracefully
 
   body:
   try {
@@ -53,13 +67,115 @@ Future<String> createCompiledObjectCache({
     }
 
     // ── main ──
-    throw UnimplementedError(
-      'step type CallExecutable: action not exported yet',
-    ); // Open LabVIEW project [CallExecutable]
+    // Open LabVIEW project [CallExecutable]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'CallExecutable',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Executable': '',
+        'ExecutableExpr': 'Parameters.LabviewDirectory + @"\\LabVIEW.exe"',
+        'SpecifyExeByExpr': true,
+        'ExecutableCalled': '',
+        'Arguments': 'Parameters.LabviewProjectPath',
+        'WaitCondition': 'WAIT_NONE',
+        'TimeToWait': 0,
+        'SetErrorCode': false,
+        'InitialWindowState': 'WINSTATE_SHOWNORM_A',
+        'TerminateOnAbort': false,
+        'StoreProcessHandle': false,
+        'ProcessHandleExpr': 'Step.ProcessHandlePtr',
+        'ProcessHandle': 0,
+        'ProcessHandlePtr': null,
+        'ExitCodeStatusAction': 'EXIT_CODE_NO_ACTION',
+        'ExitCodeErrorAction': 'EXIT_CODE_NO_ACTION',
+        'WorkingDir': ts.PropObj({'Source': 1, 'Expr': '', 'IsExpr': false}),
+        'RemoteSettings': ts.PropObj({
+          'Enabled': false,
+          'Host': '""',
+          'HostByExpr': true,
+          'Port': '13540',
+          'Password': '',
+          'PasswordByExpr': false,
+        }),
+        'StdInput': ts.PropObj({'Type': 0, 'Source': '""', 'IsExpr': false}),
+        'StdOutput': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdOutput.Text',
+          'IsExpr': false,
+          'Text': '',
+        }),
+        'StdError': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdError.Text',
+          'IsExpr': false,
+          'Text': '',
+          'Action': 0,
+          'SetErrorMsg': false,
+        }),
+      }),
+      openLabViewProjectResult,
+    );
+    openLabViewProjectResult.Status = 'Done';
+    run.record(openLabViewProjectResult.Status);
     do {
-      throw UnimplementedError(
-        'step type CallExecutable: action not exported yet',
-      ); // Close LabVIEW gracefully [CallExecutable]
+      closeLabViewGracefullyResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ExitCode': 0,
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      // Close LabVIEW gracefully [CallExecutable]: acts through ts.stepHost
+      await ts.stepHost.runStepType(
+        'CallExecutable',
+        ts.StepPhase.post,
+        ts.PropObj({
+          'Executable': '',
+          'ExecutableExpr': 'Parameters.LabviewCliPath',
+          'SpecifyExeByExpr': true,
+          'ExecutableCalled': '',
+          'Arguments':
+              '"-OperationName CloseLabVIEW -LabVIEWPath \\"" + Parameters.LabviewDirectory + "\\\\LabVIEW.exe\\""',
+          'WaitCondition': 'WAIT_FOR_EXIT',
+          'TimeToWait': 0,
+          'SetErrorCode': false,
+          'InitialWindowState': 'WINSTATE_SHOWNORM_A',
+          'TerminateOnAbort': false,
+          'StoreProcessHandle': false,
+          'ProcessHandleExpr': 'Step.ProcessHandlePtr',
+          'ProcessHandle': 0,
+          'ProcessHandlePtr': null,
+          'ExitCodeStatusAction': 'EXIT_CODE_NO_ACTION',
+          'ExitCodeErrorAction': 'EXIT_CODE_NO_ACTION',
+          'WorkingDir': ts.PropObj({'Source': 1, 'Expr': '', 'IsExpr': false}),
+          'RemoteSettings': ts.PropObj({
+            'Enabled': false,
+            'Host': '""',
+            'HostByExpr': true,
+            'Port': '13540',
+            'Password': '',
+            'PasswordByExpr': false,
+          }),
+          'StdInput': ts.PropObj({'Type': 0, 'Source': '""', 'IsExpr': false}),
+          'StdOutput': ts.PropObj({
+            'Dest': 0,
+            'Expr': 'Step.StdOutput.Text',
+            'IsExpr': false,
+            'Text': '',
+          }),
+          'StdError': ts.PropObj({
+            'Dest': 1,
+            'Expr': 'Locals.CliErrorText',
+            'IsExpr': false,
+            'Text': '',
+            'Action': 0,
+            'SetErrorMsg': false,
+          }),
+        }),
+        closeLabViewGracefullyResult,
+      );
+      closeLabViewGracefullyResult.Status = 'Done';
+      run.record(closeLabViewGracefullyResult.Status);
       if (cliErrorText != '') {
         // precondition of Wait
         await Future<void>.delayed(const Duration(seconds: 1));
@@ -190,9 +306,19 @@ Future<String> sequenceFileLoad() async {
     // popup title: NameOf(Step)
     // popup message: "Do you want to open LabVIEW project to generate compiled object cache?\n\nNOTE 1: LabVIEW IDE is required to generate compiled object cache.\n               This example uses: " + | Locals.LabviewDirectory + "\\LabVIEW.exe (see local variables).\nNOTE 2: LabVIEW CLI is required to communicate with LabVIEW.\n               This example uses: " + | Locals.LabviewCliPath + " (see local variables).\nNOTE 3: Communication with LabVIEW TCP server might be blocked by VPN."
     // popup buttons: "Yes" | "No"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Prepare LabVIEW project compiled object cache? [MessagePopup]
+    // Prepare LabVIEW project compiled object cache? [MessagePopup]: acts through ts.stepHost
+    final popup = await ts.stepHost.messagePopup(
+      title: 'Prepare LabVIEW project compiled object cache?',
+      message:
+          'Do you want to open LabVIEW project to generate compiled object cache?\n\nNOTE 1: LabVIEW IDE is required to generate compiled object cache.\n               This example uses: ' +
+          labviewDirectory +
+          '\\LabVIEW.exe (see local variables).\nNOTE 2: LabVIEW CLI is required to communicate with LabVIEW.\n               This example uses: ' +
+          labviewCliPath +
+          ' (see local variables).\nNOTE 3: Communication with LabVIEW TCP server might be blocked by VPN.',
+      buttons: ['Yes', 'No', '', '', '', ''],
+    );
+    prepareLabViewProjectCompiledObjectCacheResult.ButtonHit = popup.buttonHit;
+    prepareLabViewProjectCompiledObjectCacheResult.Response = popup.response;
     prepareLabViewProjectCompiledObjectCacheResult.Status = 'Done';
     run.record(prepareLabViewProjectCompiledObjectCacheResult.Status);
     if (!(prepareLabViewProjectCompiledObjectCacheResult.ButtonHit == 1)) {
@@ -244,9 +370,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   untranslated expression in body
-  //   step type CallExecutable: action not exported yet
+  //   step type CallExecutable acts through ts.stepHost
   //   dotNet call: System.IO.File.Exists
   //   dotNet call: System.IO.File.ReadAllText
   //   dotNet call: System.IO.File.WriteAllText

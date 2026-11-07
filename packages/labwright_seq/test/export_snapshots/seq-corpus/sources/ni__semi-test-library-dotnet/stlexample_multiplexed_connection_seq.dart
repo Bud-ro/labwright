@@ -14,9 +14,47 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic serialDmmReadMultiplexedResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Serial DMM Read - Multiplexed
 
   // For each site, applies the relay route, reads the shared
   // DMM, publishes the result, and restores the relays.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[
+          'ConnectDmmToPinASite0',
+          'ConnectDmmToPinASite1',
+          'ConnectDmmToPinASite2',
+          'ConnectDmmToPinASite3',
+          'DisconnectDmmFromPinAOnAllSites',
+        ],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    serialDmmReadMultiplexedResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.MultiplexedConnection.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.TestStep.OneInstrumentChannelToManySitesForOneDutPin
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -26,6 +64,39 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.TestStep.OneInstrumentChannelToManySitesForOneDutPin',
   ); // Serial DMM Read - Multiplexed [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[
+          'ConnectDmmToPinASite0',
+          'ConnectDmmToPinASite1',
+          'ConnectDmmToPinASite2',
+          'ConnectDmmToPinASite3',
+          'DisconnectDmmFromPinAOnAllSites',
+        ],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    serialDmmReadMultiplexedResult,
+  );
+  serialDmmReadMultiplexedResult.Status = 'Done';
+  run.record(serialDmmReadMultiplexedResult.Status);
 
   return run.status;
 }
@@ -33,21 +104,93 @@ Future<String> mainSequence() async {
 /// Sequence `SequenceFileLoad`.
 Future<String> sequenceFileLoad() async {
   final run = ts.SequenceRun();
+  dynamic explanationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Explanation
+  dynamic launchHelpResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ExitCode': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of LaunchHelp
 
   // Displays a brief overview of the example.
   // popup title: "About This Example"
   // popup message: "This example sequence demonstrates how to use site-multiplexed connections with Semiconductor Test Library (STL). | You can explore the sequence callbacks to see the workflow for site-multiplexed connections. | Prerequisites: To use this example sequence with real instruments or in offline mode, you must have the following software installed: | - STS Software 25.5.0 or later | The example sequence performs the following steps: |    1. Initizalizes the NI Generic Multiplexer session. |    2. Invokes the multiplexer measurement method, which performs the following functions: |       - Retrieves per-site routes |       - Applies relay configurations |       - Performs STL DMM reads |       - Publishes per-site results |       - Applies the end relay configuration |    3. Cleans up the NI Generic Multiplexer session. | For more information on how to use this example sequence, click the help button to open the README.md file."
   // popup buttons: "Help" | "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Explanation [MessagePopup]
+  // Explanation [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'About This Example',
+    message:
+        'This example sequence demonstrates how to use site-multiplexed connections with Semiconductor Test Library (STL).\nYou can explore the sequence callbacks to see the workflow for site-multiplexed connections.\n\nPrerequisites: To use this example sequence with real instruments or in offline mode, you must have the following software installed:\n\n- STS Software 25.5.0 or later\n\nThe example sequence performs the following steps:\n\n   1. Initizalizes the NI Generic Multiplexer session.\n   2. Invokes the multiplexer measurement method, which performs the following functions:\n      - Retrieves per-site routes\n      - Applies relay configurations\n      - Performs STL DMM reads\n      - Publishes per-site results\n      - Applies the end relay configuration\n   3. Cleans up the NI Generic Multiplexer session.\n\nFor more information on how to use this example sequence, click the help button to open the README.md file.',
+    buttons: ['Help', 'OK', '', '', '', ''],
+  );
+  explanationResult.ButtonHit = popup.buttonHit;
+  explanationResult.Response = popup.response;
+  explanationResult.Status = 'Done';
+  run.record(explanationResult.Status);
   // Launches README.md in Notepad when the Help button is clicked.
   // runs executable: notepad "README.md" (WAIT_NONE)
   if (runState.PreviousStep.Result.ButtonHit == 1) {
     // precondition of LaunchHelp
-    throw UnimplementedError(
-      'step type CallExecutable: action not exported yet',
-    ); // LaunchHelp [CallExecutable]
+    // LaunchHelp [CallExecutable]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'CallExecutable',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Executable': 'notepad',
+        'ExecutableExpr': '',
+        'SpecifyExeByExpr': false,
+        'ExecutableCalled': '',
+        'Arguments': '"README.md"',
+        'WaitCondition': 'WAIT_NONE',
+        'TimeToWait': 0,
+        'SetErrorCode': false,
+        'InitialWindowState': 'WINSTATE_SHOWNORM_A',
+        'TerminateOnAbort': false,
+        'StoreProcessHandle': false,
+        'ProcessHandleExpr': 'Step.ProcessHandlePtr',
+        'ProcessHandle': 0,
+        'ProcessHandlePtr': null,
+        'ExitCodeStatusAction': 'EXIT_CODE_NO_ACTION',
+        'ExitCodeErrorAction': 'EXIT_CODE_NO_ACTION',
+        'WorkingDir': ts.PropObj({'Source': 2, 'Expr': '', 'IsExpr': false}),
+        'RemoteSettings': ts.PropObj({
+          'Enabled': false,
+          'Host': '""',
+          'HostByExpr': true,
+          'Port': '13540',
+          'Password': '',
+          'PasswordByExpr': false,
+        }),
+        'StdInput': ts.PropObj({'Type': 0, 'Source': '""', 'IsExpr': false}),
+        'StdOutput': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdOutput.Text',
+          'IsExpr': false,
+          'Text': '',
+        }),
+        'StdError': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdError.Text',
+          'IsExpr': false,
+          'Text': '',
+          'Action': 0,
+          'SetErrorMsg': false,
+        }),
+      }),
+      launchHelpResult,
+    );
+    launchHelpResult.Status = 'Done';
+    run.record(launchHelpResult.Status);
+  } else {
+    launchHelpResult.Status = 'Skipped';
   }
 
   return run.status;
@@ -56,8 +199,47 @@ Future<String> sequenceFileLoad() async {
 /// Sequence `ProcessCleanup` — Runs once at lot end.
 Future<String> processCleanup() async {
   final run = ts.SequenceRun();
+  dynamic cleanupNiGenericMultiplexerResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Cleanup NI Generic Multiplexer
+  dynamic cleanupInstrumentationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Cleanup Instrumentation
 
   // Clean Up Multiplexer Sessions
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cleanupNiGenericMultiplexerResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.MultiplexedConnection.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.CleanupGenericMultiplexerSession
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -65,10 +247,87 @@ Future<String> processCleanup() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.CleanupGenericMultiplexerSession',
   ); // Cleanup NI Generic Multiplexer [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cleanupNiGenericMultiplexerResult,
+  );
+  cleanupNiGenericMultiplexerResult.Status = 'Done';
+  run.record(cleanupNiGenericMultiplexerResult.Status);
   // Clean Up Instrument Sessions
-  throw UnimplementedError(
-    'step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet',
-  ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_CleanupInstrumentation',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cleanupInstrumentationResult,
+  );
+  // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_CleanupInstrumentation',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cleanupInstrumentationResult,
+  );
+  cleanupInstrumentationResult.Status = 'Done';
+  run.record(cleanupInstrumentationResult.Status);
 
   return run.status;
 }
@@ -76,16 +335,162 @@ Future<String> processCleanup() async {
 /// Sequence `ProcessSetup` — Runs once at lot start.
 Future<String> processSetup() async {
   final run = ts.SequenceRun();
+  dynamic setupNiRelayModulesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup NI Relay Modules
+  dynamic setupNiDmmInstrumentationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup NI DMM Instrumentation
+  dynamic setupNiGenericMultiplexerResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup NI Generic Multiplexer
 
   // Initialize Realy Module Sessions
-  throw UnimplementedError(
-    'step type NI_SemiconductorTest_SetupNIRelayModules: action not exported yet',
-  ); // Setup NI Relay Modules [NI_SemiconductorTest_SetupNIRelayModules]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIRelayModules',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiRelayModulesResult,
+  );
+  // Setup NI Relay Modules [NI_SemiconductorTest_SetupNIRelayModules]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIRelayModules',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiRelayModulesResult,
+  );
+  setupNiRelayModulesResult.Status = 'Done';
+  run.record(setupNiRelayModulesResult.Status);
   // Initialize DMM Sessions
-  throw UnimplementedError(
-    'step type NI_SemiconductorTest_SetupNIDMMInstrumentation: action not exported yet',
-  ); // Setup NI DMM Instrumentation [NI_SemiconductorTest_SetupNIDMMInstrumentation]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIDMMInstrumentation',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiDmmInstrumentationResult,
+  );
+  // Setup NI DMM Instrumentation [NI_SemiconductorTest_SetupNIDMMInstrumentation]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIDMMInstrumentation',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiDmmInstrumentationResult,
+  );
+  setupNiDmmInstrumentationResult.Status = 'Done';
+  run.record(setupNiDmmInstrumentationResult.Status);
   // Initialize Multiplexer Sessions
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiGenericMultiplexerResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.MultiplexedConnection.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.InitializeGenericMultiplexerSession
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -93,6 +498,33 @@ Future<String> processSetup() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.InitializeGenericMultiplexerSession',
   ); // Setup NI Generic Multiplexer [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiGenericMultiplexerResult,
+  );
+  setupNiGenericMultiplexerResult.Status = 'Done';
+  run.record(setupNiGenericMultiplexerResult.Status);
 
   return run.status;
 }
@@ -116,26 +548,29 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.TestStep.OneInstrumentChannelToManySitesForOneDutPin
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   RunState engine access (no engine at run time)
-  //   step type CallExecutable: action not exported yet
+  //   step type CallExecutable acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.CleanupGenericMultiplexerSession
-  //   step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet
+  //   step type NI_SemiconductorTest_CleanupInstrumentation acts through ts.stepHost
   lw.skipTest('ProcessCleanup', () async {
     lw.expect(await processCleanup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_SemiconductorTest_SetupNIRelayModules: action not exported yet
-  //   step type NI_SemiconductorTest_SetupNIDMMInstrumentation: action not exported yet
+  //   step type NI_SemiconductorTest_SetupNIRelayModules acts through ts.stepHost
+  //   step type NI_SemiconductorTest_SetupNIDMMInstrumentation acts through ts.stepHost
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.InitializeGenericMultiplexerSession
   lw.skipTest('ProcessSetup', () async {
     lw.expect(await processSetup(), 'Passed');

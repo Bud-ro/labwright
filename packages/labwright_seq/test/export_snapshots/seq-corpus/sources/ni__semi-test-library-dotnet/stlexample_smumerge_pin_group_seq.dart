@@ -17,9 +17,360 @@ Future<String> mainSequence() async {
   String vcc4ch = 'Vcc4ch'; // Str
 
   final run = ts.SequenceRun();
+  dynamic mergeAndFimv4ChannelsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Vcc0',
+        'MeasurementId': 'Voltage',
+        'TestNumberExpr': '',
+        'TestNumber': 101,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'Voltage',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+        '%BINATTRIBUTES': ts.PropObj({
+          'NI': ts.PropObj({
+            'Semiconductormodule': ts.PropObj({
+              'IsFirstRun': true,
+              'OriginalTestNumber': 104,
+            }),
+          }),
+        }),
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of MergeAndFIMV - 4 Channels
+  dynamic mergeAndFimv2ChannelsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Vcc0',
+        'MeasurementId': 'Voltage',
+        'TestNumberExpr': '',
+        'TestNumber': 102,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'Voltage',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+        '%BINATTRIBUTES': ts.PropObj({
+          'NI': ts.PropObj({
+            'Semiconductormodule': ts.PropObj({
+              'IsFirstRun': true,
+              'OriginalTestNumber': 102,
+            }),
+          }),
+        }),
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of MergeAndFIMV - 2 Channels
+  dynamic smuMergePinGroupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of SMUMergePinGroup
+  dynamic forceVoltageMeasureCurrentFvmiResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Vcc0',
+        'MeasurementId': 'Current',
+        'TestNumberExpr': '',
+        'TestNumber': 103,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'Current',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+        '%BINATTRIBUTES': ts.PropObj({
+          'NI': ts.PropObj({
+            'Semiconductormodule': ts.PropObj({
+              'IsFirstRun': true,
+              'OriginalTestNumber': 107,
+            }),
+          }),
+        }),
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Force Voltage Measure Current (FVMI)
+  dynamic smuPowerDownAndUnmergePinGroupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of SMUPowerDownAndUnmergePinGroup
+  dynamic forceVoltageMeasureCurrentFvmiResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Vref0',
+        'MeasurementId': 'Current',
+        'TestNumberExpr': '',
+        'TestNumber': 104,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'Current',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+        '%BINATTRIBUTES': ts.PropObj({
+          'NI': ts.PropObj({
+            'Semiconductormodule': ts.PropObj({
+              'IsFirstRun': true,
+              'OriginalTestNumber': 107,
+            }),
+          }),
+        }),
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Force Voltage Measure Current (FVMI)
 
   // label: Cases A and B: Dynamically Merge and Unmerge within Code
   // Case A: pin group with four channels
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    mergeAndFimv4ChannelsResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.SMUMergePinGroup.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinsFIMVThenUnmerge
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -30,7 +381,75 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinsFIMVThenUnmerge',
   ); // MergeAndFIMV - 4 Channels [NI_SemiconductorModule_MultiTest]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    mergeAndFimv4ChannelsResult,
+  );
+  mergeAndFimv4ChannelsResult.Status = 'Done';
+  run.record(mergeAndFimv4ChannelsResult.Status);
   // Case B: pin group with two channels
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    mergeAndFimv2ChannelsResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.SMUMergePinGroup.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinsFIMVThenUnmerge
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -42,8 +461,68 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinsFIMVThenUnmerge',
   ); // MergeAndFIMV - 2 Channels [NI_SemiconductorModule_MultiTest]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    mergeAndFimv2ChannelsResult,
+  );
+  mergeAndFimv2ChannelsResult.Status = 'Done';
+  run.record(mergeAndFimv2ChannelsResult.Status);
   // label: Case C: Dynamically Merge and Unmerge Around Steps
   // Merge pin group at sequence level
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    smuMergePinGroupResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.SMUMergePinGroup.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinGroup
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -51,7 +530,67 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinGroup',
   ); // SMUMergePinGroup [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    smuMergePinGroupResult,
+  );
+  smuMergePinGroupResult.Status = 'Done';
+  run.record(smuMergePinGroupResult.Status);
   // This action will be performed on merged Pin Group
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_ForceVoltageMeasureCurrent',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    forceVoltageMeasureCurrentFvmiResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.SMUMergePinGroup.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.ForceVoltageMeasureCurrent
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -61,7 +600,67 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.ForceVoltageMeasureCurrent',
   ); // Force Voltage Measure Current (FVMI) [NI_SemiconductorTest_ForceVoltageMeasureCurrent]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_ForceVoltageMeasureCurrent',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    forceVoltageMeasureCurrentFvmiResult,
+  );
+  forceVoltageMeasureCurrentFvmiResult.Status = 'Done';
+  run.record(forceVoltageMeasureCurrentFvmiResult.Status);
   // Unmerge pin group at sequence level
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    smuPowerDownAndUnmergePinGroupResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.SMUMergePinGroup.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUPowerDownAndUnmergePinGroup
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -69,9 +668,69 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUPowerDownAndUnmergePinGroup',
   ); // SMUPowerDownAndUnmergePinGroup [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    smuPowerDownAndUnmergePinGroupResult,
+  );
+  smuPowerDownAndUnmergePinGroupResult.Status = 'Done';
+  run.record(smuPowerDownAndUnmergePinGroupResult.Status);
   // label: Case D: Perform Operation on Statically Merged Pin Group
   // This action will be performed on the merged pin group
   // that was statically configured in ProcessSetup
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_ForceVoltageMeasureCurrent',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': true,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    forceVoltageMeasureCurrentFvmiResult2,
+  );
   // .NET assembly: Code Modules\bin\STLExample.SMUMergePinGroup.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.ForceVoltageMeasureCurrent
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -81,6 +740,41 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.ForceVoltageMeasureCurrent',
   ); // Force Voltage Measure Current (FVMI) [NI_SemiconductorTest_ForceVoltageMeasureCurrent]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_ForceVoltageMeasureCurrent',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': true,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    forceVoltageMeasureCurrentFvmiResult2,
+  );
+  forceVoltageMeasureCurrentFvmiResult2.Status = 'Done';
+  run.record(forceVoltageMeasureCurrentFvmiResult2.Status);
 
   return run.status;
 }
@@ -88,27 +782,232 @@ Future<String> mainSequence() async {
 /// Sequence `ProcessSetup` — Runs once at lot start.
 Future<String> processSetup() async {
   final run = ts.SequenceRun();
+  dynamic setupNiDcPowerInstrumentationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup NI DCPower Instrumentation
+  dynamic setupNiRelayModulesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup NI Relay Modules
+  dynamic cacheSessionMappingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Cache Session Mapping
+  dynamic smuMergePinGroupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of SMUMergePinGroup
 
   // ── setup ──
-  throw UnimplementedError(
-    'step type NI_SemiconductorTest_SetupNIDCPowerInstrumentation: action not exported yet',
-  ); // Setup NI DCPower Instrumentation [NI_SemiconductorTest_SetupNIDCPowerInstrumentation]
-  throw UnimplementedError(
-    'step type NI_SemiconductorTest_SetupNIRelayModules: action not exported yet',
-  ); // Setup NI Relay Modules [NI_SemiconductorTest_SetupNIRelayModules]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIDCPowerInstrumentation',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiDcPowerInstrumentationResult,
+  );
+  // Setup NI DCPower Instrumentation [NI_SemiconductorTest_SetupNIDCPowerInstrumentation]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIDCPowerInstrumentation',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiDcPowerInstrumentationResult,
+  );
+  setupNiDcPowerInstrumentationResult.Status = 'Done';
+  run.record(setupNiDcPowerInstrumentationResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIRelayModules',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiRelayModulesResult,
+  );
+  // Setup NI Relay Modules [NI_SemiconductorTest_SetupNIRelayModules]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIRelayModules',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiRelayModulesResult,
+  );
+  setupNiRelayModulesResult.Status = 'Done';
+  run.record(setupNiRelayModulesResult.Status);
   // This method call is necessary to ensure the cached instrument session information is consistent between the NationalInstruments.SemiconductorTestLibrary.TestStandSteps assembly and client assembly. as they may not share the same memory space if the client assembly is using a newer version of the NationalInstruments.SemiconductorTestLibrary.Abstractions.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 1,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cacheSessionMappingResult,
+  );
   // .NET assembly: Code Modules\bin\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll
   // .NET call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions',
   ); // Cache Session Mapping [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 1,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cacheSessionMappingResult,
+  );
+  cacheSessionMappingResult.Status = 'Done';
+  run.record(cacheSessionMappingResult.Status);
 
   // ── main ──
   // label: Static Merge
   // Statically merges 4 channels at the start of testing.
   // The channels are to remain merged until the end of testing.
   // They are to be unmerged within ProcessCleanup.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    smuMergePinGroupResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.SMUMergePinGroup.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinGroup
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -116,6 +1015,33 @@ Future<String> processSetup() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinGroup',
   ); // SMUMergePinGroup [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    smuMergePinGroupResult,
+  );
+  smuMergePinGroupResult.Status = 'Done';
+  run.record(smuMergePinGroupResult.Status);
 
   return run.status;
 }
@@ -123,11 +1049,50 @@ Future<String> processSetup() async {
 /// Sequence `ProcessCleanup` — Runs once at lot end.
 Future<String> processCleanup() async {
   final run = ts.SequenceRun();
+  dynamic smuPowerDownAndUnmergePinGroupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of SMUPowerDownAndUnmergePinGroup
+  dynamic cleanupInstrumentationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Cleanup Instrumentation
 
   body:
   try {
     // ── main ──
     // Unmerging at step level
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      smuPowerDownAndUnmergePinGroupResult,
+    );
     // .NET assembly: Code Modules\bin\STLExample.SMUMergePinGroup.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUPowerDownAndUnmergePinGroup
     //   tsmContext <- Step.SemiconductorModuleContext
@@ -135,14 +1100,91 @@ Future<String> processCleanup() async {
     throw UnimplementedError(
       'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUPowerDownAndUnmergePinGroup',
     ); // SMUPowerDownAndUnmergePinGroup [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      smuPowerDownAndUnmergePinGroupResult,
+    );
+    smuPowerDownAndUnmergePinGroupResult.Status = 'Done';
+    run.record(smuPowerDownAndUnmergePinGroupResult.Status);
   } finally {
     // ── cleanup ──
     // label: StaticUnmerge
     // Unmerges the 4 channels that were statically merged
     // at the start of testing within ProcessSetup
-    throw UnimplementedError(
-      'step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet',
-    ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorTest_CleanupInstrumentation',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      cleanupInstrumentationResult,
+    );
+    // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorTest_CleanupInstrumentation',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      cleanupInstrumentationResult,
+    );
+    cleanupInstrumentationResult.Status = 'Done';
+    run.record(cleanupInstrumentationResult.Status);
   }
 
   return run.status;
@@ -151,19 +1193,91 @@ Future<String> processCleanup() async {
 /// Sequence `SequenceFileLoad`.
 Future<String> sequenceFileLoad() async {
   final run = ts.SequenceRun();
+  dynamic explanationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Explanation
+  dynamic launchHelpResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ExitCode': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of LaunchHelp
 
   // popup title: "About This Example"
   // popup message: "This example demonstrates how to use the Merge Pin Group feature of the Semiconductor Test Library. |   | There are two scenarios demonstrated by this example: | 1. Merging and Unmerging Pin Groups at the Code Module level. | - Case A: Merging Pin Group with 4 channels | - Case B: Merging Pin Group with 2 channels | 2. Merging and Unmerging Pin Groups at the Sequence level. | - Case C: Merging Pin Group dynamically | - Case D: Merging Pin Group statically |   | Prerequisites: You must have the following software installed if you want | to use the example with real instruments or in Offline Mode: | - STS Software 24.5.0 or later |   | Review the README file accompanying the sequence file for information about | how to use this example."
   // popup buttons: "Help" | "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Explanation [MessagePopup]
+  // Explanation [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'About This Example',
+    message:
+        'This example demonstrates how to use the Merge Pin Group feature of the Semiconductor Test Library.\n \nThere are two scenarios demonstrated by this example:\n1. Merging and Unmerging Pin Groups at the Code Module level.\n- Case A: Merging Pin Group with 4 channels\n- Case B: Merging Pin Group with 2 channels\n2. Merging and Unmerging Pin Groups at the Sequence level.\n- Case C: Merging Pin Group dynamically\n- Case D: Merging Pin Group statically\n \nPrerequisites: You must have the following software installed if you want\nto use the example with real instruments or in Offline Mode:\n- STS Software 24.5.0 or later\n \nReview the README file accompanying the sequence file for information about\nhow to use this example.',
+    buttons: ['Help', 'OK', '', '', '', ''],
+  );
+  explanationResult.ButtonHit = popup.buttonHit;
+  explanationResult.Response = popup.response;
+  explanationResult.Status = 'Done';
+  run.record(explanationResult.Status);
   // runs executable: notepad "README.md" (WAIT_NONE)
   if (runState.PreviousStep.Result.ButtonHit == 1) {
     // precondition of LaunchHelp
-    throw UnimplementedError(
-      'step type CallExecutable: action not exported yet',
-    ); // LaunchHelp [CallExecutable]
+    // LaunchHelp [CallExecutable]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'CallExecutable',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Executable': 'notepad',
+        'ExecutableExpr': '',
+        'SpecifyExeByExpr': false,
+        'ExecutableCalled': '',
+        'Arguments': '"README.md"',
+        'WaitCondition': 'WAIT_NONE',
+        'TimeToWait': 0,
+        'SetErrorCode': false,
+        'InitialWindowState': 'WINSTATE_SHOWNORM_A',
+        'TerminateOnAbort': false,
+        'StoreProcessHandle': false,
+        'ProcessHandleExpr': 'Step.ProcessHandlePtr',
+        'ProcessHandle': 0,
+        'ProcessHandlePtr': null,
+        'ExitCodeStatusAction': 'EXIT_CODE_NO_ACTION',
+        'ExitCodeErrorAction': 'EXIT_CODE_NO_ACTION',
+        'WorkingDir': ts.PropObj({'Source': 2, 'Expr': '', 'IsExpr': false}),
+        'RemoteSettings': ts.PropObj({
+          'Enabled': false,
+          'Host': '""',
+          'HostByExpr': true,
+          'Port': '13540',
+          'Password': '',
+          'PasswordByExpr': false,
+        }),
+        'StdInput': ts.PropObj({'Type': 0, 'Source': '""', 'IsExpr': false}),
+        'StdOutput': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdOutput.Text',
+          'IsExpr': false,
+          'Text': '',
+        }),
+        'StdError': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdError.Text',
+          'IsExpr': false,
+          'Text': '',
+          'Action': 0,
+          'SetErrorMsg': false,
+        }),
+      }),
+      launchHelpResult,
+    );
+    launchHelpResult.Status = 'Done';
+    run.record(launchHelpResult.Status);
+  } else {
+    launchHelpResult.Status = 'Skipped';
   }
 
   return run.status;
@@ -188,31 +1302,36 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_MultiTest acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinsFIMVThenUnmerge
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinGroup
+  //   step type NI_SemiconductorTest_ForceVoltageMeasureCurrent acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.ForceVoltageMeasureCurrent
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUPowerDownAndUnmergePinGroup
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_SemiconductorTest_SetupNIDCPowerInstrumentation: action not exported yet
-  //   step type NI_SemiconductorTest_SetupNIRelayModules: action not exported yet
+  //   step type NI_SemiconductorTest_SetupNIDCPowerInstrumentation acts through ts.stepHost
+  //   step type NI_SemiconductorTest_SetupNIRelayModules acts through ts.stepHost
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinGroup
   lw.skipTest('ProcessSetup', () async {
     lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUPowerDownAndUnmergePinGroup
-  //   step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet
+  //   step type NI_SemiconductorTest_CleanupInstrumentation acts through ts.stepHost
   lw.skipTest('ProcessCleanup', () async {
     lw.expect(await processCleanup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   RunState engine access (no engine at run time)
-  //   step type CallExecutable: action not exported yet
+  //   step type CallExecutable acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });

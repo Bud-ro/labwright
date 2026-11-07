@@ -14,14 +14,35 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic updatePinMapResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update pin map
+  dynamic acquireWaveformResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Acquire Waveform
 
   body:
   try {
     // ── setup ──
     // pin map: @"..\..\..\src\NIScopeTimeDomain\NIScopeTimeDomain.pinmap"
-    throw UnimplementedError(
-      'step type NI_UpdatePinMap: action not exported yet',
-    ); // Update pin map [NI_UpdatePinMap]
+    // Update pin map [NI_UpdatePinMap]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_UpdatePinMap',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'PinMapPath':
+            '@"..\\..\\..\\src\\NIScopeTimeDomain\\NIScopeTimeDomain.pinmap"',
+      }),
+      updatePinMapResult,
+    );
+    updatePinMapResult.Status = 'Done';
+    run.record(updatePinMapResult.Status);
     //   sequence context <- ThisContext
     //   error out <- Step.Result.Error
     await callInitializeAndRegisterSessions(); // Initialize and register NI-SCOPE Sessions [Action]
@@ -44,9 +65,213 @@ Future<String> mainSequence() async {
     // measurement param: Voltage Waveform Period (s) (Out TypeDouble)
     // measurement param: Voltage Waveform Duty Cycle (%) (Out TypeDouble)
     // measurement param: Actual Sample Rate (Out TypeDouble)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Acquire Waveform [NI_Measurement]
+    // Acquire Waveform [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Measurement': ts.PropObj({
+          'Name': 'NIScopeTimeDomain_LabVIEW',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Pin Name',
+              'ArgumentValue': '"Pin1"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'Pin',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Vertical Range (V)',
+              'ArgumentValue': '10',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Vertical Offset (V)',
+              'ArgumentValue': '0',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 3,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Vertical Coupling',
+              'ArgumentValue': '1i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeInt32',
+              'ID': 4,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Minimum Sample Rate (S/s)',
+              'ArgumentValue': '10000',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 5,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Minimum Record Length (S)',
+              'ArgumentValue': '20000i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeInt32',
+              'ID': 6,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Trigger Level (V)',
+              'ArgumentValue': '0',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 7,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Trigger Coupling',
+              'ArgumentValue': '1ui64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeUint32',
+              'ID': 8,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Trigger Slope',
+              'ArgumentValue': '0i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeInt32',
+              'ID': 9,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Waveform Data',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeDouble',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Mean DC Voltage (V)',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Vpp Amplitude (V)',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 3,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Voltage Frequency (Hz)',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 4,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Voltage Waveform Period (s)',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 5,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Voltage Waveform Duty Cycle (%)',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 6,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Actual Sample Rate',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 7,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+          ],
+        }),
+      }),
+      acquireWaveformResult,
+    );
+    acquireWaveformResult.Status = 'Done';
+    run.record(acquireWaveformResult.Status);
   } finally {
     // ── cleanup ──
     //   error out <- Step.Result.Error
@@ -90,9 +315,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_UpdatePinMap: action not exported yet
+  //   step type NI_UpdatePinMap acts through ts.stepHost
   //   My Computer\NIScopeTimeDomain.lvlib\TestStand Code Modules\Initialize and Register Sessions.vi
-  //   step type NI_Measurement: action not exported yet
+  //   step type NI_Measurement acts through ts.stepHost
   //   My Computer\NIScopeTimeDomain.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

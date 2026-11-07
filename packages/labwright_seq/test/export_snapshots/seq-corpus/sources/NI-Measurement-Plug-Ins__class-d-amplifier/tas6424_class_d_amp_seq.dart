@@ -14,13 +14,37 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic createAndRegisterSessionsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Create and Register Sessions
+  dynamic tempResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of temp
+  dynamic destroyAndUnregisterSessionsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Destroy and Unregister Sessions
 
   body:
   try {
     // ── setup ──
-    throw UnimplementedError(
-      'step type NI_CreateAndRegisterSessions: action not exported yet',
-    ); // Create and Register Sessions [NI_CreateAndRegisterSessions]
+    // Create and Register Sessions [NI_CreateAndRegisterSessions]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_CreateAndRegisterSessions',
+      ts.StepPhase.post,
+      ts.PropObj(),
+      createAndRegisterSessionsResult,
+    );
+    createAndRegisterSessionsResult.Status = 'Done';
+    run.record(createAndRegisterSessionsResult.Status);
 
     // ── main ──
     // measurement: temp_LabVIEW
@@ -53,14 +77,390 @@ Future<String> mainSequence() async {
     // measurement param: string out (Out TypeString)
     // measurement param: u32 color ring out (Out TypeUint32)
     // measurement param: u32 animal enum out (Out TypeEnum Enum)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // temp [NI_Measurement]
+    // temp [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'InstrumentStepDescription': 'Instrument.sfp',
+        'Measurement': ts.PropObj({
+          'Version': '1.0.0',
+          'Name': 'temp_LabVIEW',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'double array in',
+              'ArgumentValue': '{3.4,5.6}',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeDouble',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'double in',
+              'ArgumentValue': '1.2',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'U32 array in',
+              'ArgumentValue': '{32ui64,33ui64}',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeUint32',
+              'ID': 3,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'U32 in',
+              'ArgumentValue': '32ui64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeUint32',
+              'ID': 4,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'U64 array in',
+              'ArgumentValue': '{64ui64,65ui64}',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeUint64',
+              'ID': 5,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'U64 in',
+              'ArgumentValue': '64ui64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeUint64',
+              'ID': 6,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'I32 array in',
+              'ArgumentValue': '{-32i64,-33i64}',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeInt32',
+              'ID': 7,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'I32 in',
+              'ArgumentValue': '-32i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeInt32',
+              'ID': 8,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'I64 array in',
+              'ArgumentValue': '{-64i64,-65i64}',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeInt64',
+              'ID': 9,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'I64 in',
+              'ArgumentValue': '-64i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeInt64',
+              'ID': 10,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'bool in',
+              'ArgumentValue': 'True',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeBool',
+              'ID': 11,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'string in',
+              'ArgumentValue': '"Lorem ipsum dolor sit"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 12,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'u32 color ring in',
+              'ArgumentValue': '1ui64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeUint32',
+              'ID': 13,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'u32 animal enum in',
+              'ArgumentValue': '1i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeEnum',
+              'ID': 14,
+              'TypeSpecialization': 'Enum',
+              'EnumDefinition': <dynamic>[0, 1, 2],
+            }),
+            ts.PropObj({
+              'MessageType': 'ni.protobuf.types.DoubleXYData',
+              'Name': 'xy data out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeMessage',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'double array out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeDouble',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'double out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 3,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'U32 array out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeUint32',
+              'ID': 4,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'U32 out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeUint32',
+              'ID': 5,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'U64 array out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeUint64',
+              'ID': 6,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'U64 out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeUint64',
+              'ID': 7,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'I32 array out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeInt32',
+              'ID': 8,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'I32 out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeInt32',
+              'ID': 9,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'I64 array out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeInt64',
+              'ID': 10,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'I64 out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeInt64',
+              'ID': 11,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'bool out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeBool',
+              'ID': 12,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'string out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 13,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'u32 color ring out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeUint32',
+              'ID': 14,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'u32 animal enum out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeEnum',
+              'ID': 15,
+              'TypeSpecialization': 'Enum',
+              'EnumDefinition': <dynamic>[0, 1, 2],
+            }),
+          ],
+        }),
+        '%BINATTRIBUTES': ts.PropObj({
+          'NI': ts.PropObj({
+            'Sequencing': ts.PropObj({
+              'StepJsonConfiguration':
+                  '{"StepTypeSpecificConfiguration":"{\\"Version\\":\\"24.8\\",\\"OldestCompatibleVersion\\":\\"0.0\\",\\"ConfigurationJson\\":\\"{\\\\\\"service_class\\\\\\":\\\\\\"temp_LabVIEW\\\\\\",\\\\\\"service_version\\\\\\":\\\\\\"1.0.0\\\\\\",\\\\\\"configuration_parameters\\\\\\":{\\\\\\"@type\\\\\\":\\\\\\"type.googleapis.com/ConfigurationParameter\\\\\\",\\\\\\"double array in\\\\\\":[3.4,5.6],\\\\\\"double in\\\\\\":1.2,\\\\\\"u32 array in\\\\\\":[32,33],\\\\\\"u32 in\\\\\\":32,\\\\\\"u64 array in\\\\\\":[\\\\\\"64\\\\\\",\\\\\\"65\\\\\\"],\\\\\\"u64 in\\\\\\":\\\\\\"64\\\\\\",\\\\\\"i32 array in\\\\\\":[-32,-33],\\\\\\"i32 in\\\\\\":-32,\\\\\\"i64 array in\\\\\\":[\\\\\\"-64\\\\\\",\\\\\\"-65\\\\\\"],\\\\\\"i64 in\\\\\\":\\\\\\"-64\\\\\\",\\\\\\"bool in\\\\\\":true,\\\\\\"string in\\\\\\":\\\\\\"Lorem ipsum dolor sit\\\\\\",\\\\\\"u32 color ring in\\\\\\":1,\\\\\\"u32 animal enum in\\\\\\":1}}\\",\\"SignatureJson\\":\\"{\\\\\\"ConfigurationParametersMessageType\\\\\\":\\\\\\"ConfigurationParameter\\\\\\",\\\\\\"ConfigurationParameters\\\\\\":[{\\\\\\"FieldNumber\\\\\\":1,\\\\\\"Type\\\\\\":1,\\\\\\"Name\\\\\\":\\\\\\"double array in\\\\\\",\\\\\\"Repeated\\\\\\":true,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":2,\\\\\\"Type\\\\\\":1,\\\\\\"Name\\\\\\":\\\\\\"double in\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":3,\\\\\\"Type\\\\\\":13,\\\\\\"Name\\\\\\":\\\\\\"U32 array in\\\\\\",\\\\\\"Repeated\\\\\\":true,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":4,\\\\\\"Type\\\\\\":13,\\\\\\"Name\\\\\\":\\\\\\"U32 in\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":5,\\\\\\"Type\\\\\\":4,\\\\\\"Name\\\\\\":\\\\\\"U64 array in\\\\\\",\\\\\\"Repeated\\\\\\":true,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":6,\\\\\\"Type\\\\\\":4,\\\\\\"Name\\\\\\":\\\\\\"U64 in\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":7,\\\\\\"Type\\\\\\":5,\\\\\\"Name\\\\\\":\\\\\\"I32 array in\\\\\\",\\\\\\"Repeated\\\\\\":true,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":8,\\\\\\"Type\\\\\\":5,\\\\\\"Name\\\\\\":\\\\\\"I32 in\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":9,\\\\\\"Type\\\\\\":3,\\\\\\"Name\\\\\\":\\\\\\"I64 array in\\\\\\",\\\\\\"Repeated\\\\\\":true,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":10,\\\\\\"Type\\\\\\":3,\\\\\\"Name\\\\\\":\\\\\\"I64 in\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":11,\\\\\\"Type\\\\\\":8,\\\\\\"Name\\\\\\":\\\\\\"bool in\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":12,\\\\\\"Type\\\\\\":9,\\\\\\"Name\\\\\\":\\\\\\"string in\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":13,\\\\\\"Type\\\\\\":13,\\\\\\"Name\\\\\\":\\\\\\"u32 color ring in\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":14,\\\\\\"Type\\\\\\":14,\\\\\\"Name\\\\\\":\\\\\\"u32 animal enum in\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"ni/type_specialization\\\\\\":\\\\\\"enum\\\\\\",\\\\\\"ni/enum.values\\\\\\":\\\\\\"{\\\\\\\\\\\\\\"Rabbit\\\\\\\\\\\\\\":0, \\\\\\\\\\\\\\"Gopher\\\\\\\\\\\\\\":1, \\\\\\\\\\\\\\"Badger\\\\\\\\\\\\\\":2}\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"}],\\\\\\"ConfigurationDefaults\\\\\\":\\\\\\"0A2B2F67525043206D6561737572656D656E742E6D6561737572656D656E7420636F6E66696775726174696F6E1286010A103333333333330B40666666666666164011333333333333F33F1A02202120202A02404130403A14E0FFFFFFFFFFFFFFFF01DFFFFFFFFFFFFFFFFF0140E0FFFFFFFFFFFFFFFF014A14C0FFFFFFFFFFFFFFFF01BFFFFFFFFFFFFFFFFF0150C0FFFFFFFFFFFFFFFF01580162154C6F72656D20697073756D20646F6C6F722073697468017001\\\\\\",\\\\\\"OutputsMessageType\\\\\\":\\\\\\"OutputParameter\\\\\\",\\\\\\"Outputs\\\\\\":[{\\\\\\"FieldNumber\\\\\\":1,\\\\\\"Type\\\\\\":11,\\\\\\"Name\\\\\\":\\\\\\"xy data out\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"ni.protobuf.types.DoubleXYData\\\\\\"},{\\\\\\"FieldNumber\\\\\\":2,\\\\\\"Type\\\\\\":1,\\\\\\"Name\\\\\\":\\\\\\"double array out\\\\\\",\\\\\\"Repeated\\\\\\":true,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":3,\\\\\\"Type\\\\\\":1,\\\\\\"Name\\\\\\":\\\\\\"double out\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":4,\\\\\\"Type\\\\\\":13,\\\\\\"Name\\\\\\":\\\\\\"U32 array out\\\\\\",\\\\\\"Repeated\\\\\\":true,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":5,\\\\\\"Type\\\\\\":13,\\\\\\"Name\\\\\\":\\\\\\"U32 out\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":6,\\\\\\"Type\\\\\\":4,\\\\\\"Name\\\\\\":\\\\\\"U64 array out\\\\\\",\\\\\\"Repeated\\\\\\":true,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":7,\\\\\\"Type\\\\\\":4,\\\\\\"Name\\\\\\":\\\\\\"U64 out\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":8,\\\\\\"Type\\\\\\":5,\\\\\\"Name\\\\\\":\\\\\\"I32 array out\\\\\\",\\\\\\"Repeated\\\\\\":true,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":9,\\\\\\"Type\\\\\\":5,\\\\\\"Name\\\\\\":\\\\\\"I32 out\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":10,\\\\\\"Type\\\\\\":3,\\\\\\"Name\\\\\\":\\\\\\"I64 array out\\\\\\",\\\\\\"Repeated\\\\\\":true,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":11,\\\\\\"Type\\\\\\":3,\\\\\\"Name\\\\\\":\\\\\\"I64 out\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":12,\\\\\\"Type\\\\\\":8,\\\\\\"Name\\\\\\":\\\\\\"bool out\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":13,\\\\\\"Type\\\\\\":9,\\\\\\"Name\\\\\\":\\\\\\"string out\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":14,\\\\\\"Type\\\\\\":13,\\\\\\"Name\\\\\\":\\\\\\"u32 color ring out\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"\\\\\\":\\\\\\"\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"},{\\\\\\"FieldNumber\\\\\\":15,\\\\\\"Type\\\\\\":14,\\\\\\"Name\\\\\\":\\\\\\"u32 animal enum out\\\\\\",\\\\\\"Repeated\\\\\\":false,\\\\\\"Annotations\\\\\\":{\\\\\\"ni/type_specialization\\\\\\":\\\\\\"enum\\\\\\",\\\\\\"ni/enum.values\\\\\\":\\\\\\"{\\\\\\\\\\\\\\"Rabbit\\\\\\\\\\\\\\":0, \\\\\\\\\\\\\\"Gopher\\\\\\\\\\\\\\":1, \\\\\\\\\\\\\\"Badger\\\\\\\\\\\\\\":2}\\\\\\"},\\\\\\"MessageType\\\\\\":\\\\\\"\\\\\\"}]}\\"}","StepName":"temp","StepDescription":"Instrument.sfp","PanelUniqueIdentifier":"::1427677d-885a-4559-83bf-e4662380be47::Instrument.sfp::ba74c4169cd04d6683e4f3b1c5a481cd"}',
+            }),
+          }),
+        }),
+      }),
+      tempResult,
+    );
+    tempResult.Status = 'Done';
+    run.record(tempResult.Status);
   } finally {
     // ── cleanup ──
-    throw UnimplementedError(
-      'step type NI_DestroyAndUnregisterSessions: action not exported yet',
-    ); // Destroy and Unregister Sessions [NI_DestroyAndUnregisterSessions]
+    // Destroy and Unregister Sessions [NI_DestroyAndUnregisterSessions]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_DestroyAndUnregisterSessions',
+      ts.StepPhase.post,
+      ts.PropObj(),
+      destroyAndUnregisterSessionsResult,
+    );
+    destroyAndUnregisterSessionsResult.Status = 'Done';
+    run.record(destroyAndUnregisterSessionsResult.Status);
   }
 
   return run.status;
@@ -104,9 +504,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_CreateAndRegisterSessions: action not exported yet
-  //   step type NI_Measurement: action not exported yet
-  //   step type NI_DestroyAndUnregisterSessions: action not exported yet
+  //   step type NI_CreateAndRegisterSessions acts through ts.stepHost
+  //   step type NI_Measurement acts through ts.stepHost
+  //   step type NI_DestroyAndUnregisterSessions acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

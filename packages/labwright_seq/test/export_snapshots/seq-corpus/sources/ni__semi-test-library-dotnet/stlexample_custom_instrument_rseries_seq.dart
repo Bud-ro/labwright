@@ -14,13 +14,72 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `ProcessSetup` — Runs once at lot start.
 Future<String> processSetup() async {
   final run = ts.SequenceRun();
+  dynamic setupRSeries7822RInstrumentationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup RSeries7822R Instrumentation
 
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupRSeries7822RInstrumentationResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.RSeries.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.SetupRSeries7822RInstrumentation
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.SetupRSeries7822RInstrumentation',
   ); // Setup RSeries7822R Instrumentation [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupRSeries7822RInstrumentationResult,
+  );
+  setupRSeries7822RInstrumentationResult.Status = 'Done';
+  run.record(setupRSeries7822RInstrumentationResult.Status);
 
   return run.status;
 }
@@ -40,8 +99,168 @@ Future<String> mainSequence() async {
   List<dynamic> portData = <dynamic>['127', '255']; // Nums
 
   final run = ts.SequenceRun();
+  dynamic digitalReadWriteTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': '',
+        'MeasurementId': 'DigitalOutput_A',
+        'TestNumberExpr': '',
+        'TestNumber': 101,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'ValidateDigitalOutput A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': 'Locals.ExpectedDigtalData[0]- Locals.Tolerance',
+          'LowLimit': 0,
+          'HighLimitExpr': 'Locals.ExpectedDigtalData[0]+Locals.Tolerance',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': '',
+        'MeasurementId': 'DigitalOutput_B',
+        'TestNumberExpr': '',
+        'TestNumber': 102,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'ValidateDigitalOutput B',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': 'Locals.ExpectedDigtalData[1]- Locals.Tolerance',
+          'LowLimit': 0,
+          'HighLimitExpr': 'Locals.ExpectedDigtalData[1]+ Locals.Tolerance',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Digital Read Write Test
 
   // Provides different digital values to the digital input port and measures the values at digital output port to ensure the measured values match the input values provided.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 1,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    digitalReadWriteTestResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.RSeries.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.TestStep.DigitalReadWriteTest
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -51,6 +270,41 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.TestStep.DigitalReadWriteTest',
   ); // Digital Read Write Test [NI_SemiconductorModule_MultiTest]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 1,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 1,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    digitalReadWriteTestResult,
+  );
+  digitalReadWriteTestResult.Status = 'Done';
+  run.record(digitalReadWriteTestResult.Status);
 
   return run.status;
 }
@@ -61,21 +315,93 @@ Future<String> sequenceFileLoad() async {
   String readMeFile = ''; // Path
 
   final run = ts.SequenceRun();
+  dynamic explanationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Explanation
+  dynamic launchReadmeResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ExitCode': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Launch Readme
 
   // This example demonstrates using the STL's custom instrument feature to perform digital read write operations with an RSeries device.
   // popup title: "About This Example"
   // popup message: "This example demonstrates how to use the Custom Instrument feature of the Semiconductor Test Library (STL)  to interact with an R Series device. | R-Series devices are FPGA-based instruments whose functionality is defined by custom LabVIEW FPGA code deployed via a compiled FPGA bitfile.  | Since they are not natively supported by TSM, these devices must be specified as a Custom Instrument in the Pin Map file and accessed through an STL Custom Instrument interface. | This example uses a PXIe-7822R R Series device to demonstrate basic digital read and write operations. | The PXIe-7822R provides 128 digital I/O physical channels organized across four connectors.  | Each connector is further divided into four digital ports, with each port containing eight channels (8-bit width).  | Two of the four connectors are used by the example, one for each site. | Sample Test: Digital Read Write | The Digital Read Write Test provided by the example writes different values to a DUT's digital input pins and reads the values from DUT's digital output pins to verify that the values match. | For demonstration purposes, this example is expected to be run with loopback mode enabled by default. This will allow the tests to pass without the need for external connections. | Prerequisites: | 1. To use the example, you must have the following software installed: |    - STS Software 24.5.0 or later | 2. To run the example you must also have: |    - A physical PXIe-7822R instrument with an alias of 'RIO_7822R_C1_S06' defined in NI MAX. |    - TestStand configured to use the Batch process model. | Review the README file accompanying the sequence file for information about how to use this example."
   // popup buttons: "Help" | "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Explanation [MessagePopup]
+  // Explanation [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'About This Example',
+    message:
+        'This example demonstrates how to use the Custom Instrument feature of the Semiconductor Test Library (STL)  to interact with an R Series device.\n\nR-Series devices are FPGA-based instruments whose functionality is defined by custom LabVIEW FPGA code deployed via a compiled FPGA bitfile. \nSince they are not natively supported by TSM, these devices must be specified as a Custom Instrument in the Pin Map file and accessed through an STL Custom Instrument interface.\n\nThis example uses a PXIe-7822R R Series device to demonstrate basic digital read and write operations.\nThe PXIe-7822R provides 128 digital I/O physical channels organized across four connectors. \nEach connector is further divided into four digital ports, with each port containing eight channels (8-bit width). \nTwo of the four connectors are used by the example, one for each site.\n\nSample Test: Digital Read Write\nThe Digital Read Write Test provided by the example writes different values to a DUT\'s digital input pins and reads the values from DUT\'s digital output pins to verify that the values match.\n\nFor demonstration purposes, this example is expected to be run with loopback mode enabled by default. This will allow the tests to pass without the need for external connections.\n\nPrerequisites:\n1. To use the example, you must have the following software installed:\n   - STS Software 24.5.0 or later\n2. To run the example you must also have:\n   - A physical PXIe-7822R instrument with an alias of \'RIO_7822R_C1_S06\' defined in NI MAX.\n   - TestStand configured to use the Batch process model.\n\nReview the README file accompanying the sequence file for information about how to use this example.',
+    buttons: ['Help', 'OK', '', '', '', ''],
+  );
+  explanationResult.ButtonHit = popup.buttonHit;
+  explanationResult.Response = popup.response;
+  explanationResult.Status = 'Done';
+  run.record(explanationResult.Status);
   // Launch README.md in notepad application.
   // runs executable: notepad.exe "README.md" (WAIT_FOR_EXIT)
   if (runState.PreviousStep.Result.ButtonHit == 1) {
     // precondition of Launch Readme
-    throw UnimplementedError(
-      'step type CallExecutable: action not exported yet',
-    ); // Launch Readme [CallExecutable]
+    // Launch Readme [CallExecutable]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'CallExecutable',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Executable': 'notepad.exe',
+        'ExecutableExpr': '',
+        'SpecifyExeByExpr': false,
+        'ExecutableCalled': '',
+        'Arguments': '"README.md"',
+        'WaitCondition': 'WAIT_FOR_EXIT',
+        'TimeToWait': 0,
+        'SetErrorCode': false,
+        'InitialWindowState': 'WINSTATE_SHOWNORM_A',
+        'TerminateOnAbort': false,
+        'StoreProcessHandle': false,
+        'ProcessHandleExpr': 'Step.ProcessHandlePtr',
+        'ProcessHandle': 0,
+        'ProcessHandlePtr': null,
+        'ExitCodeStatusAction': 'EXIT_CODE_NO_ACTION',
+        'ExitCodeErrorAction': 'EXIT_CODE_NO_ACTION',
+        'WorkingDir': ts.PropObj({'Source': 2, 'Expr': '', 'IsExpr': false}),
+        'RemoteSettings': ts.PropObj({
+          'Enabled': false,
+          'Host': '""',
+          'HostByExpr': true,
+          'Port': '13540',
+          'Password': '',
+          'PasswordByExpr': false,
+        }),
+        'StdInput': ts.PropObj({'Type': 0, 'Source': '""', 'IsExpr': false}),
+        'StdOutput': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdOutput.Text',
+          'IsExpr': false,
+          'Text': '',
+        }),
+        'StdError': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdError.Text',
+          'IsExpr': false,
+          'Text': '',
+          'Action': 0,
+          'SetErrorMsg': false,
+        }),
+      }),
+      launchReadmeResult,
+    );
+    launchReadmeResult.Status = 'Done';
+    run.record(launchReadmeResult.Status);
+  } else {
+    launchReadmeResult.Status = 'Skipped';
   }
 
   return run.status;
@@ -84,13 +410,72 @@ Future<String> sequenceFileLoad() async {
 /// Sequence `ProcessCleanup` — Runs once at lot end.
 Future<String> processCleanup() async {
   final run = ts.SequenceRun();
+  dynamic cleanupRSeries7822RInstrumentationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Cleanup RSeries7822R Instrumentation
 
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cleanupRSeries7822RInstrumentationResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.RSeries.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.CleanupRSeries7822RInstrumentation
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.CleanupRSeries7822RInstrumentation',
   ); // Cleanup RSeries7822R Instrumentation [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cleanupRSeries7822RInstrumentationResult,
+  );
+  cleanupRSeries7822RInstrumentationResult.Status = 'Done';
+  run.record(cleanupRSeries7822RInstrumentationResult.Status);
 
   return run.status;
 }
@@ -115,23 +500,26 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.SetupRSeries7822RInstrumentation
   lw.skipTest('ProcessSetup', () async {
     lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_MultiTest acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.TestStep.DigitalReadWriteTest
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   RunState engine access (no engine at run time)
-  //   step type CallExecutable: action not exported yet
+  //   step type CallExecutable acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.CleanupRSeries7822RInstrumentation
   lw.skipTest('ProcessCleanup', () async {
     lw.expect(await processCleanup(), 'Passed');

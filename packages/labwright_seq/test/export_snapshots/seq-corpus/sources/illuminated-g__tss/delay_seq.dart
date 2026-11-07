@@ -14,14 +14,29 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic messagePopupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message Popup
 
   await Future<void>.delayed(const Duration(seconds: 30));
   // popup title: NameOf(Step)
   // popup message: "Waited"
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Message Popup [MessagePopup]
+  // Message Popup [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Message Popup',
+    message: 'Waited',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  messagePopupResult.ButtonHit = popup.buttonHit;
+  messagePopupResult.Response = popup.response;
+  messagePopupResult.Status = 'Done';
+  run.record(messagePopupResult.Status);
 
   return run.status;
 }
@@ -45,7 +60,7 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

@@ -41,13 +41,33 @@ Future<String> processSetup() async {
   String instrument = ''; // Str
 
   final run = ts.SequenceRun();
+  dynamic lockResult = ts.PropObj({'Status': ''}); // result of Lock
 
   for (final element in ts.iterate(fileGlobals.InstrumentList)) {
     instrument = element as String;
     // sync object: "*"+Locals.Instrument, operation code 0, lifetime code 3
-    throw UnimplementedError(
-      'step type NI_Lock: action not exported yet',
-    ); // Lock [NI_Lock]
+    lockResult = ts.PropObj({'Status': ''});
+    // Lock [NI_Lock]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Lock',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'NameOrRefExpr': '"*"+Locals.Instrument',
+        'LifetimeRefExpr': 'StationGlobals.LockReference',
+        'TimeoutEnabled': false,
+        'TimeoutExpr': '',
+        'ErrorOnTimeout': true,
+        'AlreadyExistsExpr': '',
+        'NumThreadsWaitingExpr': '',
+        'Operation': 0,
+        'Lifetime': 3,
+        'LockLifetime': 0,
+        'CreateIfDoesNotExist': false,
+      }),
+      lockResult,
+    );
+    lockResult.Status = 'Done';
+    run.record(lockResult.Status);
   }
 
   return run.status;
@@ -85,7 +105,7 @@ void register() {
     lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_Lock: action not exported yet
+  //   step type NI_Lock acts through ts.stepHost
   lw.skipTest('ProcessSetup', () async {
     lw.expect(await processSetup(), 'Passed');
   });

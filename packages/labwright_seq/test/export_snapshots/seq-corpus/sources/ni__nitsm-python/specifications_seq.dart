@@ -16,21 +16,265 @@ Future<String> mainSequence() async {
   dynamic dc = ts.PropObj({'gnd': 0, 'vcc_max': 5, 'vcc_typ': 3.3}); // Obj
 
   final run = ts.SequenceRun();
+  dynamic measureTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 1,
+        'Pin': '',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 0,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': '',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Measure Test
+  dynamic measureTestResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 1,
+        'Pin': '',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 0,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': '',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Measure Test
 
   // Single
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 1,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    measureTestResult,
+  );
   //   tsm_context <- Step.SemiconductorModuleContext
   //   namespaced_symbols <- "DC.vcc_typ"
   //   expected_values <- 3.3
   throw UnimplementedError(
     'python call: specifications_codemodules.py',
   ); // Measure Test [NI_SemiconductorModule_MultiTest]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 1,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    measureTestResult,
+  );
+  measureTestResult.Status = 'Done';
+  run.record(measureTestResult.Status);
   // Sequence
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 1,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    measureTestResult2,
+  );
   //   tsm_context <- Step.SemiconductorModuleContext
   //   namespaced_symbols <- {"DC.gnd", "DC.vcc_max", "DC.vcc_typ"}
   //   expected_values <- Locals.DC
   throw UnimplementedError(
     'python call: specifications_codemodules.py',
   ); // Measure Test [NI_SemiconductorModule_MultiTest]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 1,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    measureTestResult2,
+  );
+  measureTestResult2.Status = 'Done';
+  run.record(measureTestResult2.Status);
 
   return run.status;
 }
@@ -79,6 +323,7 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_MultiTest acts through ts.stepHost
   //   python call: specifications_codemodules.py
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

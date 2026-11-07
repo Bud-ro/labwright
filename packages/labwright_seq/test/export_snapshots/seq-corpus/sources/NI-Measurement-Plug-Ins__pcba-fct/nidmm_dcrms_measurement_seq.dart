@@ -14,14 +14,35 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic updatePinMapResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update Pin Map
+  dynamic acquireMeasurementResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Acquire Measurement
 
   body:
   try {
     // ── setup ──
     // pin map: @"..\..\..\src\NIDmmDCRmsMeasurement\NIDmmDCRmsMeasurement.pinmap"
-    throw UnimplementedError(
-      'step type NI_UpdatePinMap: action not exported yet',
-    ); // Update Pin Map [NI_UpdatePinMap]
+    // Update Pin Map [NI_UpdatePinMap]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_UpdatePinMap',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'PinMapPath':
+            '@"..\\..\\..\\src\\NIDmmDCRmsMeasurement\\NIDmmDCRmsMeasurement.pinmap"',
+      }),
+      updatePinMapResult,
+    );
+    updatePinMapResult.Status = 'Done';
+    run.record(updatePinMapResult.Status);
     //   sequence context <- ThisContext
     //   error out <- Step.Result.Error
     await callInitializeAndRegisterSessions(); // Initialize and register NI-DMM sessions [Action]
@@ -37,9 +58,129 @@ Future<String> mainSequence() async {
     // measurement param: RMS Value (Out TypeDouble)
     // measurement param: Signal Out of Range (Out TypeBool)
     // measurement param: Waveform Data (Out TypeDouble)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Acquire Measurement [NI_Measurement]
+    // Acquire Measurement [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Measurement': ts.PropObj({
+          'Name': 'NIDmmDCRmsMeasurement_LabVIEW',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Range',
+              'ArgumentValue': '10',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Function',
+              'ArgumentValue': '1003i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeInt32',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Number of Samples',
+              'ArgumentValue': '1000i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeInt32',
+              'ID': 3,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Pin Name',
+              'ArgumentValue': '"Pin1"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 4,
+              'TypeSpecialization': 'Pin',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Sample Rate (Hz)',
+              'ArgumentValue': '1800000',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 5,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'DC Value',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'RMS Value',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Signal Out of Range',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeBool',
+              'ID': 3,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Waveform Data',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeDouble',
+              'ID': 4,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+          ],
+        }),
+      }),
+      acquireMeasurementResult,
+    );
+    acquireMeasurementResult.Status = 'Done';
+    run.record(acquireMeasurementResult.Status);
   } finally {
     // ── cleanup ──
     //   error out <- Step.Result.Error
@@ -83,9 +224,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_UpdatePinMap: action not exported yet
+  //   step type NI_UpdatePinMap acts through ts.stepHost
   //   My Computer\NIDmmDCRmsMeasurement.lvlib\TestStand Code Modules\Initialize and Register Sessions.vi
-  //   step type NI_Measurement: action not exported yet
+  //   step type NI_Measurement acts through ts.stepHost
   //   My Computer\NIDmmDCRmsMeasurement.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

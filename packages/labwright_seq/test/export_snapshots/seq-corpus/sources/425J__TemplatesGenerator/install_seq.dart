@@ -29,9 +29,14 @@ Future<String> sequenceFileLoad() async {
     // popup title: "Installer"
     // popup message: "Do you want to install Templates Generator?"
     // popup buttons: "Yes" | "No"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Prompt [MessagePopup]
+    // Prompt [MessagePopup]: acts through ts.stepHost
+    final popup = await ts.stepHost.messagePopup(
+      title: 'Installer',
+      message: 'Do you want to install Templates Generator?',
+      buttons: ['Yes', 'No', '', '', '', ''],
+    );
+    promptResult.ButtonHit = popup.buttonHit;
+    promptResult.Response = popup.response;
     promptResult.Status = 'Done';
     run.record(promptResult.Status);
     if (promptResult.ButtonHit == 1) {
@@ -56,6 +61,14 @@ Future<String> install() async {
   dynamic target = ts.PropObj({'Tool': '', 'ExportFile': ''}); // Obj
 
   final run = ts.SequenceRun();
+  dynamic successMessageResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Success Message
 
   ts.eval(
     'Locals.CurrentDir = Left(ThisContext.SequenceFile.Path, Find(ThisContext.SequenceFile.Path, "\\\\", 0, True, True)),\nLocals.Source.Tool = Locals.CurrentDir + @"\\Resources\\TemplatesGenerator.seq",\nLocals.Source.ExportFile = Locals.CurrentDir + @"\\Resources\\Tools.ini",\n',
@@ -112,9 +125,17 @@ Future<String> install() async {
   // popup title: "Success"
   // popup message: "Templates Generator successfully installed.\n\nRestart Sequence Editor."
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Success Message [MessagePopup]
+  // Success Message [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Success',
+    message:
+        'Templates Generator successfully installed.\n\nRestart Sequence Editor.',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  successMessageResult.ButtonHit = popup.buttonHit;
+  successMessageResult.Response = popup.response;
+  successMessageResult.Status = 'Done';
+  run.record(successMessageResult.Status);
 
   return run.status;
 }
@@ -138,7 +159,7 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });
@@ -146,7 +167,7 @@ void register() {
   //   untranslated expression in body
   //   dotNet call: System.IO.Directory.CreateDirectory
   //   dotNet call: System.IO.File.Copy
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('Install', () async {
     lw.expect(await install(), 'Passed');
   });

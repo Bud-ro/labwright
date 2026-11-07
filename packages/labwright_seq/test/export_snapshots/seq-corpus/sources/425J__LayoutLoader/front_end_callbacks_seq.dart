@@ -74,6 +74,13 @@ Future<String> restart() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Message
+  dynamic restartResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ExitCode': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Restart
 
   endMain:
   {
@@ -115,9 +122,15 @@ Future<String> restart() async {
         // popup title: "UI Configuration"
         // popup message: "Do you want to restart Sequence Editor and load UI settings assigned to this user?"
         // popup buttons: "Yes" | "No"
-        throw UnimplementedError(
-          'step type MessagePopup: action not exported yet',
-        ); // Message [MessagePopup]
+        // Message [MessagePopup]: acts through ts.stepHost
+        final popup = await ts.stepHost.messagePopup(
+          title: 'UI Configuration',
+          message:
+              'Do you want to restart Sequence Editor and load UI settings assigned to this user?',
+          buttons: ['Yes', 'No', '', '', '', ''],
+        );
+        messageResult.ButtonHit = popup.buttonHit;
+        messageResult.Response = popup.response;
         messageResult.Status = 'Done';
         run.record(messageResult.Status);
         if (!(messageResult.ButtonHit == 1)) {
@@ -125,9 +138,65 @@ Future<String> restart() async {
           break endMain;
         }
         // runs executable: Restart.bat "\"" + RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\" \"" + RunState.Engine.CurrentUser.AsPropertyObject.Attributes.UIConfig + "\" \"" + RunState.Engine.GetEnvironmentPath() + "\"" (WAIT_NONE)
-        throw UnimplementedError(
-          'step type CallExecutable: action not exported yet',
-        ); // Restart [CallExecutable]
+        // Restart [CallExecutable]: acts through ts.stepHost
+        await ts.stepHost.runStepType(
+          'CallExecutable',
+          ts.StepPhase.post,
+          ts.PropObj({
+            'Executable': 'Restart.bat',
+            'ExecutableExpr': '',
+            'SpecifyExeByExpr': false,
+            'ExecutableCalled': '',
+            'Arguments':
+                '"\\"" + RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\\" \\"" + RunState.Engine.CurrentUser.AsPropertyObject.Attributes.UIConfig + "\\" \\"" + RunState.Engine.GetEnvironmentPath() + "\\""',
+            'WaitCondition': 'WAIT_NONE',
+            'TimeToWait': 0,
+            'SetErrorCode': false,
+            'InitialWindowState': 'WINSTATE_HIDDEN',
+            'TerminateOnAbort': false,
+            'StoreProcessHandle': false,
+            'ProcessHandleExpr': 'Step.ProcessHandlePtr',
+            'ProcessHandle': 0,
+            'ProcessHandlePtr': null,
+            'ExitCodeStatusAction': 'EXIT_CODE_NO_ACTION',
+            'ExitCodeErrorAction': 'EXIT_CODE_NO_ACTION',
+            'WorkingDir': ts.PropObj({
+              'Source': 1,
+              'Expr': '',
+              'IsExpr': false,
+            }),
+            'RemoteSettings': ts.PropObj({
+              'Enabled': false,
+              'Host': '""',
+              'HostByExpr': true,
+              'Port': '13540',
+              'Password': '',
+              'PasswordByExpr': false,
+            }),
+            'StdInput': ts.PropObj({
+              'Type': 0,
+              'Source': '""',
+              'IsExpr': false,
+            }),
+            'StdOutput': ts.PropObj({
+              'Dest': 0,
+              'Expr': 'Step.StdOutput.Text',
+              'IsExpr': false,
+              'Text': '',
+            }),
+            'StdError': ts.PropObj({
+              'Dest': 0,
+              'Expr': 'Step.StdError.Text',
+              'IsExpr': false,
+              'Text': '',
+              'Action': 0,
+              'SetErrorMsg': false,
+            }),
+          }),
+          restartResult,
+        );
+        restartResult.Status = 'Done';
+        run.record(restartResult.Status);
       }
     }
   }
@@ -161,8 +230,8 @@ void register() {
   //   dotNet call: System.IO.File.ReadAllText
   //   dotNet call: System.Environment.ExpandEnvironmentVariables
   //   dotNet call: System.IO.File.Exists
-  //   step type MessagePopup: action not exported yet
-  //   step type CallExecutable: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
+  //   step type CallExecutable acts through ts.stepHost
   lw.skipTest('LoginLogout', () async {
     lw.expect(await loginLogout(), 'Passed');
   });

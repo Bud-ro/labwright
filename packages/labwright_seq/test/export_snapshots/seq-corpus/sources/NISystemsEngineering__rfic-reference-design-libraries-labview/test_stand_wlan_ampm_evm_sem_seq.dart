@@ -38,6 +38,12 @@ Future<String> mainSequence() async {
   int waveformConfigsIdx = 0; // Num — default: 0
 
   final run = ts.SequenceRun();
+  dynamic newCsvOutputStreamForTestResultsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of New CSV Output Stream For Test Results
   dynamic applyConfigurationsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -50,6 +56,12 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Measure Results
+  dynamic writeRecordResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Write Record
 
   body:
   try {
@@ -63,9 +75,31 @@ Future<String> mainSequence() async {
         fileGlobals.Sequence_Folder_Path +
         '\\Data Files\\Results\\Results.csv'; // Set the Path for the Output File
     // This step creates the .csv file where the example will write output, and stores a reference to it in Loals.OutputFile.
-    throw UnimplementedError(
-      'step type NI_NewCsvFileOutputRecordStream: action not exported yet',
-    ); // New CSV Output Stream For Test Results [NI_NewCsvFileOutputRecordStream]
+    // New CSV Output Stream For Test Results [NI_NewCsvFileOutputRecordStream]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_NewCsvFileOutputRecordStream',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SpecifyPathByExpr': true,
+        'CsvFilePath': 'C:\\Users\\tester\\Desktop\\test.csv',
+        'CsvFilePathExpr': 'FileGlobals.OutputFilePath',
+        'OutputRecordStreamExpr': 'FileGlobals.OutputFile',
+        'TagExpr': '',
+        'FieldHeadersExpr': 'FileGlobals.Current_Sweep_Step.Input_and_Output',
+        'FieldHeaderMappingExpr': '',
+        'SpecifyPrototype': false,
+        'FileOpenModeExpr': 'FileOpenMode_Uniquify',
+        'AutoFlush': false,
+        'AttachToExecution': true,
+        'ExecutionOutputRecordStreamNameExpr': 'FileGlobals.OutputStream',
+        'ExecutionOutputRecordStreamExpr': '',
+        'RecordsToDisplayInReportViewExpr': '100',
+        'SetActiveReport': true,
+      }),
+      newCsvOutputStreamForTestResultsResult,
+    );
+    newCsvOutputStreamForTestResultsResult.Status = 'Done';
+    run.record(newCsvOutputStreamForTestResultsResult.Status);
     ts.setNumElements(
       fileGlobals.LoadedWaveformIndexes,
       ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
@@ -173,9 +207,25 @@ Future<String> mainSequence() async {
           .UUT
           .SerialNumber; // Store Serial Number in Output
       // Record the results record to disk
-      throw UnimplementedError(
-        'step type NI_WriteRecord: action not exported yet',
-      ); // Write Record [NI_WriteRecord]
+      writeRecordResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      // Write Record [NI_WriteRecord]: acts through ts.stepHost
+      await ts.stepHost.runStepType(
+        'NI_WriteRecord',
+        ts.StepPhase.post,
+        ts.PropObj({
+          'OutputRecordStreamExpr': 'FileGlobals.OutputStream',
+          'RecordExpr': 'FileGlobals.Current_Sweep_Step.Input_and_Output',
+          'FieldMappingExpr': '""',
+        }),
+        writeRecordResult,
+      );
+      writeRecordResult.Status = 'Done';
+      run.record(writeRecordResult.Status);
     }
   } finally {
     // ── cleanup ──
@@ -568,13 +618,29 @@ Future<String> measure() async {
 /// Sequence `SequenceFileLoad`.
 Future<String> sequenceFileLoad() async {
   final run = ts.SequenceRun();
+  dynamic firstLaunchMessageResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of First Launch Message
 
   // popup title: NameOf(Step)
   // popup message: @"If this is your first time opening this example sequence, please make sure to check the following: | - To use the proper RF devices, in the Variable pane navigate to FileGlobals.Static_Station_Configs.Device_Names  |   and enter the device identifiers there.  | - When using a PXIe 5830/31 enter the respective portnames in FileGlobals.Configurations.Analyzer.Common_Config.SelectedPorts and in |   FileGlobals.Configurations.Generator.RFSGConfig.SelectedPorts. | - You can change the waveform configuration under FileGlobals.Static_Station_Configs.Waveform_Configs.  | - All other Analyzer and Generator configurations can be found in the Configurations Container. | - The sequence will write a CSV result file in <./DataFiles/Results/>. You can change the parameters and measurements written to the file in  |   FileGlobals.Current_Sweep_Step.Input_and_Output and by adapting the 'Map Results' expression step in the Measure subsequence. | Feel free to keep this message from appearing next time you load the sequence by removing the 'SequenceFileLoad' callback from the Sequences pane."
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // First Launch Message [MessagePopup]
+  // First Launch Message [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'First Launch Message',
+    message:
+        'If this is your first time opening this example sequence, please make sure to check the following:\n\n- To use the proper RF devices, in the Variable pane navigate to FileGlobals.Static_Station_Configs.Device_Names \n  and enter the device identifiers there. \n\n- When using a PXIe 5830/31 enter the respective portnames in FileGlobals.Configurations.Analyzer.Common_Config.SelectedPorts and in\n  FileGlobals.Configurations.Generator.RFSGConfig.SelectedPorts.\n\n- You can change the waveform configuration under FileGlobals.Static_Station_Configs.Waveform_Configs. \n\n- All other Analyzer and Generator configurations can be found in the Configurations Container.\n\n- The sequence will write a CSV result file in <./DataFiles/Results/>. You can change the parameters and measurements written to the file in \n  FileGlobals.Current_Sweep_Step.Input_and_Output and by adapting the \'Map Results\' expression step in the Measure subsequence.\n\nFeel free to keep this message from appearing next time you load the sequence by removing the \'SequenceFileLoad\' callback from the Sequences pane.',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  firstLaunchMessageResult.ButtonHit = popup.buttonHit;
+  firstLaunchMessageResult.Response = popup.response;
+  firstLaunchMessageResult.Status = 'Done';
+  run.record(firstLaunchMessageResult.Status);
 
   return run.status;
 }
@@ -996,7 +1062,7 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
-  //   step type NI_NewCsvFileOutputRecordStream: action not exported yet
+  //   step type NI_NewCsvFileOutputRecordStream acts through ts.stepHost
   //   niRFSG.llb\niRFSG Initialize.vi
   //   RFInstr\mx\RFmxInstr.llb\RFmxInstr Initialize NIRFSA.vi
   //   ..\..\Source\SG\Load Waveform From TDMS.vi
@@ -1006,7 +1072,7 @@ void register() {
   //   ..\..\Source\SA\RFmxWLAN\WLAN Configure Standard.vi
   //   sweep loop "Sweep Loop": parameter sweep not exported
   //   RunState engine access (no engine at run time)
-  //   step type NI_WriteRecord: action not exported yet
+  //   step type NI_WriteRecord acts through ts.stepHost
   //   RFInstr\mx\RFmxInstr.llb\RFmxInstr Close.vi
   //   niRFSG.llb\niRFSG Close.vi
   //   WLAN\mx\RFmxWLAN.llb\RFmxWLAN Build Signal String.vi
@@ -1034,7 +1100,7 @@ void register() {
     lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });

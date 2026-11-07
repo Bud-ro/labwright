@@ -64,6 +64,22 @@ Future<String> preUut({
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Call DoPreUUT
+  dynamic msgBachcheckFailResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Msg Bachcheck fail
+  dynamic msgTraceDisableResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Msg Trace disable
 
   // ── setup ──
   stationGlobals.IsBackcheckOK = false; // Reset Traceability Variables
@@ -111,9 +127,16 @@ Future<String> preUut({
       // popup title: NameOf(Step)
       // popup message: "Unidad reporta: " + Locals.Reply_BackCheck
       // popup buttons: "OK"
-      throw UnimplementedError(
-        'step type MessagePopup: action not exported yet',
-      ); // Msg Bachcheck fail [MessagePopup]
+      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
+      final popup = await ts.stepHost.messagePopup(
+        title: 'Msg Bachcheck fail',
+        message: 'Unidad reporta: ' + replyBackCheck,
+        buttons: ['OK', '', '', '', '', ''],
+      );
+      msgBachcheckFailResult.ButtonHit = popup.buttonHit;
+      msgBachcheckFailResult.Response = popup.response;
+      msgBachcheckFailResult.Status = 'Done';
+      run.record(msgBachcheckFailResult.Status);
     }
   }
   // label: End Of Traceability Section
@@ -122,9 +145,18 @@ Future<String> preUut({
   // popup buttons: "OK"
   if (stationGlobals.isTraceEnable == 'False') {
     // precondition of Msg Trace disable
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Msg Trace disable [MessagePopup]
+    // Msg Trace disable [MessagePopup]: acts through ts.stepHost
+    final popup2 = await ts.stepHost.messagePopup(
+      title: 'Msg Trace disable',
+      message: 'Trazabilidad esta desactivada',
+      buttons: ['OK', '', '', '', '', ''],
+    );
+    msgTraceDisableResult.ButtonHit = popup2.buttonHit;
+    msgTraceDisableResult.Response = popup2.response;
+    msgTraceDisableResult.Status = 'Done';
+    run.record(msgTraceDisableResult.Status);
+  } else {
+    msgTraceDisableResult.Status = 'Skipped';
   }
 
   return run.status;
@@ -349,7 +381,7 @@ void register() {
   //   StationGlobals read (station-level state not set here)
   //   ..\LabVIEW_VIs\Traceability\WSP2_PartNumberRef.vi
   //   ..\LabVIEW_VIs\Traceability\WSP2_BackCheck_Serial.vi
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)
   //   root parameter 'TestSocket' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)

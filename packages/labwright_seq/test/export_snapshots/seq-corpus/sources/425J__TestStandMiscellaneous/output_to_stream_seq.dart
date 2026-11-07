@@ -134,13 +134,29 @@ Future<String> outputToStream() async {
 /// Sequence `SequenceFileLoad`.
 Future<String> sequenceFileLoad() async {
   final run = ts.SequenceRun();
+  dynamic howToUseThisExampleResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of How to use this example
 
   // popup title: NameOf(Step)
   // popup message: "1. Run current sequence and see the report view (View»Execution»Report).\n2. Compare it with the output (View»Output).\n3. Inspect the Output.log file located in the current sequence directory."
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // How to use this example [MessagePopup]
+  // How to use this example [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'How to use this example',
+    message:
+        '1. Run current sequence and see the report view (View»Execution»Report).\n2. Compare it with the output (View»Output).\n3. Inspect the Output.log file located in the current sequence directory.',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  howToUseThisExampleResult.ButtonHit = popup.buttonHit;
+  howToUseThisExampleResult.Response = popup.response;
+  howToUseThisExampleResult.Status = 'Done';
+  run.record(howToUseThisExampleResult.Status);
 
   return run.status;
 }
@@ -171,7 +187,7 @@ void register() {
     lw.expect(await outputToStream(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });

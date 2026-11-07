@@ -14,14 +14,35 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic updatePinMapResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update Pin Map
+  dynamic measurementResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Measurement
 
   body:
   try {
     // ── setup ──
     // pin map: @"D:\RA Tools Git\abstraction-layer-labview\Source\FAL Implementation\SourceMeasureDCVoltageFAL.pinmap"
-    throw UnimplementedError(
-      'step type NI_UpdatePinMap: action not exported yet',
-    ); // Update Pin Map [NI_UpdatePinMap]
+    // Update Pin Map [NI_UpdatePinMap]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_UpdatePinMap',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'PinMapPath':
+            '@"D:\\RA Tools Git\\abstraction-layer-labview\\Source\\FAL Implementation\\SourceMeasureDCVoltageFAL.pinmap"',
+      }),
+      updatePinMapResult,
+    );
+    updatePinMapResult.Status = 'Done';
+    run.record(updatePinMapResult.Status);
     //   sequence context in <- ThisContext
     //   error out <- Step.Result.Error
     await callInitializeAndRegisterSessions(); // Initialize and Reserve Sessions [Action]
@@ -37,9 +58,120 @@ Future<String> mainSequence() async {
     // measurement param: measure_pin (In TypeString Pin) = "NI_DMM_Pin"
     // measurement param: Resolution in Digits (In TypeEnum Enum) = 2i64
     // measurement param: Measurement (Out TypeDouble)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Measurement [NI_Measurement]
+    // Measurement [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Measurement': ts.PropObj({
+          'Name': 'SourceMeasureDCVoltage_LabVIEW',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'source_pin',
+              'ArgumentValue': '"NI_DCPower_Pin"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'Pin',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Voltage Level',
+              'ArgumentValue': '2',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Voltage Level Range',
+              'ArgumentValue': '6',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 3,
+              'TypeSpecialization': 'None',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Current Limit',
+              'ArgumentValue': '0.01',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 4,
+              'TypeSpecialization': 'None',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Current Limit Range',
+              'ArgumentValue': '0.01',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 5,
+              'TypeSpecialization': 'None',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Source Delay (Sec)',
+              'ArgumentValue': '0.001',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 6,
+              'TypeSpecialization': 'None',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'measure_pin',
+              'ArgumentValue': '"NI_DMM_Pin"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 7,
+              'TypeSpecialization': 'Pin',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Resolution in Digits',
+              'ArgumentValue': '2i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeEnum',
+              'ID': 8,
+              'TypeSpecialization': 'Enum',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Measurement',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+            }),
+          ],
+        }),
+      }),
+      measurementResult,
+    );
+    measurementResult.Status = 'Done';
+    run.record(measurementResult.Status);
   } finally {
     // ── cleanup ──
     //   error out <- Step.Result.Error
@@ -83,9 +215,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_UpdatePinMap: action not exported yet
+  //   step type NI_UpdatePinMap acts through ts.stepHost
   //   My Computer\SourceMeasureDCVoltage.lvlib\TestStand Code Modules\Initialize and Register Sessions.vi
-  //   step type NI_Measurement: action not exported yet
+  //   step type NI_Measurement acts through ts.stepHost
   //   My Computer\SourceMeasureDCVoltage.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

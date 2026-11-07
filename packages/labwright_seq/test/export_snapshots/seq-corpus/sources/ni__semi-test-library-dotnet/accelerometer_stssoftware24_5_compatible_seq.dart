@@ -14,34 +14,399 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `ProcessSetup` — Runs once at lot start.
 Future<String> processSetup() async {
   final run = ts.SequenceRun();
+  dynamic getTestTemperatureTestFlowIdResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get TestTemperature & TestFlowId
+  dynamic setupNiDcPowerInstrumentationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup NI DCPower Instrumentation
+  dynamic setupNiDigitalInstrumentationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup NI Digital Instrumentation
+  dynamic setupNiRelayModulesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup NI Relay Modules
+  dynamic setupNiScopeInstrumentationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup NI Scope Instrumentation
+  dynamic cacheSessionMappingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Cache Session Mapping
+  dynamic powerToggleOnResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Power Toggle (on)
+  dynamic setupVccResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup Vcc
+  dynamic setupNiScopeForVrefResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup NI-SCOPE for Vref
+  dynamic configureTemperatureControllerResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Configure temperature controller
 
   // ── setup ──
-  throw UnimplementedError(
-    'step type NI_SemiconductorModule_GetTestSettings: action not exported yet',
-  ); // Get TestTemperature & TestFlowId [NI_SemiconductorModule_GetTestSettings]
-  throw UnimplementedError(
-    'step type NI_SemiconductorTest_SetupNIDCPowerInstrumentation: action not exported yet',
-  ); // Setup NI DCPower Instrumentation [NI_SemiconductorTest_SetupNIDCPowerInstrumentation]
-  throw UnimplementedError(
-    'step type NI_SemiconductorTest_SetupNIDigitalPatternInstrumentation: action not exported yet',
-  ); // Setup NI Digital Instrumentation [NI_SemiconductorTest_SetupNIDigitalPatternInstrumentation]
-  throw UnimplementedError(
-    'step type NI_SemiconductorTest_SetupNIRelayModules: action not exported yet',
-  ); // Setup NI Relay Modules [NI_SemiconductorTest_SetupNIRelayModules]
-  throw UnimplementedError(
-    'step type NI_SemiconductorTest_SetupNIScopeInstrumentation: action not exported yet',
-  ); // Setup NI Scope Instrumentation [NI_SemiconductorTest_SetupNIScopeInstrumentation]
+  // Get TestTemperature & TestFlowId [NI_SemiconductorModule_GetTestSettings]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_GetTestSettings',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SettingAssignments': <dynamic>[
+        ts.PropObj({
+          'SettingName': 'LotSettings.Standard.TestTemperature',
+          'DestinationExpr': 'FileGlobals.TestTemperature',
+          'NameFilter': -1,
+        }),
+        ts.PropObj({
+          'SettingName': 'LotSettings.Standard.TestFlowId',
+          'DestinationExpr': 'FileGlobals.TestFlowId',
+          'NameFilter': -1,
+        }),
+      ],
+    }),
+    getTestTemperatureTestFlowIdResult,
+  );
+  getTestTemperatureTestFlowIdResult.Status = 'Done';
+  run.record(getTestTemperatureTestFlowIdResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIDCPowerInstrumentation',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiDcPowerInstrumentationResult,
+  );
+  // Setup NI DCPower Instrumentation [NI_SemiconductorTest_SetupNIDCPowerInstrumentation]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIDCPowerInstrumentation',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiDcPowerInstrumentationResult,
+  );
+  setupNiDcPowerInstrumentationResult.Status = 'Done';
+  run.record(setupNiDcPowerInstrumentationResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIDigitalPatternInstrumentation',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiDigitalInstrumentationResult,
+  );
+  // Setup NI Digital Instrumentation [NI_SemiconductorTest_SetupNIDigitalPatternInstrumentation]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIDigitalPatternInstrumentation',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiDigitalInstrumentationResult,
+  );
+  setupNiDigitalInstrumentationResult.Status = 'Done';
+  run.record(setupNiDigitalInstrumentationResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIRelayModules',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiRelayModulesResult,
+  );
+  // Setup NI Relay Modules [NI_SemiconductorTest_SetupNIRelayModules]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIRelayModules',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiRelayModulesResult,
+  );
+  setupNiRelayModulesResult.Status = 'Done';
+  run.record(setupNiRelayModulesResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIScopeInstrumentation',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiScopeInstrumentationResult,
+  );
+  // Setup NI Scope Instrumentation [NI_SemiconductorTest_SetupNIScopeInstrumentation]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIScopeInstrumentation',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiScopeInstrumentationResult,
+  );
+  setupNiScopeInstrumentationResult.Status = 'Done';
+  run.record(setupNiScopeInstrumentationResult.Status);
   // This method call is necessary to ensure the cached instrument session information is consistent between the NationalInstruments.SemiconductorTestLibrary.TestStandSteps assembly and client assembly. as they may not share the same memory space if the client assembly is using a newer version of the NationalInstruments.SemiconductorTestLibrary.Abstractions.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 1,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cacheSessionMappingResult,
+  );
   // .NET assembly: Code Modules\bin\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll
   // .NET call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions',
   ); // Cache Session Mapping [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 1,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cacheSessionMappingResult,
+  );
+  cacheSessionMappingResult.Status = 'Done';
+  run.record(cacheSessionMappingResult.Status);
 
   // ── main ──
   // description: Place any steps here to run once at the start of a lot. |
   // label: Lot Start Steps
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    powerToggleOnResult,
+  );
   // .NET assembly: Code Modules\bin\Accelerometer.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.PowerToggle
   //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -49,6 +414,58 @@ Future<String> processSetup() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\PowerToggle.cs',
   ); // Power Toggle (on) [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    powerToggleOnResult,
+  );
+  powerToggleOnResult.Status = 'Done';
+  run.record(powerToggleOnResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupVccResult,
+  );
   // .NET assembly: Code Modules\bin\Accelerometer.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.SetupVcc
   //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -56,19 +473,150 @@ Future<String> processSetup() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\SetupVcc.cs',
   ); // Setup Vcc [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupVccResult,
+  );
+  setupVccResult.Status = 'Done';
+  run.record(setupVccResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiScopeForVrefResult,
+  );
   // .NET assembly: Code Modules\bin\Accelerometer.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.SetupNIScopeForVref
   //   semiconductorModuleContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\SetupNIScopeForVref.cs',
   ); // Setup NI-SCOPE for Vref [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiScopeForVrefResult,
+  );
+  setupNiScopeForVrefResult.Status = 'Done';
+  run.record(setupNiScopeForVrefResult.Status);
   if (fileGlobals.TestTemperature == 'Hot') {
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      configureTemperatureControllerResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConfigureTemperatureController
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\ConfigureTemperatureController.cs',
     ); // Configure temperature controller [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      configureTemperatureControllerResult,
+    );
+    configureTemperatureControllerResult.Status = 'Done';
+    run.record(configureTemperatureControllerResult.Status);
   }
 
   return run.status;
@@ -79,6 +627,1189 @@ Future<String> mainSequence() async {
   int vrefDcValue = 0; // Num — default: 0
 
   final run = ts.SequenceRun();
+  dynamic waitForTemperatureControllerToReachDesiredTempResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Wait for temperature controller to reach desired temp
+  dynamic connectVrefPinToDigitalResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Connect Vref pin to digital
+  dynamic testContinuityOnAllPinsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Digital',
+        'MeasurementId': 'Continuity Sinking',
+        'TestNumberExpr': '',
+        'TestNumber': 100,
+        'FailBinExpr': '',
+        'FailBin': 3,
+        'TestNameExpr': '',
+        'TestName': 'Continuity Sinking',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0.5',
+          'LowLimit': 0,
+          'HighLimitExpr': '1.5',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Vcc',
+        'MeasurementId': 'Continuity Sinking',
+        'TestNumberExpr': '',
+        'TestNumber': 110,
+        'FailBinExpr': '',
+        'FailBin': 3,
+        'TestNameExpr': '',
+        'TestName': 'Continuity Sinking - Vcc',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0.5',
+          'LowLimit': 0,
+          'HighLimitExpr': '1.5',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Gnd',
+        'MeasurementId': 'Continuity Sinking',
+        'TestNumberExpr': '',
+        'TestNumber': 111,
+        'FailBinExpr': '',
+        'FailBin': 3,
+        'TestNameExpr': '',
+        'TestName': 'Continuity Sinking - Gnd',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0.5',
+          'LowLimit': 0,
+          'HighLimitExpr': '1.5',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Digital',
+        'MeasurementId': 'Continuity Sourcing',
+        'TestNumberExpr': '',
+        'TestNumber': 120,
+        'FailBinExpr': '',
+        'FailBin': 3,
+        'TestNameExpr': '',
+        'TestName': 'Continuity Sourcing',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0.5',
+          'LowLimit': 0,
+          'HighLimitExpr': '1.5',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Vcc',
+        'MeasurementId': 'Continuity Sourcing',
+        'TestNumberExpr': '',
+        'TestNumber': 130,
+        'FailBinExpr': '',
+        'FailBin': 3,
+        'TestNameExpr': '',
+        'TestName': 'Continuity Sourcing - Vcc',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0.5',
+          'LowLimit': 0,
+          'HighLimitExpr': '1.5',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Gnd',
+        'MeasurementId': 'Continuity Sourcing',
+        'TestNumberExpr': '',
+        'TestNumber': 131,
+        'FailBinExpr': '',
+        'FailBin': 3,
+        'TestNameExpr': '',
+        'TestName': 'Continuity Sourcing - Gnd',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0.5',
+          'LowLimit': 0,
+          'HighLimitExpr': '1.5',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Test continuity on all pins
+  dynamic turnOnPowerToDutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Turn on power to DUT
+  dynamic testLeakageOnAllDigitalPinsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Digital',
+        'MeasurementId': 'Leakage Low',
+        'TestNumberExpr': '',
+        'TestNumber': 200,
+        'FailBinExpr': '',
+        'FailBin': 4,
+        'TestNameExpr': '',
+        'TestName': 'Leakage Low',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '-0.5',
+          'LowLimit': 0,
+          'HighLimitExpr': '1',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'Amps',
+          'LowLimitScalingExponent': -6,
+          'HighLimitScalingExponent': -6,
+          'DataScalingExponent': -6,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Digital',
+        'MeasurementId': 'Leakage High',
+        'TestNumberExpr': '',
+        'TestNumber': 210,
+        'FailBinExpr': '',
+        'FailBin': 4,
+        'TestNameExpr': '',
+        'TestName': 'Leakage High',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '-0.5',
+          'LowLimit': 0,
+          'HighLimitExpr': '1',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'Amps',
+          'LowLimitScalingExponent': -6,
+          'HighLimitScalingExponent': -6,
+          'DataScalingExponent': -6,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Test leakage on all digital pins
+  dynamic testIdlePowerConsumptionResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Vcc',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 300,
+        'FailBinExpr': '',
+        'FailBin': 5,
+        'TestNameExpr': '',
+        'TestName': 'Idle Power Consumption',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '1.85',
+          'LowLimit': 0,
+          'HighLimitExpr': '2.05',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'Amps',
+          'LowLimitScalingExponent': -6,
+          'HighLimitScalingExponent': -6,
+          'DataScalingExponent': -6,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Gnd',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 301,
+        'FailBinExpr': '',
+        'FailBin': 5,
+        'TestNameExpr': '',
+        'TestName': 'Idle Power Consumption',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '1.85',
+          'LowLimit': 0,
+          'HighLimitExpr': '2.05',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'Amps',
+          'LowLimitScalingExponent': -6,
+          'HighLimitScalingExponent': -6,
+          'DataScalingExponent': -6,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Test idle power consumption
+  dynamic resetDutAndSetModePinResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Reset DUT and set MODE pin
+  dynamic putDutIntoTestModeAndVerifyResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 1,
+        'Pin': '',
+        'MeasurementId': 'TestModeVerified',
+        'TestNumberExpr': '',
+        'TestNumber': 500,
+        'FailBinExpr': '',
+        'FailBin': 6,
+        'TestNameExpr': '',
+        'TestName': 'Test Mode Verify',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Put DUT into test mode and verify
+  dynamic testDutPartNumberRegisterResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 1,
+        'Pin': '',
+        'MeasurementId': 'Part Number Match',
+        'TestNumberExpr': '',
+        'TestNumber': 510,
+        'FailBinExpr': '',
+        'FailBin': 7,
+        'TestNameExpr': '',
+        'TestName': 'Verify Part Number',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Test DUT part number register
+  dynamic testDutPartNumberRegisterAtDifferentVccValuesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 1,
+        'Pin': '',
+        'MeasurementId': 'Part Number Match:DC.Vcc_Max',
+        'TestNumberExpr': '',
+        'TestNumber': 512,
+        'FailBinExpr': '',
+        'FailBin': 10,
+        'TestNameExpr': '',
+        'TestName': 'Verify Part Number - Max Vcc',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 1,
+        'Pin': '',
+        'MeasurementId': 'Part Number Match:DC.Vcc_Min',
+        'TestNumberExpr': '',
+        'TestNumber': 514,
+        'FailBinExpr': '',
+        'FailBin': 10,
+        'TestNameExpr': '',
+        'TestName': 'Verify Part Number - Min Vcc',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Test DUT part number register at different Vcc values
+  dynamic resetVccToVccTypicalResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Reset Vcc to Vcc_Typical
+  dynamic connectVrefPinToScopeResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Connect Vref pin to scope
+  dynamic measureAndVerifyVrefVoltageLevelResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Vref_OScope',
+        'MeasurementId': 'DCValue',
+        'TestNumberExpr': '',
+        'TestNumber': 600,
+        'FailBinExpr': '',
+        'FailBin': 8,
+        'TestNameExpr': '',
+        'TestName': 'Vref DC Value',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': 'Locals.VrefDCValue',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '1.95',
+          'LowLimit': 0,
+          'HighLimitExpr': '2.05',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Vref_OScope',
+        'MeasurementId': 'Min',
+        'TestNumberExpr': '',
+        'TestNumber': 602,
+        'FailBinExpr': '',
+        'FailBin': 8,
+        'TestNameExpr': '',
+        'TestName': 'Vref Min',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '1.85',
+          'LowLimit': 0,
+          'HighLimitExpr': 'INF',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Vref_OScope',
+        'MeasurementId': 'Max',
+        'TestNumberExpr': '',
+        'TestNumber': 604,
+        'FailBinExpr': '',
+        'FailBin': 8,
+        'TestNameExpr': '',
+        'TestName': 'Vref Max',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '-INF ',
+          'LowLimit': 0,
+          'HighLimitExpr': '2.15',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Measure and verify Vref voltage level
+  dynamic setVrefCalibrationRegisterResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 1,
+        'Pin': '',
+        'MeasurementId': 'Trim Verify',
+        'TestNumberExpr': '',
+        'TestNumber': 550,
+        'FailBinExpr': '',
+        'FailBin': 8,
+        'TestNameExpr': '',
+        'TestName': 'Verify Trim Write',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Set Vref calibration register
+  dynamic disableInstrumentOutputsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Disable instrument outputs
 
   body:
   try {
@@ -86,15 +1817,92 @@ Future<String> mainSequence() async {
     // description: Place any test flow agnostic setup steps here, to run before the test flow, for each unit under test.
     // label: Test Flow Agnostic Setup Steps
     if (fileGlobals.TestTemperature == 'Hot') {
+      await ts.stepHost.runStepType(
+        'NI_SemiconductorModule_Action',
+        ts.StepPhase.pre,
+        ts.PropObj({
+          'SemiconductorModuleContext': null,
+          'Multisite': ts.PropObj({
+            'SynchronizationOption': 1,
+            'SpecifyPinsAndRelaysOption': 0,
+            'PinsAndRelaysExpression': '',
+            'DUTPinFilterOption': 0,
+            'IncludedDUTPins': <dynamic>[],
+            'ExcludedDUTPins': <dynamic>[],
+            'IncludeSystemPins': false,
+            'IncludedPinGroups': <dynamic>[],
+            'SpecifySiteRelays': true,
+            'IncludedSiteRelays': <dynamic>[],
+            'IncludedRelayGroups': <dynamic>[],
+            'IncludedRelayConfigurations': <dynamic>[],
+            'IncludeSystemRelays': false,
+          }),
+          'DotNetRuntimeData': null,
+          'PerSiteInputs': <dynamic>[],
+        }),
+        waitForTemperatureControllerToReachDesiredTempResult,
+      );
       // .NET assembly: Code Modules\bin\Accelerometer.dll
       // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.WaitForTemperature
       //   semiconductorModuleContext <- Step.SemiconductorModuleContext
       throw UnimplementedError(
         'dotNet call: Code Modules\\TestSteps\\WaitForTemperature.cs',
       ); // Wait for temperature controller to reach desired temp [NI_SemiconductorModule_Action]
+      await ts.stepHost.runStepType(
+        'NI_SemiconductorModule_Action',
+        ts.StepPhase.post,
+        ts.PropObj({
+          'SemiconductorModuleContext': null,
+          'Multisite': ts.PropObj({
+            'SynchronizationOption': 1,
+            'SpecifyPinsAndRelaysOption': 0,
+            'PinsAndRelaysExpression': '',
+            'DUTPinFilterOption': 0,
+            'IncludedDUTPins': <dynamic>[],
+            'ExcludedDUTPins': <dynamic>[],
+            'IncludeSystemPins': false,
+            'IncludedPinGroups': <dynamic>[],
+            'SpecifySiteRelays': true,
+            'IncludedSiteRelays': <dynamic>[],
+            'IncludedRelayGroups': <dynamic>[],
+            'IncludedRelayConfigurations': <dynamic>[],
+            'IncludeSystemRelays': false,
+          }),
+          'DotNetRuntimeData': null,
+          'PerSiteInputs': <dynamic>[],
+        }),
+        waitForTemperatureControllerToReachDesiredTempResult,
+      );
+      waitForTemperatureControllerToReachDesiredTempResult.Status = 'Done';
+      run.record(waitForTemperatureControllerToReachDesiredTempResult.Status);
     }
 
     // ── main ──
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': true,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>['Connect VRef to DIO'],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectVrefPinToDigitalResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConnectVRefPin
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -102,6 +1910,66 @@ Future<String> mainSequence() async {
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\ConnectVRefPin.cs',
     ); // Connect Vref pin to digital [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': true,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>['Connect VRef to DIO'],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectVrefPinToDigitalResult,
+    );
+    connectVrefPinToDigitalResult.Status = 'Done';
+    run.record(connectVrefPinToDigitalResult.Status);
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['Gnd', 'Vcc'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>['Digital'],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      testContinuityOnAllPinsResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestContinuity
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -109,6 +1977,66 @@ Future<String> mainSequence() async {
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\TestContinuity.cs',
     ); // Test continuity on all pins [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['Gnd', 'Vcc'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>['Digital'],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      testContinuityOnAllPinsResult,
+    );
+    testContinuityOnAllPinsResult.Status = 'Done';
+    run.record(testContinuityOnAllPinsResult.Status);
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['Vcc'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      turnOnPowerToDutResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TurnOnPowerToDUT
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -116,6 +2044,66 @@ Future<String> mainSequence() async {
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\TurnOnPowerToDUT.cs',
     ); // Turn on power to DUT [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['Vcc'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      turnOnPowerToDutResult,
+    );
+    turnOnPowerToDutResult.Status = 'Done';
+    run.record(turnOnPowerToDutResult.Status);
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>['Digital'],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      testLeakageOnAllDigitalPinsResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestLeakage
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -123,6 +2111,74 @@ Future<String> mainSequence() async {
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\TestLeakage.cs',
     ); // Test leakage on all digital pins [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>['Digital'],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      testLeakageOnAllDigitalPinsResult,
+    );
+    testLeakageOnAllDigitalPinsResult.Status = 'Done';
+    run.record(testLeakageOnAllDigitalPinsResult.Status);
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['Gnd', 'Vcc'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      testIdlePowerConsumptionResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestIdlePowerConsumption
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -131,6 +2187,66 @@ Future<String> mainSequence() async {
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\TestIdlePowerConsumption.cs',
     ); // Test idle power consumption [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['Gnd', 'Vcc'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      testIdlePowerConsumptionResult,
+    );
+    testIdlePowerConsumptionResult.Status = 'Done';
+    run.record(testIdlePowerConsumptionResult.Status);
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['MODE', 'RST'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      resetDutAndSetModePinResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetDUTAndSetMode
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -139,6 +2255,66 @@ Future<String> mainSequence() async {
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\ResetDUTAndSetMode.cs',
     ); // Reset DUT and set MODE pin [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['MODE', 'RST'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      resetDutAndSetModePinResult,
+    );
+    resetDutAndSetModePinResult.Status = 'Done';
+    run.record(resetDutAndSetModePinResult.Status);
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>['SPI_Port'],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 0,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      putDutIntoTestModeAndVerifyResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.BurstPattern
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -148,6 +2324,74 @@ Future<String> mainSequence() async {
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\BurstPattern.cs',
     ); // Put DUT into test mode and verify [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>['SPI_Port'],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 0,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      putDutIntoTestModeAndVerifyResult,
+    );
+    putDutIntoTestModeAndVerifyResult.Status = 'Done';
+    run.record(putDutIntoTestModeAndVerifyResult.Status);
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>['SPI_Port'],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 0,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      testDutPartNumberRegisterResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.BurstPattern
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -157,9 +2401,77 @@ Future<String> mainSequence() async {
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\BurstPattern.cs',
     ); // Test DUT part number register [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>['SPI_Port'],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 0,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      testDutPartNumberRegisterResult,
+    );
+    testDutPartNumberRegisterResult.Status = 'Done';
+    run.record(testDutPartNumberRegisterResult.Status);
     if (fileGlobals.TestFlowId == 'Quality') {
       // description: Place any test specific steps here to run for each unit under test.
       // label: Test Flow Specific Steps
+      await ts.stepHost.runStepType(
+        'NI_SemiconductorModule_MultiTest',
+        ts.StepPhase.pre,
+        ts.PropObj({
+          'SemiconductorModuleContext': null,
+          'Multisite': ts.PropObj({
+            'SynchronizationOption': 2,
+            'SpecifyPinsAndRelaysOption': 0,
+            'PinsAndRelaysExpression': '',
+            'DUTPinFilterOption': 1,
+            'IncludedDUTPins': <dynamic>['Vcc'],
+            'ExcludedDUTPins': <dynamic>[],
+            'IncludeSystemPins': false,
+            'IncludedPinGroups': <dynamic>['SPI_Port'],
+            'SpecifySiteRelays': true,
+            'IncludedSiteRelays': <dynamic>[],
+            'IncludedRelayGroups': <dynamic>[],
+            'IncludedRelayConfigurations': <dynamic>[],
+            'IncludeSystemRelays': false,
+          }),
+          'TestSettings': ts.PropObj({
+            'OfflineModeMeasurementDataOption': 0,
+            'EnableAutoTestNumberGeneration': false,
+            'BaseTestNumber': 1,
+            'TestNumberIncrementPerTestIndex': 1,
+            'TestNumberIncrementPerLoopIteration': 1,
+          }),
+          'DotNetRuntimeData': null,
+          'EvaluationFailureOption': 0,
+          'PerSiteInputs': <dynamic>[],
+        }),
+        testDutPartNumberRegisterAtDifferentVccValuesResult,
+      );
       // .NET assembly: Code Modules\bin\Accelerometer.dll
       // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.CheckPartNumberRegisterWithMultipleVccValues
       //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -169,6 +2481,66 @@ Future<String> mainSequence() async {
       throw UnimplementedError(
         'dotNet call: Code Modules\\TestSteps\\CheckPartNumberRegisterWithMultipleVccValues.cs',
       ); // Test DUT part number register at different Vcc values [NI_SemiconductorModule_MultiTest]
+      await ts.stepHost.runStepType(
+        'NI_SemiconductorModule_MultiTest',
+        ts.StepPhase.post,
+        ts.PropObj({
+          'SemiconductorModuleContext': null,
+          'Multisite': ts.PropObj({
+            'SynchronizationOption': 2,
+            'SpecifyPinsAndRelaysOption': 0,
+            'PinsAndRelaysExpression': '',
+            'DUTPinFilterOption': 1,
+            'IncludedDUTPins': <dynamic>['Vcc'],
+            'ExcludedDUTPins': <dynamic>[],
+            'IncludeSystemPins': false,
+            'IncludedPinGroups': <dynamic>['SPI_Port'],
+            'SpecifySiteRelays': true,
+            'IncludedSiteRelays': <dynamic>[],
+            'IncludedRelayGroups': <dynamic>[],
+            'IncludedRelayConfigurations': <dynamic>[],
+            'IncludeSystemRelays': false,
+          }),
+          'TestSettings': ts.PropObj({
+            'OfflineModeMeasurementDataOption': 0,
+            'EnableAutoTestNumberGeneration': false,
+            'BaseTestNumber': 1,
+            'TestNumberIncrementPerTestIndex': 1,
+            'TestNumberIncrementPerLoopIteration': 1,
+          }),
+          'DotNetRuntimeData': null,
+          'EvaluationFailureOption': 0,
+          'PerSiteInputs': <dynamic>[],
+        }),
+        testDutPartNumberRegisterAtDifferentVccValuesResult,
+      );
+      testDutPartNumberRegisterAtDifferentVccValuesResult.Status = 'Done';
+      run.record(testDutPartNumberRegisterAtDifferentVccValuesResult.Status);
+      await ts.stepHost.runStepType(
+        'NI_SemiconductorModule_Action',
+        ts.StepPhase.pre,
+        ts.PropObj({
+          'SemiconductorModuleContext': null,
+          'Multisite': ts.PropObj({
+            'SynchronizationOption': 2,
+            'SpecifyPinsAndRelaysOption': 0,
+            'PinsAndRelaysExpression': '',
+            'DUTPinFilterOption': 1,
+            'IncludedDUTPins': <dynamic>['Vcc'],
+            'ExcludedDUTPins': <dynamic>[],
+            'IncludeSystemPins': false,
+            'IncludedPinGroups': <dynamic>[],
+            'SpecifySiteRelays': true,
+            'IncludedSiteRelays': <dynamic>[],
+            'IncludedRelayGroups': <dynamic>[],
+            'IncludedRelayConfigurations': <dynamic>[],
+            'IncludeSystemRelays': false,
+          }),
+          'DotNetRuntimeData': null,
+          'PerSiteInputs': <dynamic>[],
+        }),
+        resetVccToVccTypicalResult,
+      );
       // .NET assembly: Code Modules\bin\Accelerometer.dll
       // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetPowerSupplyToVccTypical
       //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -176,7 +2548,59 @@ Future<String> mainSequence() async {
       throw UnimplementedError(
         'dotNet call: Code Modules\\TestSteps\\ResetPowerSupplyToVccTypical.cs',
       ); // Reset Vcc to Vcc_Typical [NI_SemiconductorModule_Action]
+      await ts.stepHost.runStepType(
+        'NI_SemiconductorModule_Action',
+        ts.StepPhase.post,
+        ts.PropObj({
+          'SemiconductorModuleContext': null,
+          'Multisite': ts.PropObj({
+            'SynchronizationOption': 2,
+            'SpecifyPinsAndRelaysOption': 0,
+            'PinsAndRelaysExpression': '',
+            'DUTPinFilterOption': 1,
+            'IncludedDUTPins': <dynamic>['Vcc'],
+            'ExcludedDUTPins': <dynamic>[],
+            'IncludeSystemPins': false,
+            'IncludedPinGroups': <dynamic>[],
+            'SpecifySiteRelays': true,
+            'IncludedSiteRelays': <dynamic>[],
+            'IncludedRelayGroups': <dynamic>[],
+            'IncludedRelayConfigurations': <dynamic>[],
+            'IncludeSystemRelays': false,
+          }),
+          'DotNetRuntimeData': null,
+          'PerSiteInputs': <dynamic>[],
+        }),
+        resetVccToVccTypicalResult,
+      );
+      resetVccToVccTypicalResult.Status = 'Done';
+      run.record(resetVccToVccTypicalResult.Status);
     }
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': true,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>['Connect VRef to Scope'],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectVrefPinToScopeResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConnectVRefPin
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -184,13 +2608,147 @@ Future<String> mainSequence() async {
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\ConnectVRefPin.cs',
     ); // Connect Vref pin to scope [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': true,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>['Connect VRef to Scope'],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectVrefPinToScopeResult,
+    );
+    connectVrefPinToScopeResult.Status = 'Done';
+    run.record(connectVrefPinToScopeResult.Status);
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['Vcc', 'Vref_OScope'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>['SPI_Port'],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      measureAndVerifyVrefVoltageLevelResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.MeasureVref
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\MeasureVref.cs',
     ); // Measure and verify Vref voltage level [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['Vcc', 'Vref_OScope'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>['SPI_Port'],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      measureAndVerifyVrefVoltageLevelResult,
+    );
+    measureAndVerifyVrefVoltageLevelResult.Status = 'Done';
+    run.record(measureAndVerifyVrefVoltageLevelResult.Status);
     // Trim each DUT using Vref from previous measurement
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>['SPI_Port'],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 0,
+        'PerSiteInputs': <dynamic>[
+          ts.PropObj({
+            'Pin': '',
+            'DataId': 'Vref Value',
+            'DataExpr': 'Locals.VrefDCValue',
+          }),
+        ],
+      }),
+      setVrefCalibrationRegisterResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TrimVrefValue
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -198,16 +2756,109 @@ Future<String> mainSequence() async {
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\TrimVrefValue.cs',
     ); // Set Vref calibration register [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>['SPI_Port'],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 0,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 0,
+        'PerSiteInputs': <dynamic>[
+          ts.PropObj({
+            'Pin': '',
+            'DataId': 'Vref Value',
+            'DataExpr': 'Locals.VrefDCValue',
+          }),
+        ],
+      }),
+      setVrefCalibrationRegisterResult,
+    );
+    setVrefCalibrationRegisterResult.Status = 'Done';
+    run.record(setVrefCalibrationRegisterResult.Status);
   } finally {
     // ── cleanup ──
     // description: Place any test flow agnostic setup steps here, to run after each unit, regardless of pass/failure results. |
     // label: Test Flow Agnostic Cleanup Steps
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disableInstrumentOutputsResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.DisableInstrumentOutputs
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\DisableInstrumentOutputs.cs',
     ); // Disable instrument outputs [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disableInstrumentOutputsResult,
+    );
+    disableInstrumentOutputsResult.Status = 'Done';
+    run.record(disableInstrumentOutputsResult.Status);
   }
 
   return run.status;
@@ -216,12 +2867,58 @@ Future<String> mainSequence() async {
 /// Sequence `ProcessCleanup` — Runs once at lot end.
 Future<String> processCleanup() async {
   final run = ts.SequenceRun();
+  dynamic powerToggleOffResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Power Toggle (off)
+  dynamic resetAndCloseTemperatureControllerResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Reset and close temperature controller
+  dynamic cleanupInstrumentationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Cleanup Instrumentation
 
   body:
   try {
     // ── main ──
     // description: Place any steps here to run once at the end of a lot.
     // label: Lot End Steps
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      powerToggleOffResult,
+    );
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.PowerToggle
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -229,20 +2926,149 @@ Future<String> processCleanup() async {
     throw UnimplementedError(
       'dotNet call: Code Modules\\TestSteps\\PowerToggle.cs',
     ); // Power Toggle (off) [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      powerToggleOffResult,
+    );
+    powerToggleOffResult.Status = 'Done';
+    run.record(powerToggleOffResult.Status);
     if (fileGlobals.TestTemperature == 'Hot') {
+      await ts.stepHost.runStepType(
+        'NI_SemiconductorModule_Action',
+        ts.StepPhase.pre,
+        ts.PropObj({
+          'SemiconductorModuleContext': null,
+          'Multisite': ts.PropObj({
+            'SynchronizationOption': 2,
+            'SpecifyPinsAndRelaysOption': 0,
+            'PinsAndRelaysExpression': '',
+            'DUTPinFilterOption': 0,
+            'IncludedDUTPins': <dynamic>[],
+            'ExcludedDUTPins': <dynamic>[],
+            'IncludeSystemPins': false,
+            'IncludedPinGroups': <dynamic>[],
+            'SpecifySiteRelays': true,
+            'IncludedSiteRelays': <dynamic>[],
+            'IncludedRelayGroups': <dynamic>[],
+            'IncludedRelayConfigurations': <dynamic>[],
+            'IncludeSystemRelays': false,
+          }),
+          'DotNetRuntimeData': null,
+          'PerSiteInputs': <dynamic>[],
+        }),
+        resetAndCloseTemperatureControllerResult,
+      );
       // .NET assembly: Code Modules\bin\Accelerometer.dll
       // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetAndCloseTemperatureController
       //   semiconductorModuleContext <- Step.SemiconductorModuleContext
       throw UnimplementedError(
         'dotNet call: Code Modules\\TestSteps\\ResetAndCloseTemperatureController.cs',
       ); // Reset and close temperature controller [NI_SemiconductorModule_Action]
+      await ts.stepHost.runStepType(
+        'NI_SemiconductorModule_Action',
+        ts.StepPhase.post,
+        ts.PropObj({
+          'SemiconductorModuleContext': null,
+          'Multisite': ts.PropObj({
+            'SynchronizationOption': 2,
+            'SpecifyPinsAndRelaysOption': 0,
+            'PinsAndRelaysExpression': '',
+            'DUTPinFilterOption': 0,
+            'IncludedDUTPins': <dynamic>[],
+            'ExcludedDUTPins': <dynamic>[],
+            'IncludeSystemPins': false,
+            'IncludedPinGroups': <dynamic>[],
+            'SpecifySiteRelays': true,
+            'IncludedSiteRelays': <dynamic>[],
+            'IncludedRelayGroups': <dynamic>[],
+            'IncludedRelayConfigurations': <dynamic>[],
+            'IncludeSystemRelays': false,
+          }),
+          'DotNetRuntimeData': null,
+          'PerSiteInputs': <dynamic>[],
+        }),
+        resetAndCloseTemperatureControllerResult,
+      );
+      resetAndCloseTemperatureControllerResult.Status = 'Done';
+      run.record(resetAndCloseTemperatureControllerResult.Status);
     }
   } finally {
     // ── cleanup ──
     // Do not delete or move.
-    throw UnimplementedError(
-      'step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet',
-    ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorTest_CleanupInstrumentation',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      cleanupInstrumentationResult,
+    );
+    // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorTest_CleanupInstrumentation',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 0,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      cleanupInstrumentationResult,
+    );
+    cleanupInstrumentationResult.Status = 'Done';
+    run.record(cleanupInstrumentationResult.Status);
   }
 
   return run.status;
@@ -251,20 +3077,92 @@ Future<String> processCleanup() async {
 /// Sequence `SequenceFileLoad`.
 Future<String> sequenceFileLoad() async {
   final run = ts.SequenceRun();
+  dynamic explanationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Explanation
+  dynamic launchReadmeResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ExitCode': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Launch Readme
 
   // popup title: "About This Example"
   // popup message: "This example demonstrates testing an imagined part on up to 4 sites.  |   | Prerequisites | You must have the following software installed if you want to use the example: | - STS Software 24.5.x |   | Review the README file accompanying the sequence file  | for information about how to use this example."
   // popup buttons: "Help" | "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Explanation [MessagePopup]
+  // Explanation [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'About This Example',
+    message:
+        'This example demonstrates testing an imagined part on up to 4 sites. \n \nPrerequisites\nYou must have the following software installed if you want to use the example:\n- STS Software 24.5.x\n \nReview the README file accompanying the sequence file \nfor information about how to use this example.',
+    buttons: ['Help', 'OK', '', '', '', ''],
+  );
+  explanationResult.ButtonHit = popup.buttonHit;
+  explanationResult.Response = popup.response;
+  explanationResult.Status = 'Done';
+  run.record(explanationResult.Status);
   // Launch README.md in notepad on clicking help.
   // runs executable: notepad.exe "README.md" (WAIT_NONE)
   if (runState.PreviousStep.Result.ButtonHit == 1) {
     // precondition of Launch Readme
-    throw UnimplementedError(
-      'step type CallExecutable: action not exported yet',
-    ); // Launch Readme [CallExecutable]
+    // Launch Readme [CallExecutable]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'CallExecutable',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Executable': 'notepad.exe',
+        'ExecutableExpr': '',
+        'SpecifyExeByExpr': false,
+        'ExecutableCalled': '',
+        'Arguments': '"README.md"',
+        'WaitCondition': 'WAIT_NONE',
+        'TimeToWait': 0,
+        'SetErrorCode': false,
+        'InitialWindowState': 'WINSTATE_SHOWNORM_A',
+        'TerminateOnAbort': false,
+        'StoreProcessHandle': false,
+        'ProcessHandleExpr': 'Step.ProcessHandlePtr',
+        'ProcessHandle': 0,
+        'ProcessHandlePtr': null,
+        'ExitCodeStatusAction': 'EXIT_CODE_NO_ACTION',
+        'ExitCodeErrorAction': 'EXIT_CODE_NO_ACTION',
+        'WorkingDir': ts.PropObj({'Source': 2, 'Expr': '', 'IsExpr': false}),
+        'RemoteSettings': ts.PropObj({
+          'Enabled': false,
+          'Host': '""',
+          'HostByExpr': true,
+          'Port': '13540',
+          'Password': '',
+          'PasswordByExpr': false,
+        }),
+        'StdInput': ts.PropObj({'Type': 0, 'Source': '""', 'IsExpr': false}),
+        'StdOutput': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdOutput.Text',
+          'IsExpr': false,
+          'Text': '',
+        }),
+        'StdError': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdError.Text',
+          'IsExpr': false,
+          'Text': '',
+          'Action': 0,
+          'SetErrorMsg': false,
+        }),
+      }),
+      launchReadmeResult,
+    );
+    launchReadmeResult.Status = 'Done';
+    run.record(launchReadmeResult.Status);
+  } else {
+    launchReadmeResult.Status = 'Skipped';
   }
 
   return run.status;
@@ -290,11 +3188,12 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_SemiconductorModule_GetTestSettings: action not exported yet
-  //   step type NI_SemiconductorTest_SetupNIDCPowerInstrumentation: action not exported yet
-  //   step type NI_SemiconductorTest_SetupNIDigitalPatternInstrumentation: action not exported yet
-  //   step type NI_SemiconductorTest_SetupNIRelayModules: action not exported yet
-  //   step type NI_SemiconductorTest_SetupNIScopeInstrumentation: action not exported yet
+  //   step type NI_SemiconductorModule_GetTestSettings acts through ts.stepHost
+  //   step type NI_SemiconductorTest_SetupNIDCPowerInstrumentation acts through ts.stepHost
+  //   step type NI_SemiconductorTest_SetupNIDigitalPatternInstrumentation acts through ts.stepHost
+  //   step type NI_SemiconductorTest_SetupNIRelayModules acts through ts.stepHost
+  //   step type NI_SemiconductorTest_SetupNIScopeInstrumentation acts through ts.stepHost
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions
   //   dotNet call: Code Modules\TestSteps\PowerToggle.cs
   //   dotNet call: Code Modules\TestSteps\SetupVcc.cs
@@ -304,8 +3203,10 @@ void register() {
     lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: Code Modules\TestSteps\WaitForTemperature.cs
   //   dotNet call: Code Modules\TestSteps\ConnectVRefPin.cs
+  //   step type NI_SemiconductorModule_MultiTest acts through ts.stepHost
   //   dotNet call: Code Modules\TestSteps\TestContinuity.cs
   //   dotNet call: Code Modules\TestSteps\TurnOnPowerToDUT.cs
   //   dotNet call: Code Modules\TestSteps\TestLeakage.cs
@@ -321,16 +3222,17 @@ void register() {
     lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: Code Modules\TestSteps\PowerToggle.cs
   //   dotNet call: Code Modules\TestSteps\ResetAndCloseTemperatureController.cs
-  //   step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet
+  //   step type NI_SemiconductorTest_CleanupInstrumentation acts through ts.stepHost
   lw.skipTest('ProcessCleanup', () async {
     lw.expect(await processCleanup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   RunState engine access (no engine at run time)
-  //   step type CallExecutable: action not exported yet
+  //   step type CallExecutable acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });

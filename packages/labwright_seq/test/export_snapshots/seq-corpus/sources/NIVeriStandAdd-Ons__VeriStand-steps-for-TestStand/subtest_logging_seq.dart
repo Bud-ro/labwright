@@ -16,32 +16,169 @@ Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
 
   final run = ts.SequenceRun();
+  dynamic initializeVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'VeristandError': null,
+    'Veristand': ts.PropObj({'Project': ''}),
+  }); // result of Initialize VeriStand
+  dynamic startVsLoggingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Start VS Logging
+  dynamic setMultipleChannelValuesResult = ts.PropObj({
+    'VeriStandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'Timeout': false,
+      'ChannelNames': <dynamic>[],
+      'ChannelValues': <dynamic>[],
+    }),
+  }); // result of Set Multiple Channel Values
+  dynamic rtSequenceActionResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Path': '', 'Returnval': 0}),
+  }); // result of RT Sequence Action
+  dynamic stopVsLoggingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Location': <dynamic>[]}),
+  }); // result of Stop VS Logging
+  dynamic stopVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'VeristandError': null,
+  }); // result of Stop VeriStand
 
   body:
   try {
     // ── setup ──
-    throw UnimplementedError(
-      'step type InitializeVeriStand: action not exported yet',
-    ); // Initialize VeriStand [InitializeVeriStand]
+    await ts.stepHost.runStepType(
+      'InitializeVeriStand',
+      ts.StepPhase.pre,
+      ts.PropObj(),
+      initializeVeriStandResult,
+    );
+    // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'InitializeVeriStand',
+      ts.StepPhase.post,
+      ts.PropObj(),
+      initializeVeriStandResult,
+    );
+    initializeVeriStandResult.Status = 'Done';
+    run.record(initializeVeriStandResult.Status);
 
     // ── main ──
-    throw UnimplementedError(
-      'step type StartLogging: action not exported yet',
-    ); // Start VS Logging [StartLogging]
-    throw UnimplementedError(
-      'step type SetMultipleChannelValues: action not exported yet',
-    ); // Set Multiple Channel Values [SetMultipleChannelValues]
-    throw UnimplementedError(
-      'step type RunRTSequenceAction: action not exported yet',
-    ); // RT Sequence Action [RunRTSequenceAction]
-    throw UnimplementedError(
-      'step type StopLogging: action not exported yet',
-    ); // Stop VS Logging [StopLogging]
+    // Start VS Logging [StartLogging]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'StartLogging',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'LogFilePath': '"K:\\Logs"',
+          'BaseNodeArray': null,
+          'ChannelPaths': <dynamic>[
+            'Aliases/DesiredRPM',
+            'Aliases/Engine Calculations/RPM Velocity',
+            'Aliases/Engine Calculations/RPM Offset',
+            'Aliases/Engine Calculations/RPM Valley',
+            'Aliases/Engine Safety Limits/Engine Temperature Alert',
+            'Aliases/Engine Safety Limits/Engine Temperature Warning',
+            'Aliases/EnginePower',
+          ],
+          'FileDescription': '',
+          'FileSegmenting': false,
+          'FileSegmentingSize': 0,
+          'FilePropertyNames': <dynamic>[],
+          'FilePropertyValues': <dynamic>[],
+        }),
+      }),
+      startVsLoggingResult,
+    );
+    startVsLoggingResult.Status = 'Done';
+    run.record(startVsLoggingResult.Status);
+    // Set Multiple Channel Values [SetMultipleChannelValues]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'SetMultipleChannelValues',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'VeriStand': ts.PropObj({
+          'Timeout_ms': -1,
+          'BaseNodeArray': null,
+          'ValuesToSet': <dynamic>['0', '0', '0', '0', '0', '0', '0'],
+          'ChannelNames': <dynamic>[
+            'Aliases/DesiredRPM',
+            'Aliases/Engine Calculations/RPM Velocity',
+            'Aliases/Engine Calculations/RPM Offset',
+            'Aliases/Engine Calculations/RPM Valley',
+            'Aliases/Engine Safety Limits/Engine Temperature Alert',
+            'Aliases/Engine Safety Limits/Engine Temperature Warning',
+            'Aliases/EnginePower',
+          ],
+        }),
+      }),
+      setMultipleChannelValuesResult,
+    );
+    setMultipleChannelValuesResult.Status = 'Done';
+    run.record(setMultipleChannelValuesResult.Status);
+    // RT Sequence Action [RunRTSequenceAction]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'RunRTSequenceAction',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'SeqTimeout': -1,
+          'Target': '',
+          'Timeout': 10000,
+          'SequenceFilePath':
+              '"K:\\\\Base Test Files\\\\VeriStand Project\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
+          'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+          'ParamTypesArray': '{"Path","Path"}',
+          'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+        }),
+      }),
+      rtSequenceActionResult,
+    );
+    rtSequenceActionResult.Status = 'Done';
+    run.record(rtSequenceActionResult.Status);
+    // Stop VS Logging [StopLogging]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'StopLogging',
+      ts.StepPhase.post,
+      ts.PropObj(),
+      stopVsLoggingResult,
+    );
+    stopVsLoggingResult.Status = 'Done';
+    run.record(stopVsLoggingResult.Status);
   } finally {
     // ── cleanup ──
-    throw UnimplementedError(
-      'step type StopVeriStand: action not exported yet',
-    ); // Stop VeriStand [StopVeriStand]
+    // Stop VeriStand [StopVeriStand]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'StopVeriStand',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({'CloseApp': false, 'ShowProgress': false}),
+      }),
+      stopVeriStandResult,
+    );
+    stopVeriStandResult.Status = 'Done';
+    run.record(stopVeriStandResult.Status);
   }
 
   return run.status;
@@ -85,12 +222,12 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type InitializeVeriStand: action not exported yet
-  //   step type StartLogging: action not exported yet
-  //   step type SetMultipleChannelValues: action not exported yet
-  //   step type RunRTSequenceAction: action not exported yet
-  //   step type StopLogging: action not exported yet
-  //   step type StopVeriStand: action not exported yet
+  //   step type InitializeVeriStand acts through ts.stepHost
+  //   step type StartLogging acts through ts.stepHost
+  //   step type SetMultipleChannelValues acts through ts.stepHost
+  //   step type RunRTSequenceAction acts through ts.stepHost
+  //   step type StopLogging acts through ts.stepHost
+  //   step type StopVeriStand acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

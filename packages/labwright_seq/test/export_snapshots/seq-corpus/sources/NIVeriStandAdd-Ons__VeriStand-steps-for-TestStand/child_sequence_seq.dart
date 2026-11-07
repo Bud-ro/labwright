@@ -14,18 +14,64 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence({String gatewayIp = ''}) async {
   final run = ts.SequenceRun();
+  dynamic openReferencesResult = ts.PropObj({
+    'GatewayIP': '',
+    'ProjectPath': '',
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Open References
+  dynamic rtSequenceActionResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Path': '', 'Returnval': 0}),
+  }); // result of RT Sequence Action
 
   // ── setup ──
   fileGlobals.Veristand.GatewayIP =
       gatewayIp; // Assign GatewayIP from Calling Sequence
-  throw UnimplementedError(
-    'step type OpenReferences: action not exported yet',
-  ); // Open References [OpenReferences]
+  await ts.stepHost.runStepType(
+    'OpenReferences',
+    ts.StepPhase.pre,
+    ts.PropObj(),
+    openReferencesResult,
+  );
+  // Open References [OpenReferences]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'OpenReferences',
+    ts.StepPhase.post,
+    ts.PropObj(),
+    openReferencesResult,
+  );
+  openReferencesResult.Status = 'Done';
+  run.record(openReferencesResult.Status);
 
   // ── main ──
-  throw UnimplementedError(
-    'step type RunRTSequenceAction: action not exported yet',
-  ); // RT Sequence Action [RunRTSequenceAction]
+  // RT Sequence Action [RunRTSequenceAction]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequenceAction',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'SeqTimeout': -1,
+        'Target': '',
+        'Timeout': 10000,
+        'SequenceFilePath':
+            '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\Engine Demo Basic with Numeric Return Value.nivsseq"',
+        'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+        'ParamTypesArray': '{"Path","Path"}',
+        'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+      }),
+    }),
+    rtSequenceActionResult,
+  );
+  rtSequenceActionResult.Status = 'Done';
+  run.record(rtSequenceActionResult.Status);
 
   return run.status;
 }
@@ -62,8 +108,8 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type OpenReferences: action not exported yet
-  //   step type RunRTSequenceAction: action not exported yet
+  //   step type OpenReferences acts through ts.stepHost
+  //   step type RunRTSequenceAction acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

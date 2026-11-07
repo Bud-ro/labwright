@@ -14,23 +14,142 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic setChannelFaultValueResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'FaultValue': 0,
+      'Description': '',
+      'Channel': '',
+    }),
+  }); // result of Set Channel Fault Value
+  dynamic getChannelValueResult = ts.PropObj({
+    'Units': '',
+    'Numeric': 0,
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'ChannelUnit': '',
+      'ChannelName': '',
+      'ChannelInfo': null,
+      'Description': '',
+    }),
+  }); // result of Get Channel Value
+  dynamic setChannelValueResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'Unit': '',
+      'ValueToSet': 0,
+      'ChannelName': '',
+      'Timeout': false,
+    }),
+  }); // result of Set Channel Value
+  dynamic getChannelValueResult2 = ts.PropObj({
+    'Units': '',
+    'Numeric': 0,
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'ChannelUnit': '',
+      'ChannelName': '',
+      'ChannelInfo': null,
+      'Description': '',
+    }),
+  }); // result of Get Channel Value
+  dynamic clearFaultResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Description': '', 'Channel': ''}),
+  }); // result of Clear Fault
 
-  throw UnimplementedError(
-    'step type SetChannelFaultValue: action not exported yet',
-  ); // Set Channel Fault Value [SetChannelFaultValue]
+  // Set Channel Fault Value [SetChannelFaultValue]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'SetChannelFaultValue',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'ValueToSet': '0',
+        'ChannelName': '"Aliases/EnginePower"',
+      }),
+    }),
+    setChannelFaultValueResult,
+  );
+  setChannelFaultValueResult.Status = 'Done';
+  run.record(setChannelFaultValueResult.Status);
   await Future<void>.delayed(const Duration(seconds: 4));
-  throw UnimplementedError(
-    'step type GetChannelValue: action not exported yet',
-  ); // Get Channel Value [GetChannelValue]
-  throw UnimplementedError(
-    'step type SetChannelValue: action not exported yet',
-  ); // Set Channel Value [SetChannelValue]
-  throw UnimplementedError(
-    'step type GetChannelValue: action not exported yet',
-  ); // Get Channel Value [GetChannelValue]
-  throw UnimplementedError(
-    'step type ClearFault: action not exported yet',
-  ); // Clear Fault [ClearFault]
+  // Get Channel Value [GetChannelValue]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'GetChannelValue',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'ValueToSet': '0',
+        'ChannelName': '"Aliases/EnginePower"',
+      }),
+    }),
+    getChannelValueResult,
+  );
+  getChannelValueResult.Status = 'Done';
+  run.record(getChannelValueResult.Status);
+  // Set Channel Value [SetChannelValue]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'SetChannelValue',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'ValueToSet': '1',
+        'ChannelName': '"Aliases/EnginePower"',
+        'Timeout_ms': 10000,
+      }),
+    }),
+    setChannelValueResult,
+  );
+  setChannelValueResult.Status = 'Done';
+  run.record(setChannelValueResult.Status);
+  // Get Channel Value [GetChannelValue]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'GetChannelValue',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'ValueToSet': '0',
+        'ChannelName': '"Aliases/EnginePower"',
+      }),
+    }),
+    getChannelValueResult2,
+  );
+  getChannelValueResult2.Status = 'Done';
+  run.record(getChannelValueResult2.Status);
+  // Clear Fault [ClearFault]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'ClearFault',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'ValueToSet': '0',
+        'ChannelName': '"Aliases/EnginePower"',
+      }),
+    }),
+    clearFaultResult,
+  );
+  clearFaultResult.Status = 'Done';
+  run.record(clearFaultResult.Status);
 
   return run.status;
 }
@@ -54,10 +173,10 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type SetChannelFaultValue: action not exported yet
-  //   step type GetChannelValue: action not exported yet
-  //   step type SetChannelValue: action not exported yet
-  //   step type ClearFault: action not exported yet
+  //   step type SetChannelFaultValue acts through ts.stepHost
+  //   step type GetChannelValue acts through ts.stepHost
+  //   step type SetChannelValue acts through ts.stepHost
+  //   step type ClearFault acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

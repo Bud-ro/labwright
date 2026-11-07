@@ -26,6 +26,24 @@ Future<String> mainSequence() async {
   }); // Obj
 
   final run = ts.SequenceRun();
+  dynamic acquireAWaveformUsingAnNiOscilloscopeResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Acquire a waveform using an NI oscilloscope
+  dynamic acquireAWaveformUsingAnNiOscilloscopeResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Acquire a waveform using an NI oscilloscope
+  dynamic acquireAWaveformUsingAnNiOscilloscopeResult3 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Acquire a waveform using an NI oscilloscope
 
   body:
   try {
@@ -52,9 +70,167 @@ Future<String> mainSequence() async {
       // measurement param: actual_phase (Out TypeDouble) = Locals.Results.phase
       // measurement param: Gain (Out TypeDouble)
       // measurement param: Phase (Out TypeDouble)
-      throw UnimplementedError(
-        'step type NI_Measurement: action not exported yet',
-      ); // Acquire a waveform using an NI oscilloscope [NI_Measurement]
+      acquireAWaveformUsingAnNiOscilloscopeResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      // Acquire a waveform using an NI oscilloscope [NI_Measurement]: acts through ts.stepHost
+      await ts.stepHost.runStepType(
+        'NI_Measurement',
+        ts.StepPhase.post,
+        ts.PropObj({
+          'Measurement': ts.PropObj({
+            'Name': 'LabVIEW Bodeplot Summit_LabVIEW',
+            'Parameters': <dynamic>[
+              ts.PropObj({
+                'Name': 'Start Frequency',
+                'ArgumentValue': 'Locals.Frequency',
+                'Direction': 'In',
+                'Log': false,
+                'Dimension': 0,
+                'Type': 'TypeDouble',
+                'ID': 1,
+                'TypeSpecialization': 'None',
+              }),
+              ts.PropObj({
+                'Name': 'Frequency Steps',
+                'ArgumentValue': '1',
+                'Direction': 'In',
+                'Log': false,
+                'Dimension': 0,
+                'Type': 'TypeDouble',
+                'ID': 2,
+                'TypeSpecialization': 'None',
+              }),
+              ts.PropObj({
+                'Name': 'Stop Frequency',
+                'ArgumentValue': 'Locals.Frequency+100',
+                'Direction': 'In',
+                'Log': false,
+                'Dimension': 0,
+                'Type': 'TypeDouble',
+                'ID': 3,
+                'TypeSpecialization': 'None',
+              }),
+              ts.PropObj({
+                'Name': 'Amplitude',
+                'ArgumentValue': '1',
+                'Direction': 'In',
+                'Log': true,
+                'Dimension': 0,
+                'Type': 'TypeDouble',
+                'ID': 4,
+                'TypeSpecialization': 'None',
+              }),
+              ts.PropObj({
+                'Name': 'Timing (ms)',
+                'ArgumentValue': '0ui64',
+                'Direction': 'In',
+                'Log': true,
+                'Dimension': 0,
+                'Type': 'TypeUint32',
+                'ID': 5,
+                'TypeSpecialization': 'None',
+              }),
+              ts.PropObj({
+                'Name': 'Vin_signal',
+                'ArgumentValue': '"Vin_signal"',
+                'Direction': 'In',
+                'Log': true,
+                'Dimension': 0,
+                'Type': 'TypeString',
+                'ID': 6,
+                'TypeSpecialization': 'Pin',
+              }),
+              ts.PropObj({
+                'Name': 'filter_pins',
+                'ArgumentValue': '"Vin_measure"',
+                'Direction': 'In',
+                'Log': true,
+                'Dimension': 0,
+                'Type': 'TypeString',
+                'ID': 7,
+                'TypeSpecialization': 'Pin',
+              }),
+              ts.PropObj({
+                'Name': 'Simulate',
+                'ArgumentValue': 'Locals.Simulate',
+                'Direction': 'In',
+                'Log': false,
+                'Dimension': 0,
+                'Type': 'TypeBool',
+                'ID': 8,
+                'TypeSpecialization': 'None',
+              }),
+              ts.PropObj({
+                'Name': 'R1',
+                'ArgumentValue': '0',
+                'Direction': 'In',
+                'Log': true,
+                'Dimension': 0,
+                'Type': 'TypeDouble',
+                'ID': 9,
+                'TypeSpecialization': 'None',
+              }),
+              ts.PropObj({
+                'Name': 'C1',
+                'ArgumentValue': '0',
+                'Direction': 'In',
+                'Log': true,
+                'Dimension': 0,
+                'Type': 'TypeDouble',
+                'ID': 10,
+                'TypeSpecialization': 'None',
+              }),
+              ts.PropObj({
+                'Name': 'actual_gain',
+                'ArgumentValue': 'Locals.Results.gain',
+                'Direction': 'Out',
+                'Log': true,
+                'Dimension': 0,
+                'Type': 'TypeDouble',
+                'ID': 1,
+                'TypeSpecialization': 'None',
+              }),
+              ts.PropObj({
+                'Name': 'actual_phase',
+                'ArgumentValue': 'Locals.Results.phase',
+                'Direction': 'Out',
+                'Log': true,
+                'Dimension': 0,
+                'Type': 'TypeDouble',
+                'ID': 2,
+                'TypeSpecialization': 'None',
+              }),
+              ts.PropObj({
+                'Name': 'Gain',
+                'ArgumentValue': '',
+                'Direction': 'Out',
+                'Log': false,
+                'Dimension': 1,
+                'Type': 'TypeDouble',
+                'ID': 3,
+                'TypeSpecialization': 'None',
+              }),
+              ts.PropObj({
+                'Name': 'Phase',
+                'ArgumentValue': '',
+                'Direction': 'Out',
+                'Log': false,
+                'Dimension': 1,
+                'Type': 'TypeDouble',
+                'ID': 4,
+                'TypeSpecialization': 'None',
+              }),
+            ],
+          }),
+        }),
+        acquireAWaveformUsingAnNiOscilloscopeResult,
+      );
+      acquireAWaveformUsingAnNiOscilloscopeResult.Status = 'Done';
+      run.record(acquireAWaveformUsingAnNiOscilloscopeResult.Status);
       // -- Call Python Service
       // [skipped in source] Acquire a waveform using an NI oscilloscope
       // -- Call Python Service: Simulation
@@ -142,7 +318,7 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_Measurement: action not exported yet
+  //   step type NI_Measurement acts through ts.stepHost
   //   untranslated expression in body
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

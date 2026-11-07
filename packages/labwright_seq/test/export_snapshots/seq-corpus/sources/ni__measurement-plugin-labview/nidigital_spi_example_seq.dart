@@ -14,14 +14,32 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic updatePinMapResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update pin map
+  dynamic testSpiDeviceResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Test SPI device
 
   body:
   try {
     // ── setup ──
     // pin map: "PinMap.pinmap"
-    throw UnimplementedError(
-      'step type NI_UpdatePinMap: action not exported yet',
-    ); // Update pin map [NI_UpdatePinMap]
+    // Update pin map [NI_UpdatePinMap]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_UpdatePinMap',
+      ts.StepPhase.post,
+      ts.PropObj({'PinMapPath': '"PinMap.pinmap"'}),
+      updatePinMapResult,
+    );
+    updatePinMapResult.Status = 'Done';
+    run.record(updatePinMapResult.Status);
     //   sequence context <- ThisContext
     //   error out <- Step.Result.Error
     await callInitializeAndRegisterSessions(); // Initialize and register NI-Digital sessions [Action]
@@ -49,9 +67,117 @@ Future<String> mainSequence() async {
     // measurement param: Load files (In TypeBool) = False
     // measurement param: Passing sites (Out TypeInt32)
     // measurement param: Failing sites (Out TypeInt32)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Test SPI device [NI_Measurement]
+    // Test SPI device [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Measurement': ts.PropObj({
+          'Name': 'ni.examples.NIDigitalSPI_LabVIEW',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Pin names',
+              'ArgumentValue': '{"SPI_PINS"}',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'IOResource',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Specifications file',
+              'ArgumentValue': '"Specifications.specs"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 2,
+              'TypeSpecialization': 'Path',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Levels file',
+              'ArgumentValue': '"PinLevels.digilevels"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 3,
+              'TypeSpecialization': 'Path',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Timing file',
+              'ArgumentValue': '"Timing.digitiming"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 4,
+              'TypeSpecialization': 'Path',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Pattern file',
+              'ArgumentValue': '"Pattern.digipat"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 5,
+              'TypeSpecialization': 'Path',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Load files',
+              'ArgumentValue': 'False',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeBool',
+              'ID': 6,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Passing sites',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeInt32',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Failing sites',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeInt32',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+          ],
+        }),
+      }),
+      testSpiDeviceResult,
+    );
+    testSpiDeviceResult.Status = 'Done';
+    run.record(testSpiDeviceResult.Status);
   } finally {
     // ── cleanup ──
     //   error out <- Step.Result.Error
@@ -120,12 +246,12 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_UpdatePinMap: action not exported yet
+  //   step type NI_UpdatePinMap acts through ts.stepHost
   //   My Computer\NIDigitalSPI.lvlib\TestStand Code Modules\Initialize and Register Sessions.vi
   //   My Computer\NIDigitalSPI.lvlib\TestStand Code Modules\Load Pin Map to Sessions.vi
   //   My Computer\NIDigitalSPI.lvlib\TestStand Code Modules\Load Specs Timing Levels to Sessions.vi
   //   My Computer\NIDigitalSPI.lvlib\TestStand Code Modules\Load Patterns to Sessions.vi
-  //   step type NI_Measurement: action not exported yet
+  //   step type NI_Measurement acts through ts.stepHost
   //   My Computer\NIDigitalSPI.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

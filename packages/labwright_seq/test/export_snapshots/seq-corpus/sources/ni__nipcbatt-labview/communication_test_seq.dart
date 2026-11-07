@@ -191,13 +191,29 @@ Future<String> serialCommTest() async {
 /// Sequence `SequenceFileLoad`.
 Future<String> sequenceFileLoad() async {
   final run = ts.SequenceRun();
+  dynamic messagePopupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message Popup
 
   // popup title: "About This Example"
   // popup message: "This example automation sequence demonstrates simple read and write data operations through  | I2C and SPI communication protocol using NI 845x device and through Serial COM port.  | The purpose of this automation sequence template is to provide a method for understanding | the use of the values returned by the library in a real world scenario.  | Ensure that all the prerequisite software mentioned in the user manual are installed. | For more information about the Automation Test Sequences, refer to the link mentioned below. | https://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html"
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Message Popup [MessagePopup]
+  // Message Popup [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'About This Example',
+    message:
+        'This example automation sequence demonstrates simple read and write data operations through \nI2C and SPI communication protocol using NI 845x device and through Serial COM port. \nThe purpose of this automation sequence template is to provide a method for understanding\nthe use of the values returned by the library in a real world scenario. \n\nEnsure that all the prerequisite software mentioned in the user manual are installed.\n\nFor more information about the Automation Test Sequences, refer to the link mentioned below.\nhttps://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  messagePopupResult.ButtonHit = popup.buttonHit;
+  messagePopupResult.Response = popup.response;
+  messagePopupResult.Status = 'Done';
+  run.record(messagePopupResult.Status);
 
   return run.status;
 }
@@ -255,7 +271,7 @@ void register() {
     lw.expect(await examples(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });

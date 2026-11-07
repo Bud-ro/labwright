@@ -17,6 +17,14 @@ Future<String> mainSequence() async {
   int sequencesToRun = 500; // Num
 
   final run = ts.SequenceRun();
+  dynamic rtSequenceActionResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Path': ''}),
+  }); // result of RT Sequence Action
   dynamic rtSequenceNumericLimitTestResult = ts.PropObj({
     'VeriStand': ts.PropObj({'Path': ''}),
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -39,9 +47,34 @@ Future<String> mainSequence() async {
     sequenceCounter < sequencesToRun;
     sequenceCounter += 1
   ) {
-    throw UnimplementedError(
-      'step type RunRTSequenceAction: action not exported yet',
-    ); // RT Sequence Action [RunRTSequenceAction]
+    rtSequenceActionResult = ts.PropObj({
+      'VeristandError': null,
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Veristand': ts.PropObj({'Path': ''}),
+    });
+    // RT Sequence Action [RunRTSequenceAction]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'RunRTSequenceAction',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'SeqTimeout': -1,
+          'Target': 'Controller',
+          'Timeout': 10000,
+          'SequenceFilePath':
+              '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
+          'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+          'ParamTypesArray': '{"Path","Path"}',
+          'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+        }),
+      }),
+      rtSequenceActionResult,
+    );
+    rtSequenceActionResult.Status = 'Done';
+    run.record(rtSequenceActionResult.Status);
     // checks: Step.Result.Numeric GELE [low 0, high 100, nominal 100] (PERCENTAGE)
     // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
     rtSequenceNumericLimitTestResult = ts.PropObj({
@@ -53,9 +86,46 @@ Future<String> mainSequence() async {
       'Numeric': 0,
       'Units': '',
     });
-    throw UnimplementedError(
-      'step type RunRTSequenceNumericLimit: action not exported yet',
-    ); // RT Sequence Numeric Limit Test [RunRTSequenceNumericLimit]
+    // RT Sequence Numeric Limit Test [RunRTSequenceNumericLimit]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'RunRTSequenceNumericLimit',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'VeriStand': ts.PropObj({
+          'SeqTimeout': 10,
+          'Target': 'Controller',
+          'Timeout': 10000,
+          'SequenceFilePath':
+              '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Engine Demo Advanced & Return Value\\\\Engine Demo Advanced & Return Value.nivsseq"',
+          'ParamValuesArray':
+              '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
+          'ParamTypesArray': '{"Path","Path","Path","Path"}',
+          'ParamNamesArray':
+              '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
+          'NumericDataType': '"Boolean"',
+        }),
+        'Limits': ts.PropObj({
+          'UseNominalExpr': false,
+          'UseThresholdTypeExpr': false,
+          'Nominal': 100,
+          'NominalExpr': '',
+          'ThresholdTypeExpr': '',
+          'ThresholdType': 'PERCENTAGE',
+          'Low': 0,
+          'High': 100,
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'InBuf': '',
+        'DataSource': 'Step.Result.Numeric',
+      }),
+      rtSequenceNumericLimitTestResult,
+    );
     rtSequenceNumericLimitTestResult.Status = ts.checkLimits(
       rtSequenceNumericLimitTestResult.Numeric,
       100,
@@ -71,9 +141,26 @@ Future<String> mainSequence() async {
       'ReportText': '',
       'Common': ts.PropObj(),
     });
-    throw UnimplementedError(
-      'step type RunRTSequencePassFail: action not exported yet',
-    ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+    // RT Sequence Pass/Fail Test [RunRTSequencePassFail]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'RunRTSequencePassFail',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'VeriStand': ts.PropObj({
+          'SeqTimeout': -1,
+          'Target': 'Controller',
+          'Timeout': 10000,
+          'SequenceFilePath':
+              '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Engine Demo Advanced & Return Value\\\\Engine Demo Advanced & Return Value.nivsseq"',
+          'ParamValuesArray':
+              '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
+          'ParamTypesArray': '{"Path","Path","Path","Path"}',
+          'ParamNamesArray':
+              '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
+        }),
+      }),
+      rtSequencePassFailTestResult,
+    );
     rtSequencePassFailTestResult.Status =
         ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
         ? 'Passed'
@@ -103,9 +190,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type RunRTSequenceAction: action not exported yet
-  //   step type RunRTSequenceNumericLimit: action not exported yet
-  //   step type RunRTSequencePassFail: action not exported yet
+  //   step type RunRTSequenceAction acts through ts.stepHost
+  //   step type RunRTSequenceNumericLimit acts through ts.stepHost
+  //   step type RunRTSequencePassFail acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

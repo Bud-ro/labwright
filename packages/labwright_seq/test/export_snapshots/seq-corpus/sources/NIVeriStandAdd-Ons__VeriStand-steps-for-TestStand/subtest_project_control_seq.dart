@@ -16,6 +16,64 @@ Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
 
   final run = ts.SequenceRun();
+  dynamic startVeristandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Start Veristand
+  dynamic openProjectResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Path': ''}),
+  }); // result of Open Project
+  dynamic openReferencesResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Open References
+  dynamic deployProjectResult = ts.PropObj({
+    'TempErrorOccured': false,
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Deploy Project
+  dynamic undeployProjectResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Undeploy Project
+  dynamic runProjectResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Run Project
+  dynamic undeployProjectResult2 = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Undeploy Project
+  dynamic deployProjectResult2 = ts.PropObj({
+    'TempErrorOccured': false,
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Deploy Project
 
   body:
   try {
@@ -23,41 +81,105 @@ Future<String> mainSequence() async {
     ts.eval(
       'RunState.Main.Locals.NewSubProperty("VSDialogs",PropValType_Container,False,"",0)',
     ); // pre-expression
-    throw UnimplementedError(
-      'step type StartVeristand: action not exported yet',
-    ); // Start Veristand [StartVeristand]
+    // Start Veristand [StartVeristand]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'StartVeristand',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'VSInstallDirectory':
+              'C:\\Program Files (x86)\\National Instruments\\VeriStand 2015\\NI VeriStand.exe',
+          'Silent': false,
+        }),
+      }),
+      startVeristandResult,
+    );
+    startVeristandResult.Status = 'Done';
+    run.record(startVeristandResult.Status);
     await Future<void>.delayed(const Duration(seconds: 5));
 
     // ── main ──
-    throw UnimplementedError(
-      'step type OpenProject: action not exported yet',
-    ); // Open Project [OpenProject]
+    // Open Project [OpenProject]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'OpenProject',
+      ts.StepPhase.post,
+      ts.PropObj(),
+      openProjectResult,
+    );
+    openProjectResult.Status = 'Done';
+    run.record(openProjectResult.Status);
     await Future<void>.delayed(const Duration(seconds: 5));
-    throw UnimplementedError(
-      'step type OpenReferences: action not exported yet',
-    ); // Open References [OpenReferences]
+    // Open References [OpenReferences]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'OpenReferences',
+      ts.StepPhase.post,
+      ts.PropObj(),
+      openReferencesResult,
+    );
+    openReferencesResult.Status = 'Done';
+    run.record(openReferencesResult.Status);
     await Future<void>.delayed(const Duration(seconds: 5));
-    throw UnimplementedError(
-      'step type DeployProject: action not exported yet',
-    ); // Deploy Project [DeployProject]
+    // Deploy Project [DeployProject]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'DeployProject',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({'ShowProgress': false}),
+      }),
+      deployProjectResult,
+    );
+    deployProjectResult.Status = 'Done';
+    run.record(deployProjectResult.Status);
     await Future<void>.delayed(const Duration(seconds: 5));
-    throw UnimplementedError(
-      'step type UndeployProject: action not exported yet',
-    ); // Undeploy Project [UndeployProject]
+    // Undeploy Project [UndeployProject]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'UndeployProject',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({'ShowProgress': false}),
+      }),
+      undeployProjectResult,
+    );
+    undeployProjectResult.Status = 'Done';
+    run.record(undeployProjectResult.Status);
     await Future<void>.delayed(const Duration(seconds: 5));
-    throw UnimplementedError(
-      'step type RunProject: action not exported yet',
-    ); // Run Project [RunProject]
+    // Run Project [RunProject]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'RunProject',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({'ShowProgress': false}),
+      }),
+      runProjectResult,
+    );
+    runProjectResult.Status = 'Done';
+    run.record(runProjectResult.Status);
     await Future<void>.delayed(const Duration(seconds: 5));
-    throw UnimplementedError(
-      'step type UndeployProject: action not exported yet',
-    ); // Undeploy Project [UndeployProject]
+    // Undeploy Project [UndeployProject]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'UndeployProject',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({'ShowProgress': false}),
+      }),
+      undeployProjectResult2,
+    );
+    undeployProjectResult2.Status = 'Done';
+    run.record(undeployProjectResult2.Status);
   } finally {
     // ── cleanup ──
     await Future<void>.delayed(const Duration(seconds: 5));
-    throw UnimplementedError(
-      'step type DeployProject: action not exported yet',
-    ); // Deploy Project [DeployProject]
+    // Deploy Project [DeployProject]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'DeployProject',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({'ShowProgress': false}),
+      }),
+      deployProjectResult2,
+    );
+    deployProjectResult2.Status = 'Done';
+    run.record(deployProjectResult2.Status);
   }
 
   return run.status;
@@ -100,12 +222,12 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
-  //   step type StartVeristand: action not exported yet
-  //   step type OpenProject: action not exported yet
-  //   step type OpenReferences: action not exported yet
-  //   step type DeployProject: action not exported yet
-  //   step type UndeployProject: action not exported yet
-  //   step type RunProject: action not exported yet
+  //   step type StartVeristand acts through ts.stepHost
+  //   step type OpenProject acts through ts.stepHost
+  //   step type OpenReferences acts through ts.stepHost
+  //   step type DeployProject acts through ts.stepHost
+  //   step type UndeployProject acts through ts.stepHost
+  //   step type RunProject acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

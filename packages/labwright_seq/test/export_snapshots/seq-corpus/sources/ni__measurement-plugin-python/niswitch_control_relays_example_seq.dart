@@ -14,14 +14,38 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic updatePinMapResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update pin map
+  dynamic closeRelaysUsingAnNiRelayDriverResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Close relays using an NI relay driver
+  dynamic openRelaysUsingAnNiRelayDriverResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Open relays using an NI relay driver
 
   body:
   try {
     // ── setup ──
     // pin map: "NISwitchControlRelays.pinmap"
-    throw UnimplementedError(
-      'step type NI_UpdatePinMap: action not exported yet',
-    ); // Update pin map [NI_UpdatePinMap]
+    // Update pin map [NI_UpdatePinMap]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_UpdatePinMap',
+      ts.StepPhase.post,
+      ts.PropObj({'PinMapPath': '"NISwitchControlRelays.pinmap"'}),
+      updatePinMapResult,
+    );
+    updatePinMapResult.Status = 'Done';
+    run.record(updatePinMapResult.Status);
     //   sequence_context <- ThisContext
     throw UnimplementedError(
       'python call: teststand_niswitch.py',
@@ -31,16 +55,88 @@ Future<String> mainSequence() async {
     // measurement: ni.examples.NISwitchControlRelays_Python
     // measurement param: relay_names (In TypeString) = "SiteRelay1"
     // measurement param: close_relay (In TypeBool) = True
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Close relays using an NI relay driver [NI_Measurement]
+    // Close relays using an NI relay driver [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Measurement': ts.PropObj({
+          'Name': 'ni.examples.NISwitchControlRelays_Python',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'relay_names',
+              'ArgumentValue': '"SiteRelay1"',
+              'Direction': 'In',
+              'Log': false,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'close_relay',
+              'ArgumentValue': 'True',
+              'Direction': 'In',
+              'Log': false,
+              'Dimension': 0,
+              'Type': 'TypeBool',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+          ],
+        }),
+      }),
+      closeRelaysUsingAnNiRelayDriverResult,
+    );
+    closeRelaysUsingAnNiRelayDriverResult.Status = 'Done';
+    run.record(closeRelaysUsingAnNiRelayDriverResult.Status);
     await Future<void>.delayed(const Duration(seconds: 5)); // Wait 5 seconds
     // measurement: ni.examples.NISwitchControlRelays_Python
     // measurement param: relay_names (In TypeString) = "SiteRelay1"
     // measurement param: close_relay (In TypeBool) = False
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Open relays using an NI relay driver [NI_Measurement]
+    // Open relays using an NI relay driver [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Measurement': ts.PropObj({
+          'Name': 'ni.examples.NISwitchControlRelays_Python',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'relay_names',
+              'ArgumentValue': '"SiteRelay1"',
+              'Direction': 'In',
+              'Log': false,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'close_relay',
+              'ArgumentValue': 'False',
+              'Direction': 'In',
+              'Log': false,
+              'Dimension': 0,
+              'Type': 'TypeBool',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+          ],
+        }),
+      }),
+      openRelaysUsingAnNiRelayDriverResult,
+    );
+    openRelaysUsingAnNiRelayDriverResult.Status = 'Done';
+    run.record(openRelaysUsingAnNiRelayDriverResult.Status);
   } finally {
     // ── cleanup ──
     throw UnimplementedError(
@@ -70,9 +166,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_UpdatePinMap: action not exported yet
+  //   step type NI_UpdatePinMap acts through ts.stepHost
   //   python call: teststand_niswitch.py
-  //   step type NI_Measurement: action not exported yet
+  //   step type NI_Measurement acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

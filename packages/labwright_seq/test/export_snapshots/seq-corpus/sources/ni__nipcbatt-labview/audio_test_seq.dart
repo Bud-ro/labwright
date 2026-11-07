@@ -283,13 +283,29 @@ Future<String> turnOffAllAoChannels() async {
 /// Sequence `SequenceFileLoad`.
 Future<String> sequenceFileLoad() async {
   final run = ts.SequenceRun();
+  dynamic explanationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Explanation
 
   // popup title: "About This Example"
   // popup message: "These automation test sequences utilize PCBA libraries to conduct basic electrical functional tests, | which can be adapted or modified to fit your specific procedures. The sequences employ simulated DAQ  | hardware and do not include limit testing.  |   | Make sure all prerequisite software and configurations outlined in the user manual are installed. |   | For detailed help on how to use the test sequences, please refer to the online manual provided in the link below. | https://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html"
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Explanation [MessagePopup]
+  // Explanation [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'About This Example',
+    message:
+        'These automation test sequences utilize PCBA libraries to conduct basic electrical functional tests,\nwhich can be adapted or modified to fit your specific procedures. The sequences employ simulated DAQ \nhardware and do not include limit testing. \n \nMake sure all prerequisite software and configurations outlined in the user manual are installed.\n \nFor detailed help on how to use the test sequences, please refer to the online manual provided in the link below.\nhttps://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  explanationResult.ButtonHit = popup.buttonHit;
+  explanationResult.Response = popup.response;
+  explanationResult.Status = 'Done';
+  run.record(explanationResult.Status);
 
   return run.status;
 }
@@ -404,7 +420,7 @@ void register() {
     lw.expect(await reusableSequences(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });

@@ -17,6 +17,22 @@ Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
 
   final run = ts.SequenceRun();
+  dynamic initializeVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'VeristandError': null,
+    'Veristand': ts.PropObj({'Project': ''}),
+  }); // result of Initialize VeriStand
+  dynamic rtSequenceActionResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Path': '', 'Returnval': 0}),
+  }); // result of RT Sequence Action
   dynamic callChildSequenceInSameFileResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -29,18 +45,54 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Call Child Sequence in Different File
+  dynamic stopVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'VeristandError': null,
+  }); // result of Stop VeriStand
 
   body:
   try {
     // ── setup ──
-    throw UnimplementedError(
-      'step type InitializeVeriStand: action not exported yet',
-    ); // Initialize VeriStand [InitializeVeriStand]
+    await ts.stepHost.runStepType(
+      'InitializeVeriStand',
+      ts.StepPhase.pre,
+      ts.PropObj(),
+      initializeVeriStandResult,
+    );
+    // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'InitializeVeriStand',
+      ts.StepPhase.post,
+      ts.PropObj(),
+      initializeVeriStandResult,
+    );
+    initializeVeriStandResult.Status = 'Done';
+    run.record(initializeVeriStandResult.Status);
 
     // ── main ──
-    throw UnimplementedError(
-      'step type RunRTSequenceAction: action not exported yet',
-    ); // RT Sequence Action [RunRTSequenceAction]
+    // RT Sequence Action [RunRTSequenceAction]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'RunRTSequenceAction',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'SeqTimeout': -1,
+          'Target': '',
+          'Timeout': 10000,
+          'SequenceFilePath':
+              '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\Engine Demo Basic with Numeric Return Value.nivsseq"',
+          'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+          'ParamTypesArray': '{"Path","Path"}',
+          'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+        }),
+      }),
+      rtSequenceActionResult,
+    );
+    rtSequenceActionResult.Status = 'Done';
+    run.record(rtSequenceActionResult.Status);
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     callChildSequenceInSameFileResult.Status =
         await childSequenceSameFile(); // Call Child Sequence in Same File
@@ -66,9 +118,21 @@ Future<String> mainSequence() async {
     await Future<void>.delayed(
       const Duration(seconds: 20),
     ); // Wait for Child Sequence Thread to Complete
-    throw UnimplementedError(
-      'step type StopVeriStand: action not exported yet',
-    ); // Stop VeriStand [StopVeriStand]
+    // Stop VeriStand [StopVeriStand]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'StopVeriStand',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'CloseUIManager': true,
+          'CloseApp': true,
+          'ShowProgress': false,
+        }),
+      }),
+      stopVeriStandResult,
+    );
+    stopVeriStandResult.Status = 'Done';
+    run.record(stopVeriStandResult.Status);
   }
 
   return run.status;
@@ -77,10 +141,35 @@ Future<String> mainSequence() async {
 /// Sequence `ChildSequence_SameFile`.
 Future<String> childSequenceSameFile() async {
   final run = ts.SequenceRun();
+  dynamic rtSequenceActionResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Path': '', 'Returnval': 0}),
+  }); // result of RT Sequence Action
 
-  throw UnimplementedError(
-    'step type RunRTSequenceAction: action not exported yet',
-  ); // RT Sequence Action [RunRTSequenceAction]
+  // RT Sequence Action [RunRTSequenceAction]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequenceAction',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'SeqTimeout': -1,
+        'Target': '',
+        'Timeout': 10000,
+        'SequenceFilePath':
+            '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\Engine Demo Basic with Numeric Return Value.nivsseq"',
+        'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+        'ParamTypesArray': '{"Path","Path"}',
+        'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+      }),
+    }),
+    rtSequenceActionResult,
+  );
+  rtSequenceActionResult.Status = 'Done';
+  run.record(rtSequenceActionResult.Status);
 
   return run.status;
 }
@@ -117,11 +206,11 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type InitializeVeriStand: action not exported yet
-  //   step type RunRTSequenceAction: action not exported yet
+  //   step type InitializeVeriStand acts through ts.stepHost
+  //   step type RunRTSequenceAction acts through ts.stepHost
   //   step "Call Child Sequence in Different File" runs its sequence call in a new thread (not exported)
   //   cross-file sequence MainSequence (see its module TODOs)
-  //   step type StopVeriStand: action not exported yet
+  //   step type StopVeriStand acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

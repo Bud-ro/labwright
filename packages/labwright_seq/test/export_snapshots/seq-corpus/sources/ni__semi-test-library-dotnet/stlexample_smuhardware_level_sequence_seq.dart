@@ -14,8 +14,181 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence` — Runs for each UUT.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic forceVoltageRampResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of ForceVoltageRamp
+  dynamic configureVoltageRampInitiateAndMeasureCurrentResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Vdd',
+        'MeasurementId': 'MaxCurrent',
+        'TestNumberExpr': '',
+        'TestNumber': 1000,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'MaxCurrentFromTheSequence',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'Vcc',
+        'MeasurementId': 'MaxCurrent',
+        'TestNumberExpr': '',
+        'TestNumber': 1005,
+        'FailBinExpr': '',
+        'FailBin': -1,
+        'TestNameExpr': '',
+        'TestName': 'MaxCurrentFromTheSequence',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '',
+          'LowLimit': 0,
+          'HighLimitExpr': '',
+          'HighLimit': 0,
+          'ComparisonType': 'LOG',
+          'Units': '',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of ConfigureVoltageRampInitiateAndMeasureCurrent
+  dynamic forceSynchronizedVoltageRampResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of ForceSynchronizedVoltageRamp
+  dynamic initiateSmuAdvancedSequenceResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of InitiateSMUAdvancedSequence
 
   // Forces a basic voltage ramp sequence on specified SMU pins.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    forceVoltageRampResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.SMUHardwareLevelSequence.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.ForceVoltageRamp
   //   tsmContext <- step.SemiconductorModuleContext
@@ -23,7 +196,67 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\ForceVoltageRamp.cs',
   ); // ForceVoltageRamp [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    forceVoltageRampResult,
+  );
+  forceVoltageRampResult.Status = 'Done';
+  run.record(forceVoltageRampResult.Status);
   // Configures and initiates a voltage ramp sequence and publishes the max current measured during sequence execution.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 2,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    configureVoltageRampInitiateAndMeasureCurrentResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.SMUHardwareLevelSequence.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.ConfigureVoltageRampInitiateAndMeasureCurrent
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -31,7 +264,67 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\ConfigureVoltageRampInitiateAndMeasureCurrent.cs',
   ); // ConfigureVoltageRampInitiateAndMeasureCurrent [NI_SemiconductorModule_MultiTest]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_MultiTest',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'TestSettings': ts.PropObj({
+        'OfflineModeMeasurementDataOption': 2,
+        'EnableAutoTestNumberGeneration': false,
+        'BaseTestNumber': 1,
+        'TestNumberIncrementPerTestIndex': 1,
+        'TestNumberIncrementPerLoopIteration': 1,
+      }),
+      'DotNetRuntimeData': null,
+      'EvaluationFailureOption': 0,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    configureVoltageRampInitiateAndMeasureCurrentResult,
+  );
+  configureVoltageRampInitiateAndMeasureCurrentResult.Status = 'Done';
+  run.record(configureVoltageRampInitiateAndMeasureCurrentResult.Status);
   // Forces a voltage ramp sequence synchronized across pins.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    forceSynchronizedVoltageRampResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.SMUHardwareLevelSequence.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.ForceSynchronizedVoltageRamp
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -39,7 +332,59 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\ForceSynchronizedVoltageRamp.cs',
   ); // ForceSynchronizedVoltageRamp [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    forceSynchronizedVoltageRampResult,
+  );
+  forceSynchronizedVoltageRampResult.Status = 'Done';
+  run.record(forceSynchronizedVoltageRampResult.Status);
   // Initiates a previously configured advanced sequence for the specified SMU pins.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    initiateSmuAdvancedSequenceResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.SMUHardwareLevelSequence.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.InitiateSMUAdvancedSequence
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -48,6 +393,33 @@ Future<String> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\InitiateSMUAdvancedSequence.cs',
   ); // InitiateSMUAdvancedSequence [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    initiateSmuAdvancedSequenceResult,
+  );
+  initiateSmuAdvancedSequenceResult.Status = 'Done';
+  run.record(initiateSmuAdvancedSequenceResult.Status);
 
   return run.status;
 }
@@ -55,21 +427,169 @@ Future<String> mainSequence() async {
 /// Sequence `ProcessSetup` — Runs once at lot start.
 Future<String> processSetup() async {
   final run = ts.SequenceRun();
+  dynamic setupNiDcPowerInstrumentationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Setup NI DCPower Instrumentation
+  dynamic cacheSessionMappingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Cache Session Mapping
+  dynamic configureSmuAdvancedSequenceResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of ConfigureSMUAdvancedSequence
 
   // ── setup ──
-  throw UnimplementedError(
-    'step type NI_SemiconductorTest_SetupNIDCPowerInstrumentation: action not exported yet',
-  ); // Setup NI DCPower Instrumentation [NI_SemiconductorTest_SetupNIDCPowerInstrumentation]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIDCPowerInstrumentation',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiDcPowerInstrumentationResult,
+  );
+  // Setup NI DCPower Instrumentation [NI_SemiconductorTest_SetupNIDCPowerInstrumentation]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_SetupNIDCPowerInstrumentation',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    setupNiDcPowerInstrumentationResult,
+  );
+  setupNiDcPowerInstrumentationResult.Status = 'Done';
+  run.record(setupNiDcPowerInstrumentationResult.Status);
   // This method call is necessary to ensure the cached instrument session information is consistent between the NationalInstruments.SemiconductorTestLibrary.TestStandSteps assembly and client assembly. as they may not share the same memory space if the client assembly is using a newer version of the NationalInstruments.SemiconductorTestLibrary.Abstractions.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 1,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cacheSessionMappingResult,
+  );
   // .NET assembly: Code Modules\bin\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll
   // .NET call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions',
   ); // Cache Session Mapping [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 1,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cacheSessionMappingResult,
+  );
+  cacheSessionMappingResult.Status = 'Done';
+  run.record(cacheSessionMappingResult.Status);
 
   // ── main ──
   // Configures an advanced sequence upfront without initializing it, allowing later initiation in the test flow.
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    configureSmuAdvancedSequenceResult,
+  );
   // .NET assembly: Code Modules\bin\STLExample.SMUHardwareLevelSequence.dll
   // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.ConfigureSMUAdvancedSequence
   //   tsmContext <- Step.SemiconductorModuleContext
@@ -77,6 +597,33 @@ Future<String> processSetup() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\ConfigureSMUAdvancedSequence.cs',
   ); // ConfigureSMUAdvancedSequence [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    configureSmuAdvancedSequenceResult,
+  );
+  configureSmuAdvancedSequenceResult.Status = 'Done';
+  run.record(configureSmuAdvancedSequenceResult.Status);
 
   return run.status;
 }
@@ -84,13 +631,72 @@ Future<String> processSetup() async {
 /// Sequence `ProcessCleanup` — Runs once at lot end.
 Future<String> processCleanup() async {
   final run = ts.SequenceRun();
+  dynamic cleanupInstrumentationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Cleanup Instrumentation
 
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_CleanupInstrumentation',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cleanupInstrumentationResult,
+  );
   // .NET assembly: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll
   // .NET call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation
   //   tsmContext <- Step.SemiconductorModuleContext
   throw UnimplementedError(
     'dotNet call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation',
   ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorTest_CleanupInstrumentation',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 0,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    cleanupInstrumentationResult,
+  );
+  cleanupInstrumentationResult.Status = 'Done';
+  run.record(cleanupInstrumentationResult.Status);
 
   return run.status;
 }
@@ -98,19 +704,91 @@ Future<String> processCleanup() async {
 /// Sequence `SequenceFileLoad`.
 Future<String> sequenceFileLoad() async {
   final run = ts.SequenceRun();
+  dynamic explanationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Explanation
+  dynamic launchHelpResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ExitCode': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of LaunchHelp
 
   // popup title: "About This Example"
   // popup message: "This example demonstrates how to configure and force synchronized and asynchronized voltage ramp of the Semiconductor Test Library. | It showcases four different approaches for forcing voltage ramp sequences on SMU pins: | 1. ForceVoltageRamp: |     Forces a basic voltage ramp sequence on specified SMU pins. | 2. ConfigureVoltageRampInitiateAndMeasureCurrent: |     Configures and initiates a voltage ramp sequence and publishes the max current measured during sequence execution. | 3. ForceSynchronizedVoltageRamp: |     Forces a voltage ramp sequence synchronized across pins. | 4. ConfigureSMUAdvancedSequence: |     Configures an advanced sequence upfront without initializing it, allowing later initiation in the test flow. | 5. InitiateSMUAdvancedSequence: |     Initiates a previously configured advanced sequence for the specified SMU pins. | Prerequisites: | 1. You must have the following software installed if you want to use the example with real instruments or in Offline Mode: |    - STS Software 24.5.0 or later | 2. Hardware Requirements: |    - A NI-DCPower instrument named 'SMU_4147_C2_S03' (or update the pin map with your desired SMU name) as defined in NI MAX | Review the README file accompanying the sequence file for information about how to use this example."
   // popup buttons: "Help" | "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Explanation [MessagePopup]
+  // Explanation [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'About This Example',
+    message:
+        'This example demonstrates how to configure and force synchronized and asynchronized voltage ramp of the Semiconductor Test Library.\n\nIt showcases four different approaches for forcing voltage ramp sequences on SMU pins:\n1. ForceVoltageRamp:\n    Forces a basic voltage ramp sequence on specified SMU pins.\n2. ConfigureVoltageRampInitiateAndMeasureCurrent:\n    Configures and initiates a voltage ramp sequence and publishes the max current measured during sequence execution.\n3. ForceSynchronizedVoltageRamp:\n    Forces a voltage ramp sequence synchronized across pins.\n4. ConfigureSMUAdvancedSequence:\n    Configures an advanced sequence upfront without initializing it, allowing later initiation in the test flow.\n5. InitiateSMUAdvancedSequence:\n    Initiates a previously configured advanced sequence for the specified SMU pins.\n\nPrerequisites:\n1. You must have the following software installed if you want to use the example with real instruments or in Offline Mode:\n   - STS Software 24.5.0 or later\n2. Hardware Requirements:\n   - A NI-DCPower instrument named \'SMU_4147_C2_S03\' (or update the pin map with your desired SMU name) as defined in NI MAX\n\nReview the README file accompanying the sequence file for information about how to use this example.',
+    buttons: ['Help', 'OK', '', '', '', ''],
+  );
+  explanationResult.ButtonHit = popup.buttonHit;
+  explanationResult.Response = popup.response;
+  explanationResult.Status = 'Done';
+  run.record(explanationResult.Status);
   // runs executable: notepad "README.md" (WAIT_NONE)
   if (runState.PreviousStep.Result.ButtonHit == 1) {
     // precondition of LaunchHelp
-    throw UnimplementedError(
-      'step type CallExecutable: action not exported yet',
-    ); // LaunchHelp [CallExecutable]
+    // LaunchHelp [CallExecutable]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'CallExecutable',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Executable': 'notepad',
+        'ExecutableExpr': '',
+        'SpecifyExeByExpr': false,
+        'ExecutableCalled': '',
+        'Arguments': '"README.md"',
+        'WaitCondition': 'WAIT_NONE',
+        'TimeToWait': 0,
+        'SetErrorCode': false,
+        'InitialWindowState': 'WINSTATE_SHOWNORM_A',
+        'TerminateOnAbort': false,
+        'StoreProcessHandle': false,
+        'ProcessHandleExpr': 'Step.ProcessHandlePtr',
+        'ProcessHandle': 0,
+        'ProcessHandlePtr': null,
+        'ExitCodeStatusAction': 'EXIT_CODE_NO_ACTION',
+        'ExitCodeErrorAction': 'EXIT_CODE_NO_ACTION',
+        'WorkingDir': ts.PropObj({'Source': 2, 'Expr': '', 'IsExpr': false}),
+        'RemoteSettings': ts.PropObj({
+          'Enabled': false,
+          'Host': '""',
+          'HostByExpr': true,
+          'Port': '13540',
+          'Password': '',
+          'PasswordByExpr': false,
+        }),
+        'StdInput': ts.PropObj({'Type': 0, 'Source': '""', 'IsExpr': false}),
+        'StdOutput': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdOutput.Text',
+          'IsExpr': false,
+          'Text': '',
+        }),
+        'StdError': ts.PropObj({
+          'Dest': 0,
+          'Expr': 'Step.StdError.Text',
+          'IsExpr': false,
+          'Text': '',
+          'Action': 0,
+          'SetErrorMsg': false,
+        }),
+      }),
+      launchHelpResult,
+    );
+    launchHelpResult.Status = 'Done';
+    run.record(launchHelpResult.Status);
+  } else {
+    launchHelpResult.Status = 'Skipped';
   }
 
   return run.status;
@@ -135,8 +813,10 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   Step engine access (no engine at run time)
   //   dotNet call: Code Modules\TestSteps\ForceVoltageRamp.cs
+  //   step type NI_SemiconductorModule_MultiTest acts through ts.stepHost
   //   dotNet call: Code Modules\TestSteps\ConfigureVoltageRampInitiateAndMeasureCurrent.cs
   //   dotNet call: Code Modules\TestSteps\ForceSynchronizedVoltageRamp.cs
   //   dotNet call: Code Modules\TestSteps\InitiateSMUAdvancedSequence.cs
@@ -144,21 +824,23 @@ void register() {
     lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_SemiconductorTest_SetupNIDCPowerInstrumentation: action not exported yet
+  //   step type NI_SemiconductorTest_SetupNIDCPowerInstrumentation acts through ts.stepHost
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   dotNet call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions
   //   dotNet call: Code Modules\TestSteps\ConfigureSMUAdvancedSequence.cs
   lw.skipTest('ProcessSetup', () async {
     lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorTest_CleanupInstrumentation acts through ts.stepHost
   //   dotNet call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation
   lw.skipTest('ProcessCleanup', () async {
     lw.expect(await processCleanup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   RunState engine access (no engine at run time)
-  //   step type CallExecutable: action not exported yet
+  //   step type CallExecutable acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });

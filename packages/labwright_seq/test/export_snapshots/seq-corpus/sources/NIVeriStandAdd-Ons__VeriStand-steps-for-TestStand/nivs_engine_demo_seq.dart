@@ -16,6 +16,29 @@ Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
 
   final run = ts.SequenceRun();
+  dynamic initializeVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'VeristandError': null,
+    'Veristand': ts.PropObj({'Project': ''}),
+  }); // result of Initialize VeriStand
+  dynamic getChannelValueAbsoluteTimeResult = ts.PropObj({
+    'Units': '',
+    'Numeric': 0,
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'ChannelUnit': '',
+      'ChannelName': '',
+      'ChannelInfo': null,
+      'Description': '',
+    }),
+  }); // result of Get Channel Value - Absolute Time
   dynamic rtSequencePassFailTestResult = ts.PropObj({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -23,26 +46,106 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of RT Sequence Pass/Fail Test
+  dynamic rtSequenceActionResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'Returnval': ts.PropObj({'Boolean': false, 'Numeric': 0}),
+      'Path': '',
+    }),
+  }); // result of RT Sequence Action
+  dynamic returnRiseTimeResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Return Rise Time
+  dynamic stopVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'VeristandError': null,
+  }); // result of Stop VeriStand
 
   body:
   try {
     // ── setup ──
-    throw UnimplementedError(
-      'step type InitializeVeriStand: action not exported yet',
-    ); // Initialize VeriStand [InitializeVeriStand]
+    await ts.stepHost.runStepType(
+      'InitializeVeriStand',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'ShowProgress': false,
+          'Visible': 'True',
+          'username': '""',
+          'password': '""',
+        }),
+      }),
+      initializeVeriStandResult,
+    );
+    // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'InitializeVeriStand',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'ShowProgress': false,
+          'Visible': 'True',
+          'username': '""',
+          'password': '""',
+        }),
+      }),
+      initializeVeriStandResult,
+    );
+    initializeVeriStandResult.Status = 'Done';
+    run.record(initializeVeriStandResult.Status);
 
     // ── main ──
     // description: The step is used to read the Absolute Time system channel.
     // label: Get Absolute Time
-    throw UnimplementedError(
-      'step type GetChannelValue: action not exported yet',
-    ); // Get Channel Value - Absolute Time [GetChannelValue]
+    // Get Channel Value - Absolute Time [GetChannelValue]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'GetChannelValue',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'ValueToSet': '0',
+          'ChannelName': '"Targets/Controller/System Channels/Absolute Time"',
+        }),
+      }),
+      getChannelValueAbsoluteTimeResult,
+    );
+    getChannelValueAbsoluteTimeResult.Status = 'Done';
+    run.record(getChannelValueAbsoluteTimeResult.Status);
     // description: The step is used to run the Engine Demo Advanced & Return Value RT sequence.
     // label: Run Engine Demo Advanced RT Sequence
     // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-    throw UnimplementedError(
-      'step type RunRTSequencePassFail: action not exported yet',
-    ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+    // RT Sequence Pass/Fail Test [RunRTSequencePassFail]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'RunRTSequencePassFail',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'VeriStand': ts.PropObj({
+          'SeqTimeout': -1,
+          'Target': '',
+          'Timeout': 10000,
+          'SequenceFilePath':
+              '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2013\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Engine Demo Advanced & Return Value\\\\Engine Demo Advanced & Return Value.nivsseq"',
+          'ParamValuesArray':
+              '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
+          'ParamTypesArray': '{"Path","Path","Path","Path"}',
+          'ParamNamesArray':
+              '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
+        }),
+      }),
+      rtSequencePassFailTestResult,
+    );
     rtSequencePassFailTestResult.Status =
         ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
         ? 'Passed'
@@ -50,20 +153,60 @@ Future<String> mainSequence() async {
     run.record(rtSequencePassFailTestResult.Status);
     // description: The step is used to run the Get Rise Time RT sequence.
     // label: Run Get Rise Time RT Sequence
-    throw UnimplementedError(
-      'step type RunRTSequenceAction: action not exported yet',
-    ); // RT Sequence Action [RunRTSequenceAction]
+    // RT Sequence Action [RunRTSequenceAction]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'RunRTSequenceAction',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'SeqTimeout': -1,
+          'Target': '',
+          'Timeout': 10000,
+          'SequenceFilePath':
+              '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2013\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Get Rise Time.nivsseq"',
+          'ParamValuesArray':
+              '{"Aliases/EnginePower","Aliases/DesiredRPM","5000","Aliases/ActualRPM"}',
+          'ParamTypesArray': '{"Path","Path","Double","Path"}',
+          'ParamNamesArray':
+              '{"EnginePower","DesiredRPM","CommandedRPM","ActualRPM"}',
+        }),
+      }),
+      rtSequenceActionResult,
+    );
+    rtSequenceActionResult.Status = 'Done';
+    run.record(rtSequenceActionResult.Status);
     // popup title: NameOf(Step)
     // popup message: "The Rise Time is " &  Str(RunState.PreviousStep.Result.Veristand.Returnval.Numeric) & " seconds."
     // popup buttons: "OK"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Return Rise Time [MessagePopup]
+    // Return Rise Time [MessagePopup]: acts through ts.stepHost
+    final popup = await ts.stepHost.messagePopup(
+      title: 'Return Rise Time',
+      message: ts.eval(
+        '"The Rise Time is " &  Str(RunState.PreviousStep.Result.Veristand.Returnval.Numeric) & " seconds."',
+      ),
+      buttons: ['OK', '', '', '', '', ''],
+    );
+    returnRiseTimeResult.ButtonHit = popup.buttonHit;
+    returnRiseTimeResult.Response = popup.response;
+    returnRiseTimeResult.Status = 'Done';
+    run.record(returnRiseTimeResult.Status);
   } finally {
     // ── cleanup ──
-    throw UnimplementedError(
-      'step type StopVeriStand: action not exported yet',
-    ); // Stop VeriStand [StopVeriStand]
+    // Stop VeriStand [StopVeriStand]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'StopVeriStand',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Veristand': ts.PropObj({
+          'CloseUIManager': false,
+          'CloseApp': false,
+          'ShowProgress': false,
+        }),
+      }),
+      stopVeriStandResult,
+    );
+    stopVeriStandResult.Status = 'Done';
+    run.record(stopVeriStandResult.Status);
   }
 
   return run.status;
@@ -101,12 +244,13 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type InitializeVeriStand: action not exported yet
-  //   step type GetChannelValue: action not exported yet
-  //   step type RunRTSequencePassFail: action not exported yet
-  //   step type RunRTSequenceAction: action not exported yet
-  //   step type MessagePopup: action not exported yet
-  //   step type StopVeriStand: action not exported yet
+  //   step type InitializeVeriStand acts through ts.stepHost
+  //   step type GetChannelValue acts through ts.stepHost
+  //   step type RunRTSequencePassFail acts through ts.stepHost
+  //   step type RunRTSequenceAction acts through ts.stepHost
+  //   step type MessagePopup acts through ts.stepHost
+  //   untranslated expression in body
+  //   step type StopVeriStand acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

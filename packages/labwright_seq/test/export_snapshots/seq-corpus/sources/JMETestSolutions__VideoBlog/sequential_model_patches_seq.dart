@@ -41,13 +41,28 @@ Future<String> preUut({
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
 Future<String> processSetup() async {
   final run = ts.SequenceRun();
+  dynamic initializingInstrumentsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Initializing Instruments
 
   // popup title: NameOf(Step)
   // popup message: "Initializing Instruments"
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Initializing Instruments [MessagePopup]
+  // Initializing Instruments [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Initializing Instruments',
+    message: 'Initializing Instruments',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  initializingInstrumentsResult.ButtonHit = popup.buttonHit;
+  initializingInstrumentsResult.Response = popup.response;
+  initializingInstrumentsResult.Status = 'Done';
+  run.record(initializingInstrumentsResult.Status);
 
   return run.status;
 }
@@ -55,13 +70,28 @@ Future<String> processSetup() async {
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
 Future<String> processCleanup() async {
   final run = ts.SequenceRun();
+  dynamic shuttingDownInstrumentsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Shutting down Instruments
 
   // popup title: NameOf(Step)
   // popup message: "Shutting down Instruments"
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Shutting down Instruments [MessagePopup]
+  // Shutting down Instruments [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Shutting down Instruments',
+    message: 'Shutting down Instruments',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  shuttingDownInstrumentsResult.ButtonHit = popup.buttonHit;
+  shuttingDownInstrumentsResult.Response = popup.response;
+  shuttingDownInstrumentsResult.Status = 'Done';
+  run.record(shuttingDownInstrumentsResult.Status);
 
   return run.status;
 }
@@ -102,12 +132,12 @@ void register() {
     lw.expect(await preUut(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('ProcessSetup', () async {
     lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('ProcessCleanup', () async {
     lw.expect(await processCleanup(), 'Passed');
   });

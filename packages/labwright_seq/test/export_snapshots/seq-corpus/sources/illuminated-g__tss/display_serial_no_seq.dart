@@ -16,13 +16,28 @@ Future<String> mainSequence() async {
   dynamic cluster = ts.PropObj(); // Obj
 
   final run = ts.SequenceRun();
+  dynamic messagePopupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message Popup
 
   // popup title: NameOf(Step)
   // popup message: Parameters.SerialNo
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Message Popup [MessagePopup]
+  // Message Popup [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Message Popup',
+    message: ts.eval('Parameters.SerialNo'),
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  messagePopupResult.ButtonHit = popup.buttonHit;
+  messagePopupResult.Response = popup.response;
+  messagePopupResult.Status = 'Done';
+  run.record(messagePopupResult.Status);
   //   Sequence Context In <- ThisContext
   //   Report Text <- Step.Result.ReportText
   //   Cluster <- Locals.Cluster
@@ -57,7 +72,8 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
+  //   untranslated expression in body
   //   Test Cluster.vi
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

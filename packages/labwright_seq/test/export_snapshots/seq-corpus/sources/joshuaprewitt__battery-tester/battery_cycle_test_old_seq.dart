@@ -22,24 +22,232 @@ Future<String> mainSequence() async {
   String filePath = ''; // Str
 
   final run = ts.SequenceRun();
+  dynamic addPropertyResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Add Property
+  dynamic addPropertyResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Add Property
+  dynamic addPropertyResult3 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Add Property
+  dynamic addPropertyResult4 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Add Property
+  dynamic sendEmailNotificationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Send Email Notification
+  dynamic chargeAndDischargeResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Measurement': <dynamic>[
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 100,
+          'High': 11,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': 'mAh',
+        'Comp': 'GT',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 100,
+          'High': 11,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': 'Wh',
+        'Comp': 'GT',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+      }),
+    ],
+  }); // result of Charge and Discharge
+  dynamic uploadFileResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of UploadFile
 
-  throw UnimplementedError(
-    'step type AddProperty: action not exported yet',
-  ); // Add Property [AddProperty]
-  throw UnimplementedError(
-    'step type AddProperty: action not exported yet',
-  ); // Add Property [AddProperty]
-  throw UnimplementedError(
-    'step type AddProperty: action not exported yet',
-  ); // Add Property [AddProperty]
-  throw UnimplementedError(
-    'step type AddProperty: action not exported yet',
-  ); // Add Property [AddProperty]
-  throw UnimplementedError(
-    'step type EmailNotification: action not exported yet',
-  ); // Send Email Notification [EmailNotification]
+  // Add Property [AddProperty]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'AddProperty',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'FilePathExpr': '',
+      'FileIdExpr': '',
+      'UploadById': false,
+      'Reporter': null,
+      'KeyExpr': '"Location"',
+      'ValueExpr': '"Austin"',
+    }),
+    addPropertyResult,
+  );
+  addPropertyResult.Status = 'Done';
+  run.record(addPropertyResult.Status);
+  // Add Property [AddProperty]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'AddProperty',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'FilePathExpr': '',
+      'FileIdExpr': '',
+      'UploadById': false,
+      'Reporter': null,
+      'KeyExpr': '"Voltage (V)"',
+      'ValueExpr': '"1.5"',
+    }),
+    addPropertyResult2,
+  );
+  addPropertyResult2.Status = 'Done';
+  run.record(addPropertyResult2.Status);
+  // Add Property [AddProperty]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'AddProperty',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'FilePathExpr': '',
+      'FileIdExpr': '',
+      'UploadById': false,
+      'Reporter': null,
+      'KeyExpr': '"Capacity (mAh)"',
+      'ValueExpr': 'Str(Locals.Capacity)',
+    }),
+    addPropertyResult3,
+  );
+  addPropertyResult3.Status = 'Done';
+  run.record(addPropertyResult3.Status);
+  // Add Property [AddProperty]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'AddProperty',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'FilePathExpr': '',
+      'FileIdExpr': '',
+      'UploadById': false,
+      'Reporter': null,
+      'KeyExpr': '"Composition"',
+      'ValueExpr': '"NiMH"',
+    }),
+    addPropertyResult4,
+  );
+  addPropertyResult4.Status = 'Done';
+  run.record(addPropertyResult4.Status);
+  // Send Email Notification [EmailNotification]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'EmailNotification',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SendOnErrored': true,
+      'SendOnFailed': true,
+      'SendOnTerminated': true,
+      'SendOnPassed': true,
+      'SendImmediately': false,
+      'RecipientExpr': 'Locals.EmailAddress',
+      'TemplateId': '',
+      'AddressGroupId': '',
+      'NotificationStrategyId': '',
+    }),
+    sendEmailNotificationResult,
+  );
+  sendEmailNotificationResult.Status = 'Done';
+  run.record(sendEmailNotificationResult.Status);
   for (cycle = 0; cycle < 500; cycle += 1) {
     // checks: Step.NumericArray
+    chargeAndDischargeResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+      'Measurement': <dynamic>[
+        ts.PropObj({
+          'Limits': ts.PropObj({
+            'ThresholdType': 'PERCENTAGE',
+            'Nominal': 100,
+            'Low': 100,
+            'High': 11,
+            'ThresholdTypeExpr': '',
+            'NominalExpr': '',
+            'LowExpr': '',
+            'HighExpr': '',
+            'UseThresholdTypeExpr': false,
+            'UseNominalExpr': false,
+            'UseLowExpr': false,
+            'UseHighExpr': false,
+          }),
+          'Units': 'mAh',
+          'Comp': 'GT',
+          'CompExpr': '',
+          'UseCompExpr': false,
+          'Data': 0,
+          'Status': '',
+        }),
+        ts.PropObj({
+          'Limits': ts.PropObj({
+            'ThresholdType': 'PERCENTAGE',
+            'Nominal': 100,
+            'Low': 100,
+            'High': 11,
+            'ThresholdTypeExpr': '',
+            'NominalExpr': '',
+            'LowExpr': '',
+            'HighExpr': '',
+            'UseThresholdTypeExpr': false,
+            'UseNominalExpr': false,
+            'UseLowExpr': false,
+            'UseHighExpr': false,
+          }),
+          'Units': 'Wh',
+          'Comp': 'GT',
+          'CompExpr': '',
+          'UseCompExpr': false,
+          'Data': 0,
+          'Status': '',
+        }),
+      ],
+    });
     //   Cycle <- Locals.Cycle
     //   Initial Capacity  (mAh) <- Locals.Capacity
     //   Voltage <- 1.5
@@ -48,10 +256,37 @@ Future<String> mainSequence() async {
     //   Energy (Wh) <- Step.NumericArray[1]
     //   TDMS File Path <- Locals.FilePath
     await callChargeAndDischarge(); // Charge and Discharge [NI_MultipleNumericLimitTest]
+    await ts.stepHost.runStepType(
+      'NI_MultipleNumericLimitTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'DataSource': 'Step.NumericArray',
+        'NumericArray': <dynamic>['0', '0'],
+        'UseIndividualDataSources': false,
+        'DataSourceArray': <dynamic>['', ''],
+        'ExpectedNumMeas': 2,
+        'ExtraDataAction': 'IgnoreExtraData',
+        'MeasToRepeat': 0,
+        'ExtraMeasAction': 'RunTimeError',
+      }),
+      chargeAndDischargeResult,
+    );
+    chargeAndDischargeResult.Status = 'Done';
+    run.record(chargeAndDischargeResult.Status);
   }
-  throw UnimplementedError(
-    'step type UploadFile: action not exported yet',
-  ); // UploadFile [UploadFile]
+  // UploadFile [UploadFile]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'UploadFile',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'FilePathExpr': 'Locals.FilePath',
+      'FileIdExpr': '',
+      'UploadById': false,
+    }),
+    uploadFileResult,
+  );
+  uploadFileResult.Status = 'Done';
+  run.record(uploadFileResult.Status);
 
   return run.status;
 }
@@ -99,10 +334,11 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type AddProperty: action not exported yet
-  //   step type EmailNotification: action not exported yet
+  //   step type AddProperty acts through ts.stepHost
+  //   step type EmailNotification acts through ts.stepHost
   //   My Computer\Charge and Discharge.vi
-  //   step type UploadFile: action not exported yet
+  //   step type NI_MultipleNumericLimitTest acts through ts.stepHost
+  //   step type UploadFile acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

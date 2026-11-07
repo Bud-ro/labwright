@@ -40,14 +40,29 @@ Future<String> mainSequence() async {
   ); // Strs
 
   final run = ts.SequenceRun();
+  dynamic displayXmlStringResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of DisplayXMLString
 
   xmlString = mySimpleContainer.GetXML(0, 0); // GetXMLString
   // popup title: NameOf(Step)
   // popup message: Locals.XMLString
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // DisplayXMLString [MessagePopup]
+  // DisplayXMLString [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'DisplayXMLString',
+    message: xmlString,
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  displayXmlStringResult.ButtonHit = popup.buttonHit;
+  displayXmlStringResult.Response = popup.response;
+  displayXmlStringResult.Status = 'Done';
+  run.record(displayXmlStringResult.Status);
 
   return run.status;
 }
@@ -71,7 +86,7 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

@@ -20,6 +20,14 @@ Future<String> mainSequence() async {
   }); // Obj
 
   final run = ts.SequenceRun();
+  dynamic initializeVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'VeristandError': null,
+    'Veristand': ts.PropObj({'Project': ''}),
+  }); // result of Initialize VeriStand
   dynamic rtSequencePassFailTestResult = ts.PropObj({
     'VeriStand': ts.PropObj({
       'PassFail': false,
@@ -31,6 +39,12 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of RT Sequence Pass/Fail Test
+  dynamic startVsLoggingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Start VS Logging
   dynamic rtSequencePassFailTestResult2 = ts.PropObj({
     'VeriStand': ts.PropObj({
       'PassFail': false,
@@ -42,16 +56,70 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of RT Sequence Pass/Fail Test
+  dynamic stopVsLoggingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Location': <dynamic>[]}),
+  }); // result of Stop VS Logging
 
   // ── setup ──
-  throw UnimplementedError(
-    'step type InitializeVeriStand: action not exported yet',
-  ); // Initialize VeriStand [InitializeVeriStand]
+  await ts.stepHost.runStepType(
+    'InitializeVeriStand',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'ShowProgress': false,
+        'Visible': 'True',
+        'username': '""',
+        'password': '""',
+        'GatewayIP': '"localhost"',
+        'ProjectPath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\ECU HIL.nivsproj"',
+      }),
+    }),
+    initializeVeriStandResult,
+  );
+  // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'InitializeVeriStand',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'ShowProgress': false,
+        'Visible': 'True',
+        'username': '""',
+        'password': '""',
+        'GatewayIP': '"localhost"',
+        'ProjectPath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\ECU HIL.nivsproj"',
+      }),
+    }),
+    initializeVeriStandResult,
+  );
+  initializeVeriStandResult.Status = 'Done';
+  run.record(initializeVeriStandResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+  // RT Sequence Pass/Fail Test [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    rtSequencePassFailTestResult,
+  );
   rtSequencePassFailTestResult.Status =
       ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
       ? 'Passed'
@@ -59,22 +127,76 @@ Future<String> mainSequence() async {
   run.record(rtSequencePassFailTestResult.Status);
 
   // ── main ──
-  throw UnimplementedError(
-    'step type StartLogging: action not exported yet',
-  ); // Start VS Logging [StartLogging]
+  // Start VS Logging [StartLogging]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'StartLogging',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'BaseNodeArray': null,
+        'LogFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Logs\\\\Knock Response.tdms"',
+        'ChannelPaths': <dynamic>[
+          'Aliases/Knock/Knock Amp Cyl 1',
+          'Aliases/Knock/Knock Base Amp',
+          'Aliases/State/Simulated RPM',
+          'Aliases/State/Sparks/Spark 1 End angle',
+          'Aliases/State/Sparks/Spark 1 Start angle',
+          'Aliases/State/Sparks/Spark 2 End angle',
+          'Aliases/State/Sparks/Spark 2 Start angle',
+          'Aliases/State/Sparks/Spark 3 End angle',
+          'Aliases/State/Sparks/Spark 3 Start angle',
+          'Aliases/State/Sparks/Spark 4 End angle',
+          'Aliases/State/Sparks/Spark 4 Start angle',
+          'Aliases/State/Sparks/Spark 5 End angle',
+          'Aliases/State/Sparks/Spark 5 Start angle',
+          'Aliases/State/Sparks/Spark 6 End angle',
+          'Aliases/State/Sparks/Spark 6 Start angle',
+          'Aliases/State/Vehicle Speed (kmph)',
+        ],
+        'FileDescription': '',
+        'FileSegmenting': false,
+        'FileSegmentingSize': 0,
+        'FilePropertyNames': <dynamic>[],
+        'FilePropertyValues': <dynamic>[],
+      }),
+    }),
+    startVsLoggingResult,
+  );
+  startVsLoggingResult.Status = 'Done';
+  run.record(startVsLoggingResult.Status);
   // Set the knock amplitude to three different levels. verify that Spark End Angle decreases when knock amplitude increases.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+  // RT Sequence Pass/Fail Test [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Knock response.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Knock/Knock Amp Cyl 1","Aliases/Knock/Knock Base Amp","Aliases/State/Sparks/Spark 1 End angle"}',
+        'ParamTypesArray': '{"Path","Path","Path"}',
+        'ParamNamesArray': '{"Knock_Amp","Knock_Base_Amp","Spark_End_Angle"}',
+      }),
+    }),
+    rtSequencePassFailTestResult2,
+  );
   rtSequencePassFailTestResult2.Status =
       ts.truthy(rtSequencePassFailTestResult2.VeriStand.PassFail)
       ? 'Passed'
       : 'Failed'; // status expression
   run.record(rtSequencePassFailTestResult2.Status);
-  throw UnimplementedError(
-    'step type StopLogging: action not exported yet',
-  ); // Stop VS Logging [StopLogging]
+  // Stop VS Logging [StopLogging]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'StopLogging',
+    ts.StepPhase.post,
+    ts.PropObj(),
+    stopVsLoggingResult,
+  );
+  stopVsLoggingResult.Status = 'Done';
+  run.record(stopVsLoggingResult.Status);
 
   return run.status;
 }
@@ -111,10 +233,10 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type InitializeVeriStand: action not exported yet
-  //   step type RunRTSequencePassFail: action not exported yet
-  //   step type StartLogging: action not exported yet
-  //   step type StopLogging: action not exported yet
+  //   step type InitializeVeriStand acts through ts.stepHost
+  //   step type RunRTSequencePassFail acts through ts.stepHost
+  //   step type StartLogging acts through ts.stepHost
+  //   step type StopLogging acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

@@ -21,6 +21,14 @@ Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
 
   final run = ts.SequenceRun();
+  dynamic initializeVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'VeristandError': null,
+    'Veristand': ts.PropObj({'Project': ''}),
+  }); // result of Initialize VeriStand
   dynamic getToKnownStateResult = ts.PropObj({
     'VeriStand': ts.PropObj({
       'PassFail': false,
@@ -32,6 +40,12 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Get to known state
+  dynamic startVsLoggingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Start VS Logging
   dynamic ccRampUpResult = ts.PropObj({
     'VeriStand': ts.PropObj({
       'PassFail': false,
@@ -160,16 +174,61 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
     'Veristand': ts.PropObj({'Location': <dynamic>[]}),
   }); // result of Stop VS Logging
+  dynamic openDiAdemResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Open DIAdem
+  dynamic exportChannelsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Export Channels
+  dynamic runScriptResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Run Script
 
   // ── setup ──
-  throw UnimplementedError(
-    'step type InitializeVeriStand: action not exported yet',
-  ); // Initialize VeriStand [InitializeVeriStand]
+  await ts.stepHost.runStepType(
+    'InitializeVeriStand',
+    ts.StepPhase.pre,
+    ts.PropObj(),
+    initializeVeriStandResult,
+  );
+  // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'InitializeVeriStand',
+    ts.StepPhase.post,
+    ts.PropObj(),
+    initializeVeriStandResult,
+  );
+  initializeVeriStandResult.Status = 'Done';
+  run.record(initializeVeriStandResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Get to known state [RunRTSequencePassFail]
+  // Get to known state [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    getToKnownStateResult,
+  );
   getToKnownStateResult.Status =
       ts.truthy(getToKnownStateResult.VeriStand.PassFail)
       ? 'Passed'
@@ -177,23 +236,85 @@ Future<String> mainSequence() async {
   run.record(getToKnownStateResult.Status);
 
   // ── main ──
-  throw UnimplementedError(
-    'step type StartLogging: action not exported yet',
-  ); // Start VS Logging [StartLogging]
+  // Start VS Logging [StartLogging]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'StartLogging',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'BaseNodeArray': null,
+        'LogFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Logs\\\\CCTests.tdms"',
+        'ChannelPaths': <dynamic>[
+          'Aliases/Driver controls/Brake',
+          'Aliases/Driver controls/Cruise Control/Cruise Active',
+          'Aliases/Driver controls/Cruise Control/Cruise Control Accel',
+          'Aliases/Driver controls/Cruise Control/Cruise Control Decel',
+          'Aliases/Driver controls/Cruise Control/Cruise Control Enable',
+          'Aliases/Driver controls/Cruise Control/Cruise Control Resume',
+          'Aliases/Driver controls/Cruise Control/Cruise Control Set',
+          'Aliases/Driver controls/Cruise Control/Cruise Set Speed',
+          'Aliases/Driver controls/Cruise Control/Cruise State',
+          'Aliases/Driver controls/Gas',
+          'Aliases/State/Simulated RPM',
+          'Aliases/State/Throttle Position',
+          'Aliases/State/Vehicle Speed (kmph)',
+        ],
+        'FileDescription': 'ECU HIL Cruise Control Test ',
+        'FileSegmenting': false,
+        'FileSegmentingSize': 0,
+        'FilePropertyNames': <dynamic>['Author'],
+        'FilePropertyValues': <dynamic>['Don Smith'],
+      }),
+    }),
+    startVsLoggingResult,
+  );
+  startVsLoggingResult.Status = 'Done';
+  run.record(startVsLoggingResult.Status);
   // Ramp up the set speed. Check if actual speed stays within 5 kmph of set speed while ramping continuously
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // CC Ramp Up [RunRTSequencePassFail]
+  // CC Ramp Up [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Cruise Control(ramp up).nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Cruise Control/Cruise Control Enable","Aliases/Driver controls/Cruise Control/Cruise Control Accel","Aliases/Driver controls/Cruise Control/Cruise Control Decel","Aliases/Driver controls/Cruise Control/Cruise Control Set","Aliases/Driver controls/Cruise Control/Cruise Active","Aliases/Driver controls/Cruise Control/Cruise Set Speed","Aliases/State/Vehicle Speed (kmph)","Aliases/Driver controls/Gas"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Cruise_Control_Enable","Cruise_Control_Accel","Cruise_Control_Decel","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal"}',
+      }),
+    }),
+    ccRampUpResult,
+  );
   ccRampUpResult.Status = ts.truthy(ccRampUpResult.VeriStand.PassFail)
       ? 'Passed'
       : 'Failed'; // status expression
   run.record(ccRampUpResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Get to known state [RunRTSequencePassFail]
+  // Get to known state [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    getToKnownStateResult2,
+  );
   getToKnownStateResult2.Status =
       ts.truthy(getToKnownStateResult2.VeriStand.PassFail)
       ? 'Passed'
@@ -201,18 +322,48 @@ Future<String> mainSequence() async {
   run.record(getToKnownStateResult2.Status);
   // Ramp down the set speed. Check if actual speed stays within 5 kmph of set speed throughout.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // CC ramp down [RunRTSequencePassFail]
+  // CC ramp down [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Cruise Control(ramp down).nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Cruise Control/Cruise Control Enable","Aliases/Driver controls/Cruise Control/Cruise Control Accel","Aliases/Driver controls/Cruise Control/Cruise Control Decel","Aliases/Driver controls/Cruise Control/Cruise Control Set","Aliases/Driver controls/Cruise Control/Cruise Active","Aliases/Driver controls/Cruise Control/Cruise Set Speed","Aliases/State/Vehicle Speed (kmph)","Aliases/Driver controls/Gas"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Cruise_Control_Enable","Cruise_Control_Accel","Cruise_Control_Decel","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal"}',
+      }),
+    }),
+    ccRampDownResult,
+  );
   ccRampDownResult.Status = ts.truthy(ccRampDownResult.VeriStand.PassFail)
       ? 'Passed'
       : 'Failed'; // status expression
   run.record(ccRampDownResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Get to known state [RunRTSequencePassFail]
+  // Get to known state [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    getToKnownStateResult3,
+  );
   getToKnownStateResult3.Status =
       ts.truthy(getToKnownStateResult3.VeriStand.PassFail)
       ? 'Passed'
@@ -220,9 +371,24 @@ Future<String> mainSequence() async {
   run.record(getToKnownStateResult3.Status);
   // Ramp up the set speed and then ramp down. Check if actual speed stays within 5 kmph of set speed throughout.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // CC ramp up and down [RunRTSequencePassFail]
+  // CC ramp up and down [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Cruise Control(ramp up and down).nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Cruise Control/Cruise Control Enable","Aliases/Driver controls/Cruise Control/Cruise Control Accel","Aliases/Driver controls/Cruise Control/Cruise Control Decel","Aliases/Driver controls/Cruise Control/Cruise Control Set","Aliases/Driver controls/Cruise Control/Cruise Active","Aliases/Driver controls/Cruise Control/Cruise Set Speed","Aliases/State/Vehicle Speed (kmph)","Aliases/Driver controls/Gas"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Cruise_Control_Enable","Cruise_Control_Accel","Cruise_Control_Decel","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal"}',
+      }),
+    }),
+    ccRampUpAndDownResult,
+  );
   ccRampUpAndDownResult.Status =
       ts.truthy(ccRampUpAndDownResult.VeriStand.PassFail)
       ? 'Passed'
@@ -230,9 +396,24 @@ Future<String> mainSequence() async {
   run.record(ccRampUpAndDownResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Get to known state [RunRTSequencePassFail]
+  // Get to known state [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    getToKnownStateResult4,
+  );
   getToKnownStateResult4.Status =
       ts.truthy(getToKnownStateResult4.VeriStand.PassFail)
       ? 'Passed'
@@ -240,18 +421,47 @@ Future<String> mainSequence() async {
   run.record(getToKnownStateResult4.Status);
   // Set Enable Cruise Control to false. Verify that cruise control is turned off. Check ECU status over XCP/CCP
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // CC Disable [RunRTSequencePassFail]
+  // CC Disable [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Cruise Control(disable).nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Cruise Control/Cruise Control Enable","Aliases/Driver controls/Cruise Control/Cruise Control Set","Aliases/Driver controls/Cruise Control/Cruise Active","Aliases/Driver controls/Cruise Control/Cruise Set Speed","Aliases/State/Vehicle Speed (kmph)","Aliases/Driver controls/Gas"}',
+        'ParamTypesArray': '{"Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Cruise_Control_Enable","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal"}',
+      }),
+    }),
+    ccDisableResult,
+  );
   ccDisableResult.Status = ts.truthy(ccDisableResult.VeriStand.PassFail)
       ? 'Passed'
       : 'Failed'; // status expression
   run.record(ccDisableResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Get to known state [RunRTSequencePassFail]
+  // Get to known state [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    getToKnownStateResult5,
+  );
   getToKnownStateResult5.Status =
       ts.truthy(getToKnownStateResult5.VeriStand.PassFail)
       ? 'Passed'
@@ -259,9 +469,23 @@ Future<String> mainSequence() async {
   run.record(getToKnownStateResult5.Status);
   // Tap on the brakes. Check if cruise control turns off.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Exit CC with brake [RunRTSequencePassFail]
+  // Exit CC with brake [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Cruise Control(brake).nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Cruise Control/Cruise Control Enable","Aliases/Driver controls/Brake","Aliases/Driver controls/Cruise Control/Cruise Control Set","Aliases/Driver controls/Cruise Control/Cruise Active","Aliases/Driver controls/Cruise Control/Cruise Set Speed","Aliases/State/Vehicle Speed (kmph)","Aliases/Driver controls/Gas"}',
+        'ParamTypesArray': '{"Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Cruise_Control_Enable","Brake","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal"}',
+      }),
+    }),
+    exitCcWithBrakeResult,
+  );
   exitCcWithBrakeResult.Status =
       ts.truthy(exitCcWithBrakeResult.VeriStand.PassFail)
       ? 'Passed'
@@ -269,9 +493,24 @@ Future<String> mainSequence() async {
   run.record(exitCcWithBrakeResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Get to known state [RunRTSequencePassFail]
+  // Get to known state [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    getToKnownStateResult6,
+  );
   getToKnownStateResult6.Status =
       ts.truthy(getToKnownStateResult6.VeriStand.PassFail)
       ? 'Passed'
@@ -279,30 +518,82 @@ Future<String> mainSequence() async {
   run.record(getToKnownStateResult6.Status);
   // Tap on brake to disable Cruise Control. Tap Resume Cruise Control switch. Verify that cruise control is back on.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Resume CC [RunRTSequencePassFail]
+  // Resume CC [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Cruise Control(resume).nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Cruise Control/Cruise Control Enable","Aliases/Driver controls/Brake","Aliases/Driver controls/Cruise Control/Cruise Control Set","Aliases/Driver controls/Cruise Control/Cruise Active","Aliases/Driver controls/Cruise Control/Cruise Set Speed","Aliases/State/Vehicle Speed (kmph)","Aliases/Driver controls/Gas","Aliases/Driver controls/Cruise Control/Cruise Control Resume"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Cruise_Control_Enable","Brake","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal","Cruise_Control_Resume"}',
+      }),
+    }),
+    resumeCcResult,
+  );
   resumeCcResult.Status = ts.truthy(resumeCcResult.VeriStand.PassFail)
       ? 'Passed'
       : 'Failed'; // status expression
   run.record(resumeCcResult.Status);
-  throw UnimplementedError(
-    'step type StopLogging: action not exported yet',
-  ); // Stop VS Logging [StopLogging]
+  // Stop VS Logging [StopLogging]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'StopLogging',
+    ts.StepPhase.post,
+    ts.PropObj(),
+    stopVsLoggingResult,
+  );
   tdmsFile = stopVsLoggingResult.Veristand.Location; // post-expression
   stopVsLoggingResult.Status = 'Done';
   run.record(stopVsLoggingResult.Status);
   // failure does NOT fail the sequence
-  throw UnimplementedError(
-    'step type DIAdem_OpenReference: action not exported yet',
-  ); // Open DIAdem [DIAdem_OpenReference]
-  throw UnimplementedError(
-    'step type DIAdem_ExportChannels: action not exported yet',
-  ); // Export Channels [DIAdem_ExportChannels]
+  // Open DIAdem [DIAdem_OpenReference]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'DIAdem_OpenReference',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'HostNameExpr': '""',
+      'DIAdemRefExpr': 'Locals.DIAdemRef',
+      'ShowEnvironment': false,
+    }),
+    openDiAdemResult,
+  );
+  openDiAdemResult.Status = 'Done';
+  // Export Channels [DIAdem_ExportChannels]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'DIAdem_ExportChannels',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'DIAdemRefExpr': 'Locals.DIAdemRef',
+      'SourceDataExpr': 'Locals.TDMSFile',
+      'ChannelExpr': '"TDMS_File_Name"',
+      'UseName': true,
+      'CreateChannel': true,
+    }),
+    exportChannelsResult,
+  );
+  exportChannelsResult.Status = 'Done';
+  run.record(exportChannelsResult.Status);
   // failure does NOT fail the sequence
-  throw UnimplementedError(
-    'step type DIAdem_RunScript: action not exported yet',
-  ); // Run Script [DIAdem_RunScript]
+  // Run Script [DIAdem_RunScript]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'DIAdem_RunScript',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'DIAdemRefExpr': 'Locals.DIAdemRef',
+      'PathExpr': '',
+      'Path':
+          'C:\\Users\\PasswordIsNI\\Documents\\HIL ECU demo 2014\\Diadem Files\\CC.VBS',
+      'Synchronous': true,
+      'UsePathExpr': false,
+    }),
+    runScriptResult,
+  );
+  runScriptResult.Status = 'Done';
   await Future<void>.delayed(const Duration(seconds: 1));
 
   return run.status;
@@ -341,13 +632,13 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type InitializeVeriStand: action not exported yet
-  //   step type RunRTSequencePassFail: action not exported yet
-  //   step type StartLogging: action not exported yet
-  //   step type StopLogging: action not exported yet
-  //   step type DIAdem_OpenReference: action not exported yet
-  //   step type DIAdem_ExportChannels: action not exported yet
-  //   step type DIAdem_RunScript: action not exported yet
+  //   step type InitializeVeriStand acts through ts.stepHost
+  //   step type RunRTSequencePassFail acts through ts.stepHost
+  //   step type StartLogging acts through ts.stepHost
+  //   step type StopLogging acts through ts.stepHost
+  //   step type DIAdem_OpenReference acts through ts.stepHost
+  //   step type DIAdem_ExportChannels acts through ts.stepHost
+  //   step type DIAdem_RunScript acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

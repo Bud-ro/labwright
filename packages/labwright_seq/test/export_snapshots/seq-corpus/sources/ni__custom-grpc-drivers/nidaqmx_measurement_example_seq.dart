@@ -14,14 +14,32 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic updatePinMapResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update Pin Map
+  dynamic measurementResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Measurement
 
   body:
   try {
     // ── setup ──
     // pin map: @"NIDAQmxMeasurement.pinmap"
-    throw UnimplementedError(
-      'step type NI_UpdatePinMap: action not exported yet',
-    ); // Update Pin Map [NI_UpdatePinMap]
+    // Update Pin Map [NI_UpdatePinMap]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_UpdatePinMap',
+      ts.StepPhase.post,
+      ts.PropObj({'PinMapPath': '@"NIDAQmxMeasurement.pinmap"'}),
+      updatePinMapResult,
+    );
+    updatePinMapResult.Status = 'Done';
+    run.record(updatePinMapResult.Status);
     //   sequence context in <- ThisContext
     //   error out <- Step.Result.Error
     await callInitializeAndRegisterTasks(); // Initialize and Register NI-DAQmx Tasks [Action]
@@ -35,9 +53,100 @@ Future<String> mainSequence() async {
     // measurement param: timeout (In TypeDouble) = 10
     // measurement param: data (Out TypeDouble)
     // measurement param: CI_Freq_Meas_Time_out (Out TypeDouble)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Measurement [NI_Measurement]
+    // Measurement [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'InstrumentStepDescription': '',
+        'Measurement': ts.PropObj({
+          'Version': '1.0.0',
+          'Name': 'NIDAQmxMeasurement_LabVIEW',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'pin_name',
+              'ArgumentValue': '"Pin1"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'IOResource',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'maximum_value',
+              'ArgumentValue': '100',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'minimum_value',
+              'ArgumentValue': '2',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 3,
+              'TypeSpecialization': 'None',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'CI_Freq_Meas_Time_in',
+              'ArgumentValue': '5',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 4,
+              'TypeSpecialization': 'None',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'timeout',
+              'ArgumentValue': '10',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 5,
+              'TypeSpecialization': 'None',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'data',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'CI_Freq_Meas_Time_out',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+            }),
+          ],
+        }),
+      }),
+      measurementResult,
+    );
+    measurementResult.Status = 'Done';
+    run.record(measurementResult.Status);
   } finally {
     // ── cleanup ──
     //   error out <- Step.Result.Error
@@ -80,9 +189,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_UpdatePinMap: action not exported yet
+  //   step type NI_UpdatePinMap acts through ts.stepHost
   //   My Computer\NIDAQmxMeasurement.lvlib\TestStand Code Modules\Initialize and Register Tasks.vi
-  //   step type NI_Measurement: action not exported yet
+  //   step type NI_Measurement acts through ts.stepHost
   //   My Computer\NIDAQmxMeasurement.lvlib\TestStand Code Modules\Unregister and Close Tasks.vi
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

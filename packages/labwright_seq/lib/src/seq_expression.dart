@@ -255,7 +255,6 @@ List<_Token>? _lex(String text) {
           if (verbatim && j + 1 < text.length && text[j + 1] == '"') return null;
           break;
         }
-        if (d == '\n' || d == '\r') return null;
         if (d == r'\' && !verbatim) {
           if (j + 1 >= text.length) return null;
           final escaped = switch (text[++j]) {

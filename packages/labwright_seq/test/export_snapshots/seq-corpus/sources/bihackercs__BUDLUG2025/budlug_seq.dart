@@ -52,6 +52,22 @@ Future<String> containerManipulation() async {
   double thisNumber = 0; // Num — default: 0
 
   final run = ts.SequenceRun();
+  dynamic messagePopupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message Popup
+  dynamic messagePopupResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message Popup
 
   ts.eval(
     'Locals.ThisString = ThisContext.Locals.SpaceShip.GetValString("Id",0x0)\n',
@@ -59,18 +75,32 @@ Future<String> containerManipulation() async {
   // popup title: NameOf(Step)
   // popup message: "The SpaceShip id is: " + Locals.ThisString
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Message Popup [MessagePopup]
+  // Message Popup [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Message Popup',
+    message: 'The SpaceShip id is: ' + thisString,
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  messagePopupResult.ButtonHit = popup.buttonHit;
+  messagePopupResult.Response = popup.response;
+  messagePopupResult.Status = 'Done';
+  run.record(messagePopupResult.Status);
   ts.eval(
     'Locals.ThisNumber = ThisContext.Locals.SpaceShip.GetValNumber("ActualValue",0x0) ',
   );
   // popup title: NameOf(Step)
   // popup message: "The SpaceShip number is: " + Str(Locals.ThisNumber)
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Message Popup [MessagePopup]
+  // Message Popup [MessagePopup]: acts through ts.stepHost
+  final popup2 = await ts.stepHost.messagePopup(
+    title: 'Message Popup',
+    message: 'The SpaceShip number is: ' + ts.str(thisNumber),
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  messagePopupResult2.ButtonHit = popup2.buttonHit;
+  messagePopupResult2.Response = popup2.response;
+  messagePopupResult2.Status = 'Done';
+  run.record(messagePopupResult2.Status);
 
   return run.status;
 }
@@ -82,6 +112,30 @@ Future<String> valueType() async {
   double valueType2 = 0; // Num — default: 0
 
   final run = ts.SequenceRun();
+  dynamic messagePopupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message Popup
+  dynamic messagePopupResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message Popup
+  dynamic messagePopupResult3 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message Popup
 
   ts.eval(
     'Locals.ValueType = Locals.Columbia.Type.ValueType',
@@ -89,25 +143,46 @@ Future<String> valueType() async {
   // popup title: NameOf(Step)
   // popup message: "Columbia Value Type is: " + Str(Locals.ValueType)
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Message Popup [MessagePopup]
+  // Message Popup [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Message Popup',
+    message: 'Columbia Value Type is: ' + ts.str(valueType2),
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  messagePopupResult.ButtonHit = popup.buttonHit;
+  messagePopupResult.Response = popup.response;
+  messagePopupResult.Status = 'Done';
+  run.record(messagePopupResult.Status);
   ts.eval(
     'Locals.ValueType = Locals.Endevour.Type.ValueType',
   ); // Get Columbia value type
   // popup title: NameOf(Step)
   // popup message: "Endevour Value Type is: " + Str(Locals.ValueType)
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Message Popup [MessagePopup]
+  // Message Popup [MessagePopup]: acts through ts.stepHost
+  final popup2 = await ts.stepHost.messagePopup(
+    title: 'Message Popup',
+    message: 'Endevour Value Type is: ' + ts.str(valueType2),
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  messagePopupResult2.ButtonHit = popup2.buttonHit;
+  messagePopupResult2.Response = popup2.response;
+  messagePopupResult2.Status = 'Done';
+  run.record(messagePopupResult2.Status);
   if (ts.cond('Locals.Endevour.Type.ValueType == PropValType_Container')) {
     // popup title: NameOf(Step)
     // popup message: "Your popup message. Hurray"
     // popup buttons: "OK"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Message Popup [MessagePopup]
+    // Message Popup [MessagePopup]: acts through ts.stepHost
+    final popup3 = await ts.stepHost.messagePopup(
+      title: 'Message Popup',
+      message: 'Your popup message. Hurray',
+      buttons: ['OK', '', '', '', '', ''],
+    );
+    messagePopupResult3.ButtonHit = popup3.buttonHit;
+    messagePopupResult3.Response = popup3.response;
+    messagePopupResult3.Status = 'Done';
+    run.record(messagePopupResult3.Status);
   }
 
   return run.status;
@@ -116,13 +191,29 @@ Future<String> valueType() async {
 /// Sequence `SequenceFileLoad`.
 Future<String> sequenceFileLoad() async {
   final run = ts.SequenceRun();
+  dynamic messagePopupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message Popup
 
   // popup title: NameOf(Step)
   // popup message: "BUDLUG Greetings | I hope you enjoyed the presentation, and find some usefull examples in this sequence file. | If you'd like to reach out contact me at  | www.linkedin.com/in/csaba-bihacker"
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Message Popup [MessagePopup]
+  // Message Popup [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Message Popup',
+    message:
+        'BUDLUG Greetings\nI hope you enjoyed the presentation, and find some usefull examples in this sequence file.\nIf you\'d like to reach out contact me at \nwww.linkedin.com/in/csaba-bihacker',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  messagePopupResult.ButtonHit = popup.buttonHit;
+  messagePopupResult.Response = popup.response;
+  messagePopupResult.Status = 'Done';
+  run.record(messagePopupResult.Status);
 
   return run.status;
 }
@@ -168,18 +259,18 @@ void register() {
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('ContainerManipulation', () async {
     lw.expect(await containerManipulation(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('ValueType', () async {
     lw.expect(await valueType(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });

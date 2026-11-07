@@ -29,6 +29,14 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Enter a new user name
+  dynamic warningUserAlreadyExistsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Warning user already exists
   dynamic enterAGroupNameResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -37,6 +45,14 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Enter a group name
+  dynamic warningGroupWillBeCreatedResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Warning group will be created
   dynamic userInGroupResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -75,9 +91,16 @@ Future<String> mainSequence() async {
         'ReportText': '',
         'Common': ts.PropObj(),
       });
-      throw UnimplementedError(
-        'step type MessagePopup: action not exported yet',
-      ); // Enter a new user name [MessagePopup]
+      // Enter a new user name [MessagePopup]: acts through ts.stepHost
+      final popup = await ts.stepHost.messagePopup(
+        title: 'Enter a new user name',
+        message: 'Enter a user name. The user password will be set to 12345',
+        buttons: ['Done', 'Cancel', '', '', '', ''],
+        showResponse: true,
+        defaultResponse: 'ExampleUser2025',
+      );
+      enterANewUserNameResult.ButtonHit = popup.buttonHit;
+      enterANewUserNameResult.Response = popup.response;
       newUserName = enterANewUserNameResult.Response; // post-expression
       enterANewUserNameResult.Status = 'Done';
       run.record(enterANewUserNameResult.Status);
@@ -95,10 +118,30 @@ Future<String> mainSequence() async {
       // popup buttons: "OK"
       if (userExists) {
         // precondition of Warning user already exists
-        throw UnimplementedError(
-          'step type MessagePopup: action not exported yet',
-        ); // Warning user already exists [MessagePopup]
+        warningUserAlreadyExistsResult = ts.PropObj({
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'ButtonHit': 0,
+          'Response': '',
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        });
+        // Warning user already exists [MessagePopup]: acts through ts.stepHost
+        final popup2 = await ts.stepHost.messagePopup(
+          title: 'Warning user already exists',
+          message:
+              'There is already a user with the LoginName ' +
+              newUserName +
+              '. Enter a different user name.',
+          buttons: ['OK', '', '', '', '', ''],
+        );
+        warningUserAlreadyExistsResult.ButtonHit = popup2.buttonHit;
+        warningUserAlreadyExistsResult.Response = popup2.response;
         newUserName = ''; // post-expression
+        warningUserAlreadyExistsResult.Status = 'Done';
+        run.record(warningUserAlreadyExistsResult.Status);
+      } else {
+        warningUserAlreadyExistsResult.Status = 'Skipped';
       }
     }
     //   Save File <- Locals.SaveUsersFile
@@ -120,9 +163,17 @@ Future<String> mainSequence() async {
         'ReportText': '',
         'Common': ts.PropObj(),
       });
-      throw UnimplementedError(
-        'step type MessagePopup: action not exported yet',
-      ); // Enter a group name [MessagePopup]
+      // Enter a group name [MessagePopup]: acts through ts.stepHost
+      final popup3 = await ts.stepHost.messagePopup(
+        title: 'Enter a group name',
+        message:
+            'Enter a group to which the new user shall be added. \n\nPick a group that does not already have the privilege Configure.ConfigAdapter (e.g. Technician).',
+        buttons: ['Done', 'Cancel', '', '', '', ''],
+        showResponse: true,
+        defaultResponse: 'Technician',
+      );
+      enterAGroupNameResult.ButtonHit = popup3.buttonHit;
+      enterAGroupNameResult.Response = popup3.response;
       groupName = enterAGroupNameResult.Response; // post-expression
       enterAGroupNameResult.Status = 'Done';
       run.record(enterAGroupNameResult.Status);
@@ -140,9 +191,27 @@ Future<String> mainSequence() async {
       // popup buttons: "OK"
       if (!groupExists) {
         // precondition of Warning group will be created
-        throw UnimplementedError(
-          'step type MessagePopup: action not exported yet',
-        ); // Warning group will be created [MessagePopup]
+        warningGroupWillBeCreatedResult = ts.PropObj({
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'ButtonHit': 0,
+          'Response': '',
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        });
+        // Warning group will be created [MessagePopup]: acts through ts.stepHost
+        final popup4 = await ts.stepHost.messagePopup(
+          title: 'Warning group will be created',
+          message:
+              'The group ' + groupName + ' does not exist and will be created.',
+          buttons: ['OK', '', '', '', '', ''],
+        );
+        warningGroupWillBeCreatedResult.ButtonHit = popup4.buttonHit;
+        warningGroupWillBeCreatedResult.Response = popup4.response;
+        warningGroupWillBeCreatedResult.Status = 'Done';
+        run.record(warningGroupWillBeCreatedResult.Status);
+      } else {
+        warningGroupWillBeCreatedResult.Status = 'Skipped';
       }
       if (!groupExists) {
         // precondition of Create group
@@ -213,13 +282,30 @@ Future<String> mainSequence() async {
 /// Sequence `SequenceFileLoad`.
 Future<String> sequenceFileLoad() async {
   final run = ts.SequenceRun();
+  dynamic showInstructionsToUserResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Show Instructions to user
 
   // popup title: NameOf(Step)
   // popup message: "This example shows you how to use the EasyUserManager VIs directly from Teststand. | For this example to work properly, you need to add  | <LabVIEW>\vi.lib\Hasbun Wood Engineering\Easy User Manager  | to the search directories. | Use the local variable Local.SaveUsersFile to control whether changes are immediately  | saved to your users file. If this variable is False, you will see changes in your user |  manager denoted by a *, and you can save them manually.  | If this variable is True, changes will be immediately saved and you will not see the *. | "
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Show Instructions to user [MessagePopup]
+  // Show Instructions to user [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Show Instructions to user',
+    message: ts.eval(
+      '"This example shows you how to use the EasyUserManager VIs directly from Teststand.\n\nFor this example to work properly, you need to add \n<LabVIEW>\\vi.lib\\Hasbun Wood Engineering\\Easy User Manager \nto the search directories.\n\nUse the local variable Local.SaveUsersFile to control whether changes are immediately \nsaved to your users file. If this variable is False, you will see changes in your user\n manager denoted by a *, and you can save them manually. \nIf this variable is True, changes will be immediately saved and you will not see the *.\n"',
+    ),
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  showInstructionsToUserResult.ButtonHit = popup.buttonHit;
+  showInstructionsToUserResult.Response = popup.response;
+  showInstructionsToUserResult.Status = 'Done';
+  run.record(showInstructionsToUserResult.Status);
 
   return run.status;
 }
@@ -300,7 +386,7 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   Initialize from Teststand.vi
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   RunState engine access (no engine at run time)
   //   User Exists.vi
   //   Create User.vi
@@ -316,7 +402,8 @@ void register() {
     lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
+  //   untranslated expression in body
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });

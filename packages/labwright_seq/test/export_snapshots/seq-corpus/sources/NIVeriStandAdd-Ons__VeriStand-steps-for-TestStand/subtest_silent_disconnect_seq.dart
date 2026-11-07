@@ -16,25 +16,100 @@ Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
 
   final run = ts.SequenceRun();
+  dynamic initializeVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'VeristandError': null,
+    'Veristand': ts.PropObj({'Project': ''}),
+  }); // result of Initialize VeriStand
+  dynamic silentDisconnectResult = ts.PropObj({
+    'TempErrorOccured': false,
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Silent Disconnect
+  dynamic connectProjectResult = ts.PropObj({
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Connect Project
+  dynamic getChannelValueResult = ts.PropObj({
+    'Units': '',
+    'Numeric': 0,
+    'VeristandError': null,
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({
+      'ChannelUnit': '',
+      'ChannelName': '',
+      'ChannelInfo': null,
+      'Description': '',
+    }),
+  }); // result of Get Channel Value
 
   // ── setup ──
-  throw UnimplementedError(
-    'step type InitializeVeriStand: action not exported yet',
-  ); // Initialize VeriStand [InitializeVeriStand]
+  await ts.stepHost.runStepType(
+    'InitializeVeriStand',
+    ts.StepPhase.pre,
+    ts.PropObj(),
+    initializeVeriStandResult,
+  );
+  // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'InitializeVeriStand',
+    ts.StepPhase.post,
+    ts.PropObj(),
+    initializeVeriStandResult,
+  );
+  initializeVeriStandResult.Status = 'Done';
+  run.record(initializeVeriStandResult.Status);
 
   // ── main ──
   await Future<void>.delayed(const Duration(seconds: 10));
-  throw UnimplementedError(
-    'step type SilentDisconnect: action not exported yet',
-  ); // Silent Disconnect [SilentDisconnect]
+  // Silent Disconnect [SilentDisconnect]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'SilentDisconnect',
+    ts.StepPhase.post,
+    ts.PropObj(),
+    silentDisconnectResult,
+  );
+  silentDisconnectResult.Status = 'Done';
+  run.record(silentDisconnectResult.Status);
   await Future<void>.delayed(const Duration(seconds: 10));
-  throw UnimplementedError(
-    'step type ConnectProject: action not exported yet',
-  ); // Connect Project [ConnectProject]
+  // Connect Project [ConnectProject]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'ConnectProject',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({'ShowProgress': false}),
+    }),
+    connectProjectResult,
+  );
+  connectProjectResult.Status = 'Done';
+  run.record(connectProjectResult.Status);
   await Future<void>.delayed(const Duration(seconds: 10));
-  throw UnimplementedError(
-    'step type GetChannelValue: action not exported yet',
-  ); // Get Channel Value [GetChannelValue]
+  // Get Channel Value [GetChannelValue]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'GetChannelValue',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'ValueToSet': '0',
+        'ChannelName': '"Aliases/EngineTemp"',
+      }),
+    }),
+    getChannelValueResult,
+  );
+  getChannelValueResult.Status = 'Done';
+  run.record(getChannelValueResult.Status);
 
   return run.status;
 }
@@ -71,10 +146,10 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type InitializeVeriStand: action not exported yet
-  //   step type SilentDisconnect: action not exported yet
-  //   step type ConnectProject: action not exported yet
-  //   step type GetChannelValue: action not exported yet
+  //   step type InitializeVeriStand acts through ts.stepHost
+  //   step type SilentDisconnect acts through ts.stepHost
+  //   step type ConnectProject acts through ts.stepHost
+  //   step type GetChannelValue acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

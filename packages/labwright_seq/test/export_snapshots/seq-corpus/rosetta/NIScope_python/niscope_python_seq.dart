@@ -14,14 +14,32 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic updatePinMapResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update pin map
+  dynamic acquireAWaveformUsingAnNiOscilloscopeResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Acquire a waveform using an NI oscilloscope
 
   body:
   try {
     // ── setup ──
     // pin map: "NIScopeAcquireWaveform.pinmap"
-    throw UnimplementedError(
-      'step type NI_UpdatePinMap: action not exported yet',
-    ); // Update pin map [NI_UpdatePinMap]
+    // Update pin map [NI_UpdatePinMap]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_UpdatePinMap',
+      ts.StepPhase.post,
+      ts.PropObj({'PinMapPath': '"NIScopeAcquireWaveform.pinmap"'}),
+      updatePinMapResult,
+    );
+    updatePinMapResult.Status = 'Done';
+    run.record(updatePinMapResult.Status);
     //   sequence_context <- ThisContext
     throw UnimplementedError(
       'python call: teststand_niscope.py',
@@ -45,9 +63,213 @@ Future<String> mainSequence() async {
     // measurement param: waveform1 (Out TypeDouble)
     // measurement param: waveform2 (Out TypeDouble)
     // measurement param: waveform3 (Out TypeDouble)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Acquire a waveform using an NI oscilloscope [NI_Measurement]
+    // Acquire a waveform using an NI oscilloscope [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'Measurement': ts.PropObj({
+          'Name': 'ni.examples.NIScopeAcquireWaveform_Python',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'measurement_pins',
+              'ArgumentValue': '{"PinGroup1"}',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'IOResource',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'vertical_range',
+              'ArgumentValue': '5',
+              'Direction': 'In',
+              'Log': false,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'vertical_coupling',
+              'ArgumentValue': '1i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeEnum',
+              'ID': 3,
+              'TypeSpecialization': 'Enum',
+              'EnumDefinition': <dynamic>[0, 1, 2],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'input_impedance',
+              'ArgumentValue': '1000000',
+              'Direction': 'In',
+              'Log': false,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 4,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'min_sample_rate',
+              'ArgumentValue': '10000000',
+              'Direction': 'In',
+              'Log': false,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 5,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'min_record_length',
+              'ArgumentValue': '40000i64',
+              'Direction': 'In',
+              'Log': false,
+              'Dimension': 0,
+              'Type': 'TypeInt32',
+              'ID': 6,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'trigger_pin',
+              'ArgumentValue': '"Pin1"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 7,
+              'TypeSpecialization': 'IOResource',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'trigger_level',
+              'ArgumentValue': '0.5',
+              'Direction': 'In',
+              'Log': false,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 8,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'trigger_slope',
+              'ArgumentValue': '1i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeEnum',
+              'ID': 9,
+              'TypeSpecialization': 'Enum',
+              'EnumDefinition': <dynamic>[0, 1, 3],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'auto_trigger',
+              'ArgumentValue': 'False',
+              'Direction': 'In',
+              'Log': false,
+              'Dimension': 0,
+              'Type': 'TypeBool',
+              'ID': 10,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'trigger_coupling',
+              'ArgumentValue': '1i64',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeEnum',
+              'ID': 11,
+              'TypeSpecialization': 'Enum',
+              'EnumDefinition': <dynamic>[0, 1, 3, 4, 1001],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'timeout',
+              'ArgumentValue': '5',
+              'Direction': 'In',
+              'Log': false,
+              'Dimension': 0,
+              'Type': 'TypeDouble',
+              'ID': 12,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'waveform0',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeDouble',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'waveform1',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeDouble',
+              'ID': 2,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'waveform2',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeDouble',
+              'ID': 3,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'waveform3',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 1,
+              'Type': 'TypeDouble',
+              'ID': 4,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+          ],
+        }),
+      }),
+      acquireAWaveformUsingAnNiOscilloscopeResult,
+    );
+    acquireAWaveformUsingAnNiOscilloscopeResult.Status = 'Done';
+    run.record(acquireAWaveformUsingAnNiOscilloscopeResult.Status);
   } finally {
     // ── cleanup ──
     throw UnimplementedError(
@@ -77,9 +299,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_UpdatePinMap: action not exported yet
+  //   step type NI_UpdatePinMap acts through ts.stepHost
   //   python call: teststand_niscope.py
-  //   step type NI_Measurement: action not exported yet
+  //   step type NI_Measurement acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

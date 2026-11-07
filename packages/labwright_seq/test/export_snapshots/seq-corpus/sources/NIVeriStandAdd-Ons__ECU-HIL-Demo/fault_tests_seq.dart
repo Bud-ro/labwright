@@ -20,6 +20,14 @@ Future<String> mainSequence() async {
   }); // Obj
 
   final run = ts.SequenceRun();
+  dynamic initializeVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'VeristandError': null,
+    'Veristand': ts.PropObj({'Project': ''}),
+  }); // result of Initialize VeriStand
   dynamic getToKnownStateResult = ts.PropObj({
     'VeriStand': ts.PropObj({
       'PassFail': false,
@@ -31,6 +39,12 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of Get to Known State
+  dynamic startVsLoggingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Start VS Logging
   dynamic appFaultDetectionTestResult = ts.PropObj({
     'VeriStand': ts.PropObj({
       'PassFail': false,
@@ -152,16 +166,70 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of IMP Fault Response Test
+  dynamic stopVsLoggingResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Veristand': ts.PropObj({'Location': <dynamic>[]}),
+  }); // result of Stop VS Logging
 
   // ── setup ──
-  throw UnimplementedError(
-    'step type InitializeVeriStand: action not exported yet',
-  ); // Initialize VeriStand [InitializeVeriStand]
+  await ts.stepHost.runStepType(
+    'InitializeVeriStand',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'ShowProgress': false,
+        'Visible': 'True',
+        'username': '""',
+        'password': '""',
+        'GatewayIP': '"localhost"',
+        'ProjectPath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\ECU HIL.nivsproj"',
+      }),
+    }),
+    initializeVeriStandResult,
+  );
+  // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'InitializeVeriStand',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'ShowProgress': false,
+        'Visible': 'True',
+        'username': '""',
+        'password': '""',
+        'GatewayIP': '"localhost"',
+        'ProjectPath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\ECU HIL.nivsproj"',
+      }),
+    }),
+    initializeVeriStandResult,
+  );
+  initializeVeriStandResult.Status = 'Done';
+  run.record(initializeVeriStandResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Get to Known State [RunRTSequencePassFail]
+  // Get to Known State [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    getToKnownStateResult,
+  );
   getToKnownStateResult.Status =
       ts.truthy(getToKnownStateResult.VeriStand.PassFail)
       ? 'Passed'
@@ -169,14 +237,52 @@ Future<String> mainSequence() async {
   run.record(getToKnownStateResult.Status);
 
   // ── main ──
-  throw UnimplementedError(
-    'step type StartLogging: action not exported yet',
-  ); // Start VS Logging [StartLogging]
+  // Start VS Logging [StartLogging]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'StartLogging',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'Veristand': ts.PropObj({
+        'BaseNodeArray': null,
+        'LogFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Logs\\\\IMP Fault(response).tdms"',
+        'ChannelPaths': <dynamic>[
+          'Aliases/Driver controls/Gas',
+          'Aliases/Fault/IMP_Fault',
+          'Aliases/State/ECU Fault/IMP_Low',
+          'Aliases/State/Simulated RPM',
+          'Aliases/State/Throttle Position',
+          'Aliases/State/Vehicle Speed (kmph)',
+        ],
+        'FileDescription': '',
+        'FileSegmenting': false,
+        'FileSegmentingSize': 0,
+        'FilePropertyNames': <dynamic>[],
+        'FilePropertyValues': <dynamic>[],
+      }),
+    }),
+    startVsLoggingResult,
+  );
+  startVsLoggingResult.Status = 'Done';
+  run.record(startVsLoggingResult.Status);
   // Create Open circuit fault on the APP line to the ECU. Verify over XCP/CCP that ECU detects the fault.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // APP fault detection Test [RunRTSequencePassFail]
+  // APP fault detection Test [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\APP fault(detection).nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/State/ECU Fault/APP_Low","Aliases/Fault/APP_Fault"}',
+        'ParamTypesArray': '{"Path","Path"}',
+        'ParamNamesArray': '{"APP_Low","APP_Fault"}',
+      }),
+    }),
+    appFaultDetectionTestResult,
+  );
   appFaultDetectionTestResult.Status =
       ts.truthy(appFaultDetectionTestResult.VeriStand.PassFail)
       ? 'Passed'
@@ -184,9 +290,24 @@ Future<String> mainSequence() async {
   run.record(appFaultDetectionTestResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Get to Known State [RunRTSequencePassFail]
+  // Get to Known State [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    getToKnownStateResult2,
+  );
   getToKnownStateResult2.Status =
       ts.truthy(getToKnownStateResult2.VeriStand.PassFail)
       ? 'Passed'
@@ -194,9 +315,23 @@ Future<String> mainSequence() async {
   run.record(getToKnownStateResult2.Status);
   // Create Open circuit fault on the APP line to the ECU. Verify over XCP/CCP that ECU detects the fault. verify that the throttle is cut off by the ECU in response to the fault.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // APP Fault Clear Test [RunRTSequencePassFail]
+  // APP Fault Clear Test [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\APP fault(clear).nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/State/ECU Fault/APP_Low","Aliases/Fault/APP_Fault","Aliases/Driver controls/Gas","Aliases/State/Throttle Position"}',
+        'ParamTypesArray': '{"Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"APP_Low","APP_Fault","Gas_Pedal","Throttle_Position"}',
+      }),
+    }),
+    appFaultClearTestResult,
+  );
   appFaultClearTestResult.Status =
       ts.truthy(appFaultClearTestResult.VeriStand.PassFail)
       ? 'Passed'
@@ -204,9 +339,24 @@ Future<String> mainSequence() async {
   run.record(appFaultClearTestResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Get to Known State [RunRTSequencePassFail]
+  // Get to Known State [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    getToKnownStateResult3,
+  );
   getToKnownStateResult3.Status =
       ts.truthy(getToKnownStateResult3.VeriStand.PassFail)
       ? 'Passed'
@@ -214,9 +364,23 @@ Future<String> mainSequence() async {
   run.record(getToKnownStateResult3.Status);
   // Create Open circuit fault on the APP line to the ECU. Verify over XCP/CCP that ECU detects the fault. verify that the throttle is cut off by the ECU in response to the fault.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // APP Fault Response Test [RunRTSequencePassFail]
+  // APP Fault Response Test [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\APP fault(response).nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/State/ECU Fault/APP_Low","Aliases/Fault/APP_Fault","Aliases/Driver controls/Gas","Aliases/State/Throttle Position"}',
+        'ParamTypesArray': '{"Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"APP_Low","APP_Fault","Gas_Pedal","Throttle_Position"}',
+      }),
+    }),
+    appFaultResponseTestResult,
+  );
   appFaultResponseTestResult.Status =
       ts.truthy(appFaultResponseTestResult.VeriStand.PassFail)
       ? 'Passed'
@@ -224,9 +388,24 @@ Future<String> mainSequence() async {
   run.record(appFaultResponseTestResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Get to Known State [RunRTSequencePassFail]
+  // Get to Known State [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    getToKnownStateResult4,
+  );
   getToKnownStateResult4.Status =
       ts.truthy(getToKnownStateResult4.VeriStand.PassFail)
       ? 'Passed'
@@ -234,9 +413,22 @@ Future<String> mainSequence() async {
   run.record(getToKnownStateResult4.Status);
   // Create Open circuit fault on the IMP line to the ECU. Verify over XCP/CCP that ECU detects the fault.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // IMP Fault Detection Test [RunRTSequencePassFail]
+  // IMP Fault Detection Test [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\IMP fault(detection).nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/State/ECU Fault/IMP_Low","Aliases/Fault/IMP_Fault"}',
+        'ParamTypesArray': '{"Path","Path"}',
+        'ParamNamesArray': '{"IMP_Low","IMP_Fault"}',
+      }),
+    }),
+    impFaultDetectionTestResult,
+  );
   impFaultDetectionTestResult.Status =
       ts.truthy(impFaultDetectionTestResult.VeriStand.PassFail)
       ? 'Passed'
@@ -244,9 +436,24 @@ Future<String> mainSequence() async {
   run.record(impFaultDetectionTestResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Get to Known State [RunRTSequencePassFail]
+  // Get to Known State [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    getToKnownStateResult5,
+  );
   getToKnownStateResult5.Status =
       ts.truthy(getToKnownStateResult5.VeriStand.PassFail)
       ? 'Passed'
@@ -255,9 +462,23 @@ Future<String> mainSequence() async {
   // Create Open circuit fault on the IMP line to the ECU. Verify over XCP/CCP that ECU detects the fault. verify that the throttle is cut off by the ECU in response to the fault.
   // Rmove fault. Verify that the fault is cleared in the ECU.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // IMP Fault Clear Test [RunRTSequencePassFail]
+  // IMP Fault Clear Test [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\IMP fault(clear).nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/State/ECU Fault/IMP_Low","Aliases/Fault/IMP_Fault","Aliases/Driver controls/Gas","Targets/Controller/Custom Devices/XCP or CCP Master/Measurements1/ETCPosA"}',
+        'ParamTypesArray': '{"Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"IMP_Low","IMP_Fault","Gas_Pedal","Throttle_Position"}',
+      }),
+    }),
+    impFaultClearTestResult,
+  );
   impFaultClearTestResult.Status =
       ts.truthy(impFaultClearTestResult.VeriStand.PassFail)
       ? 'Passed'
@@ -265,9 +486,24 @@ Future<String> mainSequence() async {
   run.record(impFaultClearTestResult.Status);
   // Get to around 70 mph at 3rd gear
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // Get to Known State [RunRTSequencePassFail]
+  // Get to Known State [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\Initialize and drive.nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/Driver controls/Gas","Aliases/Driver controls/Key","Aliases/Driver controls/Starter","Aliases/State/Simulated RPM","Aliases/Driver controls/Gear","Aliases/Driver controls/Brake","Aliases/State/Vehicle Speed","Aliases/Driver controls/Cruise Control/Cruise Control Enable"}',
+        'ParamTypesArray':
+            '{"Path","Path","Path","Path","Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
+      }),
+    }),
+    getToKnownStateResult6,
+  );
   getToKnownStateResult6.Status =
       ts.truthy(getToKnownStateResult6.VeriStand.PassFail)
       ? 'Passed'
@@ -275,17 +511,37 @@ Future<String> mainSequence() async {
   run.record(getToKnownStateResult6.Status);
   // Create Open circuit fault on the IMP line to the ECU. Verify over XCP/CCP that ECU detects the fault. verify that the throttle is cut off by the ECU in response to the fault.
   // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // IMP Fault Response Test [RunRTSequencePassFail]
+  // IMP Fault Response Test [RunRTSequencePassFail]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'RunRTSequencePassFail',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'VeriStand': ts.PropObj({
+        'SequenceFilePath':
+            '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Profiles\\\\IMP fault(response).nivsseq"',
+        'ParamValuesArray':
+            '{"Aliases/State/ECU Fault/IMP_Low","Aliases/Fault/IMP_Fault","Aliases/Driver controls/Gas","Aliases/State/Throttle Position"}',
+        'ParamTypesArray': '{"Path","Path","Path","Path"}',
+        'ParamNamesArray':
+            '{"IMP_Low","IMP_Fault","Gas_Pedal","Throttle_Position"}',
+      }),
+    }),
+    impFaultResponseTestResult,
+  );
   impFaultResponseTestResult.Status =
       ts.truthy(impFaultResponseTestResult.VeriStand.PassFail)
       ? 'Passed'
       : 'Failed'; // status expression
   run.record(impFaultResponseTestResult.Status);
-  throw UnimplementedError(
-    'step type StopLogging: action not exported yet',
-  ); // Stop VS Logging [StopLogging]
+  // Stop VS Logging [StopLogging]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'StopLogging',
+    ts.StepPhase.post,
+    ts.PropObj(),
+    stopVsLoggingResult,
+  );
+  stopVsLoggingResult.Status = 'Done';
+  run.record(stopVsLoggingResult.Status);
 
   return run.status;
 }
@@ -322,10 +578,10 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type InitializeVeriStand: action not exported yet
-  //   step type RunRTSequencePassFail: action not exported yet
-  //   step type StartLogging: action not exported yet
-  //   step type StopLogging: action not exported yet
+  //   step type InitializeVeriStand acts through ts.stepHost
+  //   step type RunRTSequencePassFail acts through ts.stepHost
+  //   step type StartLogging acts through ts.stepHost
+  //   step type StopLogging acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

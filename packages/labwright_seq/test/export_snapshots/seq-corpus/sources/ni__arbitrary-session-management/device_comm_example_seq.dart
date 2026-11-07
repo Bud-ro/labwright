@@ -14,14 +14,41 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic updatePinMapResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update Pin Map
+  dynamic simpleMeasurementWithDeviceCommunicationOperationsResult = ts.PropObj(
+    {
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    },
+  ); // result of Simple Measurement with device communication operations
+  dynamic simpleMeasurementWithDeviceCommunicationOperationsResult2 =
+      ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      }); // result of Simple Measurement with device communication operations
 
   body:
   try {
     // ── setup ──
     // pin map: "..\pinmap\CustomInstrumentInfo.pinmap"
-    throw UnimplementedError(
-      'step type NI_UpdatePinMap: action not exported yet',
-    ); // Update Pin Map [NI_UpdatePinMap]
+    // Update Pin Map [NI_UpdatePinMap]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_UpdatePinMap',
+      ts.StepPhase.post,
+      ts.PropObj({'PinMapPath': '"..\\pinmap\\CustomInstrumentInfo.pinmap"'}),
+      updatePinMapResult,
+    );
+    updatePinMapResult.Status = 'Done';
+    run.record(updatePinMapResult.Status);
     //   sequence_context <- ThisContext
     throw UnimplementedError(
       'python call: teststand_device_comm.py',
@@ -32,16 +59,130 @@ Future<String> mainSequence() async {
     // measurement param: Register Value In (Binary) (In TypeString) = "11111111"
     // measurement param: Resource name (In TypeString IOResource) = "CustomInstrumentPin"
     // measurement param: Register Value Out (Binary) (Out TypeString)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Simple Measurement with device communication operations [NI_Measurement]
+    // Simple Measurement with device communication operations [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'InstrumentStepDescription': '',
+        'Measurement': ts.PropObj({
+          'Version': '1.0.0.0',
+          'Name': 'SimpleMeasurement_Python',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Register Value In (Binary)',
+              'ChannelName': '',
+              'AttributeId': '',
+              'ArgumentValue': '"11111111"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Resource name',
+              'ChannelName': '',
+              'AttributeId': '',
+              'ArgumentValue': '"CustomInstrumentPin"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 2,
+              'TypeSpecialization': 'IOResource',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Register Value Out (Binary)',
+              'ChannelName': '',
+              'AttributeId': '',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+          ],
+        }),
+      }),
+      simpleMeasurementWithDeviceCommunicationOperationsResult,
+    );
+    simpleMeasurementWithDeviceCommunicationOperationsResult.Status = 'Done';
+    run.record(simpleMeasurementWithDeviceCommunicationOperationsResult.Status);
     // measurement: SimpleMeasurement_Python
     // measurement param: Register Value In (Binary) (In TypeString) = "00111111"
     // measurement param: Resource name (In TypeString IOResource) = "CustomInstrumentPin"
     // measurement param: Register Value Out (Binary) (Out TypeString)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Simple Measurement with device communication operations [NI_Measurement]
+    // Simple Measurement with device communication operations [NI_Measurement]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_Measurement',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'InstrumentStepDescription': '',
+        'Measurement': ts.PropObj({
+          'Version': '1.0.0.0',
+          'Name': 'SimpleMeasurement_Python',
+          'Parameters': <dynamic>[
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Register Value In (Binary)',
+              'ChannelName': '',
+              'AttributeId': '',
+              'ArgumentValue': '"00111111"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Resource name',
+              'ChannelName': '',
+              'AttributeId': '',
+              'ArgumentValue': '"CustomInstrumentPin"',
+              'Direction': 'In',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 2,
+              'TypeSpecialization': 'IOResource',
+              'EnumDefinition': <dynamic>[],
+            }),
+            ts.PropObj({
+              'MessageType': '',
+              'Name': 'Register Value Out (Binary)',
+              'ChannelName': '',
+              'AttributeId': '',
+              'ArgumentValue': '',
+              'Direction': 'Out',
+              'Log': true,
+              'Dimension': 0,
+              'Type': 'TypeString',
+              'ID': 1,
+              'TypeSpecialization': 'None',
+              'EnumDefinition': <dynamic>[],
+            }),
+          ],
+        }),
+      }),
+      simpleMeasurementWithDeviceCommunicationOperationsResult2,
+    );
+    simpleMeasurementWithDeviceCommunicationOperationsResult2.Status = 'Done';
+    run.record(
+      simpleMeasurementWithDeviceCommunicationOperationsResult2.Status,
+    );
   } finally {
     // ── cleanup ──
     throw UnimplementedError(
@@ -71,9 +212,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_UpdatePinMap: action not exported yet
+  //   step type NI_UpdatePinMap acts through ts.stepHost
   //   python call: teststand_device_comm.py
-  //   step type NI_Measurement: action not exported yet
+  //   step type NI_Measurement acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

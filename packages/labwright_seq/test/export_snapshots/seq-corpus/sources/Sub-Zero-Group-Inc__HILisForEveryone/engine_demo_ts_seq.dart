@@ -14,24 +14,103 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
+  dynamic openVeriStandProjectResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Open VeriStand Project
+  dynamic connectResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Connect
+  dynamic disconnectResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Disconnect
+  dynamic closeVeriStandResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Close VeriStand
 
   body:
   try {
     // ── setup ──
-    throw UnimplementedError(
-      'step type NI_VeriStand_OpenProject: action not exported yet',
-    ); // Open VeriStand Project [NI_VeriStand_OpenProject]
-    throw UnimplementedError(
-      'step type NI_VeriStand_Connect: action not exported yet',
-    ); // Connect [NI_VeriStand_Connect]
+    // Open VeriStand Project [NI_VeriStand_OpenProject]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_VeriStand_OpenProject',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'NI_StepTypeName': 'NI_VeriStand_OpenProject',
+        'VeriStand': ts.PropObj({
+          'ProjectPath': 'engine-demo.nivsprj',
+          'ProjectPathExpression': '',
+          'SpecifyProjectPathByExpression': false,
+          'LaunchVeriStand': 'True',
+          'ShowWorkspace': false,
+          'Screens': <dynamic>[],
+        }),
+      }),
+      openVeriStandProjectResult,
+    );
+    openVeriStandProjectResult.Status = 'Done';
+    run.record(openVeriStandProjectResult.Status);
+    // Connect [NI_VeriStand_Connect]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_VeriStand_Connect',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'NI_StepTypeName': 'NI_VeriStand_Connect',
+        'VeriStand': ts.PropObj({
+          'StepReferenceOutput': '',
+          'SystemDefinitionFilePathExpression': '',
+          'SystemDefinitionFilePath': 'Engine Demo.nivssdf',
+          'CalibrationFilePathExpression': '',
+          'CalibrationFilePath': 'Engine Demo.nivscf',
+          'SpecifyByExpression': false,
+          'GatewayAddress': '"localhost"',
+          'DeploySystemDefinition': 'True',
+          'Timeout': '120000',
+        }),
+      }),
+      connectResult,
+    );
+    connectResult.Status = 'Done';
+    run.record(connectResult.Status);
   } finally {
     // ── cleanup ──
-    throw UnimplementedError(
-      'step type NI_VeriStand_Disconnect: action not exported yet',
-    ); // Disconnect [NI_VeriStand_Disconnect]
-    throw UnimplementedError(
-      'step type NI_VeriStand_Close: action not exported yet',
-    ); // Close VeriStand [NI_VeriStand_Close]
+    // Disconnect [NI_VeriStand_Disconnect]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_VeriStand_Disconnect',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'NI_StepTypeName': 'NI_VeriStand_Disconnect',
+        'VeriStand': ts.PropObj({
+          'SpecifyDeploymentByExpression': false,
+          'DeploymentReference': '',
+          'ConnectStepId': 'ID#:yO/ZgRlL8RGf1Wz22jzkfC',
+          'UndeploySystemDefinition': 'True',
+        }),
+      }),
+      disconnectResult,
+    );
+    disconnectResult.Status = 'Done';
+    run.record(disconnectResult.Status);
+    // Close VeriStand [NI_VeriStand_Close]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_VeriStand_Close',
+      ts.StepPhase.post,
+      ts.PropObj({'NI_StepTypeName': 'NI_VeriStand_Close'}),
+      closeVeriStandResult,
+    );
+    closeVeriStandResult.Status = 'Done';
+    run.record(closeVeriStandResult.Status);
   }
 
   return run.status;
@@ -56,10 +135,10 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_VeriStand_OpenProject: action not exported yet
-  //   step type NI_VeriStand_Connect: action not exported yet
-  //   step type NI_VeriStand_Disconnect: action not exported yet
-  //   step type NI_VeriStand_Close: action not exported yet
+  //   step type NI_VeriStand_OpenProject acts through ts.stepHost
+  //   step type NI_VeriStand_Connect acts through ts.stepHost
+  //   step type NI_VeriStand_Disconnect acts through ts.stepHost
+  //   step type NI_VeriStand_Close acts through ts.stepHost
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

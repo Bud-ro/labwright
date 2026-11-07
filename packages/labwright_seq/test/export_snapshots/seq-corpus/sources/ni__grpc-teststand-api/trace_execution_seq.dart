@@ -24,6 +24,80 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
     'Units': '',
   }); // result of Numeric Limit Test
+  dynamic multipleNumericLimitTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Measurement': <dynamic>[
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 5,
+          'High': 11,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': '',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 5,
+          'High': 20,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': '',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+      }),
+      ts.PropObj({
+        'Limits': ts.PropObj({
+          'ThresholdType': 'PERCENTAGE',
+          'Nominal': 100,
+          'Low': 1,
+          'High': 11,
+          'ThresholdTypeExpr': '',
+          'NominalExpr': '',
+          'LowExpr': '',
+          'HighExpr': '',
+          'UseThresholdTypeExpr': false,
+          'UseNominalExpr': false,
+          'UseLowExpr': false,
+          'UseHighExpr': false,
+        }),
+        'Units': '',
+        'Comp': 'GELE',
+        'CompExpr': '',
+        'UseCompExpr': false,
+        'Data': 0,
+        'Status': '',
+      }),
+    ],
+  }); // result of Multiple Numeric Limit Test
   dynamic passFailTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -73,9 +147,28 @@ Future<String> mainSequence() async {
     ); // status expression
     run.record(numericLimitTestResult.Status);
     // checks: Step.NumericArray
-    throw UnimplementedError(
-      'step type NI_MultipleNumericLimitTest: action not exported yet',
-    ); // Multiple Numeric Limit Test [NI_MultipleNumericLimitTest]
+    // Multiple Numeric Limit Test [NI_MultipleNumericLimitTest]: acts through ts.stepHost
+    await ts.stepHost.runStepType(
+      'NI_MultipleNumericLimitTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'DataSource': 'Step.NumericArray',
+        'NumericArray': <dynamic>['9', '35', '7'],
+        'UseIndividualDataSources': false,
+        'DataSourceArray': <dynamic>[
+          'Step.NumericArray[0]',
+          'Step.NumericArray[1]',
+          'Step.NumericArray[2]',
+        ],
+        'ExpectedNumMeas': 3,
+        'ExtraDataAction': 'IgnoreExtraData',
+        'MeasToRepeat': 0,
+        'ExtraMeasAction': 'RunTimeError',
+      }),
+      multipleNumericLimitTestResult,
+    );
+    multipleNumericLimitTestResult.Status = 'Done';
+    run.record(multipleNumericLimitTestResult.Status);
     // checks: Step.Result.PassFail
     // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
     // Pass/Fail Test [PassFailTest]: judged by its status expression
@@ -221,7 +314,7 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
-  //   step type NI_MultipleNumericLimitTest: action not exported yet
+  //   step type NI_MultipleNumericLimitTest acts through ts.stepHost
   //   cModule call: Generate Run-Time Error
   //   step "Call Sequence 2 In A New Execution" runs its sequence call in a new execution (not exported)
   //   step "Call Sequence 3 In A New Thread" runs its sequence call in a new thread (not exported)

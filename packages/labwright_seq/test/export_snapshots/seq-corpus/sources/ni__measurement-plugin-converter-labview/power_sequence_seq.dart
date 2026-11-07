@@ -46,6 +46,14 @@ Future<String> mainSequence() async {
   String operation = 'Configure and Measure'; // Str
 
   final run = ts.SequenceRun();
+  dynamic messagePopupResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Message Popup
 
   body:
   try {
@@ -67,9 +75,24 @@ Future<String> mainSequence() async {
       // popup title: NameOf(Step)
       // popup message: "MAX Voltage  " + Str(Locals.Analyzeddata.MaxVoltage) + " Max Current  " + Str(Locals.Analyzeddata.MaxCurrent) + "  Max Power  " + Str(Locals.Analyzeddata.MaxPower) + "  Avg power  " + Str(Locals.Analyzeddata.AvgPower)
       // popup buttons: "OK"
-      throw UnimplementedError(
-        'step type MessagePopup: action not exported yet',
-      ); // Message Popup [MessagePopup]
+      // Message Popup [MessagePopup]: acts through ts.stepHost
+      final popup = await ts.stepHost.messagePopup(
+        title: 'Message Popup',
+        message:
+            'MAX Voltage  ' +
+            ts.str(analyzeddata.MaxVoltage) +
+            ' Max Current  ' +
+            ts.str(analyzeddata.MaxCurrent) +
+            '  Max Power  ' +
+            ts.str(analyzeddata.MaxPower) +
+            '  Avg power  ' +
+            ts.str(analyzeddata.AvgPower),
+        buttons: ['OK', '', '', '', '', ''],
+      );
+      messagePopupResult.ButtonHit = popup.buttonHit;
+      messagePopupResult.Response = popup.response;
+      messagePopupResult.Status = 'Done';
+      run.record(messagePopupResult.Status);
     }
   } finally {
     // ── cleanup ──
@@ -118,7 +141,7 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   Pow Meas Initialize.vi
   //   Pow Meas Configure and Measure.vi
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   //   Pow Meas Close.vi
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

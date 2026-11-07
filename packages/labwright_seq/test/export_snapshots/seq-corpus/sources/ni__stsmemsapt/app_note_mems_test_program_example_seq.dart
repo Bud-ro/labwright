@@ -229,12 +229,2053 @@ Future<String> mainSequence() async {
   }); // Obj
 
   final run = ts.SequenceRun();
+  dynamic getIsCalibrationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Get IS calibration
+  dynamic connectSmu0AndSmu1ToPinAAndEResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Connect SMU0 and SMU1 to pin A and E
+  dynamic continuityResistanceTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'SMU0',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 100,
+        'FailBinExpr': '',
+        'FailBin': 11,
+        'TestNameExpr': '',
+        'TestName': 'Continuity_Resistance_A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0',
+          'LowLimit': 0,
+          'HighLimitExpr': '10',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'Ohm',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'SMU1',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 101,
+        'FailBinExpr': '',
+        'FailBin': 11,
+        'TestNameExpr': '',
+        'TestName': 'Continuity_Resistance_E',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0',
+          'LowLimit': 0,
+          'HighLimitExpr': '10',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'Ohm',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Continuity - Resistance Test
+  dynamic disconnectSmu0AndSmu1FromPinAAndEResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Disconnect SMU0 and SMU1 from pin A and E
+  dynamic connectPpmuToABCDResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Connect PPMU to A,B,C,D
+  dynamic continuityDiodeTestThroughGndResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'PPMU0',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 110,
+        'FailBinExpr': '',
+        'FailBin': 12,
+        'TestNameExpr': '',
+        'TestName': 'Continuity_Diode_GND_A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '-800',
+          'LowLimit': 0,
+          'HighLimitExpr': '-200',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'PPMU1',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 111,
+        'FailBinExpr': '',
+        'FailBin': 12,
+        'TestNameExpr': '',
+        'TestName': 'Continuity_Diode_GND_B',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '-800',
+          'LowLimit': 0,
+          'HighLimitExpr': '-200',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'PPMU2',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 112,
+        'FailBinExpr': '',
+        'FailBin': 12,
+        'TestNameExpr': '',
+        'TestName': 'Continuity_Diode_GND_C',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '-800',
+          'LowLimit': 0,
+          'HighLimitExpr': '-200',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'PPMU3',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 113,
+        'FailBinExpr': '',
+        'FailBin': 12,
+        'TestNameExpr': '',
+        'TestName': 'Continuity_Diode_GND_D',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '-800',
+          'LowLimit': 0,
+          'HighLimitExpr': '-200',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Continuity - Diode Test through GND
+  dynamic continuityDiodeTestThroughVddResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'PPMU0',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 120,
+        'FailBinExpr': '',
+        'FailBin': 13,
+        'TestNameExpr': '',
+        'TestName': 'Continuity_Diode_VDD_A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '200',
+          'LowLimit': 0,
+          'HighLimitExpr': '800',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'PPMU1',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 121,
+        'FailBinExpr': '',
+        'FailBin': 13,
+        'TestNameExpr': '',
+        'TestName': 'Continuity_Diode_VDD_B',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '200',
+          'LowLimit': 0,
+          'HighLimitExpr': '800',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'PPMU2',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 122,
+        'FailBinExpr': '',
+        'FailBin': 13,
+        'TestNameExpr': '',
+        'TestName': 'Continuity_Diode_VDD_B',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '200',
+          'LowLimit': 0,
+          'HighLimitExpr': '800',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'PPMU3',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 123,
+        'FailBinExpr': '',
+        'FailBin': 13,
+        'TestNameExpr': '',
+        'TestName': 'Continuity_Diode_VDD_B',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '200',
+          'LowLimit': 0,
+          'HighLimitExpr': '800',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Continuity - Diode Test through VDD
+  dynamic disconnectPpmuFromABCDResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Disconnect PPMU from  A,B,C,D
+  dynamic connectSmu1ToEAndPpmuToABCDResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Connect SMU1 to E and PPMU to A,B,C,D
+  dynamic leakageTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'PPMU0',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 200,
+        'FailBinExpr': '',
+        'FailBin': 20,
+        'TestNameExpr': '',
+        'TestName': 'Leakage_A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0',
+          'LowLimit': 0,
+          'HighLimitExpr': '100',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'A',
+          'LowLimitScalingExponent': -9,
+          'HighLimitScalingExponent': -9,
+          'DataScalingExponent': -9,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'PPMU1',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 201,
+        'FailBinExpr': '',
+        'FailBin': 20,
+        'TestNameExpr': '',
+        'TestName': 'Leakage_B',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0',
+          'LowLimit': 0,
+          'HighLimitExpr': '100',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'A',
+          'LowLimitScalingExponent': -9,
+          'HighLimitScalingExponent': -9,
+          'DataScalingExponent': -9,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'PPMU2',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 202,
+        'FailBinExpr': '',
+        'FailBin': 20,
+        'TestNameExpr': '',
+        'TestName': 'Leakage_C',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0',
+          'LowLimit': 0,
+          'HighLimitExpr': '100',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'A',
+          'LowLimitScalingExponent': -9,
+          'HighLimitScalingExponent': -9,
+          'DataScalingExponent': -9,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'PPMU3',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 203,
+        'FailBinExpr': '',
+        'FailBin': 20,
+        'TestNameExpr': '',
+        'TestName': 'Leakage_D',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0',
+          'LowLimit': 0,
+          'HighLimitExpr': '100',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'A',
+          'LowLimitScalingExponent': -9,
+          'HighLimitScalingExponent': -9,
+          'DataScalingExponent': -9,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Leakage - Test
+  dynamic disconnectSmu1FromEAndPpmuFromABCDResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Disconnect SMU1 from E and PPMU from A,B,C,D
+  dynamic connectSmu0ToCAndSmu1ToDResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Connect SMU0 to C and SMU1 to D
+  dynamic resistanceTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'SMU0',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 300,
+        'FailBinExpr': '',
+        'FailBin': 30,
+        'TestNameExpr': '',
+        'TestName': 'Resistance_C',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '1',
+          'LowLimit': 0,
+          'HighLimitExpr': '3',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'Ohm',
+          'LowLimitScalingExponent': 3,
+          'HighLimitScalingExponent': 3,
+          'DataScalingExponent': 3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'SMU1',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 301,
+        'FailBinExpr': '',
+        'FailBin': 30,
+        'TestNameExpr': '',
+        'TestName': 'Resistance_D',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0.1',
+          'LowLimit': 0,
+          'HighLimitExpr': '0.5',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'Ohm',
+          'LowLimitScalingExponent': 3,
+          'HighLimitScalingExponent': 3,
+          'DataScalingExponent': 3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Resistance - Test
+  dynamic disconnectSmu0FromCAndSmu1FromDResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Disconnect SMU0 from C and SMU1 from D
+  dynamic connectSmu0ToASmu1ToBV1ToAAndV2ToBResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Connect SMU0 to A, SMU1 to B, V1 to A and V2 to B
+  dynamic offsetStaticTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'V1',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 400,
+        'FailBinExpr': '',
+        'FailBin': 41,
+        'TestNameExpr': '',
+        'TestName': 'OffsetStatic_A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '10',
+          'LowLimit': 0,
+          'HighLimitExpr': '40',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V/V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'V2',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 401,
+        'FailBinExpr': '',
+        'FailBin': 41,
+        'TestNameExpr': '',
+        'TestName': 'OffsetStatic_B',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '30',
+          'LowLimit': 0,
+          'HighLimitExpr': '60',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V/V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Offset - Static Test
+  dynamic disconnectSmu0FromASmu1FromBV1FromAAndV2FromBResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Disconnect SMU0 from A, SMU1 from B, V1 from A and V2 from B
+  dynamic connectFgenToAAndBV1ToAAndV2ToBResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Connect FGEN  to A and B, V1 to A and V2 to B
+  dynamic offsetDynamicTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'V1',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 410,
+        'FailBinExpr': '',
+        'FailBin': 42,
+        'TestNameExpr': '',
+        'TestName': 'OffsetDynamic_A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '10',
+          'LowLimit': 0,
+          'HighLimitExpr': '20',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V/V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'V2',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 411,
+        'FailBinExpr': '',
+        'FailBin': 42,
+        'TestNameExpr': '',
+        'TestName': 'OffsetDynamic_B',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '10',
+          'LowLimit': 0,
+          'HighLimitExpr': '20',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V/V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Offset - Dynamic Test
+  dynamic disconnectFgenFromAAndBV1FromAAndV2FromBResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Disconnect FGEN  from A and B, V1 from A and V2 from B
+  dynamic connectSmu0ToAAndSmu1ToBResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Connect SMU0 to A and SMU1 to B
+  dynamic capacitanceVoltageRampTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'SMU0',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 500,
+        'FailBinExpr': '',
+        'FailBin': 51,
+        'TestNameExpr': '',
+        'TestName': 'CapacitanceVRamp_A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '20',
+          'LowLimit': 0,
+          'HighLimitExpr': '100',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'F',
+          'LowLimitScalingExponent': -9,
+          'HighLimitScalingExponent': -9,
+          'DataScalingExponent': -9,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': 'SMU1',
+        'MeasurementId': '',
+        'TestNumberExpr': '',
+        'TestNumber': 501,
+        'FailBinExpr': '',
+        'FailBin': 51,
+        'TestNameExpr': '',
+        'TestName': 'CapacitanceVRamp_B',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '20',
+          'LowLimit': 0,
+          'HighLimitExpr': '100',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'F',
+          'LowLimitScalingExponent': -9,
+          'HighLimitScalingExponent': -9,
+          'DataScalingExponent': -9,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Capacitance - Voltage Ramp Test
+  dynamic disconnectSmu0FromAAndSmu1FromBResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Disconnect SMU0 from A and SMU1 from B
+  dynamic connectSmu0FgenV1AndV2ToAResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Connect SMU0, FGEN, V1 and V2 to A
+  dynamic capacitanceImpedanceSpectroscopyConfigureResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Capacitance - Impedance Spectroscopy Configure
+  dynamic capacitanceImpedanceSpectroscopyMeasureResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Capacitance - Impedance Spectroscopy Measure
+  dynamic capacitanceImpedanceSpectroscopyCalculateZRefResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Capacitance - Impedance Spectroscopy Calculate ZRef
+  dynamic capacitanceImpedanceSpectroscopyMeasureResult2 = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Capacitance - Impedance Spectroscopy Measure
+  dynamic capacitanceImpedanceSpectroscopyCalculateZDutResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Capacitance - Impedance Spectroscopy Calculate ZDut
+  dynamic capacitanceImpedanceSpectroscopyTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': '',
+        'MeasurementId': 'IS_cap',
+        'TestNumberExpr': '',
+        'TestNumber': 510,
+        'FailBinExpr': '',
+        'FailBin': 52,
+        'TestNameExpr': '',
+        'TestName': 'CapacitanceIS_A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '0',
+          'LowLimit': 0,
+          'HighLimitExpr': '50',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'F',
+          'LowLimitScalingExponent': -9,
+          'HighLimitScalingExponent': -9,
+          'DataScalingExponent': -9,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': '',
+        'MeasurementId': 'IS_freq',
+        'TestNumberExpr': '',
+        'TestNumber': 511,
+        'FailBinExpr': '',
+        'FailBin': 53,
+        'TestNameExpr': '',
+        'TestName': 'CapacitanceIS_Frequency_A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '10',
+          'LowLimit': 0,
+          'HighLimitExpr': '30',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'Hz',
+          'LowLimitScalingExponent': 3,
+          'HighLimitScalingExponent': 3,
+          'DataScalingExponent': 3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Capacitance - Impedance Spectroscopy Test
+  dynamic disconnectSmu0FgenV1AndV2FromAResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Disconnect SMU0, FGEN, V1 and V2 from A
+  dynamic connectFgenToABAndV1ToAAndV2ToBResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Connect FGEN to A,B and V1 to A and V2 to B
+  dynamic resonanceTestResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Evaluations': <dynamic>[
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': '',
+        'MeasurementId': 'resonance_0_0',
+        'TestNumberExpr': '',
+        'TestNumber': 600,
+        'FailBinExpr': '',
+        'FailBin': 61,
+        'TestNameExpr': '',
+        'TestName': 'ResonanceAmplitude_A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '200',
+          'LowLimit': 0,
+          'HighLimitExpr': '600',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': '',
+        'MeasurementId': 'resonance_1_0',
+        'TestNumberExpr': '',
+        'TestNumber': 601,
+        'FailBinExpr': '',
+        'FailBin': 61,
+        'TestNameExpr': '',
+        'TestName': 'ResonanceAmplitude_B',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '200',
+          'LowLimit': 0,
+          'HighLimitExpr': '600',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'V',
+          'LowLimitScalingExponent': -3,
+          'HighLimitScalingExponent': -3,
+          'DataScalingExponent': -3,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': '',
+        'MeasurementId': 'resonance_0_1',
+        'TestNumberExpr': '',
+        'TestNumber': 610,
+        'FailBinExpr': '',
+        'FailBin': 62,
+        'TestNameExpr': '',
+        'TestName': 'ResonanceFrequency_A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '500',
+          'LowLimit': 0,
+          'HighLimitExpr': '2000',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'Hz',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': '',
+        'MeasurementId': 'resonance_1_1',
+        'TestNumberExpr': '',
+        'TestNumber': 611,
+        'FailBinExpr': '',
+        'FailBin': 62,
+        'TestNameExpr': '',
+        'TestName': 'ResonanceFrequency_B',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '500',
+          'LowLimit': 0,
+          'HighLimitExpr': '2000',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'Hz',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': '',
+        'MeasurementId': 'resonance_0_2',
+        'TestNumberExpr': '',
+        'TestNumber': 620,
+        'FailBinExpr': '',
+        'FailBin': 63,
+        'TestNameExpr': '',
+        'TestName': 'ResonancePhase_A',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '-1.7',
+          'LowLimit': 0,
+          'HighLimitExpr': '1.7',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'rad',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+      ts.PropObj({
+        'EvaluationType': 0,
+        'Pin': '',
+        'MeasurementId': 'resonance_1_2',
+        'TestNumberExpr': '',
+        'TestNumber': 621,
+        'FailBinExpr': '',
+        'FailBin': 63,
+        'TestNameExpr': '',
+        'TestName': 'ResonancePhase_B',
+        'MeasurementSourceExpr': '',
+        'MeasurementDestinationExpr': '',
+        'Status': '',
+        'NumericLimit': ts.PropObj({
+          'Data': 0,
+          'LowLimitExpr': '-1.7',
+          'LowLimit': 0,
+          'HighLimitExpr': '1.7',
+          'HighLimit': 0,
+          'ComparisonType': 'GELE',
+          'Units': 'rad',
+          'LowLimitScalingExponent': 0,
+          'HighLimitScalingExponent': 0,
+          'DataScalingExponent': 0,
+          'CorrelationOffset': 0,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': 0,
+            'PerSite': <dynamic>[],
+          }),
+        }),
+        'PassFail': ts.PropObj({
+          'Data': false,
+          'SimulatedData': ts.PropObj({
+            'SimulatedDataUsageType': 'None',
+            'AllSites': false,
+            'PerSite': <dynamic>[],
+          }),
+          'HistoryRAMCycleInformation': null,
+        }),
+        'PartAverageTesting': ts.PropObj({
+          'BaseTestNumber': 0,
+          'Dynamic': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+            'LowLimit': -6,
+            'HighLimit': 6,
+          }),
+          'Static': ts.PropObj({
+            'Enabled': false,
+            'TestNumber': 0,
+            'TestName': '',
+            'FailBin': -1,
+          }),
+        }),
+        'RaisedAlarms': '',
+      }),
+    ],
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Resonance - Test
+  dynamic disconnectFgenFromABAndV1FromAAndV2FromBResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Disconnect FGEN from A,B and V1 from A and V2 from B
 
   // ── setup ──
   // When Active Configuration is set to Calibration the variable "Locals.Parameters.Capacitance.IS_Calibration" is set to True, otherwise is False
-  throw UnimplementedError(
-    'step type NI_SemiconductorModule_GetTestSettings: action not exported yet',
-  ); // Get IS calibration [NI_SemiconductorModule_GetTestSettings]
+  // Get IS calibration [NI_SemiconductorModule_GetTestSettings]: acts through ts.stepHost
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_GetTestSettings',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SettingAssignments': <dynamic>[
+        ts.PropObj({
+          'SettingName': 'LotSettings.CustomTestConditions.IS_Calibration',
+          'DestinationExpr': 'Locals.Parameters.Capacitance.IS_Calibration',
+          'NameFilter': 3,
+        }),
+      ],
+    }),
+    getIsCalibrationResult,
+  );
+  getIsCalibrationResult.Status = 'Done';
+  run.record(getIsCalibrationResult.Status);
 
   // ── main ──
   // Run the following tests when in Production configuration
@@ -244,72 +2285,575 @@ Future<String> mainSequence() async {
     //
     // In this example, for Continuity Resistance test we test the resistance value on hypothetical pin A and pin E.
     // Let's connect SMU0 to A and SMU1 to E
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectSmu0AndSmu1ToPinAAndEResult,
+    );
     //   Relay Action <- 21
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Continuity.ResistanceTest
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Connect SMU0 and SMU1 to pin A and E [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectSmu0AndSmu1ToPinAAndEResult,
+    );
+    connectSmu0AndSmu1ToPinAAndEResult.Status = 'Done';
+    run.record(connectSmu0AndSmu1ToPinAAndEResult.Status);
     //
     // Uses SMU resources.
     // Each session is independent so this step will call one instance per site in parallel
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['SMU0', 'SMU1'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      continuityResistanceTestResult,
+    );
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Pins <- Locals.Pins.SMU
     //   DCPower_Parameters <- Locals.Parameters.Continuity.DCPower
     //   error out <- Step.Result.Error
     await callContinuitySmuResistanceTest(); // Continuity - Resistance Test [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['SMU0', 'SMU1'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      continuityResistanceTestResult,
+    );
+    continuityResistanceTestResult.Status = 'Done';
+    run.record(continuityResistanceTestResult.Status);
     //
     // Disconnect the resources from the pins
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectSmu0AndSmu1FromPinAAndEResult,
+    );
     //   Relay Action <- 20
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Continuity.ResistanceTest
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Disconnect SMU0 and SMU1 from pin A and E [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectSmu0AndSmu1FromPinAAndEResult,
+    );
+    disconnectSmu0AndSmu1FromPinAAndEResult.Status = 'Done';
+    run.record(disconnectSmu0AndSmu1FromPinAAndEResult.Status);
     //
     // In this example, for Continuity Diode test we test the voltage on hypothetical pin A,B,C,D.
     // Let's connect PPMU resources  to pin A,B,C,D
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectPpmuToABCDResult,
+    );
     //   Relay Action <- 21
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Continuity.DiodeTest
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Connect PPMU to A,B,C,D [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectPpmuToABCDResult,
+    );
+    connectPpmuToABCDResult.Status = 'Done';
+    run.record(connectPpmuToABCDResult.Status);
     //
     // Sinking 100uA and measuring Voltage.
     // The PPMU is shared between 2 sites, so this step will call one instance every 2 sites
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['PPMU0', 'PPMU1', 'PPMU2', 'PPMU3'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      continuityDiodeTestThroughGndResult,
+    );
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Pins <- Locals.Pins.PPMU
     //   PPMU_Parameters <- Locals.Parameters.Continuity.PPMU_GND
     //   Settling (s) <- 0.01
     //   error out <- Step.Result.Error
     await callContinuityDiodeTest(); // Continuity - Diode Test through GND [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['PPMU0', 'PPMU1', 'PPMU2', 'PPMU3'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      continuityDiodeTestThroughGndResult,
+    );
+    continuityDiodeTestThroughGndResult.Status = 'Done';
+    run.record(continuityDiodeTestThroughGndResult.Status);
     //
     // Sourcing 100uA and measuring Voltage.
     // The PPMU is shared between 2 sites, so this step will call one instance every 2 sites
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['PPMU0', 'PPMU1', 'PPMU2', 'PPMU3'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      continuityDiodeTestThroughVddResult,
+    );
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Pins <- Locals.Pins.PPMU
     //   PPMU_Parameters <- Locals.Parameters.Continuity.PPMU_VDD
     //   Settling (s) <- 0.01
     //   error out <- Step.Result.Error
     await callContinuityDiodeTest(); // Continuity - Diode Test through VDD [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['PPMU0', 'PPMU1', 'PPMU2', 'PPMU3'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      continuityDiodeTestThroughVddResult,
+    );
+    continuityDiodeTestThroughVddResult.Status = 'Done';
+    run.record(continuityDiodeTestThroughVddResult.Status);
     //
     // Disconnect the resources from the pins
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectPpmuFromABCDResult,
+    );
     //   Relay Action <- 21
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Continuity.DiodeTest
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Disconnect PPMU from  A,B,C,D [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectPpmuFromABCDResult,
+    );
+    disconnectPpmuFromABCDResult.Status = 'Done';
+    run.record(disconnectPpmuFromABCDResult.Status);
     // ---------------------
     // label: Leakage Test - SMU to force and PPMU to measure
     //
     // In this example we suppose to force voltage on pin E with SMU0 and measure leakage on pin A,B,C,D with PPMU channels
     //
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectSmu1ToEAndPpmuToABCDResult,
+    );
     //   Relay Action <- 21
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Leakage
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Connect SMU1 to E and PPMU to A,B,C,D [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectSmu1ToEAndPpmuToABCDResult,
+    );
+    connectSmu1ToEAndPpmuToABCDResult.Status = 'Done';
+    run.record(connectSmu1ToEAndPpmuToABCDResult.Status);
     //
     // Forcing voltage on pin E via SMU0 and measuring leakage on pin A,B,C,D using PPMU.
     // The PPMU is shared between 2 sites, so this step will call one instance every 2 sites
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[
+            'PPMU0',
+            'PPMU1',
+            'PPMU2',
+            'PPMU3',
+            'SMU0',
+          ],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      leakageTestResult,
+    );
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Pin Force <- Locals.Pins.SMU[0]
     //   Pins Meas <- Locals.Pins.PPMU
@@ -318,49 +2862,399 @@ Future<String> mainSequence() async {
     //   Settling (s) <- 0.01
     //   error out <- Step.Result.Error
     await callLeakageSmuPpmuTest(); // Leakage - Test [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[
+            'PPMU0',
+            'PPMU1',
+            'PPMU2',
+            'PPMU3',
+            'SMU0',
+          ],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      leakageTestResult,
+    );
+    leakageTestResult.Status = 'Done';
+    run.record(leakageTestResult.Status);
     //
     // Disconnect the resources from the pins
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectSmu1FromEAndPpmuFromABCDResult,
+    );
     //   Relay Action <- 20
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Leakage
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Disconnect SMU1 from E and PPMU from A,B,C,D [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectSmu1FromEAndPpmuFromABCDResult,
+    );
+    disconnectSmu1FromEAndPpmuFromABCDResult.Status = 'Done';
+    run.record(disconnectSmu1FromEAndPpmuFromABCDResult.Status);
     // ---------------------
     // label: Resistance Test
     //
     // In this example we suppose to measure the resistance on pin C and D using SMU0 and SMU1
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectSmu0ToCAndSmu1ToDResult,
+    );
     //   Relay Action <- 21
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Resistance
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Connect SMU0 to C and SMU1 to D [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectSmu0ToCAndSmu1ToDResult,
+    );
+    connectSmu0ToCAndSmu1ToDResult.Status = 'Done';
+    run.record(connectSmu0ToCAndSmu1ToDResult.Status);
     //
     // Uses SMU resources.
     // Each session is independent so this step will call one instance per site in parallel
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['SMU0', 'SMU1'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      resistanceTestResult,
+    );
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Pins <- Locals.Pins.SMU
     //   DCPower_Parameters <- Locals.Parameters.Resistance
     //   error out <- Step.Result.Error
     await callResistanceSmuResistanceTest(); // Resistance - Test [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['SMU0', 'SMU1'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      resistanceTestResult,
+    );
+    resistanceTestResult.Status = 'Done';
+    run.record(resistanceTestResult.Status);
     //
     // Disconnect the resources from the pins
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectSmu0FromCAndSmu1FromDResult,
+    );
     //   Relay Action <- 20
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Resistance
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Disconnect SMU0 from C and SMU1 from D [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectSmu0FromCAndSmu1FromDResult,
+    );
+    disconnectSmu0FromCAndSmu1FromDResult.Status = 'Done';
+    run.record(disconnectSmu0FromCAndSmu1FromDResult.Status);
     // ---------------------
     // label: Offset Test- Static and Dynamic
     //
     // For Static measurement SMU and SCOPE are used.
     // In this example we suppose to connect pin A to SMU0 and V1, while pin B to SMU1 and V2
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectSmu0ToASmu1ToBV1ToAAndV2ToBResult,
+    );
     //   Relay Action <- 21
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Offset.Static
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Connect SMU0 to A, SMU1 to B, V1 to A and V2 to B [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectSmu0ToASmu1ToBV1ToAAndV2ToBResult,
+    );
+    connectSmu0ToASmu1ToBV1ToAAndV2ToBResult.Status = 'Done';
+    run.record(connectSmu0ToASmu1ToBV1ToAAndV2ToBResult.Status);
     //
     // SCOPE is a shared resource every 2 sites, so this step will call 1 instance every 2 sites.
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['SMU0', 'SMU1', 'V1', 'V2'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      offsetStaticTestResult,
+    );
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Pins Force <- Locals.Pins.SMU
     //   Pins Meas <- Locals.Pins.SCOPE
@@ -369,23 +3263,195 @@ Future<String> mainSequence() async {
     //   Source Type <- 0
     //   error out <- Step.Result.Error
     await callOffsetStaticDynamicTest(); // Offset - Static Test [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['SMU0', 'SMU1', 'V1', 'V2'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      offsetStaticTestResult,
+    );
+    offsetStaticTestResult.Status = 'Done';
+    run.record(offsetStaticTestResult.Status);
     //
     // Disconnect the resources from the pins
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectSmu0FromASmu1FromBV1FromAAndV2FromBResult,
+    );
     //   Relay Action <- 20
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Offset.Static
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Disconnect SMU0 from A, SMU1 from B, V1 from A and V2 from B [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectSmu0FromASmu1FromBV1FromAAndV2FromBResult,
+    );
+    disconnectSmu0FromASmu1FromBV1FromAAndV2FromBResult.Status = 'Done';
+    run.record(disconnectSmu0FromASmu1FromBV1FromAAndV2FromBResult.Status);
     //
     // For Dynamic measurement FGEN and SCOPE are used.
     // In this example we suppose to connect pin A and B to the same FGEN resource, V1 to pin A and V2 to pin B
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectFgenToAAndBV1ToAAndV2ToBResult,
+    );
     //   Relay Action <- 21
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Offset.Dynamic
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Connect FGEN  to A and B, V1 to A and V2 to B [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectFgenToAAndBV1ToAAndV2ToBResult,
+    );
+    connectFgenToAAndBV1ToAAndV2ToBResult.Status = 'Done';
+    run.record(connectFgenToAAndBV1ToAAndV2ToBResult.Status);
     //
     // SCOPE and FGEN are shared resources every 2 sites, so this step will call 1 instance every 2 sites.
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['FGEN', 'V1', 'V2'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      offsetDynamicTestResult,
+    );
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Pins Force <- {Locals.Pins.FGEN}
     //   Pins Meas <- Locals.Pins.SCOPE
@@ -394,50 +3460,386 @@ Future<String> mainSequence() async {
     //   Source Type <- 1
     //   error out <- Step.Result.Error
     await callOffsetStaticDynamicTest(); // Offset - Dynamic Test [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['FGEN', 'V1', 'V2'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      offsetDynamicTestResult,
+    );
+    offsetDynamicTestResult.Status = 'Done';
+    run.record(offsetDynamicTestResult.Status);
     //
     // Disconnect the resources from the pins
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectFgenFromAAndBV1FromAAndV2FromBResult,
+    );
     //   Relay Action <- 20
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Offset.Dynamic
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Disconnect FGEN  from A and B, V1 from A and V2 from B [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectFgenFromAAndBV1FromAAndV2FromBResult,
+    );
+    disconnectFgenFromAAndBV1FromAAndV2FromBResult.Status = 'Done';
+    run.record(disconnectFgenFromAAndBV1FromAAndV2FromBResult.Status);
     // ---------------------
     // label: Capacitance Test - Voltage Ramp
     //
     // In this example we measure the capacitance on pin A and pin B in parallel using SMU0 and SMU1
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectSmu0ToAAndSmu1ToBResult,
+    );
     //   Relay Action <- 21
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Capacitance.VRamp
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Connect SMU0 to A and SMU1 to B [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectSmu0ToAAndSmu1ToBResult,
+    );
+    connectSmu0ToAAndSmu1ToBResult.Status = 'Done';
+    run.record(connectSmu0ToAAndSmu1ToBResult.Status);
     //
     // SMUs have independent sessions so this vi will run 1 instance per site in parallel
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['SMU0', 'SMU1'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      capacitanceVoltageRampTestResult,
+    );
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Pins <- Locals.Pins.SMU
     //   DCPower_Sequence_Parameters <- Locals.Parameters.Capacitance.VRamp
     //   Peak duration (s) <- 0.02
     //   error out <- Step.Result.Error
     await callCapacitanceVoltageRampTest(); // Capacitance - Voltage Ramp Test [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['SMU0', 'SMU1'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      capacitanceVoltageRampTestResult,
+    );
+    capacitanceVoltageRampTestResult.Status = 'Done';
+    run.record(capacitanceVoltageRampTestResult.Status);
     //
     // Disconnect the resources from the pins
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectSmu0FromAAndSmu1FromBResult,
+    );
     //   Relay Action <- 20
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Capacitance.VRamp
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Disconnect SMU0 from A and SMU1 from B [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectSmu0FromAAndSmu1FromBResult,
+    );
+    disconnectSmu0FromAAndSmu1FromBResult.Status = 'Done';
+    run.record(disconnectSmu0FromAAndSmu1FromBResult.Status);
   }
   // ---------------------
   // label: Capacitance Test - Impedance Spectroscopy
   //
   // In this example for impedance spectroscopy we measure pin A, connecting SMU0, FGEN, V1 and V2
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': true,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    connectSmu0FgenV1AndV2ToAResult,
+  );
   //   Relay Action <- 21
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Relays <- Locals.Relays.Capacitance.IS
   //   error Out <- Step.Result.Error
   await callSharedRelayConnectDisconnect(); // Connect SMU0, FGEN, V1 and V2 to A [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': true,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    connectSmu0FgenV1AndV2ToAResult,
+  );
+  connectSmu0FgenV1AndV2ToAResult.Status = 'Done';
+  run.record(connectSmu0FgenV1AndV2ToAResult.Status);
   //
   // Configure the instrument sessions.
   // Since there are FGEN and SCOPE sessions that are shared every 2 sites, this step will run 1 instance every 2 sites
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['FGEN', 'SMU0', 'V1', 'V2'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    capacitanceImpedanceSpectroscopyConfigureResult,
+  );
   //   DCPower_Parameters <- Locals.Parameters.Capacitance.IS_Bias
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   DCPower Pin <- Locals.Pins.SMU[0]
@@ -448,6 +3850,33 @@ Future<String> mainSequence() async {
   //   FFT Subset Parameters <- Locals.Parameters.Capacitance.FFTSubset
   //   error out <- Step.Result.Error
   await callCapacitanceIsConfigure(); // Capacitance - Impedance Spectroscopy Configure [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['FGEN', 'SMU0', 'V1', 'V2'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    capacitanceImpedanceSpectroscopyConfigureResult,
+  );
+  capacitanceImpedanceSpectroscopyConfigureResult.Status = 'Done';
+  run.record(capacitanceImpedanceSpectroscopyConfigureResult.Status);
   //
   // Runs in Calibration configuration performing the measurement and calculating ZRef using a known Capacitance
   if (ts.truthy(parameters.Capacitance.IS_Calibration)) {
@@ -455,6 +3884,31 @@ Future<String> mainSequence() async {
     // Apply bias voltage with SM0, generate chirp signal with FGEN and acquire V1 and V2.
     // Perform FFT of V1 and V2 and store values.
     // Since there are FGEN and SCOPE sessions that are shared every 2 sites, this step will run 1 instance every 2 sites
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['FGEN', 'SMU0', 'V1', 'V2'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      capacitanceImpedanceSpectroscopyMeasureResult,
+    );
     //   Data Id <- Locals.Parameters.Capacitance.DataId
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   FGEN Parameters <- Locals.Parameters.Capacitance.IS_Force
@@ -463,9 +3917,61 @@ Future<String> mainSequence() async {
     //   DCPower Pin <- Locals.Pins.SMU[0]
     //   error out <- Step.Result.Error
     await callCapacitanceIsMeasure(); // Capacitance - Impedance Spectroscopy Measure [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['FGEN', 'SMU0', 'V1', 'V2'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      capacitanceImpedanceSpectroscopyMeasureResult,
+    );
+    capacitanceImpedanceSpectroscopyMeasureResult.Status = 'Done';
+    run.record(capacitanceImpedanceSpectroscopyMeasureResult.Status);
     //
     // Calculate ZRef using ZCal and FFT of V1 and V2.
     // This step is pure computation so it can run in parallel on all sites and there will be one instance per site
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      capacitanceImpedanceSpectroscopyCalculateZRefResult,
+    );
     //   Data Id <- Locals.Parameters.Capacitance.DataId
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   FGEN Parameters <- Locals.Parameters.Capacitance.IS_Force
@@ -473,6 +3979,33 @@ Future<String> mainSequence() async {
     //   Frequencies <- StationGlobals.IS_ZRef_Frequencies
     //   error out <- Step.Result.Error
     await callCapacitanceIsCalculateZRef(); // Capacitance - Impedance Spectroscopy Calculate ZRef [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      capacitanceImpedanceSpectroscopyCalculateZRefResult,
+    );
+    capacitanceImpedanceSpectroscopyCalculateZRefResult.Status = 'Done';
+    run.record(capacitanceImpedanceSpectroscopyCalculateZRefResult.Status);
     //
     // Runs in Production configuration
   } else {
@@ -480,6 +4013,31 @@ Future<String> mainSequence() async {
     // Apply bias voltage with SM0, generate chirp signal with FGEN and acquire V1 and V2.
     // Perform FFT of V1 and V2 and store values.
     // Since there are FGEN and SCOPE sessions that are shared every 2 sites, this step will run 1 instance every 2 sites
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['FGEN', 'SMU0', 'V1', 'V2'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      capacitanceImpedanceSpectroscopyMeasureResult2,
+    );
     //   Data Id <- Locals.Parameters.Capacitance.DataId
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   FGEN Parameters <- Locals.Parameters.Capacitance.IS_Force
@@ -488,46 +4046,330 @@ Future<String> mainSequence() async {
     //   DCPower Pin <- Locals.Pins.SMU[0]
     //   error out <- Step.Result.Error
     await callCapacitanceIsMeasure(); // Capacitance - Impedance Spectroscopy Measure [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['FGEN', 'SMU0', 'V1', 'V2'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      capacitanceImpedanceSpectroscopyMeasureResult2,
+    );
+    capacitanceImpedanceSpectroscopyMeasureResult2.Status = 'Done';
+    run.record(capacitanceImpedanceSpectroscopyMeasureResult2.Status);
     //
     // Calculate ZDut using ZRef and FFT of V1 and V2.
     // This step is pure computation so it can run in parallel on all sites and there will be one instance per site
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      capacitanceImpedanceSpectroscopyCalculateZDutResult,
+    );
     //   Data Id <- Locals.Parameters.Capacitance.DataId
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   ZRef Real <- StationGlobals.IS_ZRef_Real[RunState.TestSockets.MyIndex]
     //   ZRef Im <- StationGlobals.IS_ZRef_Im[RunState.TestSockets.MyIndex]
     //   error out <- Step.Result.Error
     await callCapacitanceIsCalculateZDut(); // Capacitance - Impedance Spectroscopy Calculate ZDut [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      capacitanceImpedanceSpectroscopyCalculateZDutResult,
+    );
+    capacitanceImpedanceSpectroscopyCalculateZDutResult.Status = 'Done';
+    run.record(capacitanceImpedanceSpectroscopyCalculateZDutResult.Status);
     //
     // Computes Capacitance and Resonant frequency values from ZDut using linear fitting.
     // This step is pure computation so it can run in parallel on all sites and there will be one instance per site
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      capacitanceImpedanceSpectroscopyTestResult,
+    );
     //   Published Data Id <- "IS"
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Data Id <- Locals.Parameters.Capacitance.DataId
     //   Frequencies <- StationGlobals.IS_ZRef_Frequencies
     //   error out <- Step.Result.Error
     await callCapacitanceIsTest(); // Capacitance - Impedance Spectroscopy Test [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      capacitanceImpedanceSpectroscopyTestResult,
+    );
+    capacitanceImpedanceSpectroscopyTestResult.Status = 'Done';
+    run.record(capacitanceImpedanceSpectroscopyTestResult.Status);
   }
   //
   // Disconnect the resources from the pins
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': true,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    disconnectSmu0FgenV1AndV2FromAResult,
+  );
   //   Relay Action <- 20
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Relays <- Locals.Relays.Capacitance.IS
   //   error Out <- Step.Result.Error
   await callSharedRelayConnectDisconnect(); // Disconnect SMU0, FGEN, V1 and V2 from A [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': true,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    disconnectSmu0FgenV1AndV2FromAResult,
+  );
+  disconnectSmu0FgenV1AndV2FromAResult.Status = 'Done';
+  run.record(disconnectSmu0FgenV1AndV2FromAResult.Status);
   // Run the following tests when in Production configuration
   if (!ts.truthy(parameters.Capacitance.IS_Calibration)) {
     // ---------------------
     // label: Resonance Test
     //
     // In this example we suppose to connect pin A and B to the same FGEN resource, V1 to pin A and V2 to pin B
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectFgenToABAndV1ToAAndV2ToBResult,
+    );
     //   Relay Action <- 21
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Resonance
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Connect FGEN to A,B and V1 to A and V2 to B [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      connectFgenToABAndV1ToAAndV2ToBResult,
+    );
+    connectFgenToABAndV1ToAAndV2ToBResult.Status = 'Done';
+    run.record(connectFgenToABAndV1ToAAndV2ToBResult.Status);
     //
     // Applying chirp signal on A and B using FGEN and measuring with V1 and V2.
     // Since there are FGEN and SCOPE sessions that are shared every 2 sites, this step will run 1 instance every 2 sites
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['FGEN', 'V1', 'V2'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      resonanceTestResult,
+    );
     //   Published Data Id <- "resonance"
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   FGEN Pin <- Locals.Pins.FGEN
@@ -536,13 +4378,100 @@ Future<String> mainSequence() async {
     //   SCOPE_Parameters <- Locals.Parameters.Resonance.Meas
     //   error out <- Step.Result.Error
     await callResonanceTest(); // Resonance - Test [NI_SemiconductorModule_MultiTest]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_MultiTest',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>['FGEN', 'V1', 'V2'],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': false,
+        }),
+        'TestSettings': ts.PropObj({
+          'OfflineModeMeasurementDataOption': 2,
+          'EnableAutoTestNumberGeneration': false,
+          'BaseTestNumber': 1,
+          'TestNumberIncrementPerTestIndex': 1,
+          'TestNumberIncrementPerLoopIteration': 1,
+        }),
+        'DotNetRuntimeData': null,
+        'EvaluationFailureOption': 1,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      resonanceTestResult,
+    );
+    resonanceTestResult.Status = 'Done';
+    run.record(resonanceTestResult.Status);
     //
     // Disconnect the resources from the pins
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.pre,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectFgenFromABAndV1FromAAndV2FromBResult,
+    );
     //   Relay Action <- 20
     //   Semiconductor Module Context <- Step.SemiconductorModuleContext
     //   Relays <- Locals.Relays.Resonance
     //   error Out <- Step.Result.Error
     await callSharedRelayConnectDisconnect(); // Disconnect FGEN from A,B and V1 from A and V2 from B [NI_SemiconductorModule_Action]
+    await ts.stepHost.runStepType(
+      'NI_SemiconductorModule_Action',
+      ts.StepPhase.post,
+      ts.PropObj({
+        'SemiconductorModuleContext': null,
+        'Multisite': ts.PropObj({
+          'SynchronizationOption': 2,
+          'SpecifyPinsAndRelaysOption': 0,
+          'PinsAndRelaysExpression': '',
+          'DUTPinFilterOption': 1,
+          'IncludedDUTPins': <dynamic>[],
+          'ExcludedDUTPins': <dynamic>[],
+          'IncludeSystemPins': false,
+          'IncludedPinGroups': <dynamic>[],
+          'SpecifySiteRelays': true,
+          'IncludedSiteRelays': <dynamic>[],
+          'IncludedRelayGroups': <dynamic>[],
+          'IncludedRelayConfigurations': <dynamic>[],
+          'IncludeSystemRelays': true,
+        }),
+        'DotNetRuntimeData': null,
+        'PerSiteInputs': <dynamic>[],
+      }),
+      disconnectFgenFromABAndV1FromAAndV2FromBResult,
+    );
+    disconnectFgenFromABAndV1FromAAndV2FromBResult.Status = 'Done';
+    run.record(disconnectFgenFromABAndV1FromAAndV2FromBResult.Status);
   }
 
   return run.status;
@@ -569,6 +4498,55 @@ Future<String> processSetup() async {
   }); // Obj
 
   final run = ts.SequenceRun();
+  dynamic initializeDcPowerResourcesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Initialize DCPower Resources
+  dynamic initializePpmuResourcesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Initialize PPMU Resources
+  dynamic initializeScopeResourcesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Initialize SCOPE Resources
+  dynamic initializeFgenResourcesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Initialize FGEN Resources
+  dynamic initializeRelaysResourcesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Initialize Relays Resources
+  dynamic configureSystemPowerSupplyResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Configure System Power Supply
+  dynamic startSystemPowerSupplyResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Start System Power Supply
 
   // ── setup ──
   // ---------------------
@@ -594,43 +4572,407 @@ Future<String> processSetup() async {
   // ── main ──
   // ---------------------
   // label: Initialize Hardware Resources
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['SMU0', 'SMU1'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': true,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    initializeDcPowerResourcesResult,
+  );
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Driver <- 0
   //   Simulated HW? <- False
   //   error out <- Step.Result.Error
   await callSharedInitialize(); // Initialize DCPower Resources [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['SMU0', 'SMU1'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': true,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    initializeDcPowerResourcesResult,
+  );
+  initializeDcPowerResourcesResult.Status = 'Done';
+  run.record(initializeDcPowerResourcesResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['PPMU0', 'PPMU1', 'PPMU2', 'PPMU3'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    initializePpmuResourcesResult,
+  );
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Driver <- 4
   //   Simulated HW? <- False
   //   error out <- Step.Result.Error
   await callSharedInitialize(); // Initialize PPMU Resources [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['PPMU0', 'PPMU1', 'PPMU2', 'PPMU3'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    initializePpmuResourcesResult,
+  );
+  initializePpmuResourcesResult.Status = 'Done';
+  run.record(initializePpmuResourcesResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['V1', 'V2'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    initializeScopeResourcesResult,
+  );
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Driver <- 1
   //   Simulated HW? <- False
   //   error out <- Step.Result.Error
   await callSharedInitialize(); // Initialize SCOPE Resources [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['V1', 'V2'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    initializeScopeResourcesResult,
+  );
+  initializeScopeResourcesResult.Status = 'Done';
+  run.record(initializeScopeResourcesResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['FGEN'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    initializeFgenResourcesResult,
+  );
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Driver <- 2
   //   Simulated HW? <- False
   //   error out <- Step.Result.Error
   await callSharedInitialize(); // Initialize FGEN Resources [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['FGEN'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    initializeFgenResourcesResult,
+  );
+  initializeFgenResourcesResult.Status = 'Done';
+  run.record(initializeFgenResourcesResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': true,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    initializeRelaysResourcesResult,
+  );
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Driver <- 3
   //   Simulated HW? <- False
   //   error out <- Step.Result.Error
   await callSharedInitialize(); // Initialize Relays Resources [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': true,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    initializeRelaysResourcesResult,
+  );
+  initializeRelaysResourcesResult.Status = 'Done';
+  run.record(initializeRelaysResourcesResult.Status);
   // ---------------------
   // label: Configure System Power Supply for Relay Control and Start supplying
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': true,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    configureSystemPowerSupplyResult,
+  );
   //   DCPower Parameters <- Locals.Parameters_RelayControl
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Pins <- FileGlobals.Pins_RelayControl
   //   trigger out? <- False
   //   error Out <- Step.Result.Error
   await callSharedDcPowerConfigure(); // Configure System Power Supply [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': true,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    configureSystemPowerSupplyResult,
+  );
+  configureSystemPowerSupplyResult.Status = 'Done';
+  run.record(configureSystemPowerSupplyResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': true,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    startSystemPowerSupplyResult,
+  );
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Pins <- FileGlobals.Pins_RelayControl
   //   error Out <- Step.Result.Error
   await callSharedDcPowerStart(); // Start System Power Supply [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': true,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    startSystemPowerSupplyResult,
+  );
+  startSystemPowerSupplyResult.Status = 'Done';
+  run.record(startSystemPowerSupplyResult.Status);
 
   return run.status;
 }
@@ -638,41 +4980,395 @@ Future<String> processSetup() async {
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
 Future<String> processCleanup() async {
   final run = ts.SequenceRun();
+  dynamic stopSystemPowerSupplyResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Stop System Power Supply
+  dynamic releaseRelaysResourcesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Release Relays resources
+  dynamic releaseFgenResourcesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Release FGEN resources
+  dynamic releaseScopeResourcesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Release SCOPE  resources
+  dynamic releasePpmuResourcesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Release PPMU  resources
+  dynamic releaseDcPowerResourcesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'SemiconductorCommon': ts.PropObj({'Sites': '', 'RaisedAlarms': ''}),
+  }); // result of Release DCPower  resources
 
   // ---------------------
   // label: Set System Power Supply to 0V and Stop it
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': true,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    stopSystemPowerSupplyResult,
+  );
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Pins <- FileGlobals.Pins_RelayControl
   //   Settling Time (s) <- 0.01
   //   error Out <- Step.Result.Error
   await callSharedDcPower0VStop(); // Stop System Power Supply [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': true,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    stopSystemPowerSupplyResult,
+  );
+  stopSystemPowerSupplyResult.Status = 'Done';
+  run.record(stopSystemPowerSupplyResult.Status);
   // ---------------------
   // label: Close Hardware Sessions
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': true,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    releaseRelaysResourcesResult,
+  );
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Driver <- 3
   //   Reset? <- False
   //   error out <- Step.Result.Error
   await callSharedClose(); // Release Relays resources [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>[],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': true,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    releaseRelaysResourcesResult,
+  );
+  releaseRelaysResourcesResult.Status = 'Done';
+  run.record(releaseRelaysResourcesResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['FGEN'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    releaseFgenResourcesResult,
+  );
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Driver <- 2
   //   Reset? <- False
   //   error out <- Step.Result.Error
   await callSharedClose(); // Release FGEN resources [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['FGEN'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    releaseFgenResourcesResult,
+  );
+  releaseFgenResourcesResult.Status = 'Done';
+  run.record(releaseFgenResourcesResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['V1', 'V2'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    releaseScopeResourcesResult,
+  );
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Driver <- 1
   //   Reset? <- False
   //   error out <- Step.Result.Error
   await callSharedClose(); // Release SCOPE  resources [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['V1', 'V2'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    releaseScopeResourcesResult,
+  );
+  releaseScopeResourcesResult.Status = 'Done';
+  run.record(releaseScopeResourcesResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['PPMU0', 'PPMU1', 'PPMU2', 'PPMU3'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    releasePpmuResourcesResult,
+  );
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Driver <- 4
   //   Reset? <- False
   //   error out <- Step.Result.Error
   await callSharedClose(); // Release PPMU  resources [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['PPMU0', 'PPMU1', 'PPMU2', 'PPMU3'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    releasePpmuResourcesResult,
+  );
+  releasePpmuResourcesResult.Status = 'Done';
+  run.record(releasePpmuResourcesResult.Status);
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.pre,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['SMU0', 'SMU1'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    releaseDcPowerResourcesResult,
+  );
   //   Semiconductor Module Context <- Step.SemiconductorModuleContext
   //   Driver <- 0
   //   Reset? <- False
   //   error out <- Step.Result.Error
   await callSharedClose(); // Release DCPower  resources [NI_SemiconductorModule_Action]
+  await ts.stepHost.runStepType(
+    'NI_SemiconductorModule_Action',
+    ts.StepPhase.post,
+    ts.PropObj({
+      'SemiconductorModuleContext': null,
+      'Multisite': ts.PropObj({
+        'SynchronizationOption': 2,
+        'SpecifyPinsAndRelaysOption': 0,
+        'PinsAndRelaysExpression': '',
+        'DUTPinFilterOption': 1,
+        'IncludedDUTPins': <dynamic>['SMU0', 'SMU1'],
+        'ExcludedDUTPins': <dynamic>[],
+        'IncludeSystemPins': false,
+        'IncludedPinGroups': <dynamic>[],
+        'SpecifySiteRelays': true,
+        'IncludedSiteRelays': <dynamic>[],
+        'IncludedRelayGroups': <dynamic>[],
+        'IncludedRelayConfigurations': <dynamic>[],
+        'IncludeSystemRelays': false,
+      }),
+      'DotNetRuntimeData': null,
+      'PerSiteInputs': <dynamic>[],
+    }),
+    releaseDcPowerResourcesResult,
+  );
+  releaseDcPowerResourcesResult.Status = 'Done';
+  run.record(releaseDcPowerResourcesResult.Status);
 
   return run.status;
 }
@@ -680,13 +5376,29 @@ Future<String> processCleanup() async {
 /// Sequence `SequenceFileLoad`.
 Future<String> sequenceFileLoad() async {
   final run = ts.SequenceRun();
+  dynamic exampleExplanationResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ButtonHit': 0,
+    'Response': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Example explanation
 
   // popup title: NameOf(Step)
   // popup message: "This example test program shows how to perform different tests for MEMS devices. | If you're working in a non STS environment you need to enable the OfflineMode and you can use the offline configuration file STS_MEMS_Offline_Mode_System_Configuration.offlinecfg stored in the Example folder. | The sequence can run with both LabVIEW Run-Time Engine and LabVIEW Development System configuration. | All the pins and relays used are not part of a real DUT and system, they're intended just to let the user run the full sequence in either simulated mode or with real hardware. | The number of parallel sites is 8 and the relays used are to be considered System Relays, having one command driving 8 relays in parallel, one per site. | There are two configurations, Calibration which is used to simulate the calibration needed for the Impedance Spectroscopy test, and Production which runs the full test program. | Follow these steps to execute correctly the sequence: | 1) Set Active Configuration to Calibration and run once to get the ZRef values needed for Impedance Spectroscopy test  | 2) Set Active Configuration to Production and run the sequence"
   // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Example explanation [MessagePopup]
+  // Example explanation [MessagePopup]: acts through ts.stepHost
+  final popup = await ts.stepHost.messagePopup(
+    title: 'Example explanation',
+    message:
+        'This example test program shows how to perform different tests for MEMS devices.\n\nIf you\'re working in a non STS environment you need to enable the OfflineMode and you can use the offline configuration file STS_MEMS_Offline_Mode_System_Configuration.offlinecfg stored in the Example folder.\n\nThe sequence can run with both LabVIEW Run-Time Engine and LabVIEW Development System configuration.\n\nAll the pins and relays used are not part of a real DUT and system, they\'re intended just to let the user run the full sequence in either simulated mode or with real hardware.\nThe number of parallel sites is 8 and the relays used are to be considered System Relays, having one command driving 8 relays in parallel, one per site.\n\nThere are two configurations, Calibration which is used to simulate the calibration needed for the Impedance Spectroscopy test, and Production which runs the full test program.\n\nFollow these steps to execute correctly the sequence:\n1) Set Active Configuration to Calibration and run once to get the ZRef values needed for Impedance Spectroscopy test \n2) Set Active Configuration to Production and run the sequence',
+    buttons: ['OK', '', '', '', '', ''],
+  );
+  exampleExplanationResult.ButtonHit = popup.buttonHit;
+  exampleExplanationResult.Response = popup.response;
+  exampleExplanationResult.Status = 'Done';
+  run.record(exampleExplanationResult.Status);
 
   return run.status;
 }
@@ -834,8 +5546,10 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type NI_SemiconductorModule_GetTestSettings: action not exported yet
+  //   step type NI_SemiconductorModule_GetTestSettings acts through ts.stepHost
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   ..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_Relay_ConnectDisconnect.vi
+  //   step type NI_SemiconductorModule_MultiTest acts through ts.stepHost
   //   ..\CodeModules-LabVIEW\Libraries\Continuity\VIs\Continuity_SMUResistanceTest.vi
   //   ..\CodeModules-LabVIEW\Libraries\Continuity\VIs\Continuity_DiodeTest.vi
   //   ..\CodeModules-LabVIEW\Libraries\Leakage\VIs\Leakage_SMU_PPMU_Test.vi
@@ -854,6 +5568,7 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   RunState engine access (no engine at run time)
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   ..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_Initialize.vi
   //   ..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_DCPower_Configure.vi
   //   ..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_DCPower_Start.vi
@@ -861,13 +5576,14 @@ void register() {
     lw.expect(await processSetup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   step type NI_SemiconductorModule_Action acts through ts.stepHost
   //   ..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_DCPower_0V_Stop.vi
   //   ..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_Close.vi
   lw.skipTest('ProcessCleanup', () async {
     lw.expect(await processCleanup(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step type MessagePopup: action not exported yet
+  //   step type MessagePopup acts through ts.stepHost
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');
   });
