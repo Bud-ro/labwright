@@ -68,7 +68,10 @@ Map<int, String> bdConstValueTexts(BdDiagram diagram) {
     if (object.category != BdObjectKind.terminal) continue;
     final bounds = object.absBounds;
     if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
-    final parent = byId[object.parentOid];
+    var parent = byId[object.parentOid];
+    if (parent?.objectClass == BdObjectClass.typeDefinition) {
+      parent = byId[parent!.parentOid];
+    }
     final value = parent?.constant?.numeric;
     if (value == null) continue;
     out[object.oid] = bdFormatConstValue(

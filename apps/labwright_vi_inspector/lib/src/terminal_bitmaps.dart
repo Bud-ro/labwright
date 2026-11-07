@@ -286,6 +286,27 @@ const Map<(ViDataType, bool), BdTerminalArt> kBdTerminalArt = {
     'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
   ]),
   (
+    ViDataType.enumU8,
+    true,
+  ): BdTerminalArt(Color(0xFF0000FF), Color(0xFF3333FF), Color(0xFF9999FF), [
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    'B..............................B',
+    'MLLLLLLLLL.....................B',
+    'MLLMMMMMMMBBBBBBBBBBBBBBBBBBB..B',
+    'MLLMLLLLLL..................B..B',
+    'MLLMXLLLLL....B...B.........B..B',
+    'MLLMXXLLLL...BB...BB........B..B',
+    'MLLMXXXLLL..BBB...BBB.......B..B',
+    'MLLMXXXLLL..BBB...BBB.......B..B',
+    'MLLMXXLLLL...BB...BB........B..B',
+    'MLLMXLLLLL....B...B.........B..B',
+    'MLLMLLLLLL..................B..B',
+    'MLLMMMMMMMBBBBBBBBBBBBBBBBBBB..B',
+    'MLLLLLLLLL.....................B',
+    'B..............................B',
+    'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+  ]),
+  (
     ViDataType.u8,
     true,
   ): BdTerminalArt(Color(0xFF0000FF), Color(0xFF3333FF), Color(0xFF9999FF), [
