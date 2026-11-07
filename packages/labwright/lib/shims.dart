@@ -215,6 +215,53 @@ final class SequenceTermination implements Exception {
 
 Never terminate() => throw const SequenceTermination();
 
+/// What the host answers for a message popup step: the 1-based button pressed and the text entered.
+typedef PopupResponse = ({double buttonHit, String response});
+
+/// The operations an exported sequence can only perform through its host: dialogs and the step types whose
+/// substeps the engine or a vendor implements. The default, [UnavailableStepHost], raises [StepHostUnavailable] naming the
+/// operation; a host installs its own by assigning [stepHost].
+abstract class StepHost {
+  const StepHost();
+  Future<PopupResponse> messagePopup({
+    required Object? title,
+    required Object? message,
+    required List<Object?> buttons,
+    bool showResponse = false,
+    Object? defaultResponse,
+  });
+  Future<void> runStepType(String stepType, StepPhase phase, Object? step, Object? result);
+}
+
+/// When a step type acts: its Pre substeps run before the step's code module, its Post substeps after it.
+enum StepPhase { pre, post }
+
+/// Raised by [UnavailableStepHost]: the program needs a host for [operation].
+final class StepHostUnavailable extends Error {
+  StepHostUnavailable(this.operation);
+  final String operation;
+  @override
+  String toString() => 'step operation "$operation" needs a StepHost, and none is installed';
+}
+
+/// The host a program runs with until one is installed: every operation raises.
+final class UnavailableStepHost extends StepHost {
+  const UnavailableStepHost();
+  @override
+  Future<PopupResponse> messagePopup({
+    required Object? title,
+    required Object? message,
+    required List<Object?> buttons,
+    bool showResponse = false,
+    Object? defaultResponse,
+  }) => throw StepHostUnavailable('MessagePopup');
+  @override
+  Future<void> runStepType(String stepType, StepPhase phase, Object? step, Object? result) =>
+      throw StepHostUnavailable('$stepType ${phase.name}');
+}
+
+StepHost stepHost = const UnavailableStepHost();
+
 /// The status a sequence reports: failed once a step whose failure fails the sequence records a failed status.
 class SequenceRun {
   bool failed = false;

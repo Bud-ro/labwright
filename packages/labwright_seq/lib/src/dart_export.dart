@@ -1040,7 +1040,10 @@ enum _SeqFunction {
   anyOf('AnyOf', '', 1, 1 << 16, _DartSlot.flag),
 
   /// Evaluates an expression given as a string; lowered when the string is a literal.
-  evaluate('Evaluate', '', 1, 1, _DartSlot.untyped);
+  evaluate('Evaluate', '', 1, 1, _DartSlot.untyped),
+
+  /// The name of a property; lowered for the executing step.
+  nameOf('NameOf', '', 1, 1, _DartSlot.text);
 
   const _SeqFunction(this.name, this.dart, this.minArgs, this.maxArgs, this.result);
   final String name;
@@ -1049,6 +1052,19 @@ enum _SeqFunction {
   final int maxArgs;
   final _DartSlot result;
   static final Map<String, _SeqFunction> byName = {for (final f in values) f.name: f};
+}
+
+/// A step-type substep that runs as part of executing the step.
+enum _SubstepKind {
+  /// Runs before the step's code module.
+  pre('PreSubstep'),
+
+  /// Runs after the step's code module.
+  post('PostSubstep');
+
+  const _SubstepKind(this.typeName);
+  final String typeName;
+  static final Map<String, _SubstepKind> byTypeName = {for (final k in values) k.typeName: k};
 }
 
 /// A RunState property that reads the looping state of the executing step.
@@ -1745,6 +1761,12 @@ class _DartExporter {
     if (callee is! SeqName) return null;
     final function = _SeqFunction.byName[callee.name];
     if (function == null || arguments.length < function.minArgs || arguments.length > function.maxArgs) return null;
+    if (function == _SeqFunction.nameOf) {
+      final subject = arguments.single;
+      final step = _foldStep;
+      if (step == null || subject is! SeqName || subject.name.toLowerCase() != 'step') return null;
+      return (code: "'${_escape(step.name)}'", type: _DartSlot.text, prec: _Prec.primary);
+    }
     if (function == _SeqFunction.evaluate) {
       final source = arguments.single;
       final text = source is SeqString ? source.value : _stepLeaf(source)?.scalar;
@@ -2772,7 +2794,10 @@ class _DartExporter {
     final pre = settings.preExpression;
     if (pre != null) _emitStmt(pre, 'pre-expression');
 
+    final hosted = _hostedPhases(step);
+    if (hosted.contains(_SubstepKind.pre)) _emitHostedStep(step, _SubstepKind.pre, result);
     _emitStepAction(step);
+    if (hosted.contains(_SubstepKind.post)) _emitHostedStep(step, _SubstepKind.post, result);
 
     final post = settings.postExpression;
     if (post != null && step.stepType != StepType.statement) {
@@ -2860,7 +2885,10 @@ class _DartExporter {
         ],
       ].nonNulls;
       final status = _statusExpression(step);
-      if ((status != null && status.trim() != '""') || settings.isLooping || expressions.any(ownResult.hasMatch)) {
+      if ((status != null && status.trim() != '""') ||
+          settings.isLooping ||
+          _hostedPhases(step).isNotEmpty ||
+          expressions.any(ownResult.hasMatch)) {
         tracked.add(step.raw);
       }
       for (final m in expressions.expand(referenced.allMatches)) {
@@ -3019,19 +3047,19 @@ class _DartExporter {
       case SeqAdapter.none:
         final status = _statusExpression(step);
         final judged = status != null && status.trim() != '""';
-        if (!_runsSubsteps(step.type) && (judged || _ModuleFreeStepType.byName.containsKey(step.type))) {
-          _line(
-            '// $name${step.type != null ? ' [${_comment(step.type!)}]' : ''}: '
-            '${judged ? 'judged by its status expression' : 'no code module'}',
-          );
-        } else if (asTest && step.type != null) {
-          _throwLine(step, 'step type ${step.type}', 'action not exported yet');
+        final hosted = _hostedPhases(step).isNotEmpty;
+        final expressive = step.settings.preExpression != null || step.settings.postExpression != null;
+        final described = hosted
+            ? 'acts through ts.stepHost'
+            : judged
+            ? 'judged by its status expression'
+            : expressive
+            ? 'acts through its expressions'
+            : 'no code module';
+        if (hosted || !_runsSubsteps(step.type) || !asTest || step.type == null) {
+          _line('// $name${step.type != null ? ' [${_comment(step.type!)}]' : ''}: $described');
         } else {
-          _line(
-            '// $name'
-            '${step.type != null ? ' [${_comment(step.type!)}]' : ''}: '
-            'no code module',
-          );
+          _throwLine(step, 'step type ${step.type}', 'action not exported yet');
         }
     }
   }
@@ -3042,6 +3070,72 @@ class _DartExporter {
     final type = step.type == null ? null : _typeByName[step.type];
     return nonEmpty(type?.raw.prop('TS')?.prop('StatusExpr')?.scalar);
   }
+
+  /// The phases in which a step's type acts through the host: before the code module for Pre substeps, after it for
+  /// Post substeps. A type the file does not define, or one with neither substeps, module nor expressions, acts after
+  /// the module when the step has none.
+  Set<_SubstepKind> _hostedPhases(Step step) {
+    if (step.flowControl != null ||
+        const {StepType.statement, StepType.label, StepType.wait}.contains(step.stepType) ||
+        step.type == null ||
+        _ModuleFreeStepType.byName.containsKey(step.type)) {
+      return const {};
+    }
+    final type = _typeByName[step.type];
+    if (type == null) return step.module.adapter == SeqAdapter.none ? const {_SubstepKind.post} : const {};
+    final substeps = type.raw.prop('Substeps');
+    final kinds = [
+      for (final substep in [...?substeps?.subProps, ...?substeps?.array])
+        if (_SubstepKind.byTypeName[substep.typeName] case final kind?) kind,
+    ];
+    if (kinds.isNotEmpty) return kinds.toSet();
+    final settings = step.settings;
+    final status = _statusExpression(step);
+    final inert =
+        step.module.adapter == SeqAdapter.none &&
+        settings.preExpression == null &&
+        settings.postExpression == null &&
+        (status == null || status.trim() == '""');
+    return inert ? const {_SubstepKind.post} : const {};
+  }
+
+  void _emitHostedStep(Step step, _SubstepKind phase, String? result) {
+    if (asTest) _markUnported('step type ${step.type} acts through ts.stepHost');
+    if (step.type == _messagePopupType && phase == _SubstepKind.post) {
+      final popup = _claimId('popup');
+      final buttons = [
+        for (var i = 1; i <= _popupButtonCount; i++) _expr(step.raw.prop('Button${i}Label')?.scalar ?? '""'),
+      ];
+      final defaultResponse = step.popupDefaultResponseExpression;
+      _line(
+        'final $popup = await ts.stepHost.messagePopup(title: ${_expr(step.popupTitleExpression ?? '""')}, '
+        'message: ${_expr(step.popupMessageExpression ?? '""')}, buttons: [${buttons.join(', ')}]'
+        '${step.popupShowsResponse == true ? ', showResponse: true' : ''}'
+        '${defaultResponse != null ? ', defaultResponse: ${_expr(defaultResponse)}' : ''});',
+      );
+      if (result != null) {
+        _line('$result.ButtonHit = $popup.buttonHit;');
+        _line('$result.Response = $popup.response;');
+      }
+      return;
+    }
+    final own = SeqProperty(
+      name: step.name,
+      subProps: [
+        for (final p in step.raw.subProps)
+          if (p.name != 'TS' && p.name != 'Result') p,
+      ],
+    );
+    _line(
+      "await ts.stepHost.runStepType('${_escape(step.type!)}', ts.StepPhase.${phase.name}, "
+      '${_propObjInit(own, {})}, ${result ?? 'null'});',
+    );
+  }
+
+  static const _messagePopupType = 'MessagePopup';
+
+  /// Button1Label through Button6Label: the buttons a message popup step offers.
+  static const _popupButtonCount = 6;
 
   bool _runsSubsteps(String? type) {
     final substeps = type == null ? null : _typeByName[type]?.raw.prop('Substeps');

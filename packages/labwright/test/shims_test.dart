@@ -152,4 +152,14 @@ void main() {
       ..count('Done');
     expect((loop.numIterations, loop.numPassed, loop.numFailed), (3, 1, 1));
   });
+  test('without an installed host every step operation raises, naming it', () {
+    expect(
+      () => ts.stepHost.runStepType('NI_Measurement', ts.StepPhase.post, null, null),
+      throwsA(isA<ts.StepHostUnavailable>().having((e) => e.operation, 'operation', 'NI_Measurement post')),
+    );
+    expect(
+      () => ts.stepHost.messagePopup(title: 't', message: 'm', buttons: const []),
+      throwsA(isA<ts.StepHostUnavailable>()),
+    );
+  });
 }

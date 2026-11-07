@@ -28,7 +28,10 @@ const _labViewFileGlobalRenames = {'MeasurementLink': 'MeasurementPlugIns'};
 final _commentOnly = RegExp(r'^\s*//');
 final _stubDeclaration = RegExp(r'^Future<Object\?> call\w+\(');
 final _trailingComment = RegExp(r'([;{(])\s*//.*$');
-final _moduleCall = RegExp(r"await call\w+\(\)|throw UnimplementedError\('\w+ call: (?:[^'\\]|\\.)*'\)");
+final _moduleCall = RegExp(
+  r"await call\w+\(\)|throw UnimplementedError\('\w+ call: (?:[^'\\]|\\.)*'\)|await ts\.stepHost\.runStepType\(.*\);$",
+);
+final _stepResult = RegExp(r'\b[a-z]\w*Result\d*\b');
 
 List<String> authoredContentRemoved(String source) {
   final kept = <String>[];
@@ -42,7 +45,10 @@ List<String> authoredContentRemoved(String source) {
     if (line.trim().isEmpty || _commentOnly.hasMatch(line)) continue;
     kept.add(
       _labViewFileGlobalRenames.entries.fold(
-        line.replaceFirstMapped(_trailingComment, (m) => m[1]!).replaceAll(_moduleCall, '<module call>'),
+        line
+            .replaceFirstMapped(_trailingComment, (m) => m[1]!)
+            .replaceAll(_moduleCall, '<module call>')
+            .replaceAll(_stepResult, '<step result>'),
         (text, rename) => text.replaceAll(RegExp('\\b${rename.key}\\b'), rename.value),
       ),
     );

@@ -99,7 +99,7 @@ class SeqProperty {
 
   final String? className;
 
-  SeqValueClass? get valueClass => SeqValueClass.of(className);
+  SeqValueClass? get valueClass => SeqValueClass.of(className ?? xmlTag);
 
   final String? typeName;
 

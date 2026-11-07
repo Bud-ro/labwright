@@ -1152,4 +1152,85 @@ void main() {
       expect(source, contains('not exported; the body runs once'));
     });
   });
+  group('step types acting through the host', () {
+    SeqProperty typeWith(String name, List<String> substepKinds) => _p(
+      name,
+      sub: [
+        SeqProperty(
+          name: 'Substeps',
+          array: [for (final kind in substepKinds) SeqProperty(name: kind, typeName: '${kind}Substep')],
+        ),
+      ],
+    );
+    test('a message popup asks the host and stores the button and response in its result', () {
+      final source = exportSeqFileToLabwright(
+        _fileWith(
+          [
+            _seqWith(
+              'Main',
+              locals: [_bool('Go')],
+              steps: [
+                _stepWith(
+                  'Ask',
+                  typeName: 'MessagePopup',
+                  ts: [_p('PostExpr', value: 'Locals.Go = Step.Result.ButtonHit == 1')],
+                  props: [
+                    _p('TitleExpr', value: 'NameOf(Step)'),
+                    _p('MessageExpr', value: '"Line one\nLine two"'),
+                    _p('Button1Label', value: '"Yes"'),
+                    _p('Button2Label', value: '"No"'),
+                    _p('Result', sub: [_str('Status', ''), _num('ButtonHit', '0'), _str('Response', '')]),
+                  ],
+                ),
+              ],
+            ),
+          ],
+          types: [
+            typeWith('MessagePopup', ['Edit', 'Post']),
+          ],
+        ),
+      );
+      expect(
+        source,
+        contains(
+          "final popup = await ts.stepHost.messagePopup(title: 'Ask', message: 'Line one\\nLine two', "
+          "buttons: ['Yes', 'No', '', '', '', '']);\n"
+          '  askResult.ButtonHit = popup.buttonHit;\n'
+          '  askResult.Response = popup.response;\n'
+          '  go = askResult.ButtonHit == 1; // post-expression',
+        ),
+      );
+      expect(source, contains('step type MessagePopup acts through ts.stepHost'));
+      expect(source, isNot(contains('UnimplementedError')));
+    });
+    test('Pre substeps run before the code module and Post substeps after it', () {
+      final source = exportSeqFileToDart(
+        _fileWith(
+          [
+            _seqWith(
+              'Main',
+              steps: [
+                _stepWith(
+                  'Measure',
+                  typeName: 'Vendor',
+                  sdata: [_p('ModulePath', value: 'measure.py')],
+                  props: [_num('Gain', '2')],
+                ),
+              ],
+            ),
+          ],
+          types: [
+            typeWith('Vendor', ['Pre', 'Post']),
+          ],
+        ),
+      );
+      final pre = source.indexOf(
+        "ts.stepHost.runStepType('Vendor', ts.StepPhase.pre, ts.PropObj({'Gain': 2}), measureResult);",
+      );
+      final post = source.indexOf(
+        "ts.stepHost.runStepType('Vendor', ts.StepPhase.post, ts.PropObj({'Gain': 2}), measureResult);",
+      );
+      expect((pre >= 0, post > pre), (true, true));
+    });
+  });
 }
