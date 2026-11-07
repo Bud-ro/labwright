@@ -162,4 +162,16 @@ void main() {
       throwsA(isA<ts.StepHostUnavailable>()),
     );
   });
+  test('copy is deep for lists and property objects; a Ref carries a written value back', () {
+    final dynamic original = ts.PropObj({
+      'List': [1, 2],
+      'Inner': ts.PropObj({'X': 1}),
+    });
+    final dynamic copied = ts.copy(original);
+    copied.List[0] = 9;
+    copied.Inner.X = 9;
+    expect((original.List[0], original.Inner.X, copied.Inner.Name), (1, 1, 'Inner'));
+    final ref = ts.Ref<int>(1)..value = 2;
+    expect(ref.value, 2);
+  });
 }

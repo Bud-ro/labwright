@@ -15,8 +15,10 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> isProcessRunning({
   String processName = 'LabVIEW',
   String descriptionToSearch = 'LabVIEW 18.*',
-  bool processFound = false,
+  ts.Ref<bool>? processFound,
 }) async {
+  final processFoundRef = processFound ?? ts.Ref<bool>(false);
+
   List<dynamic> processes = <dynamic>[]; // Refs
   String description = ''; // Str
 

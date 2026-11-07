@@ -64,6 +64,8 @@ Future<String> modelPluginBegin({
   String processModelClientPath = '',
   dynamic parentThread,
 }) async {
+  parentThread = ts.copy(parentThread);
+
   final run = ts.SequenceRun();
 
   if (ts.truthy(modelThreadType.IsController)) {
@@ -170,6 +172,13 @@ Future<String> modelPluginUutDone({
   dynamic notificationToUnblockCallingThread,
   dynamic postProcessingThreadForPriorUut,
 }) async {
+  mainSequenceResult = ts.copy(mainSequenceResult);
+  callingThread = ts.copy(callingThread);
+  notificationToUnblockCallingThread = ts.copy(
+    notificationToUnblockCallingThread,
+  );
+  postProcessingThreadForPriorUut = ts.copy(postProcessingThreadForPriorUut);
+
   dynamic otfFileReport = null; // Ref
   dynamic report = null; // Ref
   String reportPath = ''; // Str
@@ -287,6 +296,9 @@ Future<String> generateReportPath({
   dynamic options,
   dynamic runtimeVariables,
 }) async {
+  startTime = ts.copy(startTime);
+  startDate = ts.copy(startDate);
+
   String sequenceFileBaseName = ''; // Str
   String dateStr = ''; // Str
   String timeStr = ''; // Str

@@ -211,6 +211,9 @@ Future<String> copyAll({
   dynamic diSourceDirectory,
   dynamic diTargetDirectory,
 }) async {
+  diSourceDirectory = ts.copy(diSourceDirectory);
+  diTargetDirectory = ts.copy(diTargetDirectory);
+
   String targetFullName = ''; // Str
   String fileName = ''; // Str
   String subdirectoryName = ''; // Str

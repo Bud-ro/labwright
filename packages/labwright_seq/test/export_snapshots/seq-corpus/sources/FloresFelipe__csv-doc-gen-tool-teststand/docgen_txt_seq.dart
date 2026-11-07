@@ -158,14 +158,16 @@ Future<String> sequenceFileDoc({
         'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_NUM_STEPS"), "%-35s") +\n	((FileGlobals.Locked && FileGlobals.Protection==2) ?\n	    GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_UNKNOWN") + \n	    " <" +\n	    GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_LOCKED") + \n	    ">"\n	:\n	    Str(Locals.TotalNumSteps)) \n	+"\\n"\n',
       ); // Num Steps
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      final docResultRef = ts.Ref<String>(docResult);
       addRequirementsResult.Status = await writeRequirementsElements(
         requirements: sequenceFile.Data.Requirements,
-        docResult: docResult,
+        docResult: docResultRef,
         doubleIndent: '',
         maxWwLineLength: maxWwLineLength,
         wwIndentNum: wwIndentNum,
         tmpNum: tmpNum,
       ); // Add Requirements
+      docResult = docResultRef.value;
       addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
           ? 'Passed'
           : addRequirementsResult.Status; // status expression
@@ -292,9 +294,11 @@ Future<String> sequenceFileDoc({
 /// Sequence `Sequence Doc`.
 Future<String> sequenceDoc({
   dynamic sequence,
-  String docResult = '',
+  ts.Ref<String>? docResult,
   dynamic docOptions,
 }) async {
+  final docResultRef = docResult ?? ts.Ref<String>('');
+
   double maxWwLineLength = 80; // Num
   double wwIndentNum = 5; // Num
   String tmpString = ''; // Str
@@ -379,20 +383,22 @@ Future<String> sequenceDoc({
           '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_CLEANUP_STEPS"), "%-35s") +\n	Str(GetNumElements(Parameters.Sequence.Cleanup)) + "\\n"\n',
         ); // Num Cleanup Steps
         // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+        final docResultRef2 = ts.Ref<String>(docResultRef.value);
         addRequirementsResult.Status = await writeRequirementsElements(
           requirements: sequence.Requirements,
-          docResult: docResult,
+          docResult: docResultRef2,
           doubleIndent: '',
           maxWwLineLength: maxWwLineLength,
           wwIndentNum: wwIndentNum,
           tmpNum: tmpNum,
         ); // Add Requirements
+        docResultRef.value = docResultRef2.value;
         addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
             ? 'Passed'
             : addRequirementsResult.Status; // status expression
         run.record(addRequirementsResult.Status);
       }
-      docResult += '\n'; // Sequence Footer
+      docResultRef.value += '\n'; // Sequence Footer
       // label: --- Parameters ---
       // goto -> --- End Parameters ---
       if (docOptions.ShowParameters == false) {
@@ -429,7 +435,7 @@ Future<String> sequenceDoc({
       } else {
         processSubPropsResult.Status = 'Skipped';
       }
-      docResult += '\n'; // Footer
+      docResultRef.value += '\n'; // Footer
     }
     // label: --- End Parameters ---
     // label: --- Locals ---
@@ -468,7 +474,7 @@ Future<String> sequenceDoc({
     } else {
       processSubPropsResult2.Status = 'Skipped';
     }
-    docResult += '\n'; // Footer
+    docResultRef.value += '\n'; // Footer
   }
   // label: --- End Locals ---
   // label: --- Step Doc ---
@@ -567,10 +573,13 @@ Future<String> sequenceDoc({
 /// Sequence `Step Doc`.
 Future<String> stepDoc({
   dynamic step$,
-  String docResult = '',
+  ts.Ref<String>? docResult,
   int totalNumSteps = 0,
-  int stepsSoFar = 0,
+  ts.Ref<int>? stepsSoFar,
 }) async {
+  final docResultRef = docResult ?? ts.Ref<String>('');
+  final stepsSoFarRef = stepsSoFar ?? ts.Ref<int>(0);
+
   String stepTypeName = ''; // Str
   double maxWwLineLength = 0; // Num — default: 0
   double wwIndentNum = 0; // Num — default: 0
@@ -619,7 +628,7 @@ Future<String> stepDoc({
         ts.len(doubleIndent) + 5; // Indent According To Block Level (cont.)
     maxWwLineLength =
         65 + wwIndentNum; // Indent According To Block Level (cont.)
-    stepsSoFar += 1; // Update StepsSoFar
+    stepsSoFarRef.value += 1; // Update StepsSoFar
     throw UnimplementedError(
       'cModule call: Update Percent Done',
     ); // Update Percent Done [Action]
@@ -669,14 +678,16 @@ Future<String> stepDoc({
       ); // Comment
     }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    final docResultRef2 = ts.Ref<String>(stepDocs);
     addRequirementsResult.Status = await writeRequirementsElements(
       requirements: step$.TS.Requirements,
-      docResult: stepDocs,
+      docResult: docResultRef2,
       doubleIndent: doubleIndent,
       maxWwLineLength: maxWwLineLength,
       wwIndentNum: wwIndentNum,
       tmpNum: tmpNum,
     ); // Add Requirements
+    stepDocs = docResultRef2.value;
     addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
         ? 'Passed'
         : addRequirementsResult.Status; // status expression
@@ -752,12 +763,14 @@ Future<String> stepDoc({
     'AllOf(Locals.StepTypeName == "NI_MultipleNumericLimitTest", PropertyExists("Parameters.Step.Result.Measurement"))',
   )) {
     // precondition of Add Multiple Numeric Limits
+    final docResultRef3 = ts.Ref<String>(stepDocs);
     addMultipleNumericLimitsResult.Status =
         await writeMultipleNumericLimitLimits(
           step$: step$,
-          docResult: stepDocs,
+          docResult: docResultRef3,
           doubleIndent: doubleIndent,
         ); // Add Multiple Numeric Limits
+    stepDocs = docResultRef3.value;
     addMultipleNumericLimitsResult.Status =
         addMultipleNumericLimitsResult.Status == 'Done'
         ? 'Passed'
@@ -784,7 +797,7 @@ Future<String> stepDoc({
     ); // Execution Flow
   }
   stepDocs += '\n'; // Step Footer
-  docResult += stepDocs; // Append Step Docs
+  docResultRef.value += stepDocs; // Append Step Docs
 
   return run.status;
 }
@@ -897,10 +910,12 @@ Future<String> writeSubproperties({
 /// Sequence `Write Array Elements`.
 Future<String> writeArrayElements({
   dynamic root,
-  String docResult = '',
+  ts.Ref<String>? docResult,
   String arrayPropLookupStr = '',
   dynamic docOptions,
 }) async {
+  final docResultRef = docResult ?? ts.Ref<String>('');
+
   String currentArrayIndex = ''; // Str
   int currentOffset = 0; // Num — default: 0
   int numElements = 0; // Num — default: 0
@@ -988,11 +1003,13 @@ Future<String> writeArrayElements({
 
 /// Sequence `Write Property Details`.
 Future<String> writePropertyDetails({
-  String docResult = '',
+  ts.Ref<String>? docResult,
   dynamic root,
   String propertyToDisplayName = '',
   dynamic docOptions,
 }) async {
+  final docResultRef = docResult ?? ts.Ref<String>('');
+
   int valueType = 0; // Num — default: 0
   bool isObject = false; // Bool — default: false
   bool isArray = false; // Bool — default: false
@@ -1094,7 +1111,7 @@ Future<String> writePropertyDetails({
   ts.eval(
     '(Locals.SubpropFlags & 0x4) ? ( Locals.ByRefStr = " - " + ResStr("SEQUENCING ADAPTER", "PASS_BYREFERENCE") ) : ( Locals.ByRefStr = "" )',
   ); // IsByRef
-  docResult +=
+  docResultRef.value +=
       '     ' +
       ts.str(
         propertyToDisplayName + ' (' + typeName + byRefStr + ')',
@@ -1123,9 +1140,11 @@ Future<String> writePropertyDetails({
 /// Sequence `Write Multiple Numeric Limit Limits`.
 Future<String> writeMultipleNumericLimitLimits({
   dynamic step$,
-  String docResult = '',
+  ts.Ref<String>? docResult,
   String doubleIndent = '',
 }) async {
+  final docResultRef = docResult ?? ts.Ref<String>('');
+
   int currentOffset = 0; // Num — default: 0
   int numElements = 0; // Num — default: 0
   bool oneLimitOnly = false; // Bool — default: false
@@ -1251,12 +1270,14 @@ Future<String> writeMultipleNumericLimitLimits({
 /// Sequence `Write Requirements Elements`.
 Future<String> writeRequirementsElements({
   dynamic requirements,
-  String docResult = '',
+  ts.Ref<String>? docResult,
   String doubleIndent = '',
   double maxWwLineLength = 0,
   double wwIndentNum = 0,
   int tmpNum = 0,
 }) async {
+  final docResultRef = docResult ?? ts.Ref<String>('');
+
   String currentReqElement = ''; // Str
   String tmpString = ''; // Str
 
@@ -1319,7 +1340,6 @@ void register() {
   //   cModule call: GetProtection?
   //   untranslated expression in body
   //   cModule call: WordWrapComment
-  //   by-ref writeback of parameter DocResult of sequence Write Requirements Elements not exported
   //   cModule call: GetNumSubProperties
   //   cModule call: SetProgressMsg
   //   call parameters of sequence Write Subproperties: no parameter named arg0 (stale binding)
@@ -1358,7 +1378,6 @@ void register() {
   //   cModule call: Get Step Desc
   //   cModule call: WordWrapDesc
   //   cModule call: WordWrapStringLimit
-  //   by-ref writeback of parameter DocResult of sequence Write Multiple Numeric Limit Limits not exported
   //   cModule call: Get Execution Flow
   //   cModule call: WordWrapExecFlow
   //   cModule call: Get Low Limit Format

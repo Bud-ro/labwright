@@ -18,6 +18,8 @@ Future<String> modelPluginConfigureStandardOptions({
   String modelType = '',
   dynamic modelPlugin,
 }) async {
+  processModel = ts.copy(processModel);
+
   final run = ts.SequenceRun();
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -37,6 +39,8 @@ Future<String> modelPluginConfigureAdditionalOptions({
   String modelType = '',
   dynamic modelPlugin,
 }) async {
+  processModel = ts.copy(processModel);
+
   final run = ts.SequenceRun();
   dynamic
   replaceThisStepWithACallToYourAdditionalOptionsDialogResult = ts.PropObj(
@@ -104,6 +108,8 @@ Future<String> modelPluginBegin({
   String processModelClientPath = '',
   dynamic parentThread,
 }) async {
+  parentThread = ts.copy(parentThread);
+
   final run = ts.SequenceRun();
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -238,6 +244,7 @@ Future<String> modelPluginOnTheFlyStepResults({
   List<dynamic>? parentIds,
   dynamic modelPluginConfiguration,
 }) async {
+  context = ts.copy(context);
   steps ??= <dynamic>[]; // Refs
   results ??= <dynamic>[]; // Refs
   callbackNames ??= <dynamic>[]; // Strs
@@ -268,6 +275,11 @@ Future<String> modelPluginUutDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
+  mainSequenceResult = ts.copy(mainSequenceResult);
+  callingThread = ts.copy(callingThread);
+  callingThreadBlocker = ts.copy(callingThreadBlocker);
+  priorIterationNewThread = ts.copy(priorIterationNewThread);
+
   bool inNewThread = false; // Bool — default: false
   dynamic controllerAndSocketSynchronizationManager = null; // Ref
   dynamic currentResult = ts.PropObj({
@@ -398,6 +410,11 @@ Future<String> modelPluginBatchDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
+  mainSequenceResult = ts.copy(mainSequenceResult);
+  callingThread = ts.copy(callingThread);
+  callingThreadBlocker = ts.copy(callingThreadBlocker);
+  priorIterationNewThread = ts.copy(priorIterationNewThread);
+
   bool inNewThread = false; // Bool — default: false
   dynamic controllerAndSocketSynchronizationManager = null; // Ref
 
@@ -475,6 +492,8 @@ Future<String> modelPluginPostUut({
   String uutStatus = '',
   dynamic mainSequenceResult,
 }) async {
+  mainSequenceResult = ts.copy(mainSequenceResult);
+
   final run = ts.SequenceRun();
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -497,6 +516,8 @@ Future<String> modelPluginPostBatch({
   String uutStatus = '',
   dynamic mainSequenceResult,
 }) async {
+  mainSequenceResult = ts.copy(mainSequenceResult);
+
   final run = ts.SequenceRun();
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -525,6 +546,7 @@ Future<String> modelPluginEnd({
 /// Sequence `Add Result`.
 Future<String> addResult({List<dynamic>? resultList}) async {
   resultList ??= <dynamic>[]; // Objs
+  resultList = ts.copy(resultList);
 
   dynamic currentResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),

@@ -13,11 +13,14 @@ import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `Model Plugin - Configure Standard Options`.
 Future<String> modelPluginConfigureStandardOptions({
-  bool changed = false,
+  ts.Ref<bool>? changed,
   dynamic processModel,
   String modelType = '',
   dynamic modelPlugin,
 }) async {
+  final changedRef = changed ?? ts.Ref<bool>(false);
+  processModel = ts.copy(processModel);
+
   final run = ts.SequenceRun();
   dynamic setLogFileDirectoryResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -58,7 +61,7 @@ Future<String> modelPluginConfigureStandardOptions({
   run.record(setLogFileDirectoryResult.Status);
   if (runState.PreviousStep.Result.ButtonHit == '1') {
     // precondition of Apply changes if user click OK
-    changed = true; // Apply changes if user click OK
+    changedRef.value = true; // Apply changes if user click OK
     modelPlugin.PluginSpecific.Options.LogFileFolder = runState
         .PreviousStep
         .Result
@@ -86,7 +89,7 @@ Future<String> modelPluginConfigureStandardOptions({
     ts.eval(
       'Parameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate = Val(RunState.PreviousStep.Result.Response)',
     ); // Apply changes if user click OK
-    changed = true; // Apply changes if user click OK (cont.)
+    changedRef.value = true; // Apply changes if user click OK (cont.)
   }
 
   return run.status;
@@ -118,6 +121,8 @@ Future<String> modelPluginBegin({
   String processModelClientPath = '',
   dynamic parentThread,
 }) async {
+  parentThread = ts.copy(parentThread);
+
   dynamic semiconductorModuleManager = null; // Ref
   dynamic performanceMeasurementUtility = null; // Ref
   String dateString = ''; // Str
@@ -201,6 +206,8 @@ Future<String> modelPluginPostUut({
   String uutStatus = '',
   dynamic mainSequenceResult,
 }) async {
+  mainSequenceResult = ts.copy(mainSequenceResult);
+
   int siteNumber = 0; // Num — default: 0
   int numberOfSites = 0; // Num — default: 0
 
@@ -280,6 +287,8 @@ Future<String> modelPluginPostBatch({
   String uutStatus = '',
   dynamic mainSequenceResult,
 }) async {
+  mainSequenceResult = ts.copy(mainSequenceResult);
+
   final run = ts.SequenceRun();
   dynamic callLogDataToFileResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -312,6 +321,8 @@ Future<String> modelPluginPostBatch({
 
 /// Sequence `Log Data to File`.
 Future<String> logDataToFile({dynamic performanceMeasurementLogger}) async {
+  performanceMeasurementLogger = ts.copy(performanceMeasurementLogger);
+
   int socketTime = 0; // Num — default: 0
 
   final run = ts.SequenceRun();
@@ -393,6 +404,8 @@ Future<String> reservedModelPluginConfigureAdditionalOptions({
   String modelType = '',
   dynamic modelPlugin,
 }) async {
+  processModel = ts.copy(processModel);
+
   final run = ts.SequenceRun();
   dynamic
   replaceThisStepWithACallToYourAdditionalOptionsDialogResult = ts.PropObj(
@@ -529,6 +542,7 @@ Future<String> reservedModelPluginOnTheFlyStepResults({
   List<dynamic>? parentIds,
   dynamic modelPluginConfiguration,
 }) async {
+  context = ts.copy(context);
   steps ??= <dynamic>[]; // Refs
   results ??= <dynamic>[]; // Refs
   callbackNames ??= <dynamic>[]; // Strs
@@ -559,6 +573,11 @@ Future<String> reservedModelPluginUutDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
+  mainSequenceResult = ts.copy(mainSequenceResult);
+  callingThread = ts.copy(callingThread);
+  callingThreadBlocker = ts.copy(callingThreadBlocker);
+  priorIterationNewThread = ts.copy(priorIterationNewThread);
+
   bool inNewThread = false; // Bool — default: false
   dynamic controllerAndSocketSynchronizationManager = null; // Ref
 
@@ -639,6 +658,11 @@ Future<String> reservedModelPluginBatchDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
+  mainSequenceResult = ts.copy(mainSequenceResult);
+  callingThread = ts.copy(callingThread);
+  callingThreadBlocker = ts.copy(callingThreadBlocker);
+  priorIterationNewThread = ts.copy(priorIterationNewThread);
+
   bool inNewThread = false; // Bool — default: false
   dynamic controllerAndSocketSynchronizationManager = null; // Ref
 

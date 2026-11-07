@@ -178,10 +178,12 @@ Future<String> sequenceFileDoc({
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       if (!(fileGlobals.Locked && fileGlobals.Protection == 2)) {
         // precondition of Process Requirements
+        final docResultRef = ts.Ref<String>(docResult);
         processRequirementsResult.Status = await writeRequirementsElements(
           requirements: sequenceFile.Data.Requirements,
-          docResult: docResult,
+          docResult: docResultRef,
         ); // Process Requirements
+        docResult = docResultRef.value;
         processRequirementsResult.Status =
             processRequirementsResult.Status == 'Done'
             ? 'Passed'
@@ -314,9 +316,11 @@ Future<String> sequenceFileDoc({
 /// Sequence `Sequence Doc`.
 Future<String> sequenceDoc({
   dynamic sequence,
-  String docResult = '',
+  ts.Ref<String>? docResult,
   dynamic docOptions,
 }) async {
+  final docResultRef = docResult ?? ts.Ref<String>('');
+
   String tableHtml =
       '<TABLE FRAME=BOX RULES=ALL WIDTH=90% CELLPADDING=1 CELLSPACING=1>'; // Str
   String titleColHtml =
@@ -413,17 +417,19 @@ Future<String> sequenceDoc({
           '\nParameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_CLEANUP_STEPS"), "%-30s") +\n	Locals.ValColHTML +\n	Str(GetNumElements(Parameters.Sequence.Cleanup)) + "\\n"\n',
         ); // Num Cleanup Steps
         // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+        final docResultRef2 = ts.Ref<String>(docResultRef.value);
         processRequirementsResult.Status = await writeRequirementsElements(
           requirements: sequence.Requirements,
-          docResult: docResult,
+          docResult: docResultRef2,
         ); // Process Requirements
+        docResultRef.value = docResultRef2.value;
         processRequirementsResult.Status =
             processRequirementsResult.Status == 'Done'
             ? 'Passed'
             : processRequirementsResult.Status; // status expression
         run.record(processRequirementsResult.Status);
       }
-      docResult += '</TABLE><br>\n'; // Sequence Footer
+      docResultRef.value += '</TABLE><br>\n'; // Sequence Footer
       // label: --- Parameters ---
       // goto -> --- End Parameters ---
       if (docOptions.ShowParameters == false) {
@@ -462,7 +468,7 @@ Future<String> sequenceDoc({
       }
       if (tmpNum > 0) {
         // precondition of Footer
-        docResult += '</TABLE><br>\n'; // Footer
+        docResultRef.value += '</TABLE><br>\n'; // Footer
       }
     }
     // label: --- End Parameters ---
@@ -504,7 +510,7 @@ Future<String> sequenceDoc({
     }
     if (tmpNum > 0) {
       // precondition of Footer
-      docResult += '</TABLE>\n'; // Footer
+      docResultRef.value += '</TABLE>\n'; // Footer
     }
   }
   // label: --- End Locals ---
@@ -535,13 +541,19 @@ Future<String> sequenceDoc({
       'ReportText': '',
       'Common': ts.PropObj(),
     });
+    final docResultRef3 = ts.Ref<String>(docResultRef.value);
+    final stepsSoFarRef = ts.Ref<int>(stepsSoFar);
+    final previousBlockLevelRef = ts.Ref<int>(previousBlockLevel);
     forEachSetupStepResult.Status = await stepDoc(
       step$: sequence.Setup[loop.index.toInt()],
-      docResult: docResult,
+      docResult: docResultRef3,
       totalNumSteps: totalNumSteps,
-      stepsSoFar: stepsSoFar,
-      previousBlockLevel: previousBlockLevel,
+      stepsSoFar: stepsSoFarRef,
+      previousBlockLevel: previousBlockLevelRef,
     ); // For Each Setup Step
+    docResultRef.value = docResultRef3.value;
+    stepsSoFar = stepsSoFarRef.value;
+    previousBlockLevel = previousBlockLevelRef.value;
     forEachSetupStepResult.Status = forEachSetupStepResult.Status == 'Done'
         ? 'Passed'
         : forEachSetupStepResult.Status; // status expression
@@ -569,13 +581,19 @@ Future<String> sequenceDoc({
       'ReportText': '',
       'Common': ts.PropObj(),
     });
+    final docResultRef4 = ts.Ref<String>(docResultRef.value);
+    final stepsSoFarRef2 = ts.Ref<int>(stepsSoFar);
+    final previousBlockLevelRef2 = ts.Ref<int>(previousBlockLevel);
     forEachMainStepResult.Status = await stepDoc(
       step$: sequence.Main[loop2.index.toInt()],
-      docResult: docResult,
+      docResult: docResultRef4,
       totalNumSteps: totalNumSteps,
-      stepsSoFar: stepsSoFar,
-      previousBlockLevel: previousBlockLevel,
+      stepsSoFar: stepsSoFarRef2,
+      previousBlockLevel: previousBlockLevelRef2,
     ); // For Each Main Step
+    docResultRef.value = docResultRef4.value;
+    stepsSoFar = stepsSoFarRef2.value;
+    previousBlockLevel = previousBlockLevelRef2.value;
     forEachMainStepResult.Status = forEachMainStepResult.Status == 'Done'
         ? 'Passed'
         : forEachMainStepResult.Status; // status expression
@@ -603,13 +621,19 @@ Future<String> sequenceDoc({
       'ReportText': '',
       'Common': ts.PropObj(),
     });
+    final docResultRef5 = ts.Ref<String>(docResultRef.value);
+    final stepsSoFarRef3 = ts.Ref<int>(stepsSoFar);
+    final previousBlockLevelRef3 = ts.Ref<int>(previousBlockLevel);
     forEachCleanupStepResult.Status = await stepDoc(
       step$: sequence.Cleanup[loop3.index.toInt()],
-      docResult: docResult,
+      docResult: docResultRef5,
       totalNumSteps: totalNumSteps,
-      stepsSoFar: stepsSoFar,
-      previousBlockLevel: previousBlockLevel,
+      stepsSoFar: stepsSoFarRef3,
+      previousBlockLevel: previousBlockLevelRef3,
     ); // For Each Cleanup Step
+    docResultRef.value = docResultRef5.value;
+    stepsSoFar = stepsSoFarRef3.value;
+    previousBlockLevel = previousBlockLevelRef3.value;
     forEachCleanupStepResult.Status = forEachCleanupStepResult.Status == 'Done'
         ? 'Passed'
         : forEachCleanupStepResult.Status; // status expression
@@ -625,11 +649,15 @@ Future<String> sequenceDoc({
 /// Sequence `Step Doc`.
 Future<String> stepDoc({
   dynamic step$,
-  String docResult = '',
+  ts.Ref<String>? docResult,
   double totalNumSteps = 0,
-  int stepsSoFar = 0,
-  int previousBlockLevel = 0,
+  ts.Ref<int>? stepsSoFar,
+  ts.Ref<int>? previousBlockLevel,
 }) async {
+  final docResultRef = docResult ?? ts.Ref<String>('');
+  final stepsSoFarRef = stepsSoFar ?? ts.Ref<int>(0);
+  final previousBlockLevelRef = previousBlockLevel ?? ts.Ref<int>(0);
+
   String stepTypeName = ''; // Str
   String tableHtml =
       '<TABLE FRAME=BOX RULES=ALL WIDTH=80% CELLPADDING=1 CELLSPACING=1>'; // Str
@@ -671,16 +699,16 @@ Future<String> stepDoc({
     throw UnimplementedError(
       'cModule call: Get Block Level',
     ); // Get Block Level [Action]
-    if (blockLevel > previousBlockLevel) {
+    if (blockLevel > previousBlockLevelRef.value) {
       // precondition of Indent For Block
-      docResult += '<BLOCKQUOTE>'; // Indent For Block
+      docResultRef.value += '<BLOCKQUOTE>'; // Indent For Block
     }
-    if (blockLevel < previousBlockLevel) {
+    if (blockLevel < previousBlockLevelRef.value) {
       // precondition of Unindent For Block
-      docResult += '</BLOCKQUOTE>'; // Unindent For Block
+      docResultRef.value += '</BLOCKQUOTE>'; // Unindent For Block
     }
-    previousBlockLevel = blockLevel; // Remember Last Block Level
-    stepsSoFar += 1; // Update StepsSoFar
+    previousBlockLevelRef.value = blockLevel; // Remember Last Block Level
+    stepsSoFarRef.value += 1; // Update StepsSoFar
     throw UnimplementedError(
       'cModule call: Update Percent Done',
     ); // Update Percent Done [Action]
@@ -770,10 +798,12 @@ Future<String> stepDoc({
       ); // InBuf
     }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    final docResultRef2 = ts.Ref<String>(docResultRef.value);
     addRequirementsResult.Status = await writeRequirementsElements(
       requirements: step$.TS.Requirements,
-      docResult: docResult,
+      docResult: docResultRef2,
     ); // Add Requirements
+    docResultRef.value = docResultRef2.value;
     addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
         ? 'Passed'
         : addRequirementsResult.Status; // status expression
@@ -858,7 +888,7 @@ Future<String> stepDoc({
       'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_EXEC_FLOW"), "%-30s") +\n	Locals.ValColHTML +\n	"<XMP>" + Locals.ExecFlow + "</XMP>" + "\\n"\n',
     ); // Execution Flow
   }
-  docResult += '</TABLE></BLOCKQUOTE>\n'; // Step Footer
+  docResultRef.value += '</TABLE></BLOCKQUOTE>\n'; // Step Footer
 
   return run.status;
 }
@@ -971,10 +1001,12 @@ Future<String> writeSubproperties({
 /// Sequence `Write Array Elements`.
 Future<String> writeArrayElements({
   dynamic root,
-  String docResult = '',
+  ts.Ref<String>? docResult,
   String arrayPropLookupStr = '',
   dynamic docOptions,
 }) async {
+  final docResultRef = docResult ?? ts.Ref<String>('');
+
   String currentArrayIndex = ''; // Str
   int currentOffset = 0; // Num — default: 0
   int numElements = 0; // Num — default: 0
@@ -1065,11 +1097,13 @@ Future<String> writeArrayElements({
 
 /// Sequence `Write Property Details`.
 Future<String> writePropertyDetails({
-  String docResult = '',
+  ts.Ref<String>? docResult,
   dynamic root,
   String propertyToDisplayName = '',
   dynamic docOptions,
 }) async {
+  final docResultRef = docResult ?? ts.Ref<String>('');
+
   int valueType = 0; // Num — default: 0
   bool isObject = false; // Bool — default: false
   bool isArray = false; // Bool — default: false
@@ -1169,7 +1203,7 @@ Future<String> writePropertyDetails({
   ts.eval(
     '(Locals.SubpropFlags & 0x4) ? ( Locals.ByRefStr = " (" + ResStr("SEQUENCING ADAPTER", "PASS_BYREFERENCE") + ")" ) : ( Locals.ByRefStr = "" )',
   ); // IsByRef
-  docResult +=
+  docResultRef.value +=
       rowHtml +
       propColHtml +
       propertyToDisplayName +
@@ -1199,8 +1233,10 @@ Future<String> writePropertyDetails({
 /// Sequence `Write Multiple Numeric Limit Limits`.
 Future<String> writeMultipleNumericLimitLimits({
   dynamic step$,
-  String docResult = '',
+  ts.Ref<String>? docResult,
 }) async {
+  final docResultRef = docResult ?? ts.Ref<String>('');
+
   int currentOffset = 0; // Num — default: 0
   int numElements = 0; // Num — default: 0
   String rowHtml = '<TR>'; // Str
@@ -1329,8 +1365,10 @@ Future<String> writeMultipleNumericLimitLimits({
 /// Sequence `Write Requirements Elements`.
 Future<String> writeRequirementsElements({
   dynamic requirements,
-  String docResult = '',
+  ts.Ref<String>? docResult,
 }) async {
+  final docResultRef = docResult ?? ts.Ref<String>('');
+
   String currentReqElement = ''; // Str
   String tmpString = ''; // Str
   String rowHtml = '<TR>'; // Str
@@ -1401,7 +1439,6 @@ void register() {
   //   cModule call: GetProtection?
   //   cModule call: GetCharsetMetaTag
   //   untranslated expression in body
-  //   by-ref writeback of parameter DocResult of sequence Write Requirements Elements not exported
   //   cModule call: GetNumSubProperties
   //   cModule call: SetProgressMsg
   //   call parameters of sequence Write Subproperties: no parameter named arg0 (stale binding)
@@ -1427,9 +1464,6 @@ void register() {
   //   call parameters of sequence Write Array Elements: no parameter named arg3 (stale binding)
   //   cModule call: GetNumElements
   //   cModule call: GetArrayIndexFromOffset
-  //   by-ref writeback of parameter DocResult of sequence Step Doc not exported
-  //   by-ref writeback of parameter StepsSoFar of sequence Step Doc not exported
-  //   by-ref writeback of parameter PreviousBlockLevel of sequence Step Doc not exported
   //   cModule call: Get Block Level
   //   cModule call: Get StepType Name
   //   cModule call: GetStepKeyName

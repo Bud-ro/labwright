@@ -72,6 +72,9 @@ Future<String> createSfTemplates({
   dynamic templatesFile,
   dynamic templatesFolder,
 }) async {
+  templatesFile = ts.copy(templatesFile);
+  templatesFolder = ts.copy(templatesFolder);
+
   String sfRelativePath = ''; // Path
   dynamic sf = null; // Ref
   dynamic tmpStep = null; // Ref

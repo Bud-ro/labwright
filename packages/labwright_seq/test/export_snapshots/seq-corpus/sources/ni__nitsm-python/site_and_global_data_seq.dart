@@ -727,13 +727,15 @@ Future<String> processSetup() async {
 
 /// Sequence `PreBatch` — Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action..
 Future<String> preBatch({
-  bool continueTesting = true,
+  ts.Ref<bool>? continueTesting,
   dynamic modelData,
   dynamic modelPluginConfiguration,
 }) async {
+  final continueTestingRef = continueTesting ?? ts.Ref<bool>(true);
+
   final run = ts.SequenceRun();
 
-  continueTesting =
+  continueTestingRef.value =
       modelData.BatchLoopIndex <= 5; // Stop testing after 5 batches
 
   return run.status;
