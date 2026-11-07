@@ -852,6 +852,16 @@ void main() {
     test('a comma list emits one statement per item', () {
       expect(statement('Locals.Count = 1, Locals.Text = "x"'), "count = 1; // Do\ntext = 'x'; // Do (cont.)");
     });
+    test('the running sequence and step names are static; resource strings come from the host', () {
+      expect(
+        statement('Locals.Text = RunState.Sequence.Name + "/" + RunState.Step.Name'),
+        "text = 'Main' + '/' + 'Do'; // Do",
+      );
+      expect(
+        statement('Locals.Text = ResStr("MODEL", "TITLE")'),
+        "text = ts.stepHost.resourceString('MODEL', 'TITLE'); // Do",
+      );
+    });
     test('constructs without a Dart counterpart stay verbatim', () {
       expect(statement('Locals.Text = Locals.Count'), startsWith('ts.eval('));
       expect(statement('Locals.Flag = Locals.Text < "b"'), startsWith('ts.eval('));

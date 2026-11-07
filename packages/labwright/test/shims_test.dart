@@ -183,4 +183,25 @@ void main() {
     await expectLater(calls.wait('b'), throwsStateError);
     expect(() => calls.wait('c'), throwsStateError);
   });
+  test('Str with a printf format', () {
+    // dart format off
+    final rows = <(String, Object?, String)>[
+      ('%.2u', 5, '05'),
+      ('%u', 2024.0, '2024'),
+      ('Example message %d', 3, 'Example message 3'),
+      ('%-6s|', 'ab', 'ab    |'),
+      ('%5.1f', -2.26, ' -2.3'),
+      ('%08.3f', 3.14159, '0003.142'),
+      ('%+d', 7, '+7'),
+      ('%e', 1234.5, '1.234500e+03'),
+      ('%#x', 255, '0xff'),
+      ('100%%', null, '100%'),
+    ];
+    // dart format on
+    for (final (format, value, want) in rows) {
+      expect(ts.str(value, format), want, reason: format);
+    }
+    expect(() => ts.str(1, '%g'), throwsUnimplementedError);
+    expect(() => ts.str(-1, '%u'), throwsUnimplementedError);
+  });
 }
