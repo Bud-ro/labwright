@@ -147,7 +147,12 @@ Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async
           'ReportText': '',
           'Common': ts.PropObj(),
         });
-        // never read: totalNumSteps += ts.getNumElements(sequenceFile.Data.Seq[loop.index.toInt()].Main) + ts.getNumElements(sequenceFile.Data.Seq[loop.index.toInt()].Setup) + ts.getNumElements(sequenceFile.Data.Seq[loop.index.toInt()].Cleanup); // Update TotalNumSteps
+        final _ =
+            ts.getNumElements(sequenceFile.Data.Seq[loop.index.toInt()].Main) +
+            ts.getNumElements(sequenceFile.Data.Seq[loop.index.toInt()].Setup) +
+            ts.getNumElements(
+              sequenceFile.Data.Seq[loop.index.toInt()].Cleanup,
+            ); // never read: totalNumSteps // Update TotalNumSteps
         updateTotalNumStepsResult.Status = 'Done';
         loop.count(updateTotalNumStepsResult.Status);
         loop.index += 1; // loop increment
@@ -667,7 +672,7 @@ Future<String> stepDoc({
     }
     if (ts.cond('PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False')) {
       // precondition of Process InBuf
-      // never read: tmpString = step.InBuf as String; // Process InBuf
+      final _ = step.InBuf as String; // never read: tmpString // Process InBuf
       ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")'); // Process InBuf (cont.)
       ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")'); // Process InBuf (cont.)
       ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")'); // Process InBuf (cont.)
@@ -718,7 +723,7 @@ Future<String> stepDoc({
     }
     if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
       // precondition of Process String Limit
-      // never read: tmpString = step.Limits.String as String; // Process String Limit
+      final _ = step.Limits.String as String; // never read: tmpString // Process String Limit
       ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")'); // Process String Limit (cont.)
       ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")'); // Process String Limit (cont.)
       ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")'); // Process String Limit (cont.)
@@ -774,6 +779,7 @@ Future<String> writeSubproperties({
 }) async {
   const int numSubproperties = 0; // Num — default: 0
   int i = 0; // Num — default: 0
+  const String subpropName = ''; // Str
   bool isHidden = false; // Bool — default: false
   const int subpropFlags = 0; // Num — default: 0
 
@@ -809,7 +815,7 @@ Future<String> writeSubproperties({
       //   index <- Locals.i
       //   options <- 0
       ts.notExported('cModule call: GetSubPropName'); // GetSubPropName [Action]
-      // never read: parentPropLookupStr != '' ? (subpropLookupStr = '$parentPropLookupStr.$subpropName') : (subpropLookupStr = subpropName); // BuildNewLookupStr
+      parentPropLookupStr != '' ? '$parentPropLookupStr.$subpropName' : subpropName; // BuildNewLookupStr
       //   Return Value -> Locals.SubpropFlags
       //   lookupString <- Locals.SubpropLookupStr
       //   options <- 0

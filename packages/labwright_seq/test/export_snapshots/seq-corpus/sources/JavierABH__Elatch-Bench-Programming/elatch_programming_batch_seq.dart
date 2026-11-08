@@ -1034,6 +1034,8 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
 
 /// Sequence `Load_Variables`.
 Future<String> loadVariables({String variableList = ''}) async {
+  final List<dynamic> testName = <dynamic>[]; // Strs
+  final List<dynamic> strLimits = <dynamic>[]; // Strs
   const int arrayIndex = 0; // Num — default: 0
   int tempLoop = 0; // Num — default: 0
 
@@ -1049,8 +1051,8 @@ Future<String> loadVariables({String variableList = ''}) async {
   //   Error Out <- Step.Result.Error
   await callGetLimitsV3(); // ReadFileLimit [Action]
   for (tempLoop = 0; tempLoop < arrayIndex; tempLoop += 1) {
-    // never read: tempStr = strLimits[tempLoop] as String; // Limits
-    // never read: tempName = testName[tempLoop] as String; // NamesToVariables
+    final _ = strLimits[tempLoop] as String; // never read: tempStr // Limits
+    final _ = testName[tempLoop] as String; // never read: tempName // NamesToVariables
     ts.eval('RunState.Main.FileGlobals.SetValString(Locals.Temp_Name,0x1,Locals.Temp_Str)'); // CreateLimits
   }
   // [skipped in source] Message Popup
