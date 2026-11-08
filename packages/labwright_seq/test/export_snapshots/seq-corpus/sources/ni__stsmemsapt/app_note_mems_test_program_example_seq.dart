@@ -3,9 +3,14 @@ import 'package:labwright/shims.dart' as ts;
 
 List<dynamic> pinsRelayControl = <dynamic>['VRelay']; // Strs
 
-/// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final dynamic parameters = ts.PropObj({
+class _MainSequenceLocals {
+  dynamic pins = ts.PropObj({
+    'PPMU': <dynamic>['PPMU0', 'PPMU1', 'PPMU2', 'PPMU3'],
+    'SMU': <dynamic>['SMU0', 'SMU1'],
+    'SCOPE': <dynamic>['V1', 'V2'],
+    'FGEN': 'FGEN',
+  }); // Obj
+  dynamic parameters = ts.PropObj({
     'Continuity': ts.PropObj({
       'DCPower': ts.PropObj({
         'Output': 'DC Current',
@@ -176,7 +181,28 @@ Future<String> mainSequence() async {
       }),
     }),
   }); // Obj
+  dynamic relays = ts.PropObj({
+    'Continuity': ts.PropObj({
+      'ResistanceTest': <dynamic>['SMU0_A', 'SMU1_E'],
+      'DiodeTest': <dynamic>['PPMU0_A', 'PPMU1_B', 'PPMU2_C', 'PPMU3_D'],
+    }),
+    'Leakage': <dynamic>['SMU1_E', 'PPMU0_A', 'PPMU1_B', 'PPMU2_C', 'PPMU3_D'],
+    'Resistance': <dynamic>['SMU0_C', 'SMU1_D'],
+    'Offset': ts.PropObj({
+      'Static': <dynamic>['SMU0_A', 'SMU1_B', 'V1_A', 'V2_B'],
+      'Dynamic': <dynamic>['FGEN_A', 'FGEN_B', 'V1_A', 'V2_B'],
+    }),
+    'Capacitance': ts.PropObj({
+      'VRamp': <dynamic>['SMU0_A', 'SMU1_B'],
+      'IS': <dynamic>['SMU0_A', 'FGEN_A', 'V1_A', 'V2_A'],
+    }),
+    'Resonance': <dynamic>['FGEN_A', 'FGEN_B', 'V1_A', 'V2_B'],
+  }); // Obj
+}
 
+/// Sequence `MainSequence`.
+Future<String> mainSequence() async {
+  final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
   final dynamic getIsCalibrationResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -1838,7 +1864,7 @@ Future<String> mainSequence() async {
 
   // ── main ──
   // Run the following tests when in Production configuration
-  if (!ts.truthy(parameters.Capacitance.IS_Calibration)) {
+  if (!ts.truthy(locals.parameters.Capacitance.IS_Calibration)) {
     // ---------------------
     // label: Continuity Test - Resistance and Protection Diode
     //
@@ -3426,7 +3452,7 @@ Future<String> mainSequence() async {
   run.record(capacitanceImpedanceSpectroscopyConfigureResult.Status);
   //
   // Runs in Calibration configuration performing the measurement and calculating ZRef using a known Capacitance
-  if (ts.truthy(parameters.Capacitance.IS_Calibration)) {
+  if (ts.truthy(locals.parameters.Capacitance.IS_Calibration)) {
     //
     // Apply bias voltage with SM0, generate chirp signal with FGEN and acquire V1 and V2.
     // Perform FFT of V1 and V2 and store values.
@@ -3819,7 +3845,7 @@ Future<String> mainSequence() async {
   disconnectSmu0FgenV1AndV2FromAResult.Status = 'Done';
   run.record(disconnectSmu0FgenV1AndV2FromAResult.Status);
   // Run the following tests when in Production configuration
-  if (!ts.truthy(parameters.Capacitance.IS_Calibration)) {
+  if (!ts.truthy(locals.parameters.Capacitance.IS_Calibration)) {
     // ---------------------
     // label: Resonance Test
     //

@@ -8,8 +8,23 @@ dynamic measurementLink = ts.PropObj({
   'PinMapId': '',
 }); // Obj
 
+class _MainSequenceLocals {
+  double frequency = 0; // Num — default: 0
+  bool simulate = false; // Bool — default: false
+  dynamic results = ts.PropObj({
+    'gain': 0,
+    'phase': 0,
+    'Gains': <dynamic>[
+      <dynamic>[
+        ts.PropObj({'x': 0, 'y': 0}),
+      ],
+    ],
+  }); // Obj
+}
+
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
+  final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
   dynamic acquireAWaveformUsingAnNiOscilloscopeResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -23,8 +38,8 @@ Future<String> mainSequence() async {
     // label: See Process Setup
 
     // ── main ──
-    for (final _ in ts.sweepPoints(200, 50000, 100, logarithmic: true)) {
-      // never read: frequency = (value as num).toDouble();
+    for (final value in ts.sweepPoints(200, 50000, 100, logarithmic: true)) {
+      locals.frequency = (value as num).toDouble();
       // -- Call LabVIEW Service
       // measurement: LabVIEW Bodeplot Summit_LabVIEW
       // measurement param: Start Frequency (In TypeDouble) = Locals.Frequency
