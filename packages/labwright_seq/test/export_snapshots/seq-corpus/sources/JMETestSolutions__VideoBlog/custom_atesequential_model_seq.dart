@@ -86,10 +86,9 @@ Future<String> processCleanup() async {
   return run.status;
 }
 
-/// Sequence `Test UUTs` — If you insert a new step in this sequence, disable the Record Results option for the step..
-Future<String> testUuTs({String sequence = 'MainSequence'}) async {
+class _TestUuTsLocals {
   bool continueTesting = true; // Bool
-  final dynamic uut = ts.PropObj({
+  dynamic uut = ts.PropObj({
     'SerialNumber': '',
     'UUTLoopIndex': 0,
     'CriticalFailureStack': <dynamic>[],
@@ -98,7 +97,7 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
     'PartNumber': '',
   }); // UUT
   bool uutTerminated = false; // Bool — default: false
-  final dynamic modelPluginConfiguration2 = ts.PropObj({
+  dynamic modelPluginConfiguration2 = ts.PropObj({
     'Plugins': <dynamic>[],
     'RuntimeVariables': ts.PropObj({
       'RunOrders': ts.PropObj({
@@ -136,7 +135,7 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
     'GUID': '',
     'RunOrder': 0,
   }); // NI_ModelPluginConfiguration
-  final dynamic modelData = ts.PropObj({
+  dynamic modelData = ts.PropObj({
     'ModelType': 'Sequential',
     'EntryPoint': '',
     'ModelOptions': ts.PropObj({
@@ -153,9 +152,13 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
     'StartTime': ts.PropObj({'Text': '', 'Hours': 0, 'Minutes': 0, 'Seconds': 0, 'Milliseconds': 0}),
     'StartDate': ts.PropObj({'Text': '', 'ShortText': '', 'Year': 0, 'Month': 0, 'MonthDay': 0, 'WeekDay': 0}),
   }); // NI_SequentialModelData
-  final dynamic modelThreadType = ts.PropObj({'IsController': true, 'IsTestSocket': true}); // NI_ModelThreadType
-  final dynamic testSocket = ts.PropObj(); // NI_SequentialTestSocket
+  dynamic modelThreadType = ts.PropObj({'IsController': true, 'IsTestSocket': true}); // NI_ModelThreadType
+  dynamic testSocket = ts.PropObj(); // NI_SequentialTestSocket
+}
 
+/// Sequence `Test UUTs` — If you insert a new step in this sequence, disable the Record Results option for the step..
+Future<String> testUuTs({String sequence = 'MainSequence'}) async {
+  final locals = _TestUuTsLocals();
   final run = ts.SequenceRun();
   final dynamic initializeEntryPointResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -280,9 +283,9 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
     await initializeExecutionEntryPoint(
       modelData: ts.eval('&Locals.ModelData'),
       entryPoint: ts.eval('Runstate.Sequence.Name') as String,
-      modelThreadType: modelThreadType,
+      modelThreadType: locals.modelThreadType,
       sequence: sequence,
-      modelPluginConfiguration: modelPluginConfiguration2,
+      modelPluginConfiguration: locals.modelPluginConfiguration2,
     ); // Initialize Entry Point: external sequence call
     ts.eval('RunState.Execution.IsController = True'); // post-expression
     initializeEntryPointResult.Status = initializeEntryPointResult.Status == 'Done'
@@ -291,9 +294,9 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
     run.record(initializeEntryPointResult.Status);
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     await modelPluginsBegin(
-      modelPluginConfiguration: modelPluginConfiguration2,
-      modelThreadType: modelThreadType,
-      modelData: modelData,
+      modelPluginConfiguration: locals.modelPluginConfiguration2,
+      modelThreadType: locals.modelThreadType,
+      modelData: locals.modelData,
       processModelClientPath:
           ts.eval('PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""') as String,
     ); // Model Plugins - Begin: external sequence call
@@ -309,7 +312,7 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
     run.record(processSetupCallbackResult.Status);
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     preUutLoopCallbackResult.Status = await preUutLoop(
-      modelPluginConfiguration2: modelPluginConfiguration2,
+      modelPluginConfiguration2: locals.modelPluginConfiguration2,
     ); // PreUUTLoop Callback
     preUutLoopCallbackResult.Status = preUutLoopCallbackResult.Status == 'Done'
         ? 'Passed'
@@ -317,7 +320,7 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
     run.record(preUutLoopCallbackResult.Status);
     // The UUT Loop
     //
-    for (uut.UUTLoopIndex = 1; continueTesting; uut.UUTLoopIndex++) {
+    for (locals.uut.UUTLoopIndex = 1; locals.continueTesting; locals.uut.UUTLoopIndex++) {
       skipToEnd:
       {
         // Display the UUT dialog box. Exit loop if user cancels.
@@ -333,17 +336,17 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
           'Runstate.Thread.PostUIMessageEx(UIMsg_ModelState_Waiting, RunState.TestSockets.MyIndex, "", ThisContext, True) ',
         ); // pre-expression
         preUutCallbackResult.Status = await preUut(
-          continueTesting: continueTesting,
-          uut: uut,
-          testSocket: testSocket,
-          modelData: modelData,
-          modelPluginConfiguration2: modelPluginConfiguration2,
+          continueTesting: locals.continueTesting,
+          uut: locals.uut,
+          testSocket: locals.testSocket,
+          modelData: locals.modelData,
+          modelPluginConfiguration2: locals.modelPluginConfiguration2,
         ); // PreUUT Callback
         preUutCallbackResult.Status = preUutCallbackResult.Status == 'Done'
             ? 'Passed'
             : preUutCallbackResult.Status; // status expression
         run.record(preUutCallbackResult.Status);
-        if (!continueTesting) {
+        if (!locals.continueTesting) {
           // post action
           break skipToEnd;
         }
@@ -357,20 +360,20 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
         });
         ts.eval('RunState.Execution.OutputRecordStreams.BeginNextUUTOrBatch()'); // pre-expression
         await modelPluginsPreUut(
-          modelPluginConfiguration: modelPluginConfiguration2,
-          modelThreadType: modelThreadType,
-          modelData: modelData,
+          modelPluginConfiguration: locals.modelPluginConfiguration2,
+          modelThreadType: locals.modelThreadType,
+          modelData: locals.modelData,
           processModelClientPath:
               ts.eval('PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""')
                   as String,
-          uut: uut,
-          continueTesting: continueTesting,
+          uut: locals.uut,
+          continueTesting: locals.continueTesting,
         ); // Model Plugins - Pre UUT: external sequence call
         modelPluginsPreUutResult.Status = modelPluginsPreUutResult.Status == 'Done'
             ? 'Passed'
             : modelPluginsPreUutResult.Status; // status expression
         run.record(modelPluginsPreUutResult.Status);
-        if (!continueTesting) {
+        if (!locals.continueTesting) {
           // post action
           break skipToEnd;
         }
@@ -382,13 +385,13 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
           'Common': ts.PropObj(),
         });
         await modelPluginsUutStart(
-          modelPluginConfiguration: modelPluginConfiguration2,
-          modelThreadType: modelThreadType,
-          modelData: modelData,
+          modelPluginConfiguration: locals.modelPluginConfiguration2,
+          modelThreadType: locals.modelThreadType,
+          modelData: locals.modelData,
           processModelClientPath:
               ts.eval('PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""')
                   as String,
-          uut: uut,
+          uut: locals.uut,
         ); // Model Plugins - UUT Start: external sequence call
         modelPluginsUutStartResult.Status = modelPluginsUutStartResult.Status == 'Done'
             ? 'Passed'
@@ -403,11 +406,11 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
           'Common': ts.PropObj(),
         });
         preMainSequenceCallbackResult.Status = await preMainSequence(
-          modelPluginConfiguration2: modelPluginConfiguration2,
-          modelThreadType: modelThreadType,
-          modelData: modelData,
-          uut: uut,
-          testSocket: testSocket,
+          modelPluginConfiguration2: locals.modelPluginConfiguration2,
+          modelThreadType: locals.modelThreadType,
+          modelData: locals.modelData,
+          uut: locals.uut,
+          testSocket: locals.testSocket,
         ); // PreMainSequence Callback
         preMainSequenceCallbackResult.Status = preMainSequenceCallbackResult.Status == 'Done'
             ? 'Passed'
@@ -423,7 +426,8 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
           'Common': ts.PropObj(),
         });
         await parametersSequence(); // MainSequence Callback: external sequence call
-        uutTerminated = uutTerminated || mainSequenceCallbackResult.Status == 'Terminated'; // post-expression
+        locals.uutTerminated =
+            locals.uutTerminated || mainSequenceCallbackResult.Status == 'Terminated'; // post-expression
         mainSequenceCallbackResult.Status = mainSequenceCallbackResult.Status == 'Done'
             ? 'Passed'
             : mainSequenceCallbackResult.Status; // status expression
@@ -436,13 +440,13 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
           'Common': ts.PropObj(),
         });
         postMainSequenceCallbackResult.Status = await postMainSequence(
-          modelPluginConfiguration2: modelPluginConfiguration2,
-          modelThreadType: modelThreadType,
-          modelData: modelData,
-          uut: uut,
+          modelPluginConfiguration2: locals.modelPluginConfiguration2,
+          modelThreadType: locals.modelThreadType,
+          modelData: locals.modelData,
+          uut: locals.uut,
           uutStatus: mainSequenceCallbackResult.Status as String,
           mainSequenceResult: ts.eval('RunState.Sequence.Main["MainSequence Callback"].LastStepResult'),
-          testSocket: testSocket,
+          testSocket: locals.testSocket,
         ); // PostMainSequence Callback
         postMainSequenceCallbackResult.Status = postMainSequenceCallbackResult.Status == 'Done'
             ? 'Passed'
@@ -459,13 +463,13 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
           ' \n(!RunState.SequenceError.Occurred && RunState.Sequence.Main["MainSequence Callback"].Result.Status == "Error") ?\n	(\n	RunState.SequenceError.Code = RunState.Sequence.Main["MainSequence Callback"].Result.Error.Code,\n	RunState.SequenceError.Msg = ResStr("MODEL", "UUT_ERROR_OCCURRED") + "\\n" + RunState.Sequence.Main["MainSequence Callback"].Result.Error.Msg,\n	RunState.SequenceError.Occurred = True\n	) \n: 	0',
         ); // pre-expression
         await modelPluginsUutDone(
-          modelPluginConfiguration: modelPluginConfiguration2,
-          modelThreadType: modelThreadType,
-          modelData: modelData,
+          modelPluginConfiguration: locals.modelPluginConfiguration2,
+          modelThreadType: locals.modelThreadType,
+          modelData: locals.modelData,
           processModelClientPath:
               ts.eval('PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""')
                   as String,
-          uut: uut,
+          uut: locals.uut,
           uutStatus: mainSequenceCallbackResult.Status as String,
           mainSequenceResult: ts.eval('RunState.Sequence.Main["MainSequence Callback"].LastStepResult'),
         ); // Model Plugins - UUT Done: external sequence call
@@ -481,13 +485,13 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
           'Common': ts.PropObj(),
         });
         await modelPluginsPostUut(
-          modelPluginConfiguration: modelPluginConfiguration2,
-          modelThreadType: modelThreadType,
-          modelData: modelData,
+          modelPluginConfiguration: locals.modelPluginConfiguration2,
+          modelThreadType: locals.modelThreadType,
+          modelData: locals.modelData,
           processModelClientPath:
               ts.eval('PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""')
                   as String,
-          uut: uut,
+          uut: locals.uut,
           uutStatus: mainSequenceCallbackResult.Status as String,
           mainSequenceResult: ts.eval('RunState.Sequence.Main["MainSequence Callback"].LastStepResult'),
         ); // Model Plugins - Post UUT: external sequence call
@@ -504,10 +508,10 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
         });
         postUutCallbackResult.Status = await postUut(
           result: mainSequenceCallbackResult,
-          uut: uut,
-          testSocket: testSocket,
-          modelData: modelData,
-          modelPluginConfiguration2: modelPluginConfiguration2,
+          uut: locals.uut,
+          testSocket: locals.testSocket,
+          modelData: locals.modelData,
+          modelPluginConfiguration2: locals.modelPluginConfiguration2,
         ); // PostUUT Callback
         postUutCallbackResult.Status = postUutCallbackResult.Status == 'Done'
             ? 'Passed'
@@ -544,7 +548,7 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
           );
           handleTerminationResult.ButtonHit = popup.buttonHit;
           handleTerminationResult.Response = popup.response;
-          continueTesting = handleTerminationResult.ButtonHit != 2; // post-expression
+          locals.continueTesting = handleTerminationResult.ButtonHit != 2; // post-expression
           handleTerminationResult.Status = 'Done';
           run.record(handleTerminationResult.Status);
         } else {
@@ -554,7 +558,7 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
     }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     postUutLoopCallbackResult.Status = await postUutLoop(
-      modelPluginConfiguration2: modelPluginConfiguration2,
+      modelPluginConfiguration2: locals.modelPluginConfiguration2,
     ); // PostUUTLoop Callback
     postUutLoopCallbackResult.Status = postUutLoopCallbackResult.Status == 'Done'
         ? 'Passed'
@@ -578,15 +582,15 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
     if (modelPluginsBeginResult.Status != '' && modelPluginsBeginResult.Status != 'Skipped') {
       // precondition of Model Plugins - End
       await modelPluginsEnd(
-        modelPluginConfiguration: modelPluginConfiguration2,
-        modelThreadType: modelThreadType,
-        modelData: modelData,
+        modelPluginConfiguration: locals.modelPluginConfiguration2,
+        modelThreadType: locals.modelThreadType,
+        modelData: locals.modelData,
       ); // Model Plugins - End: external sequence call
       modelPluginsEndResult.Status = modelPluginsEndResult.Status == 'Done'
           ? 'Passed'
           : modelPluginsEndResult.Status; // status expression
       run.record(modelPluginsEndResult.Status);
-      if (uutTerminated) {
+      if (locals.uutTerminated) {
         // post action
         ts.terminate();
       }
@@ -598,9 +602,8 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
   return run.status;
 }
 
-/// Sequence `Single Pass` — If you insert a new step in this sequence, disable the Record Results option for the step..
-Future<String> singlePass({String sequence = 'MainSequence'}) async {
-  final dynamic uut = ts.PropObj({
+class _SinglePassLocals {
+  dynamic uut = ts.PropObj({
     'SerialNumber': '',
     'UUTLoopIndex': 0,
     'CriticalFailureStack': <dynamic>[],
@@ -608,7 +611,7 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
     'TestSocketIndex': -1,
     'PartNumber': '',
   }); // UUT
-  final dynamic modelPluginConfiguration2 = ts.PropObj({
+  dynamic modelPluginConfiguration2 = ts.PropObj({
     'Plugins': <dynamic>[],
     'RuntimeVariables': ts.PropObj({
       'RunOrders': ts.PropObj({
@@ -646,7 +649,7 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
     'GUID': '',
     'RunOrder': 0,
   }); // NI_ModelPluginConfiguration
-  final dynamic modelData = ts.PropObj({
+  dynamic modelData = ts.PropObj({
     'ModelType': 'Sequential',
     'EntryPoint': '',
     'ModelOptions': ts.PropObj({
@@ -663,10 +666,14 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
     'StartTime': ts.PropObj({'Text': '', 'Hours': 0, 'Minutes': 0, 'Seconds': 0, 'Milliseconds': 0}),
     'StartDate': ts.PropObj({'Text': '', 'ShortText': '', 'Year': 0, 'Month': 0, 'MonthDay': 0, 'WeekDay': 0}),
   }); // NI_SequentialModelData
-  final dynamic modelThreadType = ts.PropObj({'IsController': true, 'IsTestSocket': true}); // NI_ModelThreadType
-  const bool continueTesting = true; // Bool
-  final dynamic testSocket = ts.PropObj(); // NI_SequentialTestSocket
+  dynamic modelThreadType = ts.PropObj({'IsController': true, 'IsTestSocket': true}); // NI_ModelThreadType
+  bool continueTesting = true; // Bool
+  dynamic testSocket = ts.PropObj(); // NI_SequentialTestSocket
+}
 
+/// Sequence `Single Pass` — If you insert a new step in this sequence, disable the Record Results option for the step..
+Future<String> singlePass({String sequence = 'MainSequence'}) async {
+  final locals = _SinglePassLocals();
   final run = ts.SequenceRun();
   final dynamic initializeEntryPointResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -785,9 +792,9 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
       await initializeExecutionEntryPoint(
         modelData: ts.eval('&Locals.ModelData'),
         entryPoint: ts.eval('Runstate.Sequence.Name') as String,
-        modelThreadType: modelThreadType,
+        modelThreadType: locals.modelThreadType,
         sequence: sequence,
-        modelPluginConfiguration: modelPluginConfiguration2,
+        modelPluginConfiguration: locals.modelPluginConfiguration2,
       ); // Initialize Entry Point: external sequence call
       ts.eval('RunState.Execution.IsController = True'); // post-expression
       initializeEntryPointResult.Status = initializeEntryPointResult.Status == 'Done'
@@ -796,9 +803,9 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
       run.record(initializeEntryPointResult.Status);
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       await modelPluginsBegin(
-        modelPluginConfiguration: modelPluginConfiguration2,
-        modelThreadType: modelThreadType,
-        modelData: modelData,
+        modelPluginConfiguration: locals.modelPluginConfiguration2,
+        modelThreadType: locals.modelThreadType,
+        modelData: locals.modelData,
         processModelClientPath:
             ts.eval('PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""') as String,
       ); // Model Plugins - Begin: external sequence call
@@ -814,7 +821,7 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
       run.record(processSetupCallbackResult.Status);
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       preUutLoopCallbackResult.Status = await preUutLoop(
-        modelPluginConfiguration2: modelPluginConfiguration2,
+        modelPluginConfiguration2: locals.modelPluginConfiguration2,
       ); // PreUUTLoop Callback
       preUutLoopCallbackResult.Status = preUutLoopCallbackResult.Status == 'Done'
           ? 'Passed'
@@ -826,47 +833,47 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
         'Runstate.Thread.PostUIMessageEx(UIMsg_ModelState_Waiting, Runstate.TestSockets.MyIndex, "", ThisContext, True) ',
       ); // pre-expression
       preUutCallbackResult.Status = await preUut(
-        continueTesting: ts.truthy(continueTesting),
-        uut: uut,
-        testSocket: testSocket,
-        modelData: modelData,
-        modelPluginConfiguration2: modelPluginConfiguration2,
+        continueTesting: locals.continueTesting,
+        uut: locals.uut,
+        testSocket: locals.testSocket,
+        modelData: locals.modelData,
+        modelPluginConfiguration2: locals.modelPluginConfiguration2,
       ); // PreUUT Callback
       preUutCallbackResult.Status = preUutCallbackResult.Status == 'Done'
           ? 'Passed'
           : preUutCallbackResult.Status; // status expression
       run.record(preUutCallbackResult.Status);
-      if (!ts.truthy(continueTesting)) {
+      if (!locals.continueTesting) {
         // post action
         break skipToPostUutLoopCallback;
       }
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       // custom flow: if (!Locals.ContinueTesting) Goto -> step "PostUUTLoop Callback" else Next
       await modelPluginsPreUut(
-        modelPluginConfiguration: modelPluginConfiguration2,
-        modelThreadType: modelThreadType,
-        modelData: modelData,
+        modelPluginConfiguration: locals.modelPluginConfiguration2,
+        modelThreadType: locals.modelThreadType,
+        modelData: locals.modelData,
         processModelClientPath:
             ts.eval('PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""') as String,
-        uut: uut,
-        continueTesting: ts.truthy(continueTesting),
+        uut: locals.uut,
+        continueTesting: locals.continueTesting,
       ); // Model Plugins - Pre UUT: external sequence call
       modelPluginsPreUutResult.Status = modelPluginsPreUutResult.Status == 'Done'
           ? 'Passed'
           : modelPluginsPreUutResult.Status; // status expression
       run.record(modelPluginsPreUutResult.Status);
-      if (!ts.truthy(continueTesting)) {
+      if (!locals.continueTesting) {
         // post action
         break skipToPostUutLoopCallback;
       }
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       await modelPluginsUutStart(
-        modelPluginConfiguration: modelPluginConfiguration2,
-        modelThreadType: modelThreadType,
-        modelData: modelData,
+        modelPluginConfiguration: locals.modelPluginConfiguration2,
+        modelThreadType: locals.modelThreadType,
+        modelData: locals.modelData,
         processModelClientPath:
             ts.eval('PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""') as String,
-        uut: uut,
+        uut: locals.uut,
       ); // Model Plugins - UUT Start: external sequence call
       modelPluginsUutStartResult.Status = modelPluginsUutStartResult.Status == 'Done'
           ? 'Passed'
@@ -874,11 +881,11 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
       run.record(modelPluginsUutStartResult.Status);
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       preMainSequenceCallbackResult.Status = await preMainSequence(
-        modelPluginConfiguration2: modelPluginConfiguration2,
-        modelThreadType: modelThreadType,
-        modelData: modelData,
-        uut: uut,
-        testSocket: testSocket,
+        modelPluginConfiguration2: locals.modelPluginConfiguration2,
+        modelThreadType: locals.modelThreadType,
+        modelData: locals.modelData,
+        uut: locals.uut,
+        testSocket: locals.testSocket,
       ); // PreMainSequence Callback
       preMainSequenceCallbackResult.Status = preMainSequenceCallbackResult.Status == 'Done'
           ? 'Passed'
@@ -894,13 +901,13 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
       run.record(mainSequenceCallbackResult.Status);
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       postMainSequenceCallbackResult.Status = await postMainSequence(
-        modelPluginConfiguration2: modelPluginConfiguration2,
-        modelThreadType: modelThreadType,
-        modelData: modelData,
-        uut: uut,
+        modelPluginConfiguration2: locals.modelPluginConfiguration2,
+        modelThreadType: locals.modelThreadType,
+        modelData: locals.modelData,
+        uut: locals.uut,
         uutStatus: mainSequenceCallbackResult.Status as String,
         mainSequenceResult: ts.eval('RunState.Sequence.Main["MainSequence Callback"].LastStepResult'),
-        testSocket: testSocket,
+        testSocket: locals.testSocket,
       ); // PostMainSequence Callback
       postMainSequenceCallbackResult.Status = postMainSequenceCallbackResult.Status == 'Done'
           ? 'Passed'
@@ -911,12 +918,12 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
         ' \n(!RunState.SequenceError.Occurred && RunState.Sequence.Main["MainSequence Callback"].Result.Status == "Error") ?\n	(\n	RunState.SequenceError.Code = RunState.Sequence.Main["MainSequence Callback"].Result.Error.Code,\n	RunState.SequenceError.Msg = ResStr("MODEL", "UUT_ERROR_OCCURRED") + "\\n" + RunState.Sequence.Main["MainSequence Callback"].Result.Error.Msg,\n	RunState.SequenceError.Occurred = True\n	) \n: 	0',
       ); // pre-expression
       await modelPluginsUutDone(
-        modelPluginConfiguration: modelPluginConfiguration2,
-        modelThreadType: modelThreadType,
-        modelData: modelData,
+        modelPluginConfiguration: locals.modelPluginConfiguration2,
+        modelThreadType: locals.modelThreadType,
+        modelData: locals.modelData,
         processModelClientPath:
             ts.eval('PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""') as String,
-        uut: uut,
+        uut: locals.uut,
         uutStatus: mainSequenceCallbackResult.Status as String,
         mainSequenceResult: ts.eval('RunState.Sequence.Main["MainSequence Callback"].LastStepResult'),
       ); // Model Plugins - UUT Done: external sequence call
@@ -926,12 +933,12 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
       run.record(modelPluginsUutDoneResult.Status);
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       await modelPluginsPostUut(
-        modelPluginConfiguration: modelPluginConfiguration2,
-        modelThreadType: modelThreadType,
-        modelData: modelData,
+        modelPluginConfiguration: locals.modelPluginConfiguration2,
+        modelThreadType: locals.modelThreadType,
+        modelData: locals.modelData,
         processModelClientPath:
             ts.eval('PropertyExists("Runstate.ProcessModelClient") ? RunState.ProcessModelClient.Path : ""') as String,
-        uut: uut,
+        uut: locals.uut,
         uutStatus: mainSequenceCallbackResult.Status as String,
         mainSequenceResult: ts.eval('RunState.Sequence.Main["MainSequence Callback"].LastStepResult'),
       ); // Model Plugins - Post UUT: external sequence call
@@ -942,10 +949,10 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       postUutCallbackResult.Status = await postUut(
         result: mainSequenceCallbackResult,
-        uut: uut,
-        testSocket: testSocket,
-        modelData: modelData,
-        modelPluginConfiguration2: modelPluginConfiguration2,
+        uut: locals.uut,
+        testSocket: locals.testSocket,
+        modelData: locals.modelData,
+        modelPluginConfiguration2: locals.modelPluginConfiguration2,
       ); // PostUUT Callback
       postUutCallbackResult.Status = postUutCallbackResult.Status == 'Done'
           ? 'Passed'
@@ -954,7 +961,7 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
     }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     postUutLoopCallbackResult.Status = await postUutLoop(
-      modelPluginConfiguration2: modelPluginConfiguration2,
+      modelPluginConfiguration2: locals.modelPluginConfiguration2,
     ); // PostUUTLoop Callback
     postUutLoopCallbackResult.Status = postUutLoopCallbackResult.Status == 'Done'
         ? 'Passed'
@@ -978,9 +985,9 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
     if (modelPluginsBeginResult.Status != '' && modelPluginsBeginResult.Status != 'Skipped') {
       // precondition of Model Plugins - End
       await modelPluginsEnd(
-        modelPluginConfiguration: modelPluginConfiguration2,
-        modelThreadType: modelThreadType,
-        modelData: modelData,
+        modelPluginConfiguration: locals.modelPluginConfiguration2,
+        modelThreadType: locals.modelThreadType,
+        modelData: locals.modelData,
       ); // Model Plugins - End: external sequence call
       modelPluginsEndResult.Status = modelPluginsEndResult.Status == 'Done'
           ? 'Passed'
@@ -1367,6 +1374,10 @@ Future<String> processModelPostResults({
   return run.status;
 }
 
+class _DoPreUutLocals {
+  String serialNumber = ''; // Str
+}
+
 /// Sequence `DoPreUUT` — Perform the default PreUUT action for the Sequential Model..
 Future<String> doPreUut({
   bool continueTesting = true,
@@ -1375,8 +1386,7 @@ Future<String> doPreUut({
   dynamic modelData,
   dynamic modelPluginConfiguration2,
 }) async {
-  const String serialNumber = ''; // Str
-
+  final locals = _DoPreUutLocals();
   final run = ts.SequenceRun();
 
   if (modelData.EntryPoint != 'Single Pass' &&
@@ -1389,7 +1399,7 @@ Future<String> doPreUut({
       ts.truthy(modelPluginConfiguration2.RuntimeVariables.ModelDialogsEnabled.SequentialShowSerialNumber) &&
       continueTesting) {
     // precondition of Set Serial Number
-    uut.SerialNumber = serialNumber; // Set Serial Number
+    uut.SerialNumber = locals.serialNumber; // Set Serial Number
   }
 
   return run.status;
