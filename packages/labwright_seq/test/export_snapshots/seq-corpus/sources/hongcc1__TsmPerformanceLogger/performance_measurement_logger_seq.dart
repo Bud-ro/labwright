@@ -118,6 +118,14 @@ Future<String> modelPluginInitialize({dynamic modelPlugin, dynamic modelPluginCo
   return run.status;
 }
 
+class _ModelPluginBeginLocals {
+  dynamic semiconductorModuleManager; // Ref
+  dynamic performanceMeasurementUtility; // Ref
+  String dateString = ''; // Str
+  String timeString = ''; // Str
+  String logFileBaseDirectory = ''; // Str
+}
+
 /// Sequence `Model Plugin - Begin`.
 Future<String> modelPluginBegin({
   dynamic modelPlugin,
@@ -129,6 +137,7 @@ Future<String> modelPluginBegin({
   String processModelClientPath = '',
   dynamic parentThread,
 }) async {
+  final locals = _ModelPluginBeginLocals();
   final run = ts.SequenceRun();
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -162,14 +171,14 @@ Future<String> modelPluginBegin({
     ts.notExported(
       'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.PerformanceMeasurementLogger',
     ); // Create Performance Measurement Logger [Action]
-    final _ =
+    locals.dateString =
         ts.str(startDate.Year, '%04d') +
         ts.str(startDate.Month, '%02d') +
-        ts.str(startDate.MonthDay, '%02d'); // never read: dateString // Build Date String
-    final _ =
+        ts.str(startDate.MonthDay, '%02d'); // Build Date String
+    locals.timeString =
         ts.str(startTime.Hours, '%02d') +
         ts.str(startTime.Minutes, '%02d') +
-        ts.str(startTime.Seconds, '%02d'); // never read: timeString // Build Time String
+        ts.str(startTime.Seconds, '%02d'); // Build Time String
     // .NET assembly: NationalInstruments.TestStand.SemiconductorModule.dll
     // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementUtility.Use Existing Object
     //   Existing Object <- Locals.PerformanceMeasurementUtility
@@ -419,6 +428,10 @@ Future<String> reservedModelPluginPreUut({
   return run.status;
 }
 
+class _ReservedModelPluginBatchStartLocals {
+  dynamic controllerAndSocketSynchronizationManager; // Ref
+}
+
 /// Sequence `(Reserved) Model Plugin - Batch Start`.
 Future<String> reservedModelPluginBatchStart({
   dynamic modelPlugin,
@@ -430,13 +443,14 @@ Future<String> reservedModelPluginBatchStart({
   dynamic startTime,
   dynamic uut,
 }) async {
+  final locals = _ReservedModelPluginBatchStartLocals();
   final run = ts.SequenceRun();
 
   // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
-  final _ = modelPluginConfiguration
+  locals.controllerAndSocketSynchronizationManager = modelPluginConfiguration
       .RuntimeVariables
-      .ControllerAndSocketSynchronizationManager; // never read: controllerAndSocketSynchronizationManager // Setup ControllerAndSocketSynchronizationManager
+      .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
 
   // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -444,6 +458,10 @@ Future<String> reservedModelPluginBatchStart({
   // label:
 
   return run.status;
+}
+
+class _ReservedModelPluginUutStartLocals {
+  dynamic controllerAndSocketSynchronizationManager; // Ref
 }
 
 /// Sequence `(Reserved) Model Plugin - UUT Start`.
@@ -457,13 +475,14 @@ Future<String> reservedModelPluginUutStart({
   dynamic startTime,
   dynamic uut,
 }) async {
+  final locals = _ReservedModelPluginUutStartLocals();
   final run = ts.SequenceRun();
 
   // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
-  final _ = modelPluginConfiguration
+  locals.controllerAndSocketSynchronizationManager = modelPluginConfiguration
       .RuntimeVariables
-      .ControllerAndSocketSynchronizationManager; // never read: controllerAndSocketSynchronizationManager // Setup ControllerAndSocketSynchronizationManager
+      .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
 
   // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -501,6 +520,11 @@ Future<String> reservedModelPluginOnTheFlyStepResults({
   return run.status;
 }
 
+class _ReservedModelPluginUutDoneLocals {
+  bool inNewThread = false; // Bool — default: false
+  dynamic controllerAndSocketSynchronizationManager; // Ref
+}
+
 /// Sequence `(Reserved) Model Plugin - UUT Done`.
 Future<String> reservedModelPluginUutDone({
   dynamic modelPlugin,
@@ -517,8 +541,7 @@ Future<String> reservedModelPluginUutDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
-  const bool inNewThread = false; // Bool — default: false
-
+  final locals = _ReservedModelPluginUutDoneLocals();
   final run = ts.SequenceRun();
 
   // ── setup ──
@@ -527,11 +550,12 @@ Future<String> reservedModelPluginUutDone({
   ); // Determine if this is a new post processing thread
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Done and UUT Done entry points
   //
-  ts.truthy(inNewThread)
-      ? modelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager
-      : modelPluginConfiguration
+  locals.inNewThread
+      ? (locals.controllerAndSocketSynchronizationManager =
+            modelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager)
+      : (locals.controllerAndSocketSynchronizationManager = modelPluginConfiguration
             .RuntimeVariables
-            .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
+            .ControllerAndSocketSynchronizationManager); // Setup ControllerAndSocketSynchronizationManager
   // If this entry point is called in a new thread, then another entry point for the next UUT might be called before this sequence completes. Both sequences will operate on the same ModelPlugin and ModelPluginConfiguration data structures, but from different threads. Thus, if there is any value or sub-field that you need to save before the next UUT has a chance to operate on it, make a local copy of that value prior to this step.
   // sync object: Parameters.CallingThreadBlocker, operation code 1, lifetime code 3
   if (callingThreadBlocker != null) {
@@ -545,6 +569,11 @@ Future<String> reservedModelPluginUutDone({
   // label:
 
   return run.status;
+}
+
+class _ReservedModelPluginBatchDoneLocals {
+  bool inNewThread = false; // Bool — default: false
+  dynamic controllerAndSocketSynchronizationManager; // Ref
 }
 
 /// Sequence `(Reserved) Model Plugin - Batch Done`.
@@ -563,8 +592,7 @@ Future<String> reservedModelPluginBatchDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
-  const bool inNewThread = false; // Bool — default: false
-
+  final locals = _ReservedModelPluginBatchDoneLocals();
   final run = ts.SequenceRun();
 
   // ── setup ──
@@ -573,11 +601,12 @@ Future<String> reservedModelPluginBatchDone({
   ); // Determine if this is a new post processing thread
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Done and UUT Done entry points
   //
-  ts.truthy(inNewThread)
-      ? modelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager
-      : modelPluginConfiguration
+  locals.inNewThread
+      ? (locals.controllerAndSocketSynchronizationManager =
+            modelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager)
+      : (locals.controllerAndSocketSynchronizationManager = modelPluginConfiguration
             .RuntimeVariables
-            .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
+            .ControllerAndSocketSynchronizationManager); // Setup ControllerAndSocketSynchronizationManager
   // If this entry point is called in a new thread, then another entry point for the next Batch might be called before this sequence completes. Both sequences will operate on the same ModelPlugin and ModelPluginConfiguration data structures, but from different threads. Thus, if there is any value or sub-field that you need to save before the next Batch has a chance to operate on it, make a local copy of that value prior to this step.
   // sync object: Parameters.CallingThreadBlocker, operation code 1, lifetime code 3
   if (callingThreadBlocker != null) {

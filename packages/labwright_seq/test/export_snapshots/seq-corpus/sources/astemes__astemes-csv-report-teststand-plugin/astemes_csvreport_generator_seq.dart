@@ -182,6 +182,10 @@ Future<String> modelPluginPreUut({
   return run.status;
 }
 
+class _ModelPluginBatchStartLocals {
+  dynamic controllerAndSocketSynchronizationManager; // Ref
+}
+
 /// Sequence `Model Plugin - Batch Start`.
 Future<String> modelPluginBatchStart({
   dynamic modelPlugin,
@@ -193,13 +197,14 @@ Future<String> modelPluginBatchStart({
   dynamic startTime,
   dynamic uut,
 }) async {
+  final locals = _ModelPluginBatchStartLocals();
   final run = ts.SequenceRun();
 
   // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
-  final _ = modelPluginConfiguration
+  locals.controllerAndSocketSynchronizationManager = modelPluginConfiguration
       .RuntimeVariables
-      .ControllerAndSocketSynchronizationManager; // never read: controllerAndSocketSynchronizationManager // Setup ControllerAndSocketSynchronizationManager
+      .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
 
   // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -207,6 +212,10 @@ Future<String> modelPluginBatchStart({
   // label:
 
   return run.status;
+}
+
+class _ModelPluginUutStartLocals {
+  dynamic controllerAndSocketSynchronizationManager; // Ref
 }
 
 /// Sequence `Model Plugin - UUT Start`.
@@ -220,13 +229,14 @@ Future<String> modelPluginUutStart({
   dynamic startTime,
   dynamic uut,
 }) async {
+  final locals = _ModelPluginUutStartLocals();
   final run = ts.SequenceRun();
 
   // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
-  final _ = modelPluginConfiguration
+  locals.controllerAndSocketSynchronizationManager = modelPluginConfiguration
       .RuntimeVariables
-      .ControllerAndSocketSynchronizationManager; // never read: controllerAndSocketSynchronizationManager // Setup ControllerAndSocketSynchronizationManager
+      .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
 
   // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -264,6 +274,30 @@ Future<String> modelPluginOnTheFlyStepResults({
   return run.status;
 }
 
+class _ModelPluginUutDoneLocals {
+  bool inNewThread = false; // Bool — default: false
+  dynamic controllerAndSocketSynchronizationManager; // Ref
+  dynamic currentResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': 'Done',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'TS': ts.PropObj({
+      'StartTime': 2198.5588198,
+      'TotalTime': 0.8949353,
+      'ModuleTime': 0.8947088,
+      'Index': 0,
+      'StepName': 'Simulation Dialog',
+      'StepGroup': 'Setup',
+      'StepId': 'ID#:fcZLdWPO6BG1UABQVsAACA',
+      'Id': 87,
+      'StepType': 'Action',
+      'BlockLevel': 0,
+    }),
+  }); // TEResult
+  String reportName = ''; // Str
+}
+
 /// Sequence `Model Plugin - UUT Done`.
 Future<String> modelPluginUutDone({
   dynamic modelPlugin,
@@ -280,8 +314,7 @@ Future<String> modelPluginUutDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
-  const bool inNewThread = false; // Bool — default: false
-
+  final locals = _ModelPluginUutDoneLocals();
   final run = ts.SequenceRun();
   final dynamic recurseThroughResultListResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -296,11 +329,12 @@ Future<String> modelPluginUutDone({
   ); // Determine if this is a new post processing thread
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Done and UUT Done entry points
   //
-  ts.truthy(inNewThread)
-      ? modelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager
-      : modelPluginConfiguration
+  locals.inNewThread
+      ? (locals.controllerAndSocketSynchronizationManager =
+            modelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager)
+      : (locals.controllerAndSocketSynchronizationManager = modelPluginConfiguration
             .RuntimeVariables
-            .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
+            .ControllerAndSocketSynchronizationManager); // Setup ControllerAndSocketSynchronizationManager
   // If this entry point is called in a new thread, then another entry point for the next UUT might be called before this sequence completes. Both sequences will operate on the same ModelPlugin and ModelPluginConfiguration data structures, but from different threads. Thus, if there is any value or sub-field that you need to save before the next UUT has a chance to operate on it, make a local copy of that value prior to this step.
   // sync object: Parameters.CallingThreadBlocker, operation code 1, lifetime code 3
   if (callingThreadBlocker != null) {
@@ -319,13 +353,18 @@ Future<String> modelPluginUutDone({
       ? 'Passed'
       : recurseThroughResultListResult.Status; // status expression
   run.record(recurseThroughResultListResult.Status);
-  final _ =
-      '${modelPlugin.PluginSpecific.Options.ReportDirectory as String}\\${uut.PartNumber == '' ? '' : '${uut.PartNumber as String}_'}${uut.SerialNumber == '' ? 'SN' : uut.SerialNumber as String}_${ts.str(startDate.Year)}${ts.str(startDate.Month)}${ts.str(startDate.MonthDay)}_${ts.str(startTime.Hours)}${ts.str(startTime.Minutes)}${ts.str(startTime.Seconds)}.csv'; // never read: reportName // Generate Reporte Name
+  locals.reportName =
+      '${modelPlugin.PluginSpecific.Options.ReportDirectory as String}\\${uut.PartNumber == '' ? '' : '${uut.PartNumber as String}_'}${uut.SerialNumber == '' ? 'SN' : uut.SerialNumber as String}_${ts.str(startDate.Year)}${ts.str(startDate.Month)}${ts.str(startDate.MonthDay)}_${ts.str(startTime.Hours)}${ts.str(startTime.Minutes)}${ts.str(startTime.Seconds)}.csv'; // Generate Reporte Name
   //   Report File Path <- Locals.ReportName
   //   error out <- Step.Result.Error
   await callSaveReport(); // Save Report [Action]
 
   return run.status;
+}
+
+class _ModelPluginBatchDoneLocals {
+  bool inNewThread = false; // Bool — default: false
+  dynamic controllerAndSocketSynchronizationManager; // Ref
 }
 
 /// Sequence `Model Plugin - Batch Done`.
@@ -344,8 +383,7 @@ Future<String> modelPluginBatchDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
-  const bool inNewThread = false; // Bool — default: false
-
+  final locals = _ModelPluginBatchDoneLocals();
   final run = ts.SequenceRun();
 
   // ── setup ──
@@ -354,11 +392,12 @@ Future<String> modelPluginBatchDone({
   ); // Determine if this is a new post processing thread
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Done and UUT Done entry points
   //
-  ts.truthy(inNewThread)
-      ? modelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager
-      : modelPluginConfiguration
+  locals.inNewThread
+      ? (locals.controllerAndSocketSynchronizationManager =
+            modelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager)
+      : (locals.controllerAndSocketSynchronizationManager = modelPluginConfiguration
             .RuntimeVariables
-            .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
+            .ControllerAndSocketSynchronizationManager); // Setup ControllerAndSocketSynchronizationManager
   // If this entry point is called in a new thread, then another entry point for the next Batch might be called before this sequence completes. Both sequences will operate on the same ModelPlugin and ModelPluginConfiguration data structures, but from different threads. Thus, if there is any value or sub-field that you need to save before the next Batch has a chance to operate on it, make a local copy of that value prior to this step.
   // sync object: Parameters.CallingThreadBlocker, operation code 1, lifetime code 3
   if (callingThreadBlocker != null) {
@@ -434,10 +473,7 @@ Future<String> modelPluginEnd({
   return run.status;
 }
 
-/// Sequence `Add Result`.
-Future<String> addResult({List<dynamic>? resultList}) async {
-  resultList ??= <dynamic>[]; // Objs
-
+class _AddResultLocals {
   dynamic currentResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': 'Done',
@@ -456,7 +492,13 @@ Future<String> addResult({List<dynamic>? resultList}) async {
       'BlockLevel': 0,
     }),
   }); // TEResult
+}
 
+/// Sequence `Add Result`.
+Future<String> addResult({List<dynamic>? resultList}) async {
+  resultList ??= <dynamic>[]; // Objs
+
+  final locals = _AddResultLocals();
   final run = ts.SequenceRun();
   dynamic recurseThroughSubsequencesResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -466,7 +508,7 @@ Future<String> addResult({List<dynamic>? resultList}) async {
   }); // result of Recurse through Subsequences
 
   for (final element in ts.iterate(resultList)) {
-    currentResult = element;
+    locals.currentResult = element;
     if (ts.cond(
       'Locals.CurrentResult.TS.StepType=="SequenceCall"&&PropertyExists("Locals.CurrentResult.TS.SequenceCall.ResultList")',
     )) {
@@ -478,7 +520,7 @@ Future<String> addResult({List<dynamic>? resultList}) async {
         'Common': ts.PropObj(),
       });
       recurseThroughSubsequencesResult.Status = await addResult(
-        resultList: currentResult.TS.SequenceCall.ResultList as List<dynamic>,
+        resultList: locals.currentResult.TS.SequenceCall.ResultList as List<dynamic>,
       ); // Recurse through Subsequences
       recurseThroughSubsequencesResult.Status = recurseThroughSubsequencesResult.Status == 'Done'
           ? 'Passed'

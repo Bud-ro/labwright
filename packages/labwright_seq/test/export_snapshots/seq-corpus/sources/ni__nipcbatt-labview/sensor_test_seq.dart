@@ -283,20 +283,21 @@ Future<String> reusableSequences() async {
   return run.status;
 }
 
+class _TurnOffAllAoChannelsLocals {
+  dynamic dcVoltageGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  List<dynamic> outputVoltagesV = <dynamic>[]; // Nums — Update the Array based on AO Channels to Turn OFF
+}
+
 /// Sequence `Turn Off all AO Channels`.
 Future<String> turnOffAllAoChannels() async {
+  final locals = _TurnOffAllAoChannelsLocals();
   final run = ts.SequenceRun();
 
   // ── setup ──
   // label: This example resets all configured Analog output channels voltage to 0 Volts
   // label:
   // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  final _ = <dynamic>[
-    0,
-    0,
-    0,
-    0,
-  ]; // never read: outputVoltagesV // Assign the Output Voltage for all configured AO Channels
+  locals.outputVoltagesV = <dynamic>[0, 0, 0, 0]; // Assign the Output Voltage for all configured AO Channels
   // Initializes the configured Physical/Virtual channels of Analog Output module
   //   Physical Channels <- "Simulated_cDAQ_9263/ao0:3" //Turn OFF all AO Channels
   //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task

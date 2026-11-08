@@ -305,10 +305,14 @@ Future<String> reusableSequences() async {
   return run.status;
 }
 
+class _TurnOffAllAoChannelsLocals {
+  dynamic dcVoltageGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  List<dynamic> outputVoltagesV = <dynamic>[]; // Nums — Update the Array based on AO Channels to Turn OFF
+}
+
 /// Sequence `Turn Off all AO Channels`.
 Future<String> turnOffAllAoChannels() async {
-  final List<dynamic> outputVoltagesV = <dynamic>[]; // Nums — Update the Array based on AO Channels to Turn OFF
-
+  final locals = _TurnOffAllAoChannelsLocals();
   final run = ts.SequenceRun();
 
   // ── setup ──
@@ -323,7 +327,7 @@ Future<String> turnOffAllAoChannels() async {
   //
   //
   // label: Note to run with Hardware: Update "Number of AO channels" to be configured to 0 volts
-  ts.setNumElements(outputVoltagesV, 4); // Assign AO Voltages
+  ts.setNumElements(locals.outputVoltagesV, 4); // Assign AO Voltages
 
   // ── main ──
   // Sources DC Voltage at 0V to Analog Ouput channels
@@ -342,12 +346,17 @@ Future<String> turnOffAllAoChannels() async {
   return run.status;
 }
 
+class _TurnOffAllDoChannelsLocals {
+  int i = 0; // Num — default: 0
+  List<dynamic> channelNames = <dynamic>['Simulated_DAQ/port0/line0:31', 'Simulated_DAQ1/port0/line0:31']; // Strs
+  String currentChannel = ''; // Str
+  List<dynamic> numDigLinesPerChannel = <dynamic>['32', '32']; // Nums
+  int currentNumberOfChannels = 0; // Num — default: 0
+}
+
 /// Sequence `Turn Off all DO Channels`.
 Future<String> turnOffAllDoChannels() async {
-  int i = 0; // Num — default: 0
-  final List<dynamic> channelNames = <dynamic>['Simulated_DAQ/port0/line0:31', 'Simulated_DAQ1/port0/line0:31']; // Strs
-  final List<dynamic> numDigLinesPerChannel = <dynamic>['32', '32']; // Nums
-
+  final locals = _TurnOffAllDoChannelsLocals();
   final run = ts.SequenceRun();
   dynamic turnOffSingleDoChannelResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -358,7 +367,7 @@ Future<String> turnOffAllDoChannels() async {
 
   // label: All the DO lines in every device are turned Off by setting the lines to low.
   // This loop iterates over Channel names and corresponding number of lines, and set lines to low.
-  for (i = 0; i < 2; i += 1) {
+  for (locals.i = 0; locals.i < 2; locals.i += 1) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     turnOffSingleDoChannelResult = ts.PropObj({
       'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -367,8 +376,8 @@ Future<String> turnOffAllDoChannels() async {
       'Common': ts.PropObj(),
     });
     turnOffSingleDoChannelResult.Status = await turnOffSingleDoChannel(
-      channelName: channelNames[i] as String,
-      numDigLines: (numDigLinesPerChannel[i] as num).toDouble(),
+      channelName: locals.channelNames[locals.i] as String,
+      numDigLines: (locals.numDigLinesPerChannel[locals.i] as num).toDouble(),
     ); // Turn Off Single DO Channel
     turnOffSingleDoChannelResult.Status = turnOffSingleDoChannelResult.Status == 'Done'
         ? 'Passed'
@@ -379,10 +388,14 @@ Future<String> turnOffAllDoChannels() async {
   return run.status;
 }
 
+class _TurnOffSingleDoChannelLocals {
+  dynamic digitalIoGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  List<dynamic> offStateToWrite = <dynamic>[]; // Bools
+}
+
 /// Sequence `Turn Off Single DO Channel`.
 Future<String> turnOffSingleDoChannel({String channelName = '', double numDigLines = 0}) async {
-  final List<dynamic> offStateToWrite = <dynamic>[]; // Bools
-
+  final locals = _TurnOffSingleDoChannelLocals();
   final run = ts.SequenceRun();
 
   // ── setup ──
@@ -397,7 +410,7 @@ Future<String> turnOffSingleDoChannel({String channelName = '', double numDigLin
   //
   //
   // label: Note to run with Hardware: Update "Number of Digital Lines" to be configured to Digital LOW state
-  ts.setNumElements(offStateToWrite, numDigLines); // Assign Digital States
+  ts.setNumElements(locals.offStateToWrite, numDigLines); // Assign Digital States
 
   // ── main ──
   // Set Digital state LOW to all Digital Ouput channels
