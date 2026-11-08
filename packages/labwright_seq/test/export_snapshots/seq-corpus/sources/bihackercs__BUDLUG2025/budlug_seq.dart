@@ -13,11 +13,17 @@ Future<String> arrayManipulations() async {
   return run.status;
 }
 
+class _ContainerManipulationLocals {
+  String userName = 'Arthur Philip Dent'; // Str
+  dynamic spaceShip = ts.PropObj({'Id': 'Heart of Gold', 'ActualValue': 42, 'IsActive': true}); // Obj
+  int answer = 42; // Num
+  String thisString = ''; // Str
+  double thisNumber = 0; // Num — default: 0
+}
+
 /// Sequence `ContainerManipulation`.
 Future<String> containerManipulation() async {
-  const String thisString = ''; // Str
-  const double thisNumber = 0; // Num — default: 0
-
+  final locals = _ContainerManipulationLocals();
   final run = ts.SequenceRun();
   final dynamic messagePopupResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -43,7 +49,7 @@ Future<String> containerManipulation() async {
   // Message Popup [MessagePopup]: acts through ts.stepHost
   final popup = await ts.stepHost.messagePopup(
     title: 'Message Popup',
-    message: 'The SpaceShip id is: $thisString',
+    message: 'The SpaceShip id is: ${locals.thisString}',
     buttons: ['OK', '', '', '', '', ''],
   );
   messagePopupResult.ButtonHit = popup.buttonHit;
@@ -57,7 +63,7 @@ Future<String> containerManipulation() async {
   // Message Popup [MessagePopup]: acts through ts.stepHost
   final popup2 = await ts.stepHost.messagePopup(
     title: 'Message Popup',
-    message: 'The SpaceShip number is: ${ts.str(thisNumber)}',
+    message: 'The SpaceShip number is: ${ts.str(locals.thisNumber)}',
     buttons: ['OK', '', '', '', '', ''],
   );
   messagePopupResult2.ButtonHit = popup2.buttonHit;
@@ -68,10 +74,15 @@ Future<String> containerManipulation() async {
   return run.status;
 }
 
+class _ValueTypeLocals {
+  String columbia = ''; // Str
+  int endevour = 0; // Num — default: 0
+  double valueType2 = 0; // Num — default: 0
+}
+
 /// Sequence `ValueType`.
 Future<String> valueType() async {
-  const double valueType2 = 0; // Num — default: 0
-
+  final locals = _ValueTypeLocals();
   final run = ts.SequenceRun();
   final dynamic messagePopupResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -105,7 +116,7 @@ Future<String> valueType() async {
   // Message Popup [MessagePopup]: acts through ts.stepHost
   final popup = await ts.stepHost.messagePopup(
     title: 'Message Popup',
-    message: 'Columbia Value Type is: ${ts.str(valueType2)}',
+    message: 'Columbia Value Type is: ${ts.str(locals.valueType2)}',
     buttons: ['OK', '', '', '', '', ''],
   );
   messagePopupResult.ButtonHit = popup.buttonHit;
@@ -119,7 +130,7 @@ Future<String> valueType() async {
   // Message Popup [MessagePopup]: acts through ts.stepHost
   final popup2 = await ts.stepHost.messagePopup(
     title: 'Message Popup',
-    message: 'Endevour Value Type is: ${ts.str(valueType2)}',
+    message: 'Endevour Value Type is: ${ts.str(locals.valueType2)}',
     buttons: ['OK', '', '', '', '', ''],
   );
   messagePopupResult2.ButtonHit = popup2.buttonHit;

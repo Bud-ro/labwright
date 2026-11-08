@@ -42,10 +42,15 @@ Future<String> loginLogout({bool logout = false, bool isInitialLogin = false}) a
   return run.status;
 }
 
+class _RestartLocals {
+  String currentUiConfigFilePath = ''; // Path
+  String newUiConfigPath = ''; // Path
+  bool newUiConfigExists = false; // Bool — default: false
+}
+
 /// Sequence `Restart`.
 Future<String> restart() async {
-  const bool newUiConfigExists = false; // Bool — default: false
-
+  final locals = _RestartLocals();
   final run = ts.SequenceRun();
   final dynamic messageResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -84,7 +89,7 @@ Future<String> restart() async {
       //   Return Value <- Locals.NewUIConfigExists
       //   path <- Locals.NewUIConfigPath
       ts.notExported('dotNet call: System.IO.File.Exists'); // UI Config File Exists? [Action]
-      if (!ts.truthy(newUiConfigExists)) {
+      if (!locals.newUiConfigExists) {
         // post action
         break endMain;
       }
