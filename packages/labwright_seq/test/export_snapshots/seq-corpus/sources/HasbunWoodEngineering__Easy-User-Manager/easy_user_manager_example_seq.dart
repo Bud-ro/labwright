@@ -102,7 +102,7 @@ Future<String> mainSequence() async {
       'Common': ts.PropObj(),
     });
     ts.notExported('step type MessagePopup: action not exported yet'); // Enter a group name [MessagePopup]
-    // never read: groupName = enterAGroupNameResult.Response as String; // post-expression
+    final _ = enterAGroupNameResult.Response as String; // never read: groupName // post-expression
     enterAGroupNameResult.Status = 'Done';
     run.record(enterAGroupNameResult.Status);
     if (ts.cond('RunState.PreviousStep.Result.ButtonHit==2')) {
