@@ -171,7 +171,9 @@ Future<void> modelPluginBatchStart({
 }) async {
   // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
-  // never read: controllerAndSocketSynchronizationManager = modelPluginConfiguration.RuntimeVariables.ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
+  final _ = modelPluginConfiguration
+      .RuntimeVariables
+      .ControllerAndSocketSynchronizationManager; // never read: controllerAndSocketSynchronizationManager // Setup ControllerAndSocketSynchronizationManager
 
   // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -192,7 +194,9 @@ Future<void> modelPluginUutStart({
 }) async {
   // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
-  // never read: controllerAndSocketSynchronizationManager = modelPluginConfiguration.RuntimeVariables.ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
+  final _ = modelPluginConfiguration
+      .RuntimeVariables
+      .ControllerAndSocketSynchronizationManager; // never read: controllerAndSocketSynchronizationManager // Setup ControllerAndSocketSynchronizationManager
 
   // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -240,13 +244,19 @@ Future<void> modelPluginUutDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
+  const bool inNewThread = false; // Bool — default: false
+
   // ── setup ──
   ts.eval(
     'Locals.InNewThread = Parameters.CallingThread.AsThread.Id != Runstate.Thread.Id ',
   ); // Determine if this is a new post processing thread
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Done and UUT Done entry points
   //
-  // never read: ts.truthy(inNewThread) ? (controllerAndSocketSynchronizationManager = modelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager) : (controllerAndSocketSynchronizationManager = modelPluginConfiguration.RuntimeVariables.ControllerAndSocketSynchronizationManager); // Setup ControllerAndSocketSynchronizationManager
+  ts.truthy(inNewThread)
+      ? modelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager
+      : modelPluginConfiguration
+            .RuntimeVariables
+            .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
   // If this entry point is called in a new thread, then another entry point for the next UUT might be called before this sequence completes. Both sequences will operate on the same ModelPlugin and ModelPluginConfiguration data structures, but from different threads. Thus, if there is any value or sub-field that you need to save before the next UUT has a chance to operate on it, make a local copy of that value prior to this step.
   // sync object: Parameters.CallingThreadBlocker, operation code 1, lifetime code 3
   if (callingThreadBlocker != null) {
@@ -261,7 +271,8 @@ Future<void> modelPluginUutDone({
   await addResult(
     resultList: mainSequenceResult.TS.SequenceCall.ResultList as List<dynamic>,
   ); // Recurse Through Result List
-  // never read: reportName = modelPlugin.PluginSpecific.Options.ReportDirectory + '\\' + (uut.PartNumber == '' ? '' : uut.PartNumber + '_') + (uut.SerialNumber == '' ? 'SN' : uut.SerialNumber) + '_' + ts.str(startDate.Year) + ts.str(startDate.Month) + ts.str(startDate.MonthDay) + '_' + ts.str(startTime.Hours) + ts.str(startTime.Minutes) + ts.str(startTime.Seconds) + '.csv' as String; // Generate Reporte Name
+  final _ =
+      '${modelPlugin.PluginSpecific.Options.ReportDirectory as String}\\${uut.PartNumber == '' ? '' : '${uut.PartNumber as String}_'}${uut.SerialNumber == '' ? 'SN' : uut.SerialNumber as String}_${ts.str(startDate.Year)}${ts.str(startDate.Month)}${ts.str(startDate.MonthDay)}_${ts.str(startTime.Hours)}${ts.str(startTime.Minutes)}${ts.str(startTime.Seconds)}.csv'; // never read: reportName // Generate Reporte Name
   //   Report File Path <- Locals.ReportName
   //   error out <- Step.Result.Error
   await callSaveReport(); // Save Report [Action]
@@ -283,13 +294,19 @@ Future<void> modelPluginBatchDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
+  const bool inNewThread = false; // Bool — default: false
+
   // ── setup ──
   ts.eval(
     'Locals.InNewThread = Parameters.CallingThread.AsThread.Id != Runstate.Thread.Id ',
   ); // Determine if this is a new post processing thread
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Done and UUT Done entry points
   //
-  // never read: ts.truthy(inNewThread) ? (controllerAndSocketSynchronizationManager = modelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager) : (controllerAndSocketSynchronizationManager = modelPluginConfiguration.RuntimeVariables.ControllerAndSocketSynchronizationManager); // Setup ControllerAndSocketSynchronizationManager
+  ts.truthy(inNewThread)
+      ? modelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager
+      : modelPluginConfiguration
+            .RuntimeVariables
+            .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
   // If this entry point is called in a new thread, then another entry point for the next Batch might be called before this sequence completes. Both sequences will operate on the same ModelPlugin and ModelPluginConfiguration data structures, but from different threads. Thus, if there is any value or sub-field that you need to save before the next Batch has a chance to operate on it, make a local copy of that value prior to this step.
   // sync object: Parameters.CallingThreadBlocker, operation code 1, lifetime code 3
   if (callingThreadBlocker != null) {

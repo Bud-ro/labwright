@@ -20,7 +20,7 @@ Future<void> install() async {
     'Locals.CurrentDir = Left(ThisContext.SequenceFile.Path, Find(ThisContext.SequenceFile.Path, "\\\\", 0, True, True)),\nLocals.Source.Tool = Locals.CurrentDir + @"\\Resources\\QuickDrop",\nLocals.Source.Icon = Locals.CurrentDir + @"\\Resources\\seqedit.ico",\nLocals.Source.FrontEndCallback = Locals.CurrentDir + @"\\Resources\\FrontEnd"',
   ); // Set Source Directories
   ts.eval('Locals.TestStandPublic = RunState.Engine.GetTestStandPath(TestStandPath_Public)'); // Set Target Directories
-  // never read: iconsDir = '$testStandPublic\\Components\\Icons'; // Set Target Directories (cont.)
+  const _ = '$testStandPublic\\Components\\Icons'; // never read: iconsDir // Set Target Directories (cont.)
   target.IconsDir = '$testStandPublic\\Components\\Icons\\seqedit.ico'; // Set Target Directories (cont.)
   target.ToolsDir = '$testStandPublic\\Components\\Tools\\QuickDrop'; // Set Target Directories (cont.)
   target.FrontEndCallbackDir = '$testStandPublic\\Components\\Callbacks\\FrontEnd'; // Set Target Directories (cont.)

@@ -144,7 +144,12 @@ Future<void> turnOffAllAoChannels() async {
   //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
   //   error out <- Step.Result.Error
   await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
-  // never read: outputVoltagesV = <dynamic>[0, 0, 0, 0]; // Assign the Output Voltage for all configured AO Channels
+  final _ = <dynamic>[
+    0,
+    0,
+    0,
+    0,
+  ]; // never read: outputVoltagesV // Assign the Output Voltage for all configured AO Channels
 
   // ── main ──
   // Sources DC Voltage at 0V to Analog Ouput channels

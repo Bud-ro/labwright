@@ -15,6 +15,8 @@ Future<void> stationPostResults({
   callbackNames ??= <dynamic>[]; // Strs
   parentIds ??= <dynamic>[]; // Nums
 
+  const String status = ''; // Str
+
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Results); increment RunState.LoopIndex += 1; status "Done"
   // ignores run-time errors
   if (ts.cond('RunState.Caller.Sequence.Id == RunState.Main.Sequence.Id')) {
@@ -24,7 +26,11 @@ Future<void> stationPostResults({
     ts.eval(
       '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
     ); // Output Message (cont.)
-    // never read: icon = status == 'Running' ? 'NI_FileDiffer\\Right.ico' : (status == 'Passed' || status == 'Failed' ? 'NI_FileDiffer\\Left.ico' : 'ni_blank.ico'); // Output Message (cont.)
+    const _ = status == 'Running'
+        ? 'NI_FileDiffer\\Right.ico'
+        : (status == 'Passed' || status == 'Failed'
+              ? 'NI_FileDiffer\\Left.ico'
+              : 'ni_blank.ico'); // never read: icon // Output Message (cont.)
     ts.eval(
       '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
     ); // Output Message (cont.)
@@ -33,17 +39,23 @@ Future<void> stationPostResults({
 
 /// Sequence `StationPostResultListEntry`.
 Future<void> stationPostResultListEntry({dynamic step, dynamic result, bool discardResult = false}) async {
+  const String status = ''; // Str
+
   // ignores run-time errors
   if (ts.cond('RunState.Caller.Sequence.Id == RunState.Main.Sequence.Id')) {
     // precondition of Output Message
-    // never read: name = step.AsPropertyObject.Name as String; // Output Message
+    final _ = step.AsPropertyObject.Name as String; // never read: name // Output Message
     ts.eval(
       '\nLocals.Status = Parameters.Result.GetValString("Status", PropOption_NoOptions)',
     ); // Output Message (cont.)
     ts.eval(
       '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
     ); // Output Message (cont.)
-    // never read: icon = status == 'Running' ? 'NI_FileDiffer\\Right.ico' : (status == 'Passed' || status == 'Failed' ? 'NI_FileDiffer\\Left.ico' : 'ni_blank.ico'); // Output Message (cont.)
+    const _ = status == 'Running'
+        ? 'NI_FileDiffer\\Right.ico'
+        : (status == 'Passed' || status == 'Failed'
+              ? 'NI_FileDiffer\\Left.ico'
+              : 'ni_blank.ico'); // never read: icon // Output Message (cont.)
     ts.eval(
       '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
     ); // Output Message (cont.)
@@ -59,12 +71,16 @@ Future<void> stationPreStep({dynamic step, dynamic result}) async {
     '(RunState.Caller.Sequence.Id == RunState.Main.Sequence.Id) &&\n(\n   ((Parameters.Step.TS.ResultOption == 1 ) && !(RunState.Caller.Sequence.DisableResults || RunState.Engine.StationOptions.DisableResults)) ||\n   ((Parameters.Step.TS.ResultOption == 2 ) && !RunState.Engine.StationOptions.DisableResults)\n)',
   )) {
     // precondition of Output Message
-    // never read: name = step.AsPropertyObject.Name as String; // Output Message
+    final _ = step.AsPropertyObject.Name as String; // never read: name // Output Message
     status = step.Result.Status as String; // Output Message (cont.)
     ts.eval(
       '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
     ); // Output Message (cont.)
-    // never read: icon = status == 'Running' ? 'NI_FileDiffer\\Right.ico' : (status == 'Passed' || status == 'Failed' ? 'NI_FileDiffer\\Left.ico' : 'ni_blank.ico'); // Output Message (cont.)
+    final _ = status == 'Running'
+        ? 'NI_FileDiffer\\Right.ico'
+        : (status == 'Passed' || status == 'Failed'
+              ? 'NI_FileDiffer\\Left.ico'
+              : 'ni_blank.ico'); // never read: icon // Output Message (cont.)
     status == 'Running' ? (status = 'Started') : null; // Output Message (cont.)
     ts.eval(
       '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',

@@ -103,6 +103,9 @@ Future<void> checkEngineRpm({double setpoint = 0, int settleTime = 0, int tolera
 
 /// Sequence `Engine Power`.
 Future<void> enginePower() async {
+  const double idleRpm = 0; // Num — default: 0
+  const double currentRpm = 0; // Num — default: 0
+
   // ── setup ──
   // Initialize the settled local variable to be false
   ts.eval('Locals.Settled = 0'); // Init Settled
@@ -120,7 +123,7 @@ Future<void> enginePower() async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     ts.notExported('step type GetChannelValue: action not exported yet'); // Get Channel Value [GetChannelValue]
     ts.eval('Locals.CurrentRPM = RunState.PreviousStep.Result.Numeric'); // Set Current RPM
-    // never read: settled = currentRpm >= idleRpm - 50 && currentRpm <= idleRpm + 50; // Evaluate Settled
+    const _ = currentRpm >= idleRpm - 50 && currentRpm <= idleRpm + 50; // never read: settled // Evaluate Settled
   }
   // Add the actual engine RPM to the results
   ts.notExported('step type AdditionalResults: action not exported yet'); // Additional Results [AdditionalResults]
