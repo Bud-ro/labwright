@@ -268,7 +268,10 @@ Future<void> sequenceDoc({dynamic sequence, String docResult = '', dynamic docOp
   // label: --- End Locals ---
   // label: --- Step Doc ---
   ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
-  // never read: totalNumSteps = ts.getNumElements(sequence.Setup)  + ts.getNumElements(sequence.Main) + ts.getNumElements(sequence.Cleanup); // CalcNumSteps
+  final _ =
+      ts.getNumElements(sequence.Setup) +
+      ts.getNumElements(sequence.Main) +
+      ts.getNumElements(sequence.Cleanup); // never read: totalNumSteps // CalcNumSteps
   if (ts.getNumElements(sequence.Setup) > 0) {
     // precondition of Setup Steps Header
     ts.eval(
