@@ -370,7 +370,9 @@ Future<void> reservedModelPluginBatchStart({
 }) async {
   // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
-  // never read: controllerAndSocketSynchronizationManager = modelPluginConfiguration.RuntimeVariables.ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
+  final _ = modelPluginConfiguration
+      .RuntimeVariables
+      .ControllerAndSocketSynchronizationManager; // never read: controllerAndSocketSynchronizationManager // Setup ControllerAndSocketSynchronizationManager
 
   // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -391,7 +393,9 @@ Future<void> reservedModelPluginUutStart({
 }) async {
   // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
-  // never read: controllerAndSocketSynchronizationManager = modelPluginConfiguration.RuntimeVariables.ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
+  final _ = modelPluginConfiguration
+      .RuntimeVariables
+      .ControllerAndSocketSynchronizationManager; // never read: controllerAndSocketSynchronizationManager // Setup ControllerAndSocketSynchronizationManager
 
   // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.

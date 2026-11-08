@@ -326,15 +326,15 @@ Future<void> sequenceFileLoad() async {
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
-/// Stub for the labView module call `Import Hardware Config.vi`
-/// (from step `Import Hardware Configuration`). TODO: implement against the real module.
-Future<Object?> callImportHardwareConfig() async => throw UnimplementedError('labView call: Import Hardware Config.vi');
-
 /// External sequence `Power down supply`
 /// (called from step `Power Down Supply`) — lives in another
 /// sequence file. TODO: implement, or delegate to that file's
 /// exported function.
 Future<Object?> powerDownSupply2() async => throw UnimplementedError('external sequence: Power down supply');
+
+/// Stub for the labView module call `Import Hardware Config.vi`
+/// (from step `Import Hardware Configuration`). TODO: implement against the real module.
+Future<Object?> callImportHardwareConfig() async => throw UnimplementedError('labView call: Import Hardware Config.vi');
 
 /// Stub for the labView module call `Power Supply Source and Measure\DAQ_PS Initialize.vi`
 /// (from step `Power Supply Source and Measure - Initialize Power Supply`). TODO: implement against the real module.
