@@ -3,6 +3,13 @@ import 'package:labwright/shims.dart' as ts;
 
 String category = 'Test Status'; // Str
 
+class _StationPostResultsLocals {
+  String name = ''; // Str
+  String status = ''; // Str
+  double color = 0; // Num — default: 0
+  String icon = ''; // Path
+}
+
 /// Sequence `StationPostResults` — This callback can be used instead of ResultListEntry and PreStep, however, it requires enabled OTF result processing..
 Future<void> stationPostResults({
   List<dynamic>? steps,
@@ -15,7 +22,7 @@ Future<void> stationPostResults({
   callbackNames ??= <dynamic>[]; // Strs
   parentIds ??= <dynamic>[]; // Nums
 
-  const String status = ''; // Str
+  final locals = _StationPostResultsLocals();
 
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Results); increment RunState.LoopIndex += 1; status "Done"
   // ignores run-time errors
@@ -26,62 +33,76 @@ Future<void> stationPostResults({
     ts.eval(
       '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
     ); // Output Message (cont.)
-    const _ = status == 'Running'
+    locals.icon = locals.status == 'Running'
         ? 'NI_FileDiffer\\Right.ico'
-        : (status == 'Passed' || status == 'Failed'
+        : (locals.status == 'Passed' || locals.status == 'Failed'
               ? 'NI_FileDiffer\\Left.ico'
-              : 'ni_blank.ico'); // never read: icon // Output Message (cont.)
+              : 'ni_blank.ico'); // Output Message (cont.)
     ts.eval(
       '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
     ); // Output Message (cont.)
   }
 }
 
+class _StationPostResultListEntryLocals {
+  String name = ''; // Str
+  String status = ''; // Str
+  double color = 0; // Num — default: 0
+  String icon = ''; // Path
+}
+
 /// Sequence `StationPostResultListEntry`.
 Future<void> stationPostResultListEntry({dynamic step, dynamic result, bool discardResult = false}) async {
-  const String status = ''; // Str
+  final locals = _StationPostResultListEntryLocals();
 
   // ignores run-time errors
   if (ts.cond('RunState.Caller.Sequence.Id == RunState.Main.Sequence.Id')) {
     // precondition of Output Message
-    final _ = step.AsPropertyObject.Name as String; // never read: name // Output Message
+    locals.name = step.AsPropertyObject.Name as String; // Output Message
     ts.eval(
       '\nLocals.Status = Parameters.Result.GetValString("Status", PropOption_NoOptions)',
     ); // Output Message (cont.)
     ts.eval(
       '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
     ); // Output Message (cont.)
-    const _ = status == 'Running'
+    locals.icon = locals.status == 'Running'
         ? 'NI_FileDiffer\\Right.ico'
-        : (status == 'Passed' || status == 'Failed'
+        : (locals.status == 'Passed' || locals.status == 'Failed'
               ? 'NI_FileDiffer\\Left.ico'
-              : 'ni_blank.ico'); // never read: icon // Output Message (cont.)
+              : 'ni_blank.ico'); // Output Message (cont.)
     ts.eval(
       '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
     ); // Output Message (cont.)
   }
 }
 
+class _StationPreStepLocals {
+  String name = ''; // Str
+  String status = ''; // Str
+  double color = 0; // Num — default: 0
+  String icon = ''; // Path
+}
+
 /// Sequence `StationPreStep`.
 Future<void> stationPreStep({dynamic step, dynamic result}) async {
-  String status = ''; // Str
+  final locals = _StationPreStepLocals();
 
   // ignores run-time errors
   if (ts.cond(
     '(RunState.Caller.Sequence.Id == RunState.Main.Sequence.Id) &&\n(\n   ((Parameters.Step.TS.ResultOption == 1 ) && !(RunState.Caller.Sequence.DisableResults || RunState.Engine.StationOptions.DisableResults)) ||\n   ((Parameters.Step.TS.ResultOption == 2 ) && !RunState.Engine.StationOptions.DisableResults)\n)',
   )) {
     // precondition of Output Message
-    final _ = step.AsPropertyObject.Name as String; // never read: name // Output Message
-    status = step.Result.Status as String; // Output Message (cont.)
+    locals.name = step.AsPropertyObject.Name as String; // Output Message
+    locals.status = step.Result.Status as String; // Output Message (cont.)
     ts.eval(
       '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
     ); // Output Message (cont.)
-    final _ = status == 'Running'
+    locals.icon = locals.status == 'Running'
         ? 'NI_FileDiffer\\Right.ico'
-        : (status == 'Passed' || status == 'Failed'
+        : (locals.status == 'Passed' || locals.status == 'Failed'
               ? 'NI_FileDiffer\\Left.ico'
-              : 'ni_blank.ico'); // never read: icon // Output Message (cont.)
-    status == 'Running' ? (status = 'Started') : null; // Output Message (cont.)
+              : 'ni_blank.ico'); // Output Message (cont.)
+    locals.status == 'Running' ? (locals.status = 'Started') : null; // Output Message (cont.)
     ts.eval(
       '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
     ); // Output Message (cont.)

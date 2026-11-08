@@ -17,6 +17,11 @@ Future<void> processSetup() async {
   ts.eval('\nStationGlobals.ProcessName = FileGlobals.ProcessName'); // Assign TraceabilityEnabled Var (cont.)
 }
 
+class _PreUutLocals {
+  int backCheck = 0; // Num — default: 0
+  String replyBackCheck = ''; // Str
+}
+
 /// Sequence `PreUUT` — Displays a dialog box in which the operator enters the UUTserial number.  Override this in client file to change or replace this action..
 Future<void> preUut({
   bool continueTesting = true,
@@ -25,12 +30,12 @@ Future<void> preUut({
   dynamic modelData,
   dynamic modelPluginConfiguration,
 }) async {
-  int backCheck = 0; // Num — default: 0
+  final locals = _PreUutLocals();
 
   // ── setup ──
   station.isBackcheckOk = false; // Reset Traceability Variables
-  backCheck = 0; // Reset Traceability Variables (cont.)
-  // never read: replyBackCheck = ''; // Reset Traceability Variables (cont.)
+  locals.backCheck = 0; // Reset Traceability Variables (cont.)
+  locals.replyBackCheck = ''; // Reset Traceability Variables (cont.)
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await doPreUut(); // Call DoPreUUT: external sequence call
@@ -59,7 +64,7 @@ Future<void> preUut({
   //   ReplyTracMex <- Locals.Reply_BackCheck
   //   error out <- Step.Result.Error
   await callWsp2BackCheckSerial(); // Get_BackCheck [Action]
-  if (backCheck == 1) {
+  if (locals.backCheck == 1) {
     station.isBackcheckOk = true; // Set Backcheck OK
   } else {
     station.isBackcheckOk = false; // Set Backcheck NOG
@@ -145,12 +150,21 @@ Future<void> postUut({
   // label: End Of Traceability Section
 }
 
+class _LoadVariablesLocals {
+  String filePath = 'C:\\Elatch-Bench-Programming\\Load_Data\\Variables.ini'; // Str
+  List<dynamic> testName = <dynamic>[]; // Strs
+  List<dynamic> numLimits = <dynamic>[]; // Nums
+  List<dynamic> strLimits = <dynamic>[]; // Strs
+  String tempName = ''; // Str
+  String tempStr = ''; // Str
+  int arrayIndex = 0; // Num — default: 0
+  int tempNum = 0; // Num — default: 0
+  int tempLoop = 0; // Num — default: 0
+}
+
 /// Sequence `Load_Variables`.
 Future<void> loadVariables({String variableList = ''}) async {
-  final List<dynamic> testName = <dynamic>[]; // Strs
-  final List<dynamic> strLimits = <dynamic>[]; // Strs
-  const int arrayIndex = 0; // Num — default: 0
-  int tempLoop = 0; // Num — default: 0
+  final locals = _LoadVariablesLocals();
 
   //   FilePath <- Locals.File_Path
   //   OutPutValue <- 1
@@ -161,9 +175,9 @@ Future<void> loadVariables({String variableList = ''}) async {
   //   ValueStr <- Locals.StrLimits
   //   Error Out <- Step.Result.Error
   await callGetLimitsV3(); // ReadFileLimit [Action]
-  for (tempLoop = 0; tempLoop < arrayIndex; tempLoop += 1) {
-    final _ = strLimits[tempLoop] as String; // never read: tempStr // Limits
-    final _ = testName[tempLoop] as String; // never read: tempName // NamesToVariables
+  for (locals.tempLoop = 0; locals.tempLoop < locals.arrayIndex; locals.tempLoop += 1) {
+    locals.tempStr = locals.strLimits[locals.tempLoop] as String; // Limits
+    locals.tempName = locals.testName[locals.tempLoop] as String; // NamesToVariables
     ts.eval('RunState.Main.FileGlobals.SetValString(Locals.Temp_Name,0x1,Locals.Temp_Str)'); // CreateLimits
   }
 }

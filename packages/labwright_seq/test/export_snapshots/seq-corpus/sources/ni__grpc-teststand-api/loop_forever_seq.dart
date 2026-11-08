@@ -3,7 +3,7 @@ import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
 Future<void> mainSequence() async {
-  while (ts.truthy(true)) {
+  while (true) {
     // checks: 10 GELE [low 9, high 11, nominal 100] (PERCENTAGE)
     // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
     ts.notExported('cModule call: Numeric Limit Test'); // Numeric Limit Test [NumericLimitTest]

@@ -17,11 +17,16 @@ dynamic veristand = ts.PropObj({
 }); // Obj
 String thermalNotification = 'ThermalNotification'; // Str
 
+class _MainSequenceLocals {
+  int i = 0; // Num — default: 0
+  dynamic veristand2 = ts.PropObj({'VSDialogs': null}); // Obj
+  dynamic thermalMonitorThread; // Ref
+  List<dynamic> rpmSetpoints = <dynamic>['1000', '1500', '2000', '2500', '3000']; // Nums
+}
+
 /// Sequence `MainSequence`.
 Future<void> mainSequence() async {
-  int i = 0; // Num — default: 0
-  const dynamic thermalMonitorThread = null; // Ref
-  final List<dynamic> rpmSetpoints = <dynamic>['1000', '1500', '2000', '2500', '3000']; // Nums
+  final locals = _MainSequenceLocals();
 
   // ── setup ──
   // Open and launch Engine Demo VeriStand project.
@@ -43,10 +48,10 @@ Future<void> mainSequence() async {
 
   // ── main ──
   // Check that engine can settle at RPM setpoints +/- 50 RPM within 5 seconds
-  for (i = 0; ts.cond('Locals.i < Locals.RPMSetpoints.GetNumElements()'); i += 1) {
+  for (locals.i = 0; ts.cond('Locals.i < Locals.RPMSetpoints.GetNumElements()'); locals.i += 1) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     await checkEngineRpm(
-      setpoint: (rpmSetpoints[i] as num).toDouble(),
+      setpoint: (locals.rpmSetpoints[locals.i] as num).toDouble(),
       settleTime: 5,
       tolerance: 50,
     ); // Call Check Engine RPM
@@ -61,7 +66,7 @@ Future<void> mainSequence() async {
   // sync object: FileGlobals.ThermalNotification, operation code 1, lifetime code 3
   ts.notExported('step type NI_Notification: action not exported yet'); // Notification [NI_Notification]
   // waits for sequence call step "ID#:B+Ta6a1P6BGcPqRMyNgrgD"
-  if (ts.truthy(thermalMonitorThread != null)) {
+  if (locals.thermalMonitorThread != null) {
     // precondition of Wait
     await Future<void>.delayed(const Duration(seconds: 5));
   }
@@ -101,10 +106,15 @@ Future<void> checkEngineRpm({double setpoint = 0, int settleTime = 0, int tolera
   ); // Channel Value Limit Test [LimitTestChannelValue]
 }
 
+class _EnginePowerLocals {
+  double idleRpm = 0; // Num — default: 0
+  bool settled = false; // Bool — default: false
+  double currentRpm = 0; // Num — default: 0
+}
+
 /// Sequence `Engine Power`.
 Future<void> enginePower() async {
-  const double idleRpm = 0; // Num — default: 0
-  const double currentRpm = 0; // Num — default: 0
+  final locals = _EnginePowerLocals();
 
   // ── setup ──
   // Initialize the settled local variable to be false
@@ -123,7 +133,8 @@ Future<void> enginePower() async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     ts.notExported('step type GetChannelValue: action not exported yet'); // Get Channel Value [GetChannelValue]
     ts.eval('Locals.CurrentRPM = RunState.PreviousStep.Result.Numeric'); // Set Current RPM
-    const _ = currentRpm >= idleRpm - 50 && currentRpm <= idleRpm + 50; // never read: settled // Evaluate Settled
+    locals.settled =
+        locals.currentRpm >= locals.idleRpm - 50 && locals.currentRpm <= locals.idleRpm + 50; // Evaluate Settled
   }
   // Add the actual engine RPM to the results
   ts.notExported('step type AdditionalResults: action not exported yet'); // Additional Results [AdditionalResults]

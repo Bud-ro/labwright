@@ -23,15 +23,20 @@ Future<void> examples() async {
   // (no steps in the source sequence)
 }
 
+class _I2CCommTestLocals {
+  dynamic deviceId = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  dynamic data = ts.PropObj({'I2CReadData': <dynamic>[]}); // Obj
+}
+
 /// Sequence `I2C Comm Test`.
 Future<void> i2CCommTest() async {
-  final dynamic deviceId = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  final locals = _I2CCommTestLocals();
 
   // ── setup ──
   // label: Example demonstrates simple read and write data operations through I2C protocol communication using NI 845x Device
   // label: Note to run with Hardware: Update Device ID of the connected I2C Interface Device (Ex: NI USB-8452 Device)
-  deviceId.DeviceName = 'DeviceA'; // Update I2C Interface Device ID
-  deviceId.SessionNumber = 0; // Update I2C Interface Device ID (cont.)
+  locals.deviceId.DeviceName = 'DeviceA'; // Update I2C Interface Device ID
+  locals.deviceId.SessionNumber = 0; // Update I2C Interface Device ID (cont.)
 
   // ── main ──
   // label: Note to run with Hardware: Update Read data settings for I2C communication
@@ -63,15 +68,20 @@ Future<void> i2CCommTest() async {
   await callv845xI2CWrite(); // I2C Write - Write Register Data [Action]
 }
 
+class _SpiCommTestLocals {
+  dynamic deviceId = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  dynamic data = ts.PropObj({'SPIReadData': <dynamic>[]}); // Obj
+}
+
 /// Sequence `SPI Comm Test`.
 Future<void> spiCommTest() async {
-  final dynamic deviceId = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  final locals = _SpiCommTestLocals();
 
   // ── setup ──
   // label: Example demonstrates simple read and write data operations through SPI protocol communication using NI 845x Device
   // label: Note to run with Hardware: Update Device ID of the connected SPI Interface Device (Ex: NI USB-8452 Device)
-  deviceId.DeviceName = 'DeviceA'; // Update SPI Interface Device ID
-  deviceId.SessionNumber = 0; // Update SPI Interface Device ID (cont.)
+  locals.deviceId.DeviceName = 'DeviceA'; // Update SPI Interface Device ID
+  locals.deviceId.SessionNumber = 0; // Update SPI Interface Device ID (cont.)
 
   // ── main ──
   // label: Note to run with Hardware: Update Read data settings for SPI communication
@@ -94,15 +104,20 @@ Future<void> spiCommTest() async {
   await callv845xSpiWrite(); // SPI Write - Write Register Data [Action]
 }
 
+class _SerialCommTestLocals {
+  dynamic serialVisa = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  dynamic data = ts.PropObj({'SerialResponse': '', 'BytesRead': 0}); // Obj
+}
+
 /// Sequence `Serial Comm Test`.
 Future<void> serialCommTest() async {
-  final dynamic serialVisa = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  final locals = _SerialCommTestLocals();
 
   // ── setup ──
   // label: Example demonstrates simple read and write data operations through Serial COM port
   // label: Note to run with Hardware: Update Serial VISA for the COM port
-  serialVisa.DeviceName = 'DeviceB'; // Update Serial VISA
-  serialVisa.SessionNumber = 0; // Update Serial VISA (cont.)
+  locals.serialVisa.DeviceName = 'DeviceB'; // Update Serial VISA
+  locals.serialVisa.SessionNumber = 0; // Update Serial VISA (cont.)
 
   // ── main ──
   // label: Note to run with Hardware: Update Serial comm settings for write-read operation

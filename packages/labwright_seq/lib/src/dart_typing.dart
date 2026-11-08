@@ -51,10 +51,8 @@ class _Node {
 }
 
 class DartExpressionTyper {
-  DartExpressionTyper(this.typeOf, {this.isConstant = _never});
+  DartExpressionTyper(this.typeOf);
   final DartType Function(String identifier) typeOf;
-  final bool Function(String identifier) isConstant;
-  static bool _never(String identifier) => false;
 
   ({String text, DartType type, bool comparable})? coerce(String source, {DartType? want, bool bare = true}) {
     final tokens = <(String, int, int)>[];
@@ -196,6 +194,13 @@ class _Checker {
   DartType _member(_Node node) {
     final receiver = node.children.single;
     if (receiver.kind == _Kind.identifier && receiver.op == 'station') return DartType.dynamic;
+    if (receiver.kind == _Kind.identifier) {
+      final known = typer.typeOf('${receiver.op}.${node.op}');
+      if (known != DartType.other) {
+        type(receiver);
+        return known;
+      }
+    }
     return type(receiver) == DartType.dynamic ? DartType.dynamic : DartType.other;
   }
 
@@ -283,10 +288,6 @@ class _Checker {
 
     void cast(String type) => bare ? wrap('', ' as $type') : wrap('(', ' as $type)');
     void method(String name) => node.isPrimary && node.prefix == null ? wrap('', '.$name()') : wrap('(', ').$name()');
-    if (want == DartType.boolean && node.kind == _Kind.identifier && typer.isConstant(node.op!)) {
-      wrap('ts.truthy(', ')');
-      return;
-    }
     switch (want) {
       case DartType.boolean when have == DartType.dynamic:
         cast('bool');

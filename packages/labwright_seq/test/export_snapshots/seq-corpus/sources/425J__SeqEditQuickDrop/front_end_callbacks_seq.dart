@@ -2,18 +2,22 @@
 import 'package:labwright/shims.dart' as ts;
 import 'quick_drop_seq.dart' as quick_drop_seq;
 
+class _LoginLogoutLocals {
+  bool quickDropRunning = false; // Bool — default: false
+}
+
 /// Sequence `LoginLogout`.
 Future<void> loginLogout({bool logout = false, bool isInitialLogin = false}) async {
-  const bool quickDropRunning = false; // Bool — default: false
+  final locals = _LoginLogoutLocals();
 
   // ── main ──
   if (logout) {
     ts.notExported('cModule call: Logout'); // Logout [Action]
   } else {
     ts.notExported('cModule call: Login'); // Login [Action]
-    await quick_drop_seq.isRunning(running: ts.truthy(quickDropRunning)); // Is Quick Drop Running?: external sequence
+    await quick_drop_seq.isRunning(running: locals.quickDropRunning); // Is Quick Drop Running?: external sequence
     // Start if not already running
-    if (ts.truthy(!quickDropRunning)) {
+    if (!locals.quickDropRunning) {
       // precondition of Start Quick Drop
       // sequence call spawns a new execution in the engine — exported as a plain awaited call
       await quick_drop_seq.start(); // Start Quick Drop: external sequence

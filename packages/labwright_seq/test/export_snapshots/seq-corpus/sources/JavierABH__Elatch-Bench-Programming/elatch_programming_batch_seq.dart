@@ -17,13 +17,18 @@ Future<void> processSetup() async {
   station.initPnWithsequence == ''; // Assign TraceabilityEnabled Var (cont.)
 }
 
+class _PreBatchLocals {
+  int backCheck = 0; // Num — default: 0
+  String replyBackCheck = ''; // Str
+}
+
 /// Sequence `PreBatch` — Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action..
 Future<void> preBatch({bool continueTesting = true, dynamic modelData, dynamic modelPluginConfiguration}) async {
-  int backCheck = 0; // Num — default: 0
+  final locals = _PreBatchLocals();
 
   // ── setup ──
-  backCheck = 0; // Reset Traceability Variables
-  // never read: replyBackCheck = ''; // Reset Traceability Variables (cont.)
+  locals.backCheck = 0; // Reset Traceability Variables
+  locals.replyBackCheck = ''; // Reset Traceability Variables (cont.)
   modelData.BatchUUT.BatchSerialNumber = ''; // Reset Traceability Variables (cont.)
   station.individualSerials[0] = ''; // Reset Traceability Variables (cont.)
   station.individualSerials[1] = ''; // Reset Traceability Variables (cont.)
@@ -139,7 +144,7 @@ Future<void> preBatch({bool continueTesting = true, dynamic modelData, dynamic m
   //   ReplyTracMex <- Locals.Reply_BackCheck
   //   error out <- Step.Result.Error
   await callWsp2BackCheckSerial(); // BackCheck UUT 0 [Action]
-  if (backCheck == 1) {
+  if (locals.backCheck == 1) {
     station.isBackcheckOk[0] = true; // Set Backcheck OK
   } else {
     station.isBackcheckOk[0] = false; // Set Backcheck NOG
@@ -156,7 +161,7 @@ Future<void> preBatch({bool continueTesting = true, dynamic modelData, dynamic m
   //   ReplyTracMex <- Locals.Reply_BackCheck
   //   error out <- Step.Result.Error
   await callWsp2BackCheckSerial(); // BackCheck UUT 1 [Action]
-  if (backCheck == 1) {
+  if (locals.backCheck == 1) {
     station.isBackcheckOk[1] = true; // Set Backcheck OK
   } else {
     station.isBackcheckOk[1] = false; // Set Backcheck NOG
@@ -173,7 +178,7 @@ Future<void> preBatch({bool continueTesting = true, dynamic modelData, dynamic m
   //   ReplyTracMex <- Locals.Reply_BackCheck
   //   error out <- Step.Result.Error
   await callWsp2BackCheckSerial(); // BackCheck UUT 2 [Action]
-  if (backCheck == 1) {
+  if (locals.backCheck == 1) {
     station.isBackcheckOk[2] = true; // Set Backcheck OK
   } else {
     station.isBackcheckOk[2] = false; // Set Backcheck NOG
@@ -190,7 +195,7 @@ Future<void> preBatch({bool continueTesting = true, dynamic modelData, dynamic m
   //   ReplyTracMex <- Locals.Reply_BackCheck
   //   error out <- Step.Result.Error
   await callWsp2BackCheckSerial(); // BackCheck UUT 3 [Action]
-  if (backCheck == 1) {
+  if (locals.backCheck == 1) {
     station.isBackcheckOk[3] = true; // Set Backcheck OK
   } else {
     station.isBackcheckOk[3] = false; // Set Backcheck NOG
@@ -207,7 +212,7 @@ Future<void> preBatch({bool continueTesting = true, dynamic modelData, dynamic m
   //   ReplyTracMex <- Locals.Reply_BackCheck
   //   error out <- Step.Result.Error
   await callWsp2BackCheckSerial(); // BackCheck UUT 4 [Action]
-  if (backCheck == 1) {
+  if (locals.backCheck == 1) {
     station.isBackcheckOk[4] = true; // Set Backcheck OK
   } else {
     station.isBackcheckOk[4] = false; // Set Backcheck NOG
@@ -224,7 +229,7 @@ Future<void> preBatch({bool continueTesting = true, dynamic modelData, dynamic m
   //   ReplyTracMex <- Locals.Reply_BackCheck
   //   error out <- Step.Result.Error
   await callWsp2BackCheckSerial(); // BackCheck UUT 5 [Action]
-  if (backCheck == 1) {
+  if (locals.backCheck == 1) {
     station.isBackcheckOk[5] = true; // Set Backcheck OK
   } else {
     station.isBackcheckOk[5] = false; // Set Backcheck NOG
@@ -614,12 +619,21 @@ Future<void> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) as
   }
 }
 
+class _LoadVariablesLocals {
+  String filePath = 'C:\\\\Elatch-Bench-Programming\\\\Load_Data\\\\Variables.ini'; // Str
+  List<dynamic> testName = <dynamic>[]; // Strs
+  List<dynamic> numLimits = <dynamic>[]; // Nums
+  List<dynamic> strLimits = <dynamic>[]; // Strs
+  String tempName = ''; // Str
+  String tempStr = ''; // Str
+  int arrayIndex = 0; // Num — default: 0
+  int tempNum = 0; // Num — default: 0
+  int tempLoop = 0; // Num — default: 0
+}
+
 /// Sequence `Load_Variables`.
 Future<void> loadVariables({String variableList = ''}) async {
-  final List<dynamic> testName = <dynamic>[]; // Strs
-  final List<dynamic> strLimits = <dynamic>[]; // Strs
-  const int arrayIndex = 0; // Num — default: 0
-  int tempLoop = 0; // Num — default: 0
+  final locals = _LoadVariablesLocals();
 
   //   FilePath <- Locals.File_Path
   //   OutPutValue <- 1
@@ -630,9 +644,9 @@ Future<void> loadVariables({String variableList = ''}) async {
   //   ValueStr <- Locals.StrLimits
   //   Error Out <- Step.Result.Error
   await callGetLimitsV3(); // ReadFileLimit [Action]
-  for (tempLoop = 0; tempLoop < arrayIndex; tempLoop += 1) {
-    final _ = strLimits[tempLoop] as String; // never read: tempStr // Limits
-    final _ = testName[tempLoop] as String; // never read: tempName // NamesToVariables
+  for (locals.tempLoop = 0; locals.tempLoop < locals.arrayIndex; locals.tempLoop += 1) {
+    locals.tempStr = locals.strLimits[locals.tempLoop] as String; // Limits
+    locals.tempName = locals.testName[locals.tempLoop] as String; // NamesToVariables
     ts.eval('RunState.Main.FileGlobals.SetValString(Locals.Temp_Name,0x1,Locals.Temp_Str)'); // CreateLimits
   }
   // [skipped in source] Message Popup

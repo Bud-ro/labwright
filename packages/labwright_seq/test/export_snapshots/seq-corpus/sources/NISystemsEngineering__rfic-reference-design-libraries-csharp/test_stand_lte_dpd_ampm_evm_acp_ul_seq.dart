@@ -222,9 +222,23 @@ dynamic outputFile; // Ref
 String outputFilePath = ''; // Str
 String outputStream = 'Nothing'; // Str
 
-/// Sequence `MainSequence`.
-Future<void> mainSequence() async {
-  final dynamic currentWaveform = ts.PropObj({
+class _MainSequenceLocals {
+  dynamic currentWaveformConfig = ts.PropObj({
+    'Absolute_Disk_Path': '',
+    'Test_Config': '',
+    'DPD_Enabled': false,
+    'Standard_Config': ts.PropObj({
+      'LinkDirection': 'Downlink',
+      'DuplexScheme': 'Fdd',
+      'UplinkDownlinkConfiguration': 'Configuration0',
+      'Band': 0,
+      'PuschAutoResourceBlockDetectionEnabled': 'False',
+      'AutoDmrsDetectionEnabled': 'False',
+      'DownlinkAutoCellIDDetectionEnabled': 'False',
+      'ComponentCarrierConfigurations': <dynamic>[],
+    }),
+  }); // RFmxLTE_Waveform_Configuration
+  dynamic currentWaveform = ts.PropObj({
     'Name': '',
     'Data': null,
     'SignalBandwidth_Hz': 0,
@@ -238,6 +252,13 @@ Future<void> mainSequence() async {
     'Script': '',
   }); // SG_Waveform
   int waveFormConfigsIdx = 0; // Num — default: 0
+  dynamic currentRFmxLteSignal; // Ref
+  dynamic currentRFmxSpecAnSignal; // Ref
+}
+
+/// Sequence `MainSequence`.
+Future<void> mainSequence() async {
+  final locals = _MainSequenceLocals();
 
   // ── setup ──
   // Files must use an absolute path. This statement expression programmatically stores an absolute path relative to the directory of the example.
@@ -275,9 +296,9 @@ Future<void> mainSequence() async {
   // Load Waveforms and Create Signals
   // status expression: ""
   // label:
-  waveFormConfigsIdx = 0; // Reset Wfm config index
-  for (final _ in ts.iterate(staticStationConfigs.Waveform_Configs)) {
-    // never read: currentWaveformConfig = element;
+  locals.waveFormConfigsIdx = 0; // Reset Wfm config index
+  for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
+    locals.currentWaveformConfig = element;
     // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
     // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS
     //   Return Value <- Locals.Current_Waveform
@@ -307,9 +328,9 @@ Future<void> mainSequence() async {
     ts.notExported(
       'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
     ); // Create SpecAn Signal Configuration [Action]
-    loadedWaveformIndexes[waveFormConfigsIdx] = waveFormConfigsIdx; // Store Loaded Waveforms
-    loadedWaveforms[waveFormConfigsIdx] = currentWaveform; // Store Loaded Waveforms (cont.)
-    waveFormConfigsIdx++; // Store Loaded Waveforms (cont.)
+    loadedWaveformIndexes[locals.waveFormConfigsIdx] = locals.waveFormConfigsIdx; // Store Loaded Waveforms
+    loadedWaveforms[locals.waveFormConfigsIdx] = locals.currentWaveform; // Store Loaded Waveforms (cont.)
+    locals.waveFormConfigsIdx++; // Store Loaded Waveforms (cont.)
   }
 
   // ── main ──
@@ -497,10 +518,14 @@ Future<void> configure() async {
       configurations.Generator.RFSGConfig.DutAverageInputPower_dBm; // Map Input Power
 }
 
+class _MeasureLocals {
+  String currentMeasurement = ''; // Str
+  List<dynamic> measurementNames = <dynamic>['EVM', 'SEM']; // Strs
+}
+
 /// Sequence `Measure`.
 Future<void> measure() async {
-  String currentMeasurement = ''; // Str
-  final List<dynamic> measurementNames = <dynamic>['EVM', 'SEM']; // Strs
+  final locals = _MeasureLocals();
 
   // ── setup ──
   ts.eval(
@@ -533,11 +558,11 @@ Future<void> measure() async {
     // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
     // Map Results: Statement with no expression
   }
-  for (final element in ts.iterate(measurementNames)) {
-    currentMeasurement = element as String;
+  for (final element in ts.iterate(locals.measurementNames)) {
+    locals.currentMeasurement = element as String;
     // Select the appropriate action based on which measurement is selected
     {
-      final select1 = currentMeasurement;
+      final select1 = locals.currentMeasurement;
       var matched1 = false;
       // AMPM Method
       if (!matched1 && select1 == 'AMPM') {

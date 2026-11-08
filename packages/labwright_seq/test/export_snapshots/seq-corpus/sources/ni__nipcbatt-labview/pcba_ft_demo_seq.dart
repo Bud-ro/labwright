@@ -265,8 +265,15 @@ Future<void> otherSequences() async {
   // (no steps in the source sequence)
 }
 
+class _TurnOffAllAoChannelsLocals {
+  dynamic dcVoltageGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  List<dynamic> outputVoltagesV = <dynamic>[]; // Nums — Update the Array based on AO Channels to Turn OFF
+}
+
 /// Sequence `Turn Off all AO Channels`.
 Future<void> turnOffAllAoChannels() async {
+  final locals = _TurnOffAllAoChannelsLocals();
+
   // ── setup ──
   // label: This example resets all configured Analog output channels voltage to 0 Volts
   // label:
@@ -276,12 +283,7 @@ Future<void> turnOffAllAoChannels() async {
   //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
   //   error out <- Step.Result.Error
   await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
-  final _ = <dynamic>[
-    0,
-    0,
-    0,
-    0,
-  ]; // never read: outputVoltagesV // Assign the Output Voltage for all configured AO Channels
+  locals.outputVoltagesV = <dynamic>[0, 0, 0, 0]; // Assign the Output Voltage for all configured AO Channels
 
   // ── main ──
   // Sources DC Voltage at 0V to Analog Ouput channels
@@ -331,15 +333,15 @@ Future<void> sequenceFileLoad() async {
 }
 
 // ── code-module stubs ─────────────────────────────────────────────────────
+/// Stub for the labView module call `Import Hardware Config.vi`
+/// (from step `Import Hardware Configuration`). TODO: implement against the real module.
+Future<Object?> callImportHardwareConfig() async => throw UnimplementedError('labView call: Import Hardware Config.vi');
+
 /// External sequence `Power down supply`
 /// (called from step `Power Down Supply`) — lives in another
 /// sequence file. TODO: implement, or delegate to that file's
 /// exported function.
 Future<Object?> powerDownSupply2() async => throw UnimplementedError('external sequence: Power down supply');
-
-/// Stub for the labView module call `Import Hardware Config.vi`
-/// (from step `Import Hardware Configuration`). TODO: implement against the real module.
-Future<Object?> callImportHardwareConfig() async => throw UnimplementedError('labView call: Import Hardware Config.vi');
 
 /// Stub for the labView module call `Power Supply Source and Measure\DAQ_PS Initialize.vi`
 /// (from step `Power Supply Source and Measure - Initialize Power Supply`). TODO: implement against the real module.
