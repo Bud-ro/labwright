@@ -67,7 +67,7 @@ Future<String> mainSequence() async {
       : 'Failed'; // status expression
   run.record(exitCcWithBrakeResult.Status);
   ts.notExported('step type StopLogging: action not exported yet'); // Stop VS Logging [StopLogging]
-  // never read: tdmsFile = stopVsLoggingResult.Veristand.Location as List<dynamic>; // post-expression
+  final _ = stopVsLoggingResult.Veristand.Location as List<dynamic>; // never read: tdmsFile // post-expression
   stopVsLoggingResult.Status = 'Done';
   run.record(stopVsLoggingResult.Status);
   // failure does NOT fail the sequence
