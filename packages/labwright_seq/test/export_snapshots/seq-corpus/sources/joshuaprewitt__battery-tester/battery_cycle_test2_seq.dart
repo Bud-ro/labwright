@@ -3,10 +3,19 @@ import 'package:labwright/shims.dart' as ts;
 
 double fakeSerialNumber = 28; // Num
 
+class _MainSequenceLocals {
+  int cycle = 0; // Num — default: 0
+  dynamic assets; // Ref
+  int capacity = 2000; // Num
+  int voltage = 0; // Num — default: 0
+  String emailAddress = ''; // Str
+  String amplitude = '10'; // Str
+  String filePath = ''; // Str
+}
+
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
-  int cycle = 0; // Num — default: 0
-
+  final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
   final dynamic addPropertyResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -182,7 +191,7 @@ Future<String> mainSequence() async {
   );
   sendEmailNotificationResult.Status = 'Done';
   run.record(sendEmailNotificationResult.Status);
-  for (cycle = 0; cycle < 500; cycle += 1) {
+  for (locals.cycle = 0; locals.cycle < 500; locals.cycle += 1) {
     // checks: Step.NumericArray
     chargeAndDischargeResult = ts.PropObj({
       'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),

@@ -139,9 +139,9 @@ dynamic outputFile; // Ref
 String outputFilePath = ''; // Str
 String outputStream = 'Nothing'; // Str
 
-/// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final dynamic currentWaveform = ts.PropObj({
+class _MainSequenceLocals {
+  dynamic currentWaveformConfig = ts.PropObj({'Absolute_Disk_Path': '', 'Test_Config': ''}); // Obj
+  dynamic currentWaveform = ts.PropObj({
     'Script': '',
     'Name': '',
     'Data': 0,
@@ -154,8 +154,13 @@ Future<String> mainSequence() async {
     'Idle_Duration_Present_': false,
     'Runtime_Scaling': 0,
   }); // SG_Waveform
+  String currentRFmxSpecAnSignal = ''; // Str
   int waveformConfigsIdx = 0; // Num — default: 0
+}
 
+/// Sequence `MainSequence`.
+Future<String> mainSequence() async {
+  final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
   final dynamic newCsvOutputStreamForTestResultsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -245,9 +250,9 @@ Future<String> mainSequence() async {
     // Load Waveforms and Create Signals
     // status expression: ""
     // label:
-    waveformConfigsIdx = 0; // Reset Wfm config index
-    for (final _ in ts.iterate(staticStationConfigs.Waveform_Configs)) {
-      // never read: currentWaveformConfig = element;
+    locals.waveformConfigsIdx = 0; // Reset Wfm config index
+    for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
+      locals.currentWaveformConfig = element;
       //   TDMS File Path <- Locals.Current_Waveform_Config.Absolute_Disk_Path
       //   Waveform Name (File Name) <- ""
       //   Waveform <- Locals.Current_Waveform
@@ -262,9 +267,9 @@ Future<String> mainSequence() async {
       //   Selector String Out <- Locals.Current_RFmx_SpecAn_Signal
       //   error out <- Step.Result.Error
       await callRFmxSpecAnCreateSignalConfiguration(); // Create SpecAn Signal Configuration [Action]
-      loadedWaveformIndexes[waveformConfigsIdx] = waveformConfigsIdx; // Store Loaded Waveforms
-      loadedWaveforms[waveformConfigsIdx] = currentWaveform; // Store Loaded Waveforms (cont.)
-      waveformConfigsIdx++; // Store Loaded Waveforms (cont.)
+      loadedWaveformIndexes[locals.waveformConfigsIdx] = locals.waveformConfigsIdx; // Store Loaded Waveforms
+      loadedWaveforms[locals.waveformConfigsIdx] = locals.currentWaveform; // Store Loaded Waveforms (cont.)
+      locals.waveformConfigsIdx++; // Store Loaded Waveforms (cont.)
     }
 
     // ── main ──
