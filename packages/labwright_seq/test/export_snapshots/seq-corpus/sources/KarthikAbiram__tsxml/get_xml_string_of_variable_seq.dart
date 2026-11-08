@@ -3,9 +3,11 @@ import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
+  final dynamic mySimpleContainer = ts.PropObj({'MyNum1': 0, 'MyStr1': '', 'EmptyNumArray': <dynamic>[]}); // Obj
+
   final run = ts.SequenceRun();
 
-  // never read: xmlString = mySimpleContainer.GetXML(0, 0) as String; // GetXMLString
+  final _ = mySimpleContainer.GetXML(0, 0) as String; // never read: xmlString // GetXMLString
   // popup title: NameOf(Step)
   // popup message: Locals.XMLString
   // popup buttons: "OK"

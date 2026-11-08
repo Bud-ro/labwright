@@ -127,7 +127,7 @@ Future<String> mainSequence() async {
     // checks: Step.Result.PassFail = Locals.AnalysisResult[0] == 1
     // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
     // Pass Fail Test:MaskA_Analysis.VBS [PassFailTest]: judged by its status expression
-    // never read: testResult = passFailTestMaskAAnalysisVbsResult.PassFail as bool; // post-expression
+    final _ = passFailTestMaskAAnalysisVbsResult.PassFail as bool; // never read: testResult // post-expression
     passFailTestMaskAAnalysisVbsResult.PassFail = passFailTestMaskAAnalysisVbsResult.PassFail =
         analysisResult[0] == 1; // status expression
     passFailTestMaskAAnalysisVbsResult.Status = ts.truthy(passFailTestMaskAAnalysisVbsResult.PassFail)
