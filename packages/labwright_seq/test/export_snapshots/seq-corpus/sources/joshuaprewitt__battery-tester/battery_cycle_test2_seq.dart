@@ -3,16 +3,26 @@ import 'package:labwright/shims.dart' as ts;
 
 double fakeSerialNumber = 28; // Num
 
+class _MainSequenceLocals {
+  int cycle = 0; // Num — default: 0
+  dynamic assets; // Ref
+  int capacity = 2000; // Num
+  int voltage = 0; // Num — default: 0
+  String emailAddress = ''; // Str
+  String amplitude = '10'; // Str
+  String filePath = ''; // Str
+}
+
 /// Sequence `MainSequence`.
 Future<void> mainSequence() async {
-  int cycle = 0; // Num — default: 0
+  final locals = _MainSequenceLocals();
 
   ts.notExported('step type AddProperty: action not exported yet'); // Add Property [AddProperty]
   ts.notExported('step type AddProperty: action not exported yet'); // Add Property [AddProperty]
   ts.notExported('step type AddProperty: action not exported yet'); // Add Property [AddProperty]
   ts.notExported('step type AddProperty: action not exported yet'); // Add Property [AddProperty]
   ts.notExported('step type EmailNotification: action not exported yet'); // Send Email Notification [EmailNotification]
-  for (cycle = 0; cycle < 500; cycle += 1) {
+  for (locals.cycle = 0; locals.cycle < 500; locals.cycle += 1) {
     // checks: Step.NumericArray
     //   Cycle <- Locals.Cycle
     //   Initial Capacity  (mAh) <- Locals.Capacity

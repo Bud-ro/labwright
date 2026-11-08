@@ -36,13 +36,18 @@ Future<void> createCompiledObjectCache({
   }
 }
 
+class _EnableLabViewTcpServerLocals {
+  bool labviewExists = false; // Bool — default: false
+  bool labviewIniExists = false; // Bool — default: false
+  String labviewIniText = ''; // Str
+}
+
 /// Sequence `Enable LabVIEW TCP Server`.
 Future<void> enableLabViewTcpServer({
   dynamic error,
   String labviewDirectory = 'C:\\Program Files (x86)\\National Instruments\\LabVIEW 2018',
 }) async {
-  const bool labviewExists = false; // Bool — default: false
-  const bool labviewIniExists = false; // Bool — default: false
+  final locals = _EnableLabViewTcpServerLocals();
 
   // ── setup ──
   // .NET call: System.IO.File.Exists
@@ -50,7 +55,7 @@ Future<void> enableLabViewTcpServer({
   //   path <- Parameters.LabviewDirectory + @"\LabVIEW.exe"
   ts.notExported('dotNet call: System.IO.File.Exists'); // Check if LabVIEW.exe exists [Action]
   // custom flow: if (True) Goto -> <Cleanup> else Next
-  if (ts.truthy(!labviewExists)) {
+  if (!locals.labviewExists) {
     // precondition of Error
     error.Code = 7; // Error
     ts.eval('\nParameters.Error.Msg = Parameters.LabviewDirectory + @"\\LabVIEW.exe not found."'); // Error (cont.)
@@ -62,7 +67,7 @@ Future<void> enableLabViewTcpServer({
   //   Return Value <- Locals.LabviewIniExists
   //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
   ts.notExported('dotNet call: System.IO.File.Exists'); // Check if LabVIEW.ini exists [Action]
-  if (ts.truthy(labviewIniExists)) {
+  if (locals.labviewIniExists) {
     // .NET call: System.IO.File.ReadAllText
     //   Return Value <- Locals.LabviewIniText
     //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
@@ -88,9 +93,18 @@ Future<void> enableLabViewTcpServer({
   }
 }
 
+class _SequenceFileLoadLocals {
+  List<dynamic> tmpPaths = <dynamic>[]; // Strs
+  bool success = false; // Bool — default: false
+  String labviewProjectPath = ''; // Path
+  String labviewDirectory = 'C:\\Program Files (x86)\\National Instruments\\LabVIEW 2018'; // Path
+  String labviewCliPath = 'C:\\Program Files (x86)\\National Instruments\\Shared\\LabVIEW CLI\\LabVIEWCLI.exe'; // Path
+  int timeout = 30; // Num — sec
+}
+
 /// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
-  const int timeout = 30; // Num — sec
+  final locals = _SequenceFileLoadLocals();
 
   // ── setup ──
   // custom flow: if (Step.Result.ButtonHit == 1) Next else Goto -> <Cleanup>
@@ -107,5 +121,11 @@ Future<void> sequenceFileLoad() async {
 
   // ── main ──
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await createCompiledObjectCache(error: ts.eval('Step.Result.Error'), timeout: timeout); // Open LabVIEW project
+  await createCompiledObjectCache(
+    error: ts.eval('Step.Result.Error'),
+    labviewProjectPath: locals.labviewProjectPath,
+    labviewDirectory: locals.labviewDirectory,
+    labviewCliPath: locals.labviewCliPath,
+    timeout: locals.timeout,
+  ); // Open LabVIEW project
 }

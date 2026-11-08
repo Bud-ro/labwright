@@ -16,10 +16,15 @@ dynamic veristand = ts.PropObj({
   'GatewayIP': '"localhost"',
 }); // Obj
 
+class _MainSequenceLocals {
+  int counter = 0; // Num — default: 0
+  int timesToRun = 500; // Num
+  dynamic veristand2 = ts.PropObj({'VSDialogs': null}); // Obj
+}
+
 /// Sequence `MainSequence`.
 Future<void> mainSequence() async {
-  int counter = 0; // Num — default: 0
-  const int timesToRun = 500; // Num
+  final locals = _MainSequenceLocals();
 
   // ── setup ──
   ts.notExported(
@@ -27,7 +32,7 @@ Future<void> mainSequence() async {
   ); // Initialize VeriStand [InitializeVeriStand]
 
   // ── main ──
-  for (counter = 0; counter < timesToRun; counter += 1) {
+  for (locals.counter = 0; locals.counter < locals.timesToRun; locals.counter += 1) {
     ts.notExported('step type SetChannelValue: action not exported yet'); // Set Channel Value [SetChannelValue]
   }
 }

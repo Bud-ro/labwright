@@ -26,10 +26,16 @@ Future<void> mainSequence() async {
   await callLockTestVi(); // DAQ Test [Action]
 }
 
+class _ProcessSetupLocals {
+  String instrument = ''; // Str
+}
+
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
 Future<void> processSetup() async {
-  for (final _ in ts.iterate(instrumentList)) {
-    // never read: instrument = element as String;
+  final locals = _ProcessSetupLocals();
+
+  for (final element in ts.iterate(instrumentList)) {
+    locals.instrument = element as String;
     // sync object: "*"+Locals.Instrument, operation code 0, lifetime code 3
     ts.notExported('step type NI_Lock: action not exported yet'); // Lock [NI_Lock]
   }

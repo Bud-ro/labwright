@@ -142,8 +142,29 @@ dynamic outputFile; // Ref
 String outputFilePath = ''; // Str
 String outputStream = 'Nothing'; // Str
 
+class _MainSequenceLocals {
+  dynamic currentWaveformConfig = ts.PropObj({'Test_Config': '', 'Absolute_Disk_Path': ''}); // Obj
+  dynamic currentWaveform = ts.PropObj({
+    'Name': '',
+    'Data': null,
+    'SignalBandwidth_Hz': 0,
+    'PAPR_dB': 0,
+    'BurstLength_s': 0,
+    'SampleRate': 0,
+    'BurstStartLocations': <dynamic>[],
+    'BurstStopLocations': <dynamic>[],
+    'IdleDurationPresent': false,
+    'RuntimeScaling': 0,
+    'Script': '',
+  }); // SG_Waveform
+  dynamic currentRFmxSpecAnSignal; // Ref
+  int waveFormConfigsIdx = 0; // Num — default: 0
+}
+
 /// Sequence `MainSequence`.
 Future<void> mainSequence() async {
+  final locals = _MainSequenceLocals();
+
   // ── setup ──
   // Files must use an absolute path. This statement expression programmatically stores an absolute path relative to the directory of the example.
   ts.eval(
@@ -192,9 +213,9 @@ Future<void> mainSequence() async {
   // Load Waveforms and Create Signals
   // status expression: ""
   // label:
-  // never read: waveFormConfigsIdx=0; // Reset Wfm config index
-  for (final _ in ts.iterate(staticStationConfigs.Waveform_Configs)) {
-    // never read: currentWaveformConfig = element;
+  locals.waveFormConfigsIdx = 0; // Reset Wfm config index
+  for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
+    locals.currentWaveformConfig = element;
     // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
     // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS
     //   Return Value <- Locals.Current_Waveform
