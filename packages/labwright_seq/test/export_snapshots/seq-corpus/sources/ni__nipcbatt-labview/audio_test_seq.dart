@@ -189,8 +189,14 @@ Future<String> reusableSequences() async {
   return run.status;
 }
 
+class _TurnOffAllAoChannelsLocals {
+  dynamic dcVoltageGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  List<dynamic> outputVoltagesV = <dynamic>[]; // Nums — Update the Array based on AO Channels to Turn OFF
+}
+
 /// Sequence `Turn Off all AO Channels`.
 Future<String> turnOffAllAoChannels() async {
+  final locals = _TurnOffAllAoChannelsLocals();
   final run = ts.SequenceRun();
 
   try {
@@ -203,12 +209,7 @@ Future<String> turnOffAllAoChannels() async {
     //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
     //   error out <- Step.Result.Error
     await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
-    final _ = <dynamic>[
-      0,
-      0,
-      0,
-      0,
-    ]; // never read: outputVoltagesV // Assign the Output Voltage for all configured AO Channels
+    locals.outputVoltagesV = <dynamic>[0, 0, 0, 0]; // Assign the Output Voltage for all configured AO Channels
 
     // ── main ──
     // Sources DC Voltage at 0V to Analog Ouput channels

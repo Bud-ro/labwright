@@ -209,8 +209,7 @@ dynamic outputFile; // Ref
 String outputFilePath = ''; // Str
 String outputStream = 'Nothing'; // Str
 
-/// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+class _MainSequenceLocals {
   dynamic currentWaveformConfig = ts.PropObj({
     'Absolute_Disk_Path': '',
     'Test_Config': '',
@@ -226,7 +225,8 @@ Future<String> mainSequence() async {
       'Component_Carrier_Configurations': <dynamic>[],
     }),
   }); // LTE_Waveform_Configuration
-  final dynamic currentWaveform = ts.PropObj({
+  String currentRFmx5GnrSignal = 'Nothing'; // Str
+  dynamic currentWaveform = ts.PropObj({
     'Script': '',
     'Name': '',
     'Data': 0,
@@ -239,8 +239,13 @@ Future<String> mainSequence() async {
     'Idle_Duration_Present_': false,
     'Runtime_Scaling': 0,
   }); // SG_Waveform
+  String currentRFmxSpecAnSignal = ''; // Str
   int waveformConfigsIdx = 0; // Num — default: 0
+}
 
+/// Sequence `MainSequence`.
+Future<String> mainSequence() async {
+  final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
   dynamic applyConfigurationsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -290,16 +295,16 @@ Future<String> mainSequence() async {
     // Load Waveforms and Create Signals
     // status expression: ""
     // label:
-    waveformConfigsIdx = 0; // Reset Wfm config index
+    locals.waveformConfigsIdx = 0; // Reset Wfm config index
     for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
-      currentWaveformConfig = element;
+      locals.currentWaveformConfig = element;
       //   TDMS File Path <- Locals.Current_Waveform_Config.Absolute_Disk_Path
       //   Waveform Name (File Name) <- ""
       //   Waveform <- Locals.Current_Waveform
       //   error out <- Step.Result.Error
       await callLoadWaveformFromTdms(); // Load Waveform from TDMS [Action]
       configurations.Analyzer.LTE_Signal_Config =
-          currentWaveformConfig.LTE_Signal_Configuration; // Map Loaded Parameters
+          locals.currentWaveformConfig.LTE_Signal_Configuration; // Map Loaded Parameters
       //   RFSG handle <- FileGlobals.Device_Handles.RFSG
       //   Waveform In <- Locals.Current_Waveform
       //   error out <- Step.Result.Error
@@ -319,9 +324,9 @@ Future<String> mainSequence() async {
       //   LTE Standard Configuration <- FileGlobals.Configurations.Analyzer.LTE_Signal_Config
       //   error out <- Step.Result.Error
       await callLteConfigureStandard(); // LTE Signal Config [Action]
-      loadedWaveformIndexes[waveformConfigsIdx] = waveformConfigsIdx; // Store Loaded Waveforms
-      loadedWaveforms[waveformConfigsIdx] = currentWaveform; // Store Loaded Waveforms (cont.)
-      waveformConfigsIdx++; // Store Loaded Waveforms (cont.)
+      loadedWaveformIndexes[locals.waveformConfigsIdx] = locals.waveformConfigsIdx; // Store Loaded Waveforms
+      loadedWaveforms[locals.waveformConfigsIdx] = locals.currentWaveform; // Store Loaded Waveforms (cont.)
+      locals.waveformConfigsIdx++; // Store Loaded Waveforms (cont.)
     }
 
     // ── main ──
@@ -500,11 +505,14 @@ Future<String> configure() async {
   return run.status;
 }
 
+class _MeasureLocals {
+  String currentMeasurement = ''; // Str
+  List<dynamic> measurementNames = <dynamic>['EVM', 'SEM']; // Strs
+}
+
 /// Sequence `Measure`.
 Future<String> measure() async {
-  String currentMeasurement = ''; // Str
-  final List<dynamic> measurementNames = <dynamic>['EVM', 'SEM']; // Strs
-
+  final locals = _MeasureLocals();
   final run = ts.SequenceRun();
 
   try {
@@ -532,11 +540,11 @@ Future<String> measure() async {
       //   error out <- Step.Result.Error
       await callPerformMemoryPolynomial(); // DPD Perform Memory Polynomial [Action]
     }
-    for (final element in ts.iterate(measurementNames)) {
-      currentMeasurement = element as String;
+    for (final element in ts.iterate(locals.measurementNames)) {
+      locals.currentMeasurement = element as String;
       // Select the appropriate action based on which measurement is selected
       {
-        final select1 = currentMeasurement;
+        final select1 = locals.currentMeasurement;
         var matched1 = false;
         // AMPM Method
         if (!matched1 && select1 == 'AMPM') {
