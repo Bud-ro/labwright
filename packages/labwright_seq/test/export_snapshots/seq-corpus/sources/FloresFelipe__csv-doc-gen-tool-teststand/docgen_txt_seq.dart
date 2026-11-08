@@ -417,7 +417,10 @@ Future<String> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dynamic
   // label: --- End Locals ---
   // label: --- Step Doc ---
   ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
-  // never read: totalNumSteps = ts.getNumElements(sequence.Setup) + ts.getNumElements(sequence.Main) + ts.getNumElements(sequence.Cleanup); // CalcNumSteps
+  final _ =
+      ts.getNumElements(sequence.Setup) +
+      ts.getNumElements(sequence.Main) +
+      ts.getNumElements(sequence.Cleanup); // never read: totalNumSteps // CalcNumSteps
   if (ts.getNumElements(sequence.Setup) > 0) {
     // precondition of Setup Steps Header
     docResultRef.value +=
@@ -691,6 +694,7 @@ Future<String> writeSubproperties({
 }) async {
   const int numSubproperties = 0; // Num — default: 0
   int i = 0; // Num — default: 0
+  const String subpropName = ''; // Str
   bool isHidden = false; // Bool — default: false
   const int subpropFlags = 0; // Num — default: 0
 
@@ -726,7 +730,7 @@ Future<String> writeSubproperties({
       //   index <- Locals.i
       //   options <- 0
       ts.notExported('cModule call: GetSubPropName'); // GetSubPropName [Action]
-      // never read: parentPropLookupStr != '' ? (subpropLookupStr = '$parentPropLookupStr.$subpropName') : (subpropLookupStr = subpropName); // BuildNewLookupStr
+      parentPropLookupStr != '' ? '$parentPropLookupStr.$subpropName' : subpropName; // BuildNewLookupStr
       //   Return Value -> Locals.SubpropFlags
       //   lookupString <- Locals.SubpropLookupStr
       //   options <- 0

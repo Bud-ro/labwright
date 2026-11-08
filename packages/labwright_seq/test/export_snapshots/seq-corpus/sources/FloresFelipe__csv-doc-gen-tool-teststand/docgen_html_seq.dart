@@ -756,6 +756,7 @@ Future<String> writeSubproperties({
 }) async {
   const int numSubproperties = 0; // Num — default: 0
   int i = 0; // Num — default: 0
+  const String subpropName = ''; // Str
   bool isHidden = false; // Bool — default: false
   const int subpropFlags = 0; // Num — default: 0
 
@@ -791,7 +792,7 @@ Future<String> writeSubproperties({
       //   index <- Locals.i
       //   options <- 0
       ts.notExported('cModule call: GetSubPropName'); // GetSubPropName [Action]
-      // never read: parentPropLookupStr != '' ? (subpropLookupStr = '$parentPropLookupStr.$subpropName') : (subpropLookupStr = subpropName); // BuildNewLookupStr
+      parentPropLookupStr != '' ? '$parentPropLookupStr.$subpropName' : subpropName; // BuildNewLookupStr
       //   Return Value -> Locals.SubpropFlags
       //   lookupString <- Locals.SubpropLookupStr
       //   options <- 0

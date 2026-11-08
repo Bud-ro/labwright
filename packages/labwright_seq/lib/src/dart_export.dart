@@ -567,6 +567,8 @@ typedef _ResolvedCall = ({String fn, _SeqScope scope});
 
 typedef _Param = ({String id, _DartSlot type, String? init, bool boxed});
 
+typedef _CallArgs = ({String text, List<String> before, List<String> after});
+
 class _SeqScope {
   _SeqScope({
     required this.emittedParams,
@@ -1012,7 +1014,15 @@ enum _ModuleFreeStepType {
 
 typedef _JumpBlock = ({int open, int close, String header, String? footer});
 
-typedef _OpenBlock = ({FlowKind kind, String? increment, String? condition, int selectId, String? label, int closers});
+typedef _OpenBlock = ({
+  FlowKind kind,
+  String? increment,
+  String? condition,
+  int selectId,
+  String? label,
+  int closers,
+  int labelAt,
+});
 
 _OpenBlock _openBlock(
   FlowKind kind, {
@@ -1021,7 +1031,16 @@ _OpenBlock _openBlock(
   int selectId = 0,
   String? label,
   int closers = 1,
-}) => (kind: kind, increment: increment, condition: condition, selectId: selectId, label: label, closers: closers);
+  int labelAt = -1,
+}) => (
+  kind: kind,
+  increment: increment,
+  condition: condition,
+  selectId: selectId,
+  label: label,
+  closers: closers,
+  labelAt: labelAt,
+);
 
 class _DartExporter {
   _DartExporter(
@@ -1076,6 +1095,12 @@ class _DartExporter {
   }
 
   void _writeBack(String statement) => _line(_unread(statement) ? '// never read: $statement' : statement);
+
+  void _dropUnusedLabel(int at, String label) {
+    final text = _out.toString();
+    if (text.contains('break $label;', at) || text.contains('continue $label;', at)) return;
+    _out = StringBuffer(text.replaceFirst('$label: ', '', at));
+  }
 
   void _line(String text) => _out.writeln(text.isEmpty ? '' : '${'  ' * _indent}$text');
 
@@ -1400,6 +1425,12 @@ class _DartExporter {
 
   static final _literalCode = RegExp(r"^(?:true|false|null|-?\d+(?:\.\d+)?|'(?:[^'\\]|\\.)*')$");
 
+  _Code? _elementTarget(String? element) {
+    final parsed = element == null ? null : parseSeqExpression(element);
+    final target = parsed == null ? null : _emitTarget(parsed);
+    return target == null || target.type == _DartSlot.absent || target.type == _DartSlot.opaque ? null : target;
+  }
+
   _Code? _emitTarget(SeqExpr e) => switch (e) {
     SeqMember() || SeqIndex() => _emit(e),
     _ => null,
@@ -1507,6 +1538,7 @@ class _DartExporter {
         final t = _emitTarget(target);
         final v = _emit(value);
         if (t == null || v == null) return null;
+        if (!identical(e, _statementRoot) && _writeOnly.contains(t.code)) return v;
         final binary = op.binary;
         if (binary == null) {
           final coerced = _coerce(v, t.type);
@@ -1609,7 +1641,8 @@ class _DartExporter {
           _Prec.relational,
         );
       case SeqBinaryOp.add:
-        if (l.type == _DartSlot.text && (r.type == _DartSlot.text || r.type == _DartSlot.untyped)) {
+        if ((l.type == _DartSlot.text && (r.type == _DartSlot.text || r.type == _DartSlot.untyped)) ||
+            (l.type == _DartSlot.untyped && _isStringCode(r))) {
           final interpolation = _interpolated(l, r);
           return interpolation != null
               ? out(interpolation, _DartSlot.text, _Prec.primary)
@@ -1769,43 +1802,13 @@ class _DartExporter {
     }
     if (preamble) _line('');
     _asyncId = sequence.steps.any(_startsThread) ? _claimId('threads') : null;
-    final outer = _out;
-    final usedIds = {..._usedIds};
     final locals = {for (final local in emittedLocals) _localIds[local.name]!: local};
     final results = {for (final step in sequence.steps) ?_resultVars[step.raw]: step};
-    _constLocals = const {};
-    _writeOnly = const {};
-    _usedLabels = const {};
-    var (body, assigned, read) = ('', <String>{}, <String>{});
-    while (true) {
-      _usedIds = {...usedIds};
-      _out = StringBuffer();
-      _emitBody(sequence);
-      body = _out.toString();
-      (assigned, read) = _accesses(body);
-      final labels = {for (final m in _labelJump.allMatches(body)) m[1]!};
-      final writeOnly = {
-        ..._writeOnly,
-        for (final id in [...locals.keys, ...results.keys])
-          if (assigned.contains(id) && !read.contains(id)) id,
-      };
-      final constLocals = {
-        for (final MapEntry(key: id, value: local) in locals.entries)
-          if (!assigned.contains(id))
-            if (_constInit(local) case final init?) id: init,
-      };
-      final stable =
-          writeOnly.length == _writeOnly.length &&
-          labels.length == _usedLabels.length &&
-          labels.containsAll(_usedLabels) &&
-          constLocals.length == _constLocals.length &&
-          constLocals.entries.every((e) => _constLocals[e.key] == e.value);
-      _writeOnly = writeOnly;
-      _constLocals = constLocals;
-      _usedLabels = labels;
-      if (stable) break;
-    }
-    _out = outer;
+    final (assigned, read) = _scanLocals(sequence, locals);
+    _writeOnly = {
+      for (final id in locals.keys)
+        if (assigned.contains(id) && !read.contains(id)) id,
+    };
     for (final MapEntry(key: box, value: line) in boxes.entries) {
       if (read.contains(box)) _line(line);
     }
@@ -1816,14 +1819,12 @@ class _DartExporter {
     _line('final $_runId = ts.SequenceRun();');
     if (_asyncId != null) _line('final $_asyncId = ts.AsyncCalls();');
     for (final MapEntry(key: id, value: step) in results.entries) {
-      if (read.contains(id)) {
-        _line(
-          '${assigned.contains(id) ? '' : 'final '}dynamic $id = ${_resultInit(step)}; // result of ${_comment(step.name)}',
-        );
-      }
+      _line(
+        '${assigned.contains(id) ? '' : 'final '}dynamic $id = ${_resultInit(step)}; // result of ${_comment(step.name)}',
+      );
     }
     _line('');
-    _out.write(body);
+    _emitBody(sequence);
     if (_asyncId != null) _line('await $_asyncId.waitAtEnd();');
     _asyncId = null;
     _line('return $_runId.status;');
@@ -1840,8 +1841,124 @@ class _DartExporter {
 
   Map<String, String> _constLocals = const {};
   Set<String> _writeOnly = const {};
-  Set<String> _usedLabels = const {};
-  static final _labelJump = RegExp(r'\b(?:break|continue) ([A-Za-z_$][\w$]*);');
+
+  (Set<String>, Set<String>) _scanLocals(Sequence sequence, Map<String, SeqVariable> locals) {
+    _constLocals = const {};
+    _writeOnly = const {};
+    final code = StringBuffer();
+    final calls = <Step>[];
+    final reinitialized = <String>{};
+    void statements(String? raw) => raw == null ? null : _stmtParts(raw).forEach(code.writeln);
+    const loops = {FlowKind.whileLoop, FlowKind.doWhile, FlowKind.forLoop, FlowKind.forEach, FlowKind.sweepLoop};
+    final usedIds = {..._usedIds};
+    final targetsCleanup = sequence.steps.any((s) => s.settings.isNormalMode && _targetsCleanup(s));
+    for (final group in StepGroup.values) {
+      final open = <FlowKind>[];
+      _group = group;
+      _gotoLabels = _gotoPlan(sequence.stepsIn(group)).sites;
+      _bodyLabel = group != StepGroup.cleanup && (sequence.cleanup.isNotEmpty || targetsCleanup) ? 'body' : null;
+      for (final step in sequence.stepsIn(group)) {
+        final flow = step.flowControl;
+        final structural = flow != null && flow.kind != FlowKind.breakStmt && flow.kind != FlowKind.continueStmt;
+        if (!step.settings.isNormalMode && !structural) continue;
+        final precondition = step.settings.precondition ?? _typePreconditions[step.type];
+        switch (flow?.kind) {
+          case FlowKind.ifBlock || FlowKind.elseIf || FlowKind.whileLoop || FlowKind.doWhile:
+            code.writeln(_cond(flow!.condition ?? 'true'));
+          case FlowKind.forLoop:
+            statements(flow!.initialization);
+            statements(flow.increment);
+            code.writeln(_cond(flow.condition ?? 'true'));
+          case FlowKind.forEach:
+            code.writeln(_expr(flow!.arrayExpr ?? '[]'));
+            if (_elementTarget(flow.arrayElement) case final target?) code.writeln('${target.code} = element;');
+          case FlowKind.selectBlock || FlowKind.caseBlock:
+            code.writeln(_expr(flow!.itemExpression ?? 'null'));
+          case FlowKind.breakStmt || FlowKind.continueStmt:
+            if (precondition != null) code.writeln(_cond(precondition));
+          case FlowKind.sweepLoop:
+            for (final parameter in [...?_sweepLevels(step.sweepLoop!)?.expand((level) => level)]) {
+              code
+                ..writeln(parameter.values)
+                ..writeln(parameter.bind('value'));
+            }
+          case null:
+            final result = _resultVars[step.raw];
+            final looping = step.settings.isLooping && result != null;
+            if (result != null && (looping || open.any(loops.contains))) reinitialized.add(result);
+            _foldStep = step;
+            _foldResult = result;
+            if (precondition != null) code.writeln(_cond(precondition));
+            if (looping) {
+              _stepLoop = 'loop';
+              statements(step.settings.loopInitialize);
+              code.writeln(_cond(step.settings.loopWhile ?? 'true'));
+              statements(step.settings.loopIncrement);
+              if (step.settings.loopStatus case final status?) code.writeln(_expr(status));
+            }
+            statements(step.settings.preExpression);
+            statements(step.settings.postExpression);
+            final timeout = step.timeoutExpression ?? step.waitTimeExpression;
+            if (step.stepType == StepType.wait && timeout != null && num.tryParse(timeout.trim()) == null) {
+              code.writeln(_expr(timeout));
+            }
+            if (_statusExpression(step) case final status? when result != null) {
+              final pieces = _rawStmtPieces(status) ?? [status];
+              pieces.take(pieces.length - 1).forEach(statements);
+              code.writeln(_expr(pieces.last));
+            }
+            if (step.type == _messagePopupType && _hostedPhases(step).contains(_SubstepKind.post)) {
+              for (final raw in [
+                step.popupTitleExpression,
+                step.popupMessageExpression,
+                step.popupDefaultResponseExpression,
+                for (var i = 1; i <= _popupButtonCount; i++) step.raw.prop('Button${i}Label')?.scalar,
+              ].nonNulls) {
+                code.writeln(_expr(raw));
+              }
+            }
+            final custom = step.settings.customExpression;
+            final actions = [
+              for (final (action, target) in _postActions(step.settings)) _postActionCode(step, action, target),
+            ];
+            if (custom != null && !actions.contains(null) && actions.any((a) => a != '')) {
+              code.writeln(_condition(custom));
+            }
+            _stepLoop = null;
+            _foldStep = null;
+            _foldResult = null;
+            if (step.module.adapter == SeqAdapter.sequenceCall) calls.add(step);
+          default:
+        }
+        switch (flow?.kind) {
+          case FlowKind.end when open.isNotEmpty:
+            open.removeLast();
+          case final kind? when kind == FlowKind.ifBlock || kind == FlowKind.selectBlock || loops.contains(kind):
+            open.add(kind);
+          case FlowKind.caseBlock when open.contains(FlowKind.selectBlock):
+            open.add(FlowKind.caseBlock);
+          default:
+        }
+      }
+    }
+    _gotoLabels = Map.identity();
+    _bodyLabel = null;
+    for (final step in calls) {
+      _sequenceCall(step).args.after.forEach(code.writeln);
+    }
+    final (assigned, read) = _accesses(code.toString());
+    _constLocals = {
+      for (final MapEntry(key: id, value: local) in locals.entries)
+        if (!assigned.contains(id))
+          if (_constInit(local) case final init?) id: init,
+    };
+    for (final step in calls) {
+      final args = _sequenceCall(step).args;
+      read.addAll(_accesses([args.text, ...args.before].join('\n')).$2);
+    }
+    _usedIds = usedIds;
+    return (assigned..addAll(reinitialized), read);
+  }
 
   bool _isNullLocal(SeqVariable local) {
     final cls = local.raw.valueClass;
@@ -1872,9 +1989,9 @@ class _DartExporter {
     _cleanupEntriesOf = _bodyLabel != null && cleanup.isNotEmpty ? _cleanupEntries(sequence) : const {};
     _cleanupFrom = _cleanupEntriesOf.isEmpty ? null : _claimId('cleanupFrom');
     if (_cleanupFrom != null) _line('var $_cleanupFrom = 0;');
+    final bodyAt = _out.length + 2 * _indent;
     if (_bodyLabel != null) {
-      final label = _usedLabels.contains(_bodyLabel) ? '$_bodyLabel: ' : '';
-      _line(cleanup.isNotEmpty ? '${label}try {' : '$label{');
+      _line(cleanup.isNotEmpty ? '$_bodyLabel: try {' : '$_bodyLabel: {');
       _indent++;
     }
     for (final group in bodyGroups) {
@@ -1898,6 +2015,7 @@ class _DartExporter {
       }
       _line('');
     }
+    if (_bodyLabel != null) _dropUnusedLabel(bodyAt, _bodyLabel!);
     _bodyLabel = null;
     _cleanupFrom = null;
     _cleanupEntriesOf = const {};
@@ -1952,7 +2070,7 @@ class _DartExporter {
 
   static final _identifier = RegExp(r'(?<![\w$.])[A-Za-z_$][\w$]*(?![\w$])');
   static final _assignedAfter = RegExp(r'\s*(?:[-+*/%~]?=(?!=)|\?\?=|\+\+|--)');
-  static final _assignedBefore = RegExp(r'(?:\+\+|--)\s*$');
+  static final _assignedBefore = RegExp(r'(?:\+\+|--)$');
   static final _label = RegExp(r'\s*:');
 
   static final _identifierStart = RegExp(r'[A-Za-z_]\w*');
@@ -2017,6 +2135,17 @@ class _DartExporter {
     return (assigned, read);
   }
 
+  static final _assignTarget = RegExp(r'^([A-Za-z_$][\w$]*)\s*(?:[-+*/%~]?=(?!=)|\?\?=|\+\+|--)');
+
+  String _unreadLine(String statement) {
+    final m = _assignTarget.firstMatch(statement);
+    final rhs = m == null ? '' : statement.substring(m.end).trim();
+    if (rhs.isEmpty || _accesses(rhs).$2.difference(const {'true', 'false', 'null'}).isEmpty) {
+      return '// never read: $statement;';
+    }
+    return '${_constantCondition(rhs) ? 'const' : 'final'} _ = $rhs; // never read: ${m![1]}';
+  }
+
   bool _unread(String statement) {
     final code = _codeOnly(statement);
     return _writeOnly.any(
@@ -2062,6 +2191,7 @@ class _DartExporter {
     }
 
     void closeBlock(_OpenBlock opened, {String note = ''}) {
+      if (opened.labelAt >= 0) _dropUnusedLabel(opened.labelAt, opened.label ?? 'sel${opened.selectId}');
       if (opened.kind == FlowKind.forLoop && opened.increment != null) {
         _line('${_exprStatement(opened.increment!)}; // for increment');
       }
@@ -2179,7 +2309,7 @@ class _DartExporter {
             if (incrDart != null && _unread(incrDart)) incrDart,
           ];
           if (unread.isNotEmpty) {
-            _line('// never read: ${unread.join('; ')}');
+            unread.map(_unreadLine).forEach(_line);
             if (initDart != null && _unread(initDart)) initDart = null;
             if (incrDart != null && _unread(incrDart)) incrDart = null;
           }
@@ -2209,10 +2339,9 @@ class _DartExporter {
           final array = flow.arrayExpr ?? '[]';
           final loopVar = _claimId('element');
           final element = flow.arrayElement;
-          final parsed = element == null ? null : parseSeqExpression(element);
-          final target = parsed == null ? null : _emitTarget(parsed);
+          final target = _elementTarget(element);
           String? bind;
-          if (target != null && target.type != _DartSlot.absent && target.type != _DartSlot.opaque) {
+          if (target != null) {
             final cast = switch (target.type) {
               _DartSlot.number => '($loopVar as num).toDouble()',
               _DartSlot.integer => '($loopVar as num).toInt()',
@@ -2241,16 +2370,15 @@ class _DartExporter {
             value: _claimId('select$selectCounter'),
             matched: _claimId('matched$selectCounter'),
           );
-          _line(
-            '${_usedLabels.contains('sel$selectCounter') ? 'sel$selectCounter: ' : ''}{$nameNote',
-          );
+          final labelAt = _out.length + 2 * _indent;
+          _line('sel$selectCounter: {$nameNote');
           _indent++;
           _line(
             '${_isConstant(_expr(flow.itemExpression ?? 'null')) ? 'const' : 'final'} ${selectVars[selectCounter]!.value} = '
             '${_expr(flow.itemExpression ?? 'null')};',
           );
           _line('var ${selectVars[selectCounter]!.matched} = false;');
-          open.add(_openBlock(flow.kind, selectId: selectCounter));
+          open.add(_openBlock(flow.kind, selectId: selectCounter, labelAt: labelAt));
         case FlowKind.caseBlock:
           final select = innermost((k) => k == FlowKind.selectBlock)?.selectId ?? 0;
           if (select == 0) {
@@ -2281,6 +2409,7 @@ class _DartExporter {
             open.add(_openBlock(flow.kind));
           } else {
             final label = _claimId('sweep');
+            final labelAt = _out.length + 2 * _indent;
             for (final (depth, level) in levels.indexed) {
               final value = _claimId('value');
               final source = level.length == 1
@@ -2291,7 +2420,7 @@ class _DartExporter {
                   parameter.bind(level.length == 1 ? value : '$value[$column]'),
               ];
               _line(
-                '${depth == 0 && _usedLabels.contains(label) ? '$label: ' : ''}'
+                '${depth == 0 ? '$label: ' : ''}'
                 'for (final ${binds.every(_unread) ? '_' : value} in $source) {${depth == 0 ? nameNote : ''}',
               );
               _indent++;
@@ -2299,7 +2428,7 @@ class _DartExporter {
                 _line(_unread(bind) ? '// never read: $bind' : bind);
               }
             }
-            open.add(_openBlock(flow.kind, label: label, closers: levels.length));
+            open.add(_openBlock(flow.kind, label: label, closers: levels.length, labelAt: labelAt));
           }
         case FlowKind.end:
           if (open.isEmpty) {
@@ -2636,9 +2765,13 @@ class _DartExporter {
   String _exprStatement(String raw) {
     if (_stripComments(raw).trim().isEmpty) return "''";
     final parsed = parseSeqExpression(raw);
+    _statementRoot = parsed;
     final code = parsed == null || parsed is SeqSequence ? null : _emit(parsed)?.code;
+    _statementRoot = null;
     return code == null ? _evalFallback(raw) : _typed(code, raw);
   }
+
+  SeqExpr? _statementRoot;
 
   List<String> _stmtParts(String raw) {
     final pieces = _rawStmtPieces(raw);
@@ -2657,7 +2790,7 @@ class _DartExporter {
     ];
     for (var i = 0; i < parts.length; i++) {
       final suffix = note.isEmpty ? '' : (i == 0 ? ' // $note' : ' // $note (cont.)');
-      _line('${_unread(parts[i]) ? '// never read: ' : ''}${parts[i]};$suffix');
+      _line('${_unread(parts[i]) ? _unreadLine(parts[i]) : '${parts[i]};'}$suffix');
     }
     return parts.isNotEmpty;
   }
@@ -2979,7 +3112,9 @@ class _DartExporter {
     }
     final vars = Map<SeqProperty, String>.identity();
     for (final step in steps) {
-      if (tracked.contains(step.raw)) vars[step.raw] = _claimId('${dartIdentifier(step.name)}Result');
+      if (tracked.contains(step.raw) && step.flowControl == null && step.settings.isNormalMode) {
+        vars[step.raw] = _claimId('${dartIdentifier(step.name)}Result');
+      }
     }
     return vars;
   }
@@ -3037,7 +3172,6 @@ class _DartExporter {
 
     switch (module.adapter) {
       case SeqAdapter.sequenceCall:
-        final target = module.sequenceName;
         final spawns = switch (module.threadOptionCode) {
           1 => 'a new thread',
           2 => 'a new execution',
@@ -3051,33 +3185,14 @@ class _DartExporter {
             '// sequence call executes on remote host ${_comment(module.remoteHost ?? module.remoteHostExpression ?? '?')}',
           );
         }
-        final inFileFn = module.resolvesLocalCall(ownFilePath: sourceName) && target != null
-            ? _sequenceFnNames[target]
-            : null;
-        if (inFileFn != null) {
-          final scope = _scopeByName[target]!;
-          final args = _renderCallArgs(module, _scopeParamTable(scope));
-          args.before.forEach(_line);
-          _line(_sequenceCallLine(step, '$inFileFn(${args.text})', name));
-          args.after.forEach(_writeBack);
-        } else {
-          final resolved = resolveExternalCall?.call(module);
-          if (resolved != null) {
-            final args = _renderCallArgs(module, _scopeParamTable(resolved.scope));
-            args.before.forEach(_line);
-            _line(_sequenceCallLine(step, '${resolved.fn}(${args.text})', '$name: external sequence'));
-            args.after.forEach(_writeBack);
-          } else {
-            final stub = _stubFor(step, module);
-            final argsText = module.specifiesByExpression == true
-                ? ''
-                : _renderCallArgs(module, stub.paramTableFor(module)).text;
-            _line(
-              'await ${stub.name}($argsText); // $name: '
-              'external sequence call',
-            );
-          }
-        }
+        final call = _sequenceCall(step);
+        call.args.before.forEach(_line);
+        _line(
+          call.stub
+              ? 'await ${call.callee}(${call.args.text}); // $name${call.note}'
+              : _sequenceCallLine(step, '${call.callee}(${call.args.text})', '$name${call.note}'),
+        );
+        call.args.after.forEach(_writeBack);
       case SeqAdapter.labView:
         _emitModuleNotes(module);
         _line(
@@ -3191,6 +3306,36 @@ class _DartExporter {
         ].any((s) => s.typeName == 'PreSubstep' || s.typeName == 'PostSubstep');
   }
 
+  ({String callee, _CallArgs args, String note, bool stub}) _sequenceCall(Step step) {
+    final module = step.module;
+    final target = module.sequenceName;
+    final inFileFn = module.resolvesLocalCall(ownFilePath: sourceName) && target != null
+        ? _sequenceFnNames[target]
+        : null;
+    if (inFileFn != null) {
+      return (
+        callee: inFileFn,
+        args: _renderCallArgs(module, _scopeParamTable(_scopeByName[target]!)),
+        note: '',
+        stub: false,
+      );
+    }
+    final resolved = resolveExternalCall?.call(module);
+    if (resolved != null) {
+      return (
+        callee: resolved.fn,
+        args: _renderCallArgs(module, _scopeParamTable(resolved.scope)),
+        note: ': external sequence',
+        stub: false,
+      );
+    }
+    final stub = _stubFor(step, module);
+    final args = module.specifiesByExpression == true
+        ? (text: '', before: const <String>[], after: const <String>[])
+        : _renderCallArgs(module, stub.paramTableFor(module));
+    return (callee: stub.name, args: args, note: ': external sequence call', stub: true);
+  }
+
   void _throwLine(Step step, String kind, String target) {
     _line(
       "ts.notExported('${_escape('$kind: $target')}'); "
@@ -3288,7 +3433,7 @@ class _DartExporter {
 
   static bool _quoted(String s) => RegExp(r'''^(?:'[^'"\\$]*'|"[^'"\\$]*")$''').hasMatch(s);
 
-  ({String text, List<String> before, List<String> after}) _renderCallArgs(
+  _CallArgs _renderCallArgs(
     StepModule module,
     Map<String, _Param> params,
   ) {
