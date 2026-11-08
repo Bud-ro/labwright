@@ -29,6 +29,8 @@ The RSRC reader and TestStand readers are most pressing here.
 - **No Hacks:** probe the FULL corpus before any factual claim
   about a format; mark undecoded byte ranges explicitly with TODOs to revisit; 
   never fabricate data; never overclaim ("not yet recovered/decoded", never "unrecoverable").
+- When semantics of LabVIEW or TestStand are unknown, you can refer to one of the
+  user manuals (in .claude, ask a user to download them if not there).
 - **Commits:** commit ONLY your own files, by **explicit path**. Never
   `git add -A`/`-u`. Put `git commit` on its own line. 
 - **PR descriptions:** write them with as little knowledge from the viewer
