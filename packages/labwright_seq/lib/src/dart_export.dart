@@ -1346,7 +1346,7 @@ class _DartExporter {
   static final _stringLiteral = RegExp(r'''\'(?:[^\'\\]|\\.)*\'|"(?:[^"\\]|\\.)*"''');
   static final _identifier = RegExp(r'(?<![\w$.])[A-Za-z_$][\w$]*(?![\w$])');
   static final _assignedAfter = RegExp(r'\s*(?:[-+*/%~]?=(?!=)|\?\?=|\+\+|--)');
-  static final _assignedBefore = RegExp(r'(?:\+\+|--)\s*$');
+  static final _assignedBefore = RegExp(r'(?:\+\+|--)$');
   static final _label = RegExp(r'\s*:');
   static final _assignTarget = RegExp(r'^([A-Za-z_$][\w$]*)\s*(?:[-+*/%~]?=(?!=)|\?\?=|\+\+|--)');
 
