@@ -225,9 +225,14 @@ Future<void> reusableSequences() async {
   // (no steps in the source sequence)
 }
 
+class _TurnOffAllAoChannelsLocals {
+  dynamic dcVoltageGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  List<dynamic> outputVoltagesV = <dynamic>[]; // Nums — Update the Array based on AO Channels to Turn OFF
+}
+
 /// Sequence `Turn Off all AO Channels`.
 Future<void> turnOffAllAoChannels() async {
-  final List<dynamic> outputVoltagesV = <dynamic>[]; // Nums — Update the Array based on AO Channels to Turn OFF
+  final locals = _TurnOffAllAoChannelsLocals();
 
   // ── setup ──
   // label: This example resets all configured Analog output channels voltage to 0 Volts
@@ -241,7 +246,7 @@ Future<void> turnOffAllAoChannels() async {
   //
   //
   // label: Note to run with Hardware: Update "Number of AO channels" to be configured to 0 volts
-  ts.setNumElements(outputVoltagesV, 4); // Assign AO Voltages
+  ts.setNumElements(locals.outputVoltagesV, 4); // Assign AO Voltages
 
   // ── main ──
   // Sources DC Voltage at 0V to Analog Ouput channels
@@ -258,26 +263,37 @@ Future<void> turnOffAllAoChannels() async {
   await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
 }
 
+class _TurnOffAllDoChannelsLocals {
+  int i = 0; // Num — default: 0
+  List<dynamic> channelNames = <dynamic>['Simulated_DAQ/port0/line0:31', 'Simulated_DAQ1/port0/line0:31']; // Strs
+  String currentChannel = ''; // Str
+  List<dynamic> numDigLinesPerChannel = <dynamic>['32', '32']; // Nums
+  int currentNumberOfChannels = 0; // Num — default: 0
+}
+
 /// Sequence `Turn Off all DO Channels`.
 Future<void> turnOffAllDoChannels() async {
-  int i = 0; // Num — default: 0
-  final List<dynamic> channelNames = <dynamic>['Simulated_DAQ/port0/line0:31', 'Simulated_DAQ1/port0/line0:31']; // Strs
-  final List<dynamic> numDigLinesPerChannel = <dynamic>['32', '32']; // Nums
+  final locals = _TurnOffAllDoChannelsLocals();
 
   // label: All the DO lines in every device are turned Off by setting the lines to low.
   // This loop iterates over Channel names and corresponding number of lines, and set lines to low.
-  for (i = 0; i < 2; i += 1) {
+  for (locals.i = 0; locals.i < 2; locals.i += 1) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     await turnOffSingleDoChannel(
-      channelName: channelNames[i] as String,
-      numDigLines: (numDigLinesPerChannel[i] as num).toDouble(),
+      channelName: locals.channelNames[locals.i] as String,
+      numDigLines: (locals.numDigLinesPerChannel[locals.i] as num).toDouble(),
     ); // Turn Off Single DO Channel
   }
 }
 
+class _TurnOffSingleDoChannelLocals {
+  dynamic digitalIoGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
+  List<dynamic> offStateToWrite = <dynamic>[]; // Bools
+}
+
 /// Sequence `Turn Off Single DO Channel`.
 Future<void> turnOffSingleDoChannel({String channelName = '', double numDigLines = 0}) async {
-  final List<dynamic> offStateToWrite = <dynamic>[]; // Bools
+  final locals = _TurnOffSingleDoChannelLocals();
 
   // ── setup ──
   // label: This example resets all configured Digital output channels voltage to 0 Volts
@@ -291,7 +307,7 @@ Future<void> turnOffSingleDoChannel({String channelName = '', double numDigLines
   //
   //
   // label: Note to run with Hardware: Update "Number of Digital Lines" to be configured to Digital LOW state
-  ts.setNumElements(offStateToWrite, numDigLines); // Assign Digital States
+  ts.setNumElements(locals.offStateToWrite, numDigLines); // Assign Digital States
 
   // ── main ──
   // Set Digital state LOW to all Digital Ouput channels

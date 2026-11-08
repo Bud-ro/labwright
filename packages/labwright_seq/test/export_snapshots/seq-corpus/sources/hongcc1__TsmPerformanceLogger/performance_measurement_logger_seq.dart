@@ -357,6 +357,10 @@ Future<void> reservedModelPluginPreUut({
   if (continueTesting) {}
 }
 
+class _ReservedModelPluginBatchStartLocals {
+  dynamic controllerAndSocketSynchronizationManager; // Ref
+}
+
 /// Sequence `(Reserved) Model Plugin - Batch Start`.
 Future<void> reservedModelPluginBatchStart({
   dynamic modelPlugin,
@@ -368,16 +372,22 @@ Future<void> reservedModelPluginBatchStart({
   dynamic startTime,
   dynamic uut,
 }) async {
+  final locals = _ReservedModelPluginBatchStartLocals();
+
   // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
-  final _ = modelPluginConfiguration
+  locals.controllerAndSocketSynchronizationManager = modelPluginConfiguration
       .RuntimeVariables
-      .ControllerAndSocketSynchronizationManager; // never read: controllerAndSocketSynchronizationManager // Setup ControllerAndSocketSynchronizationManager
+      .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
 
   // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
+}
+
+class _ReservedModelPluginUutStartLocals {
+  dynamic controllerAndSocketSynchronizationManager; // Ref
 }
 
 /// Sequence `(Reserved) Model Plugin - UUT Start`.
@@ -391,11 +401,13 @@ Future<void> reservedModelPluginUutStart({
   dynamic startTime,
   dynamic uut,
 }) async {
+  final locals = _ReservedModelPluginUutStartLocals();
+
   // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
-  final _ = modelPluginConfiguration
+  locals.controllerAndSocketSynchronizationManager = modelPluginConfiguration
       .RuntimeVariables
-      .ControllerAndSocketSynchronizationManager; // never read: controllerAndSocketSynchronizationManager // Setup ControllerAndSocketSynchronizationManager
+      .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
 
   // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.

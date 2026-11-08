@@ -227,8 +227,60 @@ dynamic outputFile; // Ref
 String outputFilePath = ''; // Str
 String outputStream = 'Nothing'; // Str
 
+class _MainSequenceLocals {
+  dynamic currentWaveformConfig = ts.PropObj({
+    'Absolute_Disk_Path': '',
+    'Test_Config': '',
+    'DPD_Enabled': false,
+    'Standard_Config': ts.PropObj({
+      'LinkDirection': 'Uplink',
+      'FrequencyRange': 'Range1',
+      'Band': 78,
+      'AutoResourceBlockDetectionEnabled': 'True',
+      'DownlinkTestModel': 'TM1_1',
+      'DownlinkTestModelDuplexScheme': 'Fdd',
+      'ComponentCarrierConfigurations': <dynamic>[
+        ts.PropObj({
+          'Bandwidth_Hz': 100000000,
+          'CellId': 0,
+          'PuschModulationType': 'Qpsk',
+          'SubcarrierSpacing_Hz': 30000,
+          'PuschResourceBlockOffset': 0,
+          'PuschNumberOfResourceBlocks': -1,
+          'PuschTransformPrecodingEnabled': 'False',
+          'PuschSlotAllocation': '0-Last',
+          'PuschSymbolAllocation': '0-Last',
+          'PuschDmrsConfigurationType': 'Type1',
+          'PuschMappingType': 'TypeA',
+          'PuschDmrsTypeAPosition': 2,
+          'PuschDmrsDuration': 'SingleSymbol',
+          'PuschDmrsAdditionalPositions': 0,
+        }),
+      ],
+    }),
+  }); // RFmxNR_Waveform_Configuration
+  dynamic currentWaveform = ts.PropObj({
+    'Name': '',
+    'Data': null,
+    'SignalBandwidth_Hz': 0,
+    'PAPR_dB': 0,
+    'BurstLength_s': 0,
+    'SampleRate': 0,
+    'BurstStartLocations': <dynamic>[],
+    'BurstStopLocations': <dynamic>[],
+    'IdleDurationPresent': false,
+    'RuntimeScaling': 0,
+    'Script': '',
+  }); // SG_Waveform2
+  int waveFormConfigsIdx = 0; // Num — default: 0
+  dynamic currentRFmxNrSignal; // Ref
+  dynamic currentRFmxSpecAnSignal; // Ref
+}
+
 /// Sequence `MainSequence`.
 Future<void> mainSequence() async {
+  final locals = _MainSequenceLocals();
+
   // ── setup ──
   // Files must use an absolute path. This statement expression programmatically stores an absolute path relative to the directory of the example.
   ts.eval(
@@ -267,9 +319,9 @@ Future<void> mainSequence() async {
   // Load Waveforms and Create Signals
   // status expression: ""
   // label:
-  // never read: waveFormConfigsIdx=0; // Reset Wfm config index
-  for (final _ in ts.iterate(staticStationConfigs.Waveform_Configs)) {
-    // never read: currentWaveformConfig = element;
+  locals.waveFormConfigsIdx = 0; // Reset Wfm config index
+  for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
+    locals.currentWaveformConfig = element;
     // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
     // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS
     //   Return Value <- Locals.Current_Waveform
@@ -495,10 +547,14 @@ Future<void> configure() async {
       configurations.Generator.RFSGConfig.DutAverageInputPower_dBm; // Map Input Power
 }
 
+class _MeasureLocals {
+  String currentMeasurement = ''; // Str
+  List<dynamic> measurementNames = <dynamic>['EVM', 'SEM']; // Strs
+}
+
 /// Sequence `Measure`.
 Future<void> measure() async {
-  String currentMeasurement = ''; // Str
-  final List<dynamic> measurementNames = <dynamic>['EVM', 'SEM']; // Strs
+  final locals = _MeasureLocals();
 
   // ── setup ──
   ts.eval(
@@ -531,11 +587,11 @@ Future<void> measure() async {
     // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
     // Map Results: Statement with no expression
   }
-  for (final element in ts.iterate(measurementNames)) {
-    currentMeasurement = element as String;
+  for (final element in ts.iterate(locals.measurementNames)) {
+    locals.currentMeasurement = element as String;
     // Select the appropriate action based on which measurement is selected
     {
-      final select1 = currentMeasurement;
+      final select1 = locals.currentMeasurement;
       var matched1 = false;
       // AMPM Method
       if (!matched1 && select1 == "AMPM") {

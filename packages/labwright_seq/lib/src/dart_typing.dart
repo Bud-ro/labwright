@@ -176,6 +176,13 @@ class _Checker {
   DartType _member(_Node node) {
     final receiver = node.children.single;
     if (receiver.kind == _Kind.identifier && receiver.op == 'station') return DartType.dynamic;
+    if (receiver.kind == _Kind.identifier) {
+      final known = typer.typeOf('${receiver.op}.${node.op}');
+      if (known != DartType.other) {
+        type(receiver);
+        return known;
+      }
+    }
     return type(receiver) == DartType.dynamic ? DartType.dynamic : DartType.other;
   }
 
