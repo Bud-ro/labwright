@@ -1228,6 +1228,8 @@ class _DartExporter {
   Set<String> _writeOnly = const {};
 
   (Set<String>, Set<String>) _scanLocals(Sequence sequence, Map<String, SeqVariable> locals) {
+    _constLocals = const {};
+    _writeOnly = const {};
     final code = StringBuffer();
     final calls = <Step>[];
     void statements(String? raw) => raw == null ? null : _stmtParts(raw).forEach(code.writeln);
