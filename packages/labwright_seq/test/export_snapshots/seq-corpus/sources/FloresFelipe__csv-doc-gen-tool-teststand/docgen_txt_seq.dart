@@ -20,13 +20,18 @@ List<dynamic> sequenceTypes = <dynamic>[
 bool locked = false; // Bool
 double protection = 0; // Num
 
+class _SequenceFileDocLocals {
+  String docResult = ''; // Str
+  double maxWwLineLength = 80; // Num
+  double wwIndentNum = 5; // Num
+  String tmpString = ''; // Str
+  int tmpNum = 0; // Num — default: 0
+  double totalNumSteps = 0; // Num — default: 0
+}
+
 /// Sequence `Sequence File Doc`.
 Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
-  String docResult = ''; // Str
-  const double maxWwLineLength = 80; // Num
-  const double wwIndentNum = 5; // Num
-  const int tmpNum = 0; // Num — default: 0
-
+  final locals = _SequenceFileDocLocals();
   final run = ts.SequenceRun();
   final dynamic addRequirementsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -135,15 +140,16 @@ Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       addRequirementsResult.Status = await writeRequirementsElements(
         requirements: sequenceFile.Data.Requirements,
-        docResult: docResult,
-        maxWwLineLength: maxWwLineLength,
-        wwIndentNum: wwIndentNum,
+        docResult: locals.docResult,
+        maxWwLineLength: locals.maxWwLineLength,
+        wwIndentNum: locals.wwIndentNum,
+        tmpNum: locals.tmpNum,
       ); // Add Requirements
       addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
           ? 'Passed'
           : addRequirementsResult.Status; // status expression
       run.record(addRequirementsResult.Status);
-      docResult += '\n'; // Sequence File Footer
+      locals.docResult += '\n'; // Sequence File Footer
       // label: --- SeqFile Globals ---
       // goto -> --- End SeqFile Globals ---
       if (docOptions.ShowFileGlobals == false) {
@@ -154,18 +160,18 @@ Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async
       //   Return Value -> Locals.tmpNum
       //   lookupString <- ""
       ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
-      if (ts.truthy(tmpNum > 0)) {
+      if (locals.tmpNum > 0) {
         // precondition of SetProgressMsg
         ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
       }
-      if (ts.truthy(tmpNum > 0)) {
+      if (locals.tmpNum > 0) {
         // precondition of Header
         ts.eval(
           'Locals.DocResult += "     " + ResStr("SEQ_FILE_DOC", "DOC_SEQFILE_GLOBALS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
         ); // Header
       }
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      if (ts.truthy(tmpNum > 0)) {
+      if (locals.tmpNum > 0) {
         // precondition of Process SubProps
         processSubPropsResult.Status = await writeSubproperties(); // Process SubProps
         processSubPropsResult.Status = processSubPropsResult.Status == 'Done'
@@ -175,9 +181,9 @@ Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async
       } else {
         processSubPropsResult.Status = 'Skipped';
       }
-      if (ts.truthy(tmpNum > 0)) {
+      if (locals.tmpNum > 0) {
         // precondition of Footer
-        docResult += '\n'; // Footer
+        locals.docResult += '\n'; // Footer
       }
     }
     // label: --- End SeqFile Globals ---
@@ -191,18 +197,18 @@ Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async
     //   Return Value -> Locals.tmpNum
     //   lookupString <- ""
     ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
-    if (ts.truthy(tmpNum > 0)) {
+    if (locals.tmpNum > 0) {
       // precondition of SetProgressMsg
       ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
     }
-    if (ts.truthy(tmpNum > 0)) {
+    if (locals.tmpNum > 0) {
       // precondition of Header
       ts.eval(
         'Locals.DocResult += "     " + ResStr("SEQ_FILE_DOC", "DOC_STATION_GLOBALS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
       ); // Header
     }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    if (ts.truthy(tmpNum > 0)) {
+    if (locals.tmpNum > 0) {
       // precondition of Process SubProps
       processSubPropsResult2.Status = await writeSubproperties(); // Process SubProps
       processSubPropsResult2.Status = processSubPropsResult2.Status == 'Done'
@@ -212,9 +218,9 @@ Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async
     } else {
       processSubPropsResult2.Status = 'Skipped';
     }
-    if (ts.truthy(tmpNum > 0)) {
+    if (locals.tmpNum > 0) {
       // precondition of Footer
-      docResult += '\n'; // Footer
+      locals.docResult += '\n'; // Footer
     }
   }
   // label: --- End Station Globals ---
@@ -234,12 +240,18 @@ Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async
   return run.status;
 }
 
+class _SequenceDocLocals {
+  double maxWwLineLength = 80; // Num
+  double wwIndentNum = 5; // Num
+  String tmpString = ''; // Str
+  int tmpNum = 0; // Num — default: 0
+  double totalNumSteps = 0; // Num — default: 0
+  int stepsSoFar = 0; // Num — default: 0
+}
+
 /// Sequence `Sequence Doc`.
 Future<String> sequenceDoc({dynamic sequence, String docResult = '', dynamic docOptions}) async {
-  const double maxWwLineLength = 80; // Num
-  const double wwIndentNum = 5; // Num
-  const int tmpNum = 0; // Num — default: 0
-
+  final locals = _SequenceDocLocals();
   final run = ts.SequenceRun();
   final dynamic addRequirementsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -318,8 +330,9 @@ Future<String> sequenceDoc({dynamic sequence, String docResult = '', dynamic doc
         addRequirementsResult.Status = await writeRequirementsElements(
           requirements: sequence.Requirements,
           docResult: docResult,
-          maxWwLineLength: maxWwLineLength,
-          wwIndentNum: wwIndentNum,
+          maxWwLineLength: locals.maxWwLineLength,
+          wwIndentNum: locals.wwIndentNum,
+          tmpNum: locals.tmpNum,
         ); // Add Requirements
         addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
             ? 'Passed'
@@ -337,18 +350,18 @@ Future<String> sequenceDoc({dynamic sequence, String docResult = '', dynamic doc
       //   Return Value -> Locals.tmpNum
       //   lookupString <- ""
       ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
-      if (ts.truthy(tmpNum > 0)) {
+      if (locals.tmpNum > 0) {
         // precondition of SetProgressMsg
         ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
       }
-      if (ts.truthy(tmpNum > 0)) {
+      if (locals.tmpNum > 0) {
         // precondition of Header
         ts.eval(
           'Parameters.DocResult += "     " + ResStr("SEQ_FILE_DOC", "DOC_SEQ_PARAMS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
         ); // Header
       }
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      if (ts.truthy(tmpNum > 0)) {
+      if (locals.tmpNum > 0) {
         // precondition of Process SubProps
         processSubPropsResult.Status = await writeSubproperties(); // Process SubProps
         processSubPropsResult.Status = processSubPropsResult.Status == 'Done'
@@ -371,18 +384,18 @@ Future<String> sequenceDoc({dynamic sequence, String docResult = '', dynamic doc
     //   Return Value -> Locals.tmpNum
     //   lookupString <- ""
     ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
-    if (ts.truthy(tmpNum > 0)) {
+    if (locals.tmpNum > 0) {
       // precondition of SetProgressMsg
       ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
     }
-    if (ts.truthy(tmpNum > 0)) {
+    if (locals.tmpNum > 0) {
       // precondition of Header
       ts.eval(
         'Parameters.DocResult += "     " +ResStr("SEQ_FILE_DOC", "DOC_SEQ_LOCALS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
       ); // Header
     }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    if (ts.truthy(tmpNum > 0)) {
+    if (locals.tmpNum > 0) {
       // precondition of Process SubProps
       processSubPropsResult2.Status = await writeSubproperties(); // Process SubProps
       processSubPropsResult2.Status = processSubPropsResult2.Status == 'Done'
@@ -397,10 +410,10 @@ Future<String> sequenceDoc({dynamic sequence, String docResult = '', dynamic doc
   // label: --- End Locals ---
   // label: --- Step Doc ---
   ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
-  final _ =
+  locals.totalNumSteps =
       ts.getNumElements(sequence.Setup) +
       ts.getNumElements(sequence.Main) +
-      ts.getNumElements(sequence.Cleanup); // never read: totalNumSteps // CalcNumSteps
+      ts.getNumElements(sequence.Cleanup); // CalcNumSteps
   if (ts.getNumElements(sequence.Setup) > 0) {
     // precondition of Setup Steps Header
     ts.eval(
@@ -444,16 +457,24 @@ Future<String> sequenceDoc({dynamic sequence, String docResult = '', dynamic doc
   return run.status;
 }
 
-/// Sequence `Step Doc`.
-Future<String> stepDoc({dynamic step, String docResult = '', int totalNumSteps = 0, int stepsSoFar = 0}) async {
+class _StepDocLocals {
+  String stepTypeName = ''; // Str
   double maxWwLineLength = 0; // Num — default: 0
   double wwIndentNum = 0; // Num — default: 0
-  const String execFlow = ''; // Str
+  String tmpString = ''; // Str
+  int tmpNum = 0; // Num — default: 0
+  bool isNiStepType = false; // Bool — default: false
+  String execFlow = ''; // Str
+  String stepKeyName = ''; // Str
   String stepDocs = ''; // Str
-  const int blockLevel = 0; // Num — default: 0
+  int blockLevel = 0; // Num — default: 0
   String indent = ''; // Str
   String doubleIndent = ''; // Str
+}
 
+/// Sequence `Step Doc`.
+Future<String> stepDoc({dynamic step, String docResult = '', int totalNumSteps = 0, int stepsSoFar = 0}) async {
+  final locals = _StepDocLocals();
   final run = ts.SequenceRun();
   final dynamic getStepTypeNameResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -479,10 +500,10 @@ Future<String> stepDoc({dynamic step, String docResult = '', int totalNumSteps =
   {
     //   Return Value -> Locals.BlockLevel
     ts.notExported('cModule call: Get Block Level'); // Get Block Level [Action]
-    indent = '${ts.str('', '%${ts.str(blockLevel * 5)}s')}     '; // Indent According To Block Level
-    doubleIndent = '$indent     '; // Indent According To Block Level (cont.)
-    wwIndentNum = ts.len(doubleIndent) + 5; // Indent According To Block Level (cont.)
-    maxWwLineLength = 65 + wwIndentNum; // Indent According To Block Level (cont.)
+    locals.indent = '${ts.str('', '%${ts.str(locals.blockLevel * 5)}s')}     '; // Indent According To Block Level
+    locals.doubleIndent = '${locals.indent}     '; // Indent According To Block Level (cont.)
+    locals.wwIndentNum = ts.len(locals.doubleIndent) + 5; // Indent According To Block Level (cont.)
+    locals.maxWwLineLength = 65 + locals.wwIndentNum; // Indent According To Block Level (cont.)
     stepsSoFar += 1; // Update StepsSoFar
     ts.notExported('cModule call: Update Percent Done'); // Update Percent Done [Action]
     ts.eval(
@@ -519,10 +540,11 @@ Future<String> stepDoc({dynamic step, String docResult = '', int totalNumSteps =
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     addRequirementsResult.Status = await writeRequirementsElements(
       requirements: step.TS.Requirements,
-      docResult: stepDocs,
-      doubleIndent: doubleIndent,
-      maxWwLineLength: maxWwLineLength,
-      wwIndentNum: wwIndentNum,
+      docResult: locals.stepDocs,
+      doubleIndent: locals.doubleIndent,
+      maxWwLineLength: locals.maxWwLineLength,
+      wwIndentNum: locals.wwIndentNum,
+      tmpNum: locals.tmpNum,
     ); // Add Requirements
     addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
         ? 'Passed'
@@ -593,8 +615,8 @@ Future<String> stepDoc({dynamic step, String docResult = '', int totalNumSteps =
     // precondition of Add Multiple Numeric Limits
     addMultipleNumericLimitsResult.Status = await writeMultipleNumericLimitLimits(
       step: step,
-      docResult: stepDocs,
-      doubleIndent: doubleIndent,
+      docResult: locals.stepDocs,
+      doubleIndent: locals.doubleIndent,
     ); // Add Multiple Numeric Limits
     addMultipleNumericLimitsResult.Status = addMultipleNumericLimitsResult.Status == 'Done'
         ? 'Passed'
@@ -606,20 +628,29 @@ Future<String> stepDoc({dynamic step, String docResult = '', int totalNumSteps =
   //   Return Value -> Locals.ExecFlow
   //   options <- 0x1 ' StepDescOption_Long
   ts.notExported('cModule call: Get Execution Flow'); // Get Execution Flow [Action]
-  if (ts.truthy(execFlow != '')) {
+  if (locals.execFlow != '') {
     // precondition of WordWrapExecFlow
     ts.notExported('cModule call: WordWrapExecFlow'); // WordWrapExecFlow [Action]
   }
-  if (ts.truthy(execFlow != '')) {
+  if (locals.execFlow != '') {
     // precondition of Execution Flow
     ts.eval(
       'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_EXEC_FLOW"), "%-35s") + "\\n" + Locals.tmpString + "\\n"\n',
     ); // Execution Flow
   }
-  stepDocs += '\n'; // Step Footer
-  docResult += stepDocs; // Append Step Docs
+  locals.stepDocs += '\n'; // Step Footer
+  docResult += locals.stepDocs; // Append Step Docs
 
   return run.status;
+}
+
+class _WriteSubpropertiesLocals {
+  int numSubproperties = 0; // Num — default: 0
+  int i = 0; // Num — default: 0
+  String subpropName = ''; // Str
+  String subpropLookupStr = ''; // Str
+  bool isHidden = false; // Bool — default: false
+  int subpropFlags = 0; // Num — default: 0
 }
 
 /// Sequence `Write Subproperties`.
@@ -630,12 +661,7 @@ Future<String> writeSubproperties({
   bool isRecursiveCall = false,
   dynamic docOptions,
 }) async {
-  const int numSubproperties = 0; // Num — default: 0
-  int i = 0; // Num — default: 0
-  const String subpropName = ''; // Str
-  bool isHidden = false; // Bool — default: false
-  const int subpropFlags = 0; // Num — default: 0
-
+  final locals = _WriteSubpropertiesLocals();
   final run = ts.SequenceRun();
   final dynamic displayPropertyResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -658,7 +684,7 @@ Future<String> writeSubproperties({
     backToGotoEndWhenDone:
     while (true) {
       // goto -> <End>
-      if (i == numSubproperties) {
+      if (locals.i == locals.numSubproperties) {
         // precondition of Goto End When Done
         // Goto End When Done [Goto]: no code module
         break endMain; // post action
@@ -668,14 +694,16 @@ Future<String> writeSubproperties({
       //   index <- Locals.i
       //   options <- 0
       ts.notExported('cModule call: GetSubPropName'); // GetSubPropName [Action]
-      parentPropLookupStr != '' ? '$parentPropLookupStr.$subpropName' : subpropName; // BuildNewLookupStr
+      parentPropLookupStr != ''
+          ? (locals.subpropLookupStr = '$parentPropLookupStr.${locals.subpropName}')
+          : (locals.subpropLookupStr = locals.subpropName); // BuildNewLookupStr
       //   Return Value -> Locals.SubpropFlags
       //   lookupString <- Locals.SubpropLookupStr
       //   options <- 0
       ts.notExported('cModule call: GetFlags'); // GetFlags [Action]
-      subpropFlags & 8 != 0 ? (isHidden = true) : (isHidden = false); // IsHidden
+      locals.subpropFlags & 8 != 0 ? (locals.isHidden = true) : (locals.isHidden = false); // IsHidden
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      if (isHidden == false || ts.truthy(docOptions.ShowHidden)) {
+      if (locals.isHidden == false || ts.truthy(docOptions.ShowHidden)) {
         // precondition of DisplayProperty
         displayPropertyResult.Status = await writePropertyDetails(); // DisplayProperty
         displayPropertyResult.Status = displayPropertyResult.Status == 'Done'
@@ -686,7 +714,7 @@ Future<String> writeSubproperties({
         displayPropertyResult.Status = 'Skipped';
       }
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      if ((isHidden == false || ts.truthy(docOptions.ShowHidden)) && ts.truthy(docOptions.ShowSubproperties)) {
+      if ((locals.isHidden == false || ts.truthy(docOptions.ShowHidden)) && ts.truthy(docOptions.ShowSubproperties)) {
         // precondition of DisplaySubpropertiesOfSubproperty
         displaySubpropertiesOfSubpropertyResult.Status =
             await writeSubproperties(); // DisplaySubpropertiesOfSubproperty
@@ -697,7 +725,7 @@ Future<String> writeSubproperties({
       } else {
         displaySubpropertiesOfSubpropertyResult.Status = 'Skipped';
       }
-      i += 1; // Increment index
+      locals.i += 1; // Increment index
       if (isRecursiveCall == false) {
         // precondition of Update Percent Done
         ts.notExported('cModule call: Update Percent Done'); // Update Percent Done [Action]
@@ -711,6 +739,12 @@ Future<String> writeSubproperties({
   return run.status;
 }
 
+class _WriteArrayElementsLocals {
+  String currentArrayIndex = ''; // Str
+  int currentOffset = 0; // Num — default: 0
+  int numElements = 0; // Num — default: 0
+}
+
 /// Sequence `Write Array Elements`.
 Future<String> writeArrayElements({
   dynamic root,
@@ -718,9 +752,7 @@ Future<String> writeArrayElements({
   String arrayPropLookupStr = '',
   dynamic docOptions,
 }) async {
-  int currentOffset = 0; // Num — default: 0
-  const int numElements = 0; // Num — default: 0
-
+  final locals = _WriteArrayElementsLocals();
   final run = ts.SequenceRun();
   final dynamic displayPropertyResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -750,13 +782,14 @@ Future<String> writeArrayElements({
       while (true) {
         // label: --- Start of Loop ---
         // goto -> --- Max Num Array Elements Msg ---
-        if (currentOffset == docOptions.MaxNumArrayElementsToShow && currentOffset != numElements) {
+        if (locals.currentOffset == docOptions.MaxNumArrayElementsToShow &&
+            locals.currentOffset != locals.numElements) {
           // precondition of Check for Max Num Array Elements
           // Check for Max Num Array Elements [Goto]: no code module
           break skipToMaxNumArrayElementsMsg; // post action
         }
         // goto -> <End>
-        if (currentOffset == numElements) {
+        if (locals.currentOffset == locals.numElements) {
           // precondition of Goto End When Done
           // Goto End When Done [Goto]: no code module
           break endMain; // post action
@@ -778,7 +811,7 @@ Future<String> writeArrayElements({
             ? 'Passed'
             : displaySubpropertiesResult.Status; // status expression
         run.record(displaySubpropertiesResult.Status);
-        currentOffset += 1; // Inc Loop Var
+        locals.currentOffset += 1; // Inc Loop Var
         // goto -> --- Start of Loop ---
         // Loop back around [Goto]: no code module
         continue backToStartOfLoop; // post action
@@ -793,6 +826,20 @@ Future<String> writeArrayElements({
   return run.status;
 }
 
+class _WritePropertyDetailsLocals {
+  int valueType = 0; // Num — default: 0
+  bool isObject = false; // Bool — default: false
+  bool isArray = false; // Bool — default: false
+  String typeName = ''; // Str
+  String subpropValue = '...'; // Str
+  int subpropFlags = 0; // Num — default: 0
+  String byRefStr = ''; // Str
+  int maxWwLineLength = 80; // Num
+  int wwIndentNum = 10; // Num
+  int tmpNum = 0; // Num — default: 0
+  String unused = ''; // Str
+}
+
 /// Sequence `Write Property Details`.
 Future<String> writePropertyDetails({
   String docResult = '',
@@ -800,12 +847,7 @@ Future<String> writePropertyDetails({
   String propertyToDisplayName = '',
   dynamic docOptions,
 }) async {
-  const int valueType = 0; // Num — default: 0
-  const bool isArray = false; // Bool — default: false
-  String typeName = ''; // Str
-  String subpropValue = '...'; // Str
-  const String byRefStr = ''; // Str
-
+  final locals = _WritePropertyDetailsLocals();
   final run = ts.SequenceRun();
   final dynamic tryToEvaluateResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -837,7 +879,7 @@ Future<String> writePropertyDetails({
     tryToEvaluateResult.Status = 'Done';
     if (tryToEvaluateResult.Status == 'Error') {
       // precondition of Document Error
-      subpropValue = '\n${tryToEvaluateResult.Error.Msg as String}'; // Document Error
+      locals.subpropValue = '\n${tryToEvaluateResult.Error.Msg as String}'; // Document Error
     }
     if (tryToEvaluateResult.Status == 'Error') {
       // precondition of WordWrapStringValue_Copy
@@ -849,16 +891,17 @@ Future<String> writePropertyDetails({
       // Skip Evaluate [Goto]: no code module
       break skipToSkipEvaluate; // post action
     }
-    typeName = root.GetPropertyObject(propertyToDisplayName, 0).Type.DisplayString as String; // GetTypeNameForDisplay
+    locals.typeName =
+        root.GetPropertyObject(propertyToDisplayName, 0).Type.DisplayString as String; // GetTypeNameForDisplay
     // Get the value of a number, boolean or activex property
-    if (ts.truthy(valueType == 2 || valueType == 3 || valueType == 5)) {
+    if (locals.valueType == 2 || locals.valueType == 3 || locals.valueType == 5) {
       // precondition of GetSubPropValue1
       ts.eval(
         'Locals.SubpropValue = Str(Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName))',
       ); // GetSubPropValue1
     }
     // Get the value of a string property
-    if (ts.truthy(valueType == 1)) {
+    if (locals.valueType == 1) {
       // precondition of GetSubPropValue2
       ts.eval(
         'Locals.SubpropValue = "\\n\\"" + Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName) + "\\""',
@@ -871,7 +914,7 @@ Future<String> writePropertyDetails({
         ' Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName).GetDisplayNames("", PropOption_NoOptions, Locals.Unused, Locals.SubpropValue)',
       ); // GetSubPropValue7
     }
-    if (ts.truthy(valueType == 1)) {
+    if (locals.valueType == 1) {
       // precondition of WordWrapStringValue
       ts.notExported('cModule call: WordWrapStringValue'); // WordWrapStringValue [Action]
     }
@@ -885,9 +928,9 @@ Future<String> writePropertyDetails({
     '(Locals.SubpropFlags & 0x4) ? ( Locals.ByRefStr = " - " + ResStr("SEQUENCING ADAPTER", "PASS_BYREFERENCE") ) : ( Locals.ByRefStr = "" )',
   ); // IsByRef
   docResult +=
-      '     ${ts.str('$propertyToDisplayName ($typeName$byRefStr)', '%-40s')} $subpropValue\n'; // Add Display String
+      '     ${ts.str('$propertyToDisplayName (${locals.typeName}${locals.byRefStr})', '%-40s')} ${locals.subpropValue}\n'; // Add Display String
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  if (ts.truthy(isArray) && ts.truthy(docOptions.ShowArrayElements)) {
+  if (locals.isArray && ts.truthy(docOptions.ShowArrayElements)) {
     // precondition of DisplayArrayElements
     displayArrayElementsResult.Status = await writeArrayElements(); // DisplayArrayElements
     displayArrayElementsResult.Status = displayArrayElementsResult.Status == 'Done'
@@ -901,11 +944,17 @@ Future<String> writePropertyDetails({
   return run.status;
 }
 
+class _WriteMultipleNumericLimitLimitsLocals {
+  int currentOffset = 0; // Num — default: 0
+  int numElements = 0; // Num — default: 0
+  bool oneLimitOnly = false; // Bool — default: false
+  String lowLimitFmt = ''; // Str
+  String highLimitFmt = ''; // Str
+}
+
 /// Sequence `Write Multiple Numeric Limit Limits`.
 Future<String> writeMultipleNumericLimitLimits({dynamic step, String docResult = '', String doubleIndent = ''}) async {
-  int currentOffset = 0; // Num — default: 0
-  const int numElements = 0; // Num — default: 0
-
+  final locals = _WriteMultipleNumericLimitLimitsLocals();
   final run = ts.SequenceRun();
 
   skipToAfterLoop:
@@ -921,12 +970,12 @@ Future<String> writeMultipleNumericLimitLimits({dynamic step, String docResult =
     while (true) {
       // label: --- Start of Loop ---
       // goto -> --- After Loop ---
-      if (currentOffset == numElements) {
+      if (locals.currentOffset == locals.numElements) {
         // precondition of Goto After Loop Section When Done
         // Goto After Loop Section When Done [Goto]: no code module
         break skipToAfterLoop; // post action
       }
-      // never read: oneLimitOnly = false; // Initialize Local Variables
+      locals.oneLimitOnly = false; // Initialize Local Variables
       ts.eval(
         '\nParameters.DocResult += Parameters.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n" +  Parameters.DoubleIndent + Str(ResStr("SEQ_FILE_DOC", "MEAS_NAME_LBL"), "%-35s") + NameOf(Parameters.Step.Result.Measurement[Locals.CurrentOffset]) + "\\n"\n',
       ); // Header
@@ -940,7 +989,7 @@ Future<String> writeMultipleNumericLimitLimits({dynamic step, String docResult =
         '#NoValidation(\nAllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Comp"), PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High"), AnyOf(Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "EQ", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "NE", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "GT", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "LT", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "GE", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "LE"))\n)',
       )) {
         // precondition of One Limit Only?
-        // never read: oneLimitOnly = true; // One Limit Only?
+        locals.oneLimitOnly = true; // One Limit Only?
       }
       if (ts.cond(
         'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low")',
@@ -988,14 +1037,14 @@ Future<String> writeMultipleNumericLimitLimits({dynamic step, String docResult =
           '\nParameters.DocResult += Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DATASOURCE"), "%-35s") + LocalizeExpression(Parameters.Step.DataSourceArray[Locals.CurrentOffset]) + "\\n"\n',
         ); // Individual Data Source
       }
-      currentOffset += 1; // Inc Loop Var
+      locals.currentOffset += 1; // Inc Loop Var
       // goto -> --- Start of Loop ---
       // Loop back around [Goto]: no code module
       continue backToStartOfLoop; // post action
     }
   }
   // label: --- After Loop ---
-  if (ts.truthy(numElements > 0)) {
+  if (locals.numElements > 0) {
     // precondition of Footer
     ts.eval(
       'Parameters.DocResult +=Parameters.DoubleIndent + ResStr("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n" + Parameters.DoubleIndent + ResStr("SEQ_FILE_DOC", "END_OF_MEAS_LBL") + "\\n" + Parameters.DoubleIndent + ResStr("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
@@ -1013,6 +1062,11 @@ Future<String> writeMultipleNumericLimitLimits({dynamic step, String docResult =
   return run.status;
 }
 
+class _WriteRequirementsElementsLocals {
+  String currentReqElement = ''; // Str
+  String tmpString = ''; // Str
+}
+
 /// Sequence `Write Requirements Elements`.
 Future<String> writeRequirementsElements({
   dynamic requirements,
@@ -1022,17 +1076,15 @@ Future<String> writeRequirementsElements({
   double wwIndentNum = 0,
   int tmpNum = 0,
 }) async {
-  String currentReqElement = ''; // Str
-  String tmpString = ''; // Str
-
+  final locals = _WriteRequirementsElementsLocals();
   final run = ts.SequenceRun();
 
   // label: Process Requirements
   for (final element in ts.iterate(requirements.Links)) {
-    currentReqElement = element as String;
-    tmpString += '$currentReqElement\n'; // Get Requirments
+    locals.currentReqElement = element as String;
+    locals.tmpString += '${locals.currentReqElement}\n'; // Get Requirments
   }
-  if (ts.len(tmpString) > 0) {
+  if (ts.len(locals.tmpString) > 0) {
     ts.notExported('cModule call: WordWrapInBuf'); // WordWrapInBuf [Action]
     ts.eval(
       'Parameters.DocResult += Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_REQUIREMENTS"),"%-30s") + "\\n" +Locals.tmpString + "\\n"',

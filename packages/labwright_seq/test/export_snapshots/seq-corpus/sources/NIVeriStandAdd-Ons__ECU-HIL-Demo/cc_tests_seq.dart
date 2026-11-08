@@ -17,8 +17,15 @@ dynamic veristand = ts.PropObj({
   'GatewayIP': '"localhost"',
 }); // Obj
 
+class _MainSequenceLocals {
+  List<dynamic> tdmsFile = <dynamic>['']; // Strs
+  dynamic diademRef = ts.PropObj({'CommandReference': null, 'DataSheetReference': null}); // DIAdem_Reference
+  dynamic veristand3 = ts.PropObj({'VSDialogs': null}); // Obj
+}
+
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
+  final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
   final dynamic getToKnownStateResult = ts.PropObj({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
@@ -212,7 +219,7 @@ Future<String> mainSequence() async {
   resumeCcResult.Status = ts.truthy(resumeCcResult.VeriStand.PassFail) ? 'Passed' : 'Failed'; // status expression
   run.record(resumeCcResult.Status);
   ts.notExported('step type StopLogging: action not exported yet'); // Stop VS Logging [StopLogging]
-  final _ = stopVsLoggingResult.Veristand.Location as List<dynamic>; // never read: tdmsFile // post-expression
+  locals.tdmsFile = stopVsLoggingResult.Veristand.Location as List<dynamic>; // post-expression
   stopVsLoggingResult.Status = 'Done';
   run.record(stopVsLoggingResult.Status);
   // failure does NOT fail the sequence
