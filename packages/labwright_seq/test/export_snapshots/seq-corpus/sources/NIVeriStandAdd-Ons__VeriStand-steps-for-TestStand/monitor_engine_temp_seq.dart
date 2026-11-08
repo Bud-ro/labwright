@@ -401,6 +401,9 @@ Future<String> checkEngineRpm({double setpoint = 0, int settleTime = 0, int tole
 
 /// Sequence `Engine Power`.
 Future<String> enginePower() async {
+  const double idleRpm = 0; // Num — default: 0
+  const double currentRpm = 0; // Num — default: 0
+
   final run = ts.SequenceRun();
   final dynamic getModelParameterValueResult = ts.PropObj({
     'VeristandError': null,
@@ -502,7 +505,7 @@ Future<String> enginePower() async {
     getChannelValueResult.Status = 'Done';
     run.record(getChannelValueResult.Status);
     ts.eval('Locals.CurrentRPM = RunState.PreviousStep.Result.Numeric'); // Set Current RPM
-    // never read: settled = currentRpm >= idleRpm - 50 && currentRpm <= idleRpm + 50; // Evaluate Settled
+    const _ = currentRpm >= idleRpm - 50 && currentRpm <= idleRpm + 50; // never read: settled // Evaluate Settled
   }
   // Add the actual engine RPM to the results
   // Additional Results [AdditionalResults]: acts through ts.stepHost

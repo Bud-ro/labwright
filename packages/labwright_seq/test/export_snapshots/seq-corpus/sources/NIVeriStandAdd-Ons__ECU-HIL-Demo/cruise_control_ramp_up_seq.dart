@@ -191,7 +191,7 @@ Future<String> mainSequence() async {
   run.record(ccRampUpResult.Status);
   // Stop VS Logging [StopLogging]: acts through ts.stepHost
   await ts.stepHost.runStepType('StopLogging', ts.StepPhase.post, ts.PropObj(), stopVsLoggingResult);
-  // never read: tdmsFile = stopVsLoggingResult.Veristand.Location as List<dynamic>; // post-expression
+  final _ = stopVsLoggingResult.Veristand.Location as List<dynamic>; // never read: tdmsFile // post-expression
   stopVsLoggingResult.Status = 'Done';
   run.record(stopVsLoggingResult.Status);
   // failure does NOT fail the sequence
