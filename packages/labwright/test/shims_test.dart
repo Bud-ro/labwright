@@ -3,8 +3,12 @@ import 'package:labwright/shims.dart' as ts;
 import 'package:test/test.dart';
 
 void main() {
-  test('eval and cond always throw, naming the expression', () {
-    for (final (Function fn, expr) in [(ts.eval, 'RunState.Foo'), (ts.cond, 'Locals.X > 1')]) {
+  test('eval, cond and notExported always throw, naming what they were given', () {
+    for (final (Function fn, expr) in [
+      (ts.eval, 'RunState.Foo'),
+      (ts.cond, 'Locals.X > 1'),
+      (ts.notExported, 'python call: x.py'),
+    ]) {
       expect(
         () => fn(expr),
         throwsA(isA<UnimplementedError>().having((e) => e.message, 'message', contains(expr))),
@@ -94,5 +98,114 @@ void main() {
       expect(ts.rand(), inInclusiveRange(0, 1));
     }
     expect(List.generate(8, (_) => lw.rand()).toSet().length, greaterThan(1));
+  });
+  test('checkLimits: the low limit alone for one-sided comparisons, both for ranges', () {
+    expect(ts.checkLimits(5, 0, 5, 'EQ'), ts.statusPassed);
+    expect(ts.checkLimits(6, 0, 5, 'GT'), ts.statusPassed);
+    expect(ts.checkLimits(5, 0, 5, 'GT'), ts.statusFailed);
+    expect(ts.checkLimits(10, 10, 0, 'GELE'), ts.statusPassed);
+    expect(ts.checkLimits(10, 10, 0, 'GELT'), ts.statusFailed);
+    expect(ts.checkLimits(11, 10, 0, 'LTGT'), ts.statusPassed);
+    expect(ts.checkLimits(-1, 1, 0, 'LOG'), ts.statusPassed);
+    expect(() => ts.checkLimits(1, 2, 0, 'EQT'), throwsUnimplementedError);
+  });
+  test('checkStrLimit compares with or without case', () {
+    expect(ts.checkStrLimit('Abc', 'aBC', 'IgnoreCase'), ts.statusPassed);
+    expect(ts.checkStrLimit('Abc', 'aBC', 'CaseSensitive'), ts.statusFailed);
+    expect(() => ts.checkStrLimit('a', 'a', 'IgnoreCase', 3), throwsUnimplementedError);
+  });
+  test('a sequence run fails once a failed status is recorded', () {
+    final run = ts.SequenceRun()..record('Done');
+    expect(run.status, ts.statusPassed);
+    run.record(ts.statusFailed);
+    expect((run.status, run.failed), (ts.statusFailed, true));
+  });
+  test('terminate raises the termination a caller unwinds through', () {
+    expect(ts.terminate, throwsA(isA<ts.SequenceTermination>()));
+  });
+  test('sweep values: steps up to the stop, points with both ends, parallel rows', () {
+    expect(ts.sweepSteps(-10, 5, 5), [-10, -5, 0, 5]);
+    expect(ts.sweepSteps(0, 1, 0.4), [0, 0.4, 0.8]);
+    expect(ts.sweepPoints(1000, 6000, 3), [1000, 3500, 6000]);
+    final log = ts.sweepPoints(200, 50000, 100, logarithmic: true);
+    expect(log.first, 200);
+    expect(log.last, closeTo(50000, 1e-6));
+    expect(log[1] / log[0], closeTo(1.0573569305267, 1e-9));
+    expect(
+      ts.parallel([
+        [1, 2],
+        ['a', 'b'],
+      ]).toList(),
+      [
+        [1, 'a'],
+        [2, 'b'],
+      ],
+    );
+    expect(
+      () => ts.parallel([
+        [1],
+        [1, 2],
+      ]).toList(),
+      throwsArgumentError,
+    );
+  });
+  test('a step loop counts passed and failed iterations', () {
+    final loop = ts.StepLoop()
+      ..count(ts.statusPassed)
+      ..count(ts.statusFailed)
+      ..count('Done');
+    expect((loop.numIterations, loop.numPassed, loop.numFailed), (3, 1, 1));
+  });
+  test('without an installed host every step operation raises, naming it', () {
+    expect(
+      () => ts.stepHost.runStepType('NI_Measurement', ts.StepPhase.post, null, null),
+      throwsA(isA<ts.StepHostUnavailable>().having((e) => e.operation, 'operation', 'NI_Measurement post')),
+    );
+    expect(
+      () => ts.stepHost.messagePopup(title: 't', message: 'm', buttons: const []),
+      throwsA(isA<ts.StepHostUnavailable>()),
+    );
+  });
+  test('copy is deep for lists and property objects; a Ref carries a written value back', () {
+    final dynamic original = ts.PropObj({
+      'List': [1, 2],
+      'Inner': ts.PropObj({'X': 1}),
+    });
+    final dynamic copied = ts.copy(original);
+    copied.List[0] = 9;
+    copied.Inner.X = 9;
+    expect((original.List[0], original.Inner.X, copied.Inner.Name), (1, 1, 'Inner'));
+    final ref = ts.Ref<int>(1)..value = 2;
+    expect(ref.value, 2);
+  });
+  test('async calls are awaited by step and at the end; an error surfaces when awaited', () async {
+    final calls = ts.AsyncCalls()
+      ..start('a', Future<Object?>.value('Passed'), waitAtEnd: true)
+      ..start('b', Future<Object?>.error(StateError('boom')), waitAtEnd: false);
+    expect(await calls.wait('a'), 'Passed');
+    await calls.waitAtEnd();
+    await expectLater(calls.wait('b'), throwsStateError);
+    expect(() => calls.wait('c'), throwsStateError);
+  });
+  test('Str with a printf format', () {
+    // dart format off
+    final rows = <(String, Object?, String)>[
+      ('%.2u', 5, '05'),
+      ('%u', 2024.0, '2024'),
+      ('Example message %d', 3, 'Example message 3'),
+      ('%-6s|', 'ab', 'ab    |'),
+      ('%5.1f', -2.26, ' -2.3'),
+      ('%08.3f', 3.14159, '0003.142'),
+      ('%+d', 7, '+7'),
+      ('%e', 1234.5, '1.234500e+03'),
+      ('%#x', 255, '0xff'),
+      ('100%%', null, '100%'),
+    ];
+    // dart format on
+    for (final (format, value, want) in rows) {
+      expect(ts.str(value, format), want, reason: format);
+    }
+    expect(() => ts.str(1, '%g'), throwsUnimplementedError);
+    expect(() => ts.str(-1, '%u'), throwsUnimplementedError);
   });
 }
