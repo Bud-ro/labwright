@@ -119,7 +119,7 @@ Future<ts.Status> mainSequence() async {
     run.record(passFailTestResult.Status);
     // skipped: This step is skipped
     try {
-      ts.notExported('cModule call: Generate Run-Time Error'); // Generate Run-Time Error [Action]
+      await ts.callDll('', ''); // Generate Run-Time Error
     } on ts.RunTimeError catch (_) {}
     await sequence1(); // Call Sequence1
     // sequence call spawns a new execution in the engine — exported as a plain awaited call
@@ -153,6 +153,6 @@ Future<void> sequence3() async {
 Future<void> sequence4() async {
   // skipped: Sequence4-Skipped
   try {
-    ts.notExported('cModule call: Sequence4-GeneratesError'); // Sequence4-GeneratesError [Action]
+    await ts.callDll('', ''); // Sequence4-GeneratesError
   } on ts.RunTimeError catch (_) {}
 }

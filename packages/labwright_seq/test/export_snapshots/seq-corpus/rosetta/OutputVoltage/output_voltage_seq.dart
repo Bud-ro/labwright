@@ -7,10 +7,16 @@ dynamic measurementLink = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('OutputVoltageMeasurement.pinmap');
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_nidcpower.py'); // Create and register NI-DCPower Sessions [Action]
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_nivisa_dmm.py'); // Create and register NI-DMM Sessions [Action]
+    await ts.callPython(
+      'teststand_nidcpower.py',
+      'create_nidcpower_sessions',
+      passesContext: true,
+    ); // Create and register NI-DCPower Sessions
+    await ts.callPython(
+      'teststand_nivisa_dmm.py',
+      'create_nivisa_dmm_sessions',
+      passesContext: true,
+    ); // Create and register NI-DMM Sessions
 
     await ts.measurement('ni.examples.OutputVoltageMeasurement_Python', {
       'voltage_level': 6,
@@ -25,7 +31,13 @@ Future<void> mainSequence() async {
       'output_pin': 'OutPin',
     });
   } finally {
-    ts.notExported('python call: teststand_nidcpower.py'); // Destroy and unregister NI-DCPower sessions [Action]
-    ts.notExported('python call: teststand_nivisa_dmm.py'); // Destroy and unregister NI-DMM sessions [Action]
+    await ts.callPython(
+      'teststand_nidcpower.py',
+      'destroy_nidcpower_sessions',
+    ); // Destroy and unregister NI-DCPower sessions
+    await ts.callPython(
+      'teststand_nivisa_dmm.py',
+      'destroy_nivisa_dmm_sessions',
+    ); // Destroy and unregister NI-DMM sessions
   }
 }

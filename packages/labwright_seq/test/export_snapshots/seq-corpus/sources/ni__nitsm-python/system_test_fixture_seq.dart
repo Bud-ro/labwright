@@ -31,41 +31,55 @@ Future<void> mainSequence() async {
     ts.eval(
       'Locals.AppManagerRef = RunState.Engine.GetInternalOption(InternalOption_ApplicationManager)',
     ); // Get Application Manager Reference
-    //   Return Value -> Locals.CommandLineArgsRef
-    ts.notExported('cModule call: Get Command Line Args Reference'); // Get Command Line Args Reference [Action]
-    //   Return Value -> Locals.CommandLineArgsCount
-    ts.notExported('cModule call: Get Command Line Args Count'); // Get Command Line Args Count [Action]
+    final outputs = await ts.callActiveX(
+      locals.appManagerRef,
+      'IApplicationMgr.CommandLineArguments',
+    ); // Get Command Line Args Reference
+    locals.commandLineArgsRef = outputs['Return Value'];
+    final outputs2 = await ts.callActiveX(locals.commandLineArgsRef, 'Strings.Count'); // Get Command Line Args Count
+    locals.commandLineArgsCount = outputs2['Return Value'] as int;
     for (locals.i = 0; locals.i < locals.commandLineArgsCount; locals.i += 1) {
-      //   Return Value -> Locals.CommandLineArg
-      //   itemIndex <- Locals.i
-      ts.notExported('cModule call: Get Command Line Arg'); // Get Command Line Arg [Action]
+      final outputs3 = await ts.callActiveX(
+        locals.commandLineArgsRef,
+        'Strings.Item',
+        inputs: {'itemIndex': locals.i},
+      ); // Get Command Line Arg
+      locals.commandLineArg = outputs3['Return Value'] as String;
       {
         final select1 = locals.commandLineArg;
         var matched1 = false;
         if (!matched1 && select1 == '/pyrunentrypoint') {
           matched1 = true;
-          //   Return Value -> Locals.CommandLineEntryPoint
-          //   itemIndex <- Locals.i + 1
-          ts.notExported('cModule call: Get Command Entry Point Name'); // Get Command Entry Point Name [Action]
-          //   Return Value -> Locals.CommandLineSequenceFilePath
-          //   itemIndex <- Locals.i + 2
-          ts.notExported(
-            'cModule call: Get Command Line Sequence File Path',
-          ); // Get Command Line Sequence File Path [Action]
+          final outputs4 = await ts.callActiveX(
+            locals.commandLineArgsRef,
+            'Strings.Item',
+            inputs: {'itemIndex': locals.i + 1},
+          ); // Get Command Entry Point Name
+          locals.commandLineEntryPoint = outputs4['Return Value'] as String;
+          final outputs5 = await ts.callActiveX(
+            locals.commandLineArgsRef,
+            'Strings.Item',
+            inputs: {'itemIndex': locals.i + 2},
+          ); // Get Command Line Sequence File Path
+          locals.commandLineSequenceFilePath = outputs5['Return Value'] as String;
         }
         if (!matched1 && select1 == '/pyversion') {
           matched1 = true;
-          //   Return Value -> Locals.CommandLinePythonVersion
-          //   itemIndex <- Locals.i + 1
-          ts.notExported('cModule call: Get Command Line Python Version'); // Get Command Line Python Version [Action]
+          final outputs6 = await ts.callActiveX(
+            locals.commandLineArgsRef,
+            'Strings.Item',
+            inputs: {'itemIndex': locals.i + 1},
+          ); // Get Command Line Python Version
+          locals.commandLinePythonVersion = outputs6['Return Value'] as String;
         }
         if (!matched1 && select1 == '/pyenvironment') {
           matched1 = true;
-          //   Return Value -> Locals.CommandLinePythonEnvironmentPath
-          //   itemIndex <- Locals.i + 1
-          ts.notExported(
-            'cModule call: Get Command Line Python Environment Path',
-          ); // Get Command Line Python Environment Path [Action]
+          final outputs7 = await ts.callActiveX(
+            locals.commandLineArgsRef,
+            'Strings.Item',
+            inputs: {'itemIndex': locals.i + 1},
+          ); // Get Command Line Python Environment Path
+          locals.commandLinePythonEnvironmentPath = outputs7['Return Value'] as String;
         }
       }
     }

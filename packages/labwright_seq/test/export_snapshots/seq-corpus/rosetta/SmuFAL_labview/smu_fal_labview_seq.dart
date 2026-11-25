@@ -9,9 +9,10 @@ Future<void> mainSequence() async {
     await ts.updatePinMap(
       'D:\\RA Tools Git\\abstraction-layer-labview\\Source\\FAL Implementation\\SourceMeasureDCVoltageFAL.pinmap',
     );
-    //   sequence context in <- ThisContext
-    //   error out <- Step.Result.Error
-    await callInitializeAndRegisterSessions(); // Initialize and Reserve Sessions [Action]
+    await ts.callVi(
+      'My Computer\\SourceMeasureDCVoltage.lvlib\\TestStand Code Modules\\Initialize and Register Sessions.vi',
+      passesContext: true,
+    ); // Initialize and Reserve Sessions
 
     await ts.measurement('SourceMeasureDCVoltage_LabVIEW', {
       'source_pin': 'NI_DCPower_Pin',
@@ -24,17 +25,8 @@ Future<void> mainSequence() async {
       'Resolution in Digits': 2,
     });
   } finally {
-    //   error out <- Step.Result.Error
-    await callUnregisterAndCloseSessions(); // Unregister and Close Sessions [Action]
+    await ts.callVi(
+      'My Computer\\SourceMeasureDCVoltage.lvlib\\TestStand Code Modules\\Unregister and Close Sessions.vi',
+    ); // Unregister and Close Sessions
   }
 }
-
-/// The labView module `My Computer\SourceMeasureDCVoltage.lvlib\TestStand Code Modules\Initialize and Register Sessions.vi`.
-Future<Object?> callInitializeAndRegisterSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\SourceMeasureDCVoltage.lvlib\\TestStand Code Modules\\Initialize and Register Sessions.vi',
-);
-
-/// The labView module `My Computer\SourceMeasureDCVoltage.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi`.
-Future<Object?> callUnregisterAndCloseSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\SourceMeasureDCVoltage.lvlib\\TestStand Code Modules\\Unregister and Close Sessions.vi',
-);

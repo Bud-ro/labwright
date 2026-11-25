@@ -7,8 +7,11 @@ dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('NIFgenStandardFunction.pinmap');
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_nifgen.py'); // Create and register NI-FGEN Sessions [Action]
+    await ts.callPython(
+      'teststand_nifgen.py',
+      'create_nifgen_sessions',
+      passesContext: true,
+    ); // Create and register NI-FGEN Sessions
 
     await ts.measurement('ni.examples.NIFgenStandardFunction_Python', {
       'pin_names': <dynamic>['Pin1'],
@@ -18,6 +21,6 @@ Future<void> mainSequence() async {
       'duration': 10,
     });
   } finally {
-    ts.notExported('python call: teststand_nifgen.py'); // Destroy and unregister NI-FGEN sessions [Action]
+    await ts.callPython('teststand_nifgen.py', 'destroy_nifgen_sessions'); // Destroy and unregister NI-FGEN sessions
   }
 }

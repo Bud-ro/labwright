@@ -7,10 +7,11 @@ dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('SourceMeasureDCVoltageFAL.pinmap');
-    //   sequence_context <- ThisContext
-    ts.notExported(
-      'python call: ..\\measurements\\source_measure_dc_voltage_fal\\teststand_helper.py',
-    ); // Create and register instrument Sessions [Action]
+    await ts.callPython(
+      '..\\measurements\\source_measure_dc_voltage_fal\\teststand_helper.py',
+      'create_instrument_sessions',
+      passesContext: true,
+    ); // Create and register instrument Sessions
 
     await ts.measurement('ni.examples.SourceMeasureDCVoltageFAL_Python', {
       'voltage_level': 6,
@@ -23,8 +24,9 @@ Future<void> mainSequence() async {
       'measure_pin': 'NI_DMM_Pin',
     });
   } finally {
-    ts.notExported(
-      'python call: ..\\measurements\\source_measure_dc_voltage_fal\\teststand_helper.py',
-    ); // Destroy and unregister instrument sessions [Action]
+    await ts.callPython(
+      '..\\measurements\\source_measure_dc_voltage_fal\\teststand_helper.py',
+      'destroy_instrument_sessions',
+    ); // Destroy and unregister instrument sessions
   }
 }

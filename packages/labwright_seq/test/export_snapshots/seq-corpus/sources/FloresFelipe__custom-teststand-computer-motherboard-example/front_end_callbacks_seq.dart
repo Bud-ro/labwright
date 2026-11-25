@@ -6,7 +6,7 @@ Future<void> loginLogout({bool logout = false, bool isInitialLogin = false}) asy
   endMain:
   {
     if (logout) {
-      ts.notExported('cModule call: Logout'); // Logout [Action]
+      await ts.callDll('\$(Platform)\\frontend.dll', 'LogoutUser', passesContext: true); // Logout
       break endMain;
     }
     // skipped: Login

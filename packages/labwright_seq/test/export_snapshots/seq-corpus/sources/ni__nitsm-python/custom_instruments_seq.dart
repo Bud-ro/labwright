@@ -24,13 +24,18 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 0,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  //   instrument_type_id <- "Relay1_Id"
-  //   pins <- {"DUTPin1"}
-  //   expected_instrument_names <- {"PXI0::16"}
-  //   expected_channel_group_ids <- {"ChannelGroup"}
-  //   expected_channel_lists <- {"Ch0, Ch1"}
-  ts.notExported('python call: custom_instruments_codemodules.py'); // Measure Test [NI_SemiconductorModule_MultiTest]
+  await ts.callPython(
+    'custom_instruments_codemodules.py',
+    'measure',
+    inputs: {
+      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
+      'instrument_type_id': 'Relay1_Id',
+      'pins': <dynamic>['DUTPin1'],
+      'expected_instrument_names': <dynamic>['PXI0::16'],
+      'expected_channel_group_ids': <dynamic>['ChannelGroup'],
+      'expected_channel_lists': <dynamic>['Ch0, Ch1'],
+    },
+  ); // Measure Test
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
@@ -56,9 +61,11 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  //   instrument_type_id <- "Relay1_Id"
-  ts.notExported('python call: custom_instruments_codemodules.py'); // Open Sessions [NI_SemiconductorModule_Action]
+  await ts.callPython(
+    'custom_instruments_codemodules.py',
+    'open_sessions',
+    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext'), 'instrument_type_id': 'Relay1_Id'},
+  ); // Open Sessions
 }
 
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
@@ -83,9 +90,11 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  //   instrument_type_id <- "Relay1_Id"
-  ts.notExported('python call: custom_instruments_codemodules.py'); // Close Sessions [NI_SemiconductorModule_Action]
+  await ts.callPython(
+    'custom_instruments_codemodules.py',
+    'close_sessions',
+    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext'), 'instrument_type_id': 'Relay1_Id'},
+  ); // Close Sessions
 }
 
 /// Sequence `PreBatch` — Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action..

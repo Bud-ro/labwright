@@ -121,12 +121,11 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll
-  // .NET call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions',
-  ); // Cache Session Mapping [NI_SemiconductorModule_Action]
+  await ts.callDotNet(
+    'Code Modules\\bin\\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll',
+    'NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Cache Session Mapping
 
   // Place any steps here to run once at the start of a lot. |
   // Lot Start Steps
@@ -150,13 +149,11 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.PowerToggle
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   powerOn <- True
-  ts.notExported(
-    'dotNet call: Code Modules\\TestSteps\\PowerToggle.cs',
-  ); // Power Toggle (on) [NI_SemiconductorModule_Action]
+  await ts.callDotNet(
+    'Code Modules\\bin\\Accelerometer.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.PowerToggle',
+    inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'), 'powerOn': true},
+  ); // Power Toggle (on)
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -177,11 +174,14 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.SetupVcc
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   pinsAndPinGroups <- {"Vcc","Gnd"}
-  ts.notExported('dotNet call: Code Modules\\TestSteps\\SetupVcc.cs'); // Setup Vcc [NI_SemiconductorModule_Action]
+  await ts.callDotNet(
+    'Code Modules\\bin\\Accelerometer.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.SetupVcc',
+    inputs: {
+      'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+      'pinsAndPinGroups': <dynamic>['Vcc', 'Gnd'],
+    },
+  ); // Setup Vcc
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -202,12 +202,11 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.SetupNIScopeForVref
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: Code Modules\\TestSteps\\SetupNIScopeForVref.cs',
-  ); // Setup NI-SCOPE for Vref [NI_SemiconductorModule_Action]
+  await ts.callDotNet(
+    'Code Modules\\bin\\Accelerometer.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.SetupNIScopeForVref',
+    inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Setup NI-SCOPE for Vref
   if (testTemperature == 'Hot') {
     await ts.stepType('NI_SemiconductorModule_Action', {
       'SemiconductorModuleContext': null,
@@ -229,12 +228,11 @@ Future<void> processSetup() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConfigureTemperatureController
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\ConfigureTemperatureController.cs',
-    ); // Configure temperature controller [NI_SemiconductorModule_Action]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConfigureTemperatureController',
+      inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext')},
+    ); // Configure temperature controller
   }
 }
 
@@ -264,12 +262,11 @@ Future<void> mainSequence() async {
         'DotNetRuntimeData': null,
         'PerSiteInputs': <dynamic>[],
       });
-      // .NET assembly: Code Modules\bin\Accelerometer.dll
-      // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.WaitForTemperature
-      //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-      ts.notExported(
-        'dotNet call: Code Modules\\TestSteps\\WaitForTemperature.cs',
-      ); // Wait for temperature controller to reach desired temp [NI_SemiconductorModule_Action]
+      await ts.callDotNet(
+        'Code Modules\\bin\\Accelerometer.dll',
+        'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.WaitForTemperature',
+        inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext')},
+      ); // Wait for temperature controller to reach desired temp
     }
 
     await ts.stepType('NI_SemiconductorModule_Action', {
@@ -292,13 +289,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConnectVRefPin
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    //   relayConfiguration <- "Connect VRef to DIO"
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\ConnectVRefPin.cs',
-    ); // Connect Vref pin to digital [NI_SemiconductorModule_Action]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConnectVRefPin',
+      inputs: {
+        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+        'relayConfiguration': 'Connect VRef to DIO',
+      },
+    ); // Connect Vref pin to digital
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'SemiconductorModuleContext': null,
       'Multisite': {
@@ -327,13 +325,14 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestContinuity
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    //   pinsAndPinGroups <- {"Digital", "Vcc", "Gnd"}
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\TestContinuity.cs',
-    ); // Test continuity on all pins [NI_SemiconductorModule_MultiTest]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestContinuity',
+      inputs: {
+        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+        'pinsAndPinGroups': <dynamic>['Digital', 'Vcc', 'Gnd'],
+      },
+    ); // Test continuity on all pins
     await ts.stepType('NI_SemiconductorModule_Action', {
       'SemiconductorModuleContext': null,
       'Multisite': {
@@ -354,13 +353,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TurnOnPowerToDUT
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    //   powerSupplyPins <- {"Vcc"}
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\TurnOnPowerToDUT.cs',
-    ); // Turn on power to DUT [NI_SemiconductorModule_Action]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TurnOnPowerToDUT',
+      inputs: {
+        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+        'powerSupplyPins': <dynamic>['Vcc'],
+      },
+    ); // Turn on power to DUT
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'SemiconductorModuleContext': null,
       'Multisite': {
@@ -389,13 +389,14 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestLeakage
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    //   pinsAndPinGroups <- {"Digital"}
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\TestLeakage.cs',
-    ); // Test leakage on all digital pins [NI_SemiconductorModule_MultiTest]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestLeakage',
+      inputs: {
+        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+        'pinsAndPinGroups': <dynamic>['Digital'],
+      },
+    ); // Test leakage on all digital pins
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'SemiconductorModuleContext': null,
       'Multisite': {
@@ -424,14 +425,15 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestIdlePowerConsumption
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    //   vccPin <- "Vcc"
-    //   gndPin <- "Gnd"
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\TestIdlePowerConsumption.cs',
-    ); // Test idle power consumption [NI_SemiconductorModule_MultiTest]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestIdlePowerConsumption',
+      inputs: {
+        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+        'vccPin': 'Vcc',
+        'gndPin': 'Gnd',
+      },
+    ); // Test idle power consumption
     await ts.stepType('NI_SemiconductorModule_Action', {
       'SemiconductorModuleContext': null,
       'Multisite': {
@@ -452,14 +454,15 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetDUTAndSetMode
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    //   rstPin <- "RST"
-    //   modePin <- "MODE"
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\ResetDUTAndSetMode.cs',
-    ); // Reset DUT and set MODE pin [NI_SemiconductorModule_Action]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetDUTAndSetMode',
+      inputs: {
+        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+        'rstPin': 'RST',
+        'modePin': 'MODE',
+      },
+    ); // Reset DUT and set MODE pin
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'SemiconductorModuleContext': null,
       'Multisite': {
@@ -488,15 +491,16 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 0,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.BurstPattern
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    //   spiPortPins <- {"SPI_Port"}
-    //   patternName <- "SetTestMode"
-    //   publishDataId <- "TestModeVerified"
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\BurstPattern.cs',
-    ); // Put DUT into test mode and verify [NI_SemiconductorModule_MultiTest]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.BurstPattern',
+      inputs: {
+        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+        'spiPortPins': <dynamic>['SPI_Port'],
+        'patternName': 'SetTestMode',
+        'publishDataId': 'TestModeVerified',
+      },
+    ); // Put DUT into test mode and verify
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'SemiconductorModuleContext': null,
       'Multisite': {
@@ -525,15 +529,16 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 0,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.BurstPattern
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    //   spiPortPins <- {"SPI_Port"}
-    //   patternName <- "ReadPartNumber"
-    //   publishDataId <- "Part Number Match"
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\BurstPattern.cs',
-    ); // Test DUT part number register [NI_SemiconductorModule_MultiTest]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.BurstPattern',
+      inputs: {
+        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+        'spiPortPins': <dynamic>['SPI_Port'],
+        'patternName': 'ReadPartNumber',
+        'publishDataId': 'Part Number Match',
+      },
+    ); // Test DUT part number register
     if (testFlowId == 'Quality') {
       // Place any test specific steps here to run for each unit under test.
       // Test Flow Specific Steps
@@ -565,15 +570,16 @@ Future<void> mainSequence() async {
         'EvaluationFailureOption': 0,
         'PerSiteInputs': <dynamic>[],
       });
-      // .NET assembly: Code Modules\bin\Accelerometer.dll
-      // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.CheckPartNumberRegisterWithMultipleVccValues
-      //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-      //   spiPortPins <- {"SPI_Port"}
-      //   vccPin <- "Vcc"
-      //   vccVoltageSymbolsToTest <- {"DC.Vcc_Max", "DC.Vcc_Min"}
-      ts.notExported(
-        'dotNet call: Code Modules\\TestSteps\\CheckPartNumberRegisterWithMultipleVccValues.cs',
-      ); // Test DUT part number register at different Vcc values [NI_SemiconductorModule_MultiTest]
+      await ts.callDotNet(
+        'Code Modules\\bin\\Accelerometer.dll',
+        'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.CheckPartNumberRegisterWithMultipleVccValues',
+        inputs: {
+          'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+          'spiPortPins': <dynamic>['SPI_Port'],
+          'vccPin': 'Vcc',
+          'vccVoltageSymbolsToTest': <dynamic>['DC.Vcc_Max', 'DC.Vcc_Min'],
+        },
+      ); // Test DUT part number register at different Vcc values
       await ts.stepType('NI_SemiconductorModule_Action', {
         'SemiconductorModuleContext': null,
         'Multisite': {
@@ -594,13 +600,14 @@ Future<void> mainSequence() async {
         'DotNetRuntimeData': null,
         'PerSiteInputs': <dynamic>[],
       });
-      // .NET assembly: Code Modules\bin\Accelerometer.dll
-      // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetPowerSupplyToVccTypical
-      //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-      //   powerSupplyPins <- {"Vcc"}
-      ts.notExported(
-        'dotNet call: Code Modules\\TestSteps\\ResetPowerSupplyToVccTypical.cs',
-      ); // Reset Vcc to Vcc_Typical [NI_SemiconductorModule_Action]
+      await ts.callDotNet(
+        'Code Modules\\bin\\Accelerometer.dll',
+        'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetPowerSupplyToVccTypical',
+        inputs: {
+          'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+          'powerSupplyPins': <dynamic>['Vcc'],
+        },
+      ); // Reset Vcc to Vcc_Typical
     }
     await ts.stepType('NI_SemiconductorModule_Action', {
       'SemiconductorModuleContext': null,
@@ -622,13 +629,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConnectVRefPin
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    //   relayConfiguration <- "Connect VRef to Scope"
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\ConnectVRefPin.cs',
-    ); // Connect Vref pin to scope [NI_SemiconductorModule_Action]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConnectVRefPin',
+      inputs: {
+        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+        'relayConfiguration': 'Connect VRef to Scope',
+      },
+    ); // Connect Vref pin to scope
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'SemiconductorModuleContext': null,
       'Multisite': {
@@ -657,12 +665,11 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.MeasureVref
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\MeasureVref.cs',
-    ); // Measure and verify Vref voltage level [NI_SemiconductorModule_MultiTest]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.MeasureVref',
+      inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext')},
+    ); // Measure and verify Vref voltage level
     // Trim each DUT using Vref from previous measurement
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'SemiconductorModuleContext': null,
@@ -694,13 +701,14 @@ Future<void> mainSequence() async {
         ts.PropObj({'Pin': '', 'DataId': 'Vref Value', 'DataExpr': 'Locals.VrefDCValue'}),
       ],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TrimVrefValue
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    //   spiPortPins <- {"SPI_Port"}
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\TrimVrefValue.cs',
-    ); // Set Vref calibration register [NI_SemiconductorModule_MultiTest]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TrimVrefValue',
+      inputs: {
+        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
+        'spiPortPins': <dynamic>['SPI_Port'],
+      },
+    ); // Set Vref calibration register
   } finally {
     // Place any test flow agnostic setup steps here, to run after each unit, regardless of pass/failure results. |
     // Test Flow Agnostic Cleanup Steps
@@ -724,12 +732,11 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.DisableInstrumentOutputs
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\DisableInstrumentOutputs.cs',
-    ); // Disable instrument outputs [NI_SemiconductorModule_Action]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.DisableInstrumentOutputs',
+      inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext')},
+    ); // Disable instrument outputs
   }
 }
 
@@ -758,13 +765,11 @@ Future<void> processCleanup() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.PowerToggle
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    //   powerOn <- False
-    ts.notExported(
-      'dotNet call: Code Modules\\TestSteps\\PowerToggle.cs',
-    ); // Power Toggle (off) [NI_SemiconductorModule_Action]
+    await ts.callDotNet(
+      'Code Modules\\bin\\Accelerometer.dll',
+      'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.PowerToggle',
+      inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'), 'powerOn': false},
+    ); // Power Toggle (off)
     if (testTemperature == 'Hot') {
       await ts.stepType('NI_SemiconductorModule_Action', {
         'SemiconductorModuleContext': null,
@@ -786,12 +791,11 @@ Future<void> processCleanup() async {
         'DotNetRuntimeData': null,
         'PerSiteInputs': <dynamic>[],
       });
-      // .NET assembly: Code Modules\bin\Accelerometer.dll
-      // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetAndCloseTemperatureController
-      //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-      ts.notExported(
-        'dotNet call: Code Modules\\TestSteps\\ResetAndCloseTemperatureController.cs',
-      ); // Reset and close temperature controller [NI_SemiconductorModule_Action]
+      await ts.callDotNet(
+        'Code Modules\\bin\\Accelerometer.dll',
+        'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetAndCloseTemperatureController',
+        inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext')},
+      ); // Reset and close temperature controller
     }
   } finally {
     // Do not delete or move.

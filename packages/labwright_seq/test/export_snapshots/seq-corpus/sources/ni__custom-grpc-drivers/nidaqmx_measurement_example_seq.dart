@@ -7,9 +7,10 @@ dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('NIDAQmxMeasurement.pinmap');
-    //   sequence context in <- ThisContext
-    //   error out <- Step.Result.Error
-    await callInitializeAndRegisterTasks(); // Initialize and Register NI-DAQmx Tasks [Action]
+    await ts.callVi(
+      'My Computer\\NIDAQmxMeasurement.lvlib\\TestStand Code Modules\\Initialize and Register Tasks.vi',
+      passesContext: true,
+    ); // Initialize and Register NI-DAQmx Tasks
 
     await ts.measurement('NIDAQmxMeasurement_LabVIEW', {
       'pin_name': 'Pin1',
@@ -19,17 +20,8 @@ Future<void> mainSequence() async {
       'timeout': 10,
     });
   } finally {
-    //   error out <- Step.Result.Error
-    await callUnregisterAndCloseTasks(); // Unregister and Close NI-DAQmx Tasks [Action]
+    await ts.callVi(
+      'My Computer\\NIDAQmxMeasurement.lvlib\\TestStand Code Modules\\Unregister and Close Tasks.vi',
+    ); // Unregister and Close NI-DAQmx Tasks
   }
 }
-
-/// The labView module `My Computer\NIDAQmxMeasurement.lvlib\TestStand Code Modules\Initialize and Register Tasks.vi`.
-Future<Object?> callInitializeAndRegisterTasks() async => throw UnimplementedError(
-  'labView call: My Computer\\NIDAQmxMeasurement.lvlib\\TestStand Code Modules\\Initialize and Register Tasks.vi',
-);
-
-/// The labView module `My Computer\NIDAQmxMeasurement.lvlib\TestStand Code Modules\Unregister and Close Tasks.vi`.
-Future<Object?> callUnregisterAndCloseTasks() async => throw UnimplementedError(
-  'labView call: My Computer\\NIDAQmxMeasurement.lvlib\\TestStand Code Modules\\Unregister and Close Tasks.vi',
-);

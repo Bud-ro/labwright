@@ -6,11 +6,19 @@ Future<void> loginLogout({bool logout = false, bool isInitialLogin = false}) asy
   endMain:
   {
     if (logout) {
-      ts.notExported('cModule call: Logout'); // Logout [Action]
+      await ts.callDll('\$(Platform)\\frontend.dll', 'LogoutUser', passesContext: true); // Logout
       break endMain;
     }
     if (!logout) {
-      ts.notExported('cModule call: Login'); // Login [Action]
+      await ts.callDll(
+        '\$(Platform)\\frontend.dll',
+        'LoginUser',
+        inputs: {
+          '#3': ts.eval('PropertyExists("StationGlobals.TS.LastUserName") ? StationGlobals.TS.LastUserName : ""'),
+          '#4': isInitialLogin,
+        },
+        passesContext: true,
+      ); // Login
       if (ts.cond('RunState.Engine.CurrentUser == Nothing')) {
         break endMain;
       }
@@ -44,20 +52,30 @@ Future<void> restart() async {
     if (ts.cond(
       '#NoValidation(FindFile(RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\\\\CurrentUIConfigFilePath.log"))',
     )) {
-      // .NET call: System.IO.File.ReadAllText
-      //   Return Value <- Locals.CurrentUIConfigFilePath
-      //   path <- #NoValidation(RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\\CurrentUIConfigFilePath.log")
-      ts.notExported('dotNet call: System.IO.File.ReadAllText'); // Get Current UI Config Path [Action]
+      final outputs = await ts.callDotNet(
+        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'System.IO.File.ReadAllText',
+        inputs: {
+          'path': ts.eval(
+            '#NoValidation(RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\\\\CurrentUIConfigFilePath.log")',
+          ),
+        },
+      ); // Get Current UI Config Path
+      locals.currentUiConfigFilePath = outputs['Return Value'] as String;
     }
     if (ts.cond('RunState.Engine.CurrentUser.AsPropertyObject.Attributes.Exists("UIConfig" , PropOption_NoOptions)')) {
-      // .NET call: System.Environment.ExpandEnvironmentVariables
-      //   Return Value <- Locals.NewUIConfigPath
-      //   name <- Str(RunState.Engine.CurrentUser.AsPropertyObject.Attributes.UIConfig)
-      ts.notExported('dotNet call: System.Environment.ExpandEnvironmentVariables'); // Get New UI Config Path [Action]
-      // .NET call: System.IO.File.Exists
-      //   Return Value <- Locals.NewUIConfigExists
-      //   path <- Locals.NewUIConfigPath
-      ts.notExported('dotNet call: System.IO.File.Exists'); // UI Config File Exists? [Action]
+      final outputs2 = await ts.callDotNet(
+        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'System.Environment.ExpandEnvironmentVariables',
+        inputs: {'name': ts.eval('Str(RunState.Engine.CurrentUser.AsPropertyObject.Attributes.UIConfig)')},
+      ); // Get New UI Config Path
+      locals.newUiConfigPath = outputs2['Return Value'] as String;
+      final outputs3 = await ts.callDotNet(
+        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'System.IO.File.Exists',
+        inputs: {'path': locals.newUiConfigPath},
+      ); // UI Config File Exists?
+      locals.newUiConfigExists = outputs3['Return Value'] as bool;
       if (!locals.newUiConfigExists) {
         break endMain;
       }

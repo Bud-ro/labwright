@@ -6,6 +6,14 @@ Future<void> mainSequence() async {
   await actionButtonTest(); // Action Button Test
 }
 
+class _ActionButtonTestLocals {
+  dynamic dcvgRessource;
+  dynamic dcvmRessource;
+  dynamic artifactsManagerDcvg;
+  dynamic artifactsManagerDcvm;
+  String documentPath = '';
+}
+
 /// Sequence `Action Button Test`.
 Future<void> actionButtonTest({
   dynamic terminalConfiguration,
@@ -15,6 +23,8 @@ Future<void> actionButtonTest({
   dynamic dcvmResultData,
 }) async {
   channelSettings ??= <dynamic>[];
+
+  final locals = _ActionButtonTestLocals();
 
   try {
     // Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points.
@@ -36,129 +46,203 @@ Future<void> actionButtonTest({
     ts.eval(
       '\n\nLocals.DateTime.Now = Str(Locals.DateTime.Month, "%.2u") + "-" + Str(Locals.DateTime.Day, "%.2u") + "-" + Right(Str(Locals.DateTime.Year, "%u"),2) + "-" + Str(Locals.DateTime.Hours, "%.2u") + "h" + Str(Locals.DateTime.Minutes, "%.2u") + "m" + Str(Locals.DateTime.Seconds, "%.2u") + "s"',
     );
-    // .NET call: System.Environment.GetFolderPath
-    //   Return Value <- Locals.DocumentPath
-    //   folder <- "MyDocuments"
-    ts.notExported('dotNet call: System.Environment.GetFolderPath'); // Get document path [Action]
+    final outputs = await ts.callDotNet(
+      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'System.Environment.GetFolderPath',
+      inputs: {'folder': 'MyDocuments'},
+    ); // Get document path
+    locals.documentPath = outputs['Return Value'] as String;
     //
     //
     // Initialize Result Folder
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-    //   Return Value <- Locals.ArtifactsManagerDCVG
-    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\PCBATT\\DCVG - "+ Locals.DateTime.Now)
-    ts.notExported(
-      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-    ); // DC Voltage Generation - Initialize Result Folder [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-    //   Return Value <- Locals.ArtifactsManagerDCVM
-    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\PCBATT\\DCVM - "+ Locals.DateTime.Now)
-    ts.notExported(
-      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-    ); // DC-RMS Voltage Measurement - Initialize Result Folder [Action]
+    final outputs2 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\NI.Measurement.Foundation.dll',
+      'NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+      inputs: {
+        'measurementArtifactsOutputFolderAbsolutePath': ts.eval(
+          '#NoValidation(Locals.DocumentPath + "\\\\PCBATT\\\\DCVG - "+ Locals.DateTime.Now)',
+        ),
+      },
+    ); // DC Voltage Generation - Initialize Result Folder
+    locals.artifactsManagerDcvg = outputs2['Return Value'];
+    final outputs3 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\NI.Measurement.Foundation.dll',
+      'NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+      inputs: {
+        'measurementArtifactsOutputFolderAbsolutePath': ts.eval(
+          '#NoValidation(Locals.DocumentPath + "\\\\PCBATT\\\\DCVM - "+ Locals.DateTime.Now)',
+        ),
+      },
+    ); // DC-RMS Voltage Measurement - Initialize Result Folder
+    locals.artifactsManagerDcvm = outputs3['Return Value'];
     //
     //
     // Initialize Hardware
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     //
     // Initializes the configured Physical/Virtual channels of Analog Output module to perform Action Button functionality
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.CreateInstance
-    //   Return Value <- Locals.DCVGRessource
-    //   analogOutputChannelExpression <- "TS_ButtonEnable0"
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.CreateInstance',
-    ); // DC Voltage Generation - Initialize Action Button [Action]
+    final outputs4 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.CreateInstance',
+      inputs: {'analogOutputChannelExpression': 'TS_ButtonEnable0'},
+    ); // DC Voltage Generation - Initialize Action Button
+    locals.dcvgRessource = outputs4['Return Value'];
     //
     // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform DC-RMS Voltage Measurement
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.CreateInstance
-    //   Return Value <- Locals.DCVMRessource
-    //   analogInputChannelExpression <- "TP_LineOut0:1"
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.CreateInstance',
-    ); // DC-RMS Voltage Measurement - Initialize TP [Action]
+    final outputs5 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.CreateInstance',
+      inputs: {'analogInputChannelExpression': 'TP_LineOut0:1'},
+    ); // DC-RMS Voltage Measurement - Initialize TP
+    locals.dcvmRessource = outputs5['Return Value'];
     //
     //
     // Assign Measure folder
     // Note: Build name, Directory and Save csv files.
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
-    //   Existing Object <- Locals.DCVGRessource
-    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ExternalComponents
-    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-    //   measurementArtifactsManager <- Locals.ArtifactsManagerDCVG
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.AttachArtifactsManager',
-    ); // DC Voltage Generation - Assign Generation [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object
-    //   Existing Object <- Locals.DCVMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ExternalComponents
-    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-    //   measurementArtifactsManager <- Locals.ArtifactsManagerDCVM
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.AttachArtifactsManager',
-    ); // DC-RMS Voltage Measurement - Assign Measure TP [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object',
+      inputs: {'Existing Object': locals.dcvgRessource},
+    ); // DC Voltage Generation - Assign Generation
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ExternalComponents',
+    ); // DC Voltage Generation - Assign Generation
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers',
+    ); // DC Voltage Generation - Assign Generation
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager',
+      inputs: {'measurementArtifactsManager': locals.artifactsManagerDcvg},
+    ); // DC Voltage Generation - Assign Generation
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.dcvmRessource},
+    ); // DC-RMS Voltage Measurement - Assign Measure TP
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ExternalComponents',
+    ); // DC-RMS Voltage Measurement - Assign Measure TP
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers',
+    ); // DC-RMS Voltage Measurement - Assign Measure TP
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager',
+      inputs: {'measurementArtifactsManager': locals.artifactsManagerDcvm},
+    ); // DC-RMS Voltage Measurement - Assign Measure TP
 
     // Button ON Action
     //
     // Note: This Step can be replaced with actual button action
     // Note to run with Hardware: Update DC Voltage for Action Button ON condition
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
-    //   Existing Object <- Locals.DCVGRessource
-    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate',
-    ); // DC Voltage Generation - Action Button On State [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object
-    //   Existing Object <- Locals.DCVMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure
-    //   Return Value <- Parameters.DCVMResultData
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure',
-    ); // DC-RMS Voltage Measurement - Measure TP [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object',
+      inputs: {'Existing Object': locals.dcvgRessource},
+    ); // DC Voltage Generation - Action Button On State
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate',
+      inputs: {
+        'parameters.RangeSettings.MinimumValueVolts': minimumValueVolts,
+        'parameters.RangeSettings.MaximumValueVolts': maximumValueVolts,
+        'parameters.OutputVoltages': <dynamic>[4.75, 3.82],
+      },
+    ); // DC Voltage Generation - Action Button On State
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.dcvmRessource},
+    ); // DC-RMS Voltage Measurement - Measure TP
+    final outputs6 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure',
+      inputs: {
+        'parameters.ChannelAndTerminalSettings.GlobalSettings.TerminalConfiguration': 'RSE',
+        'parameters.ChannelAndTerminalSettings.GlobalSettings.MinimumValueVolts': -10,
+        'parameters.ChannelAndTerminalSettings.GlobalSettings.MaximumValueVolts': 10,
+        'parameters.ChannelAndTerminalSettings.ChannelsSettings': channelSettings,
+        'parameters.Options.MeasurementExecutionType': 'ConfigureAndMeasure',
+        'parameters.Options.MeasurementAnalysisRequirement': 'ProceedToAnalysis',
+        'parameters.TimingSettings.SampleClockSource': 'OnboardClock',
+        'parameters.TimingSettings.SamplingRateHertz': 10000,
+        'parameters.TimingSettings.NumberOfSamplesPerChannel': 1000,
+        'parameters.TimingSettings.SampleTimingEngine': 'Auto',
+        'parameters.TriggerSettings.TriggerType': 'NoTrigger',
+        'parameters.TriggerSettings.DigitalStartTriggerSource': 'NA',
+        'parameters.TriggerSettings.DigitalEdgeStartTriggerEdge': 'Rising',
+      },
+    ); // DC-RMS Voltage Measurement - Measure TP
+    dcvmResultData = outputs6['Return Value'];
     //
     //
     // Button OFF Action
     // Note to run with Hardware: Update DC Voltage for Action Button OFF condition
     //
     // Note: This Step can be replaced with actual button action
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
-    //   Existing Object <- Locals.DCVGRessource
-    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate',
-    ); // DC Voltage Generation -  Action Button OFF State [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object
-    //   Existing Object <- Locals.DCVMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure
-    //   Return Value <- Parameters.DCVMResultData
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure',
-    ); // DC-RMS Voltage Measurement - Measure TP [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object',
+      inputs: {'Existing Object': locals.dcvgRessource},
+    ); // DC Voltage Generation -  Action Button OFF State
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate',
+      inputs: {
+        'parameters.RangeSettings.MinimumValueVolts': -10,
+        'parameters.RangeSettings.MaximumValueVolts': 10,
+        'parameters.OutputVoltages': <dynamic>[0, 0],
+      },
+    ); // DC Voltage Generation -  Action Button OFF State
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.dcvmRessource},
+    ); // DC-RMS Voltage Measurement - Measure TP
+    final outputs7 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure',
+      inputs: {
+        'parameters.ChannelAndTerminalSettings.GlobalSettings.TerminalConfiguration': 'RSE',
+        'parameters.ChannelAndTerminalSettings.GlobalSettings.MinimumValueVolts': -10,
+        'parameters.ChannelAndTerminalSettings.GlobalSettings.MaximumValueVolts': 10,
+        'parameters.ChannelAndTerminalSettings.ChannelsSettings': channelSettings,
+        'parameters.Options.MeasurementExecutionType': 'ConfigureAndMeasure',
+        'parameters.Options.MeasurementAnalysisRequirement': 'ProceedToAnalysis',
+        'parameters.TimingSettings.SampleClockSource': 'OnboardClock',
+        'parameters.TimingSettings.SamplingRateHertz': 10000,
+        'parameters.TimingSettings.NumberOfSamplesPerChannel': 1000,
+        'parameters.TimingSettings.SampleTimingEngine': 'Auto',
+        'parameters.TriggerSettings.TriggerType': 'NoTrigger',
+        'parameters.TriggerSettings.DigitalStartTriggerSource': 'NA',
+        'parameters.TriggerSettings.DigitalEdgeStartTriggerEdge': 'Rising',
+      },
+    ); // DC-RMS Voltage Measurement - Measure TP
+    dcvmResultData = outputs7['Return Value'];
   } finally {
     // Close all Tasks
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
-    //   Existing Object <- Locals.DCVGRessource
-    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Close
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Close',
-    ); // DC Voltage Generation -  Close Action Button [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object
-    //   Existing Object <- Locals.DCVMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Close
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Close',
-    ); // DC-RMS Voltage Measurement -  Close Action TP [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object',
+      inputs: {'Existing Object': locals.dcvgRessource},
+    ); // DC Voltage Generation -  Close Action Button
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Close',
+    ); // DC Voltage Generation -  Close Action Button
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.dcvmRessource},
+    ); // DC-RMS Voltage Measurement -  Close Action TP
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Close',
+    ); // DC-RMS Voltage Measurement -  Close Action TP
   }
 }

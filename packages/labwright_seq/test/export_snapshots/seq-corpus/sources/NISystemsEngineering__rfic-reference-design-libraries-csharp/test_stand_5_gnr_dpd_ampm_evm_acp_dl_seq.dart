@@ -312,50 +312,49 @@ Future<void> mainSequence() async {
     ); // Initialize Waveform Arrays
     ts.setNumElements(loadedWaveforms, ts.getNumElements(staticStationConfigs.Waveform_Configs));
     // Initialize Instruments
-    // .NET call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg
-    //   Return Value <- FileGlobals.Device_Handles.RFSG_Session
-    //   resourceName <- FileGlobals.Static_Station_Configs.Device_Names.SG_Name
-    //   idQuery <- False
-    //   reset <- False
-    ts.notExported('dotNet call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg'); // Init RFSG [Action]
-    // .NET call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX
-    //   Return Value <- FileGlobals.Device_Handles.RFmx_Instr_Session
-    //   resourceName <- FileGlobals.Static_Station_Configs.Device_Names.SA_Name
-    //   optionString <- ""
-    ts.notExported('dotNet call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX'); // RFmx Initialize [Action]
+    final outputs = await ts.callDotNet(
+      'NationalInstruments.ModularInstruments.NIRfsg.Fx45, Version=19.2.0.49152, Culture=neutral, PublicKeyToken=4febd62461bf11a4',
+      'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg',
+      inputs: {'resourceName': staticStationConfigs.Device_Names.SG_Name, 'idQuery': false, 'reset': false},
+    ); // Init RFSG
+    deviceHandles.RFSG_Session = outputs['Return Value'];
+    final outputs2 = await ts.callDotNet(
+      'NationalInstruments.RFmx.InstrMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+      'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX',
+      inputs: {'resourceName': staticStationConfigs.Device_Names.SA_Name, 'optionString': ''},
+    ); // RFmx Initialize
+    deviceHandles.RFmx_Instr_Session = outputs2['Return Value'];
     // Load Waveforms and Create Signals
     locals.waveFormConfigsIdx = 0; // Reset Wfm config index
     for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
       locals.currentWaveformConfig = element;
-      // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-      // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS
-      //   Return Value <- Locals.Current_Waveform
-      //   filePath <- Locals.Current_Waveform_Config.Absolute_Disk_Path
-      ts.notExported(
-        'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS',
-      ); // Load Waveform from TDMS [Action]
-      // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-      // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.DownloadWaveform
-      //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-      //   waveform <- Locals.Current_Waveform
-      ts.notExported(
-        'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.DownloadWaveform',
-      ); // Download Waveform to Generator [Action]
+      final outputs3 = await ts.callDotNet(
+        '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+        'NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS',
+        inputs: {'filePath': locals.currentWaveformConfig.Absolute_Disk_Path},
+      ); // Load Waveform from TDMS
+      locals.currentWaveform = outputs3['Return Value'];
+      await ts.callDotNet(
+        '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+        'NationalInstruments.ReferenceDesignLibraries.SG.DownloadWaveform',
+        inputs: {'rfsgHandle': deviceHandles.RFSG_Session, 'waveform': locals.currentWaveform},
+      ); // Download Waveform to Generator
       // Create a new signal based on the waveform's parameters
-      // .NET call: NationalInstruments.RFmx.InstrMX.RFmxNRMXExtension.GetNRSignalConfiguration
-      //   Return Value <- Locals.Current_RFmx_NR_Signal
-      //   instrSession <- FileGlobals.Device_Handles.RFmx_Instr_Session
-      //   signalName <- Locals.Current_Waveform.Name
-      ts.notExported(
-        'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxNRMXExtension.GetNRSignalConfiguration',
-      ); // Create NR Signal Configuration [Action]
-      // .NET call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration
-      //   Return Value <- Locals.Current_RFmx_SpecAn_Signal
-      //   instrSession <- FileGlobals.Device_Handles.RFmx_Instr_Session
-      //   signalName <- Locals.Current_Waveform.Name+"SpecAn"
-      ts.notExported(
-        'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
-      ); // Create SpecAn Signal Configuration [Action]
+      final outputs4 = await ts.callDotNet(
+        'NationalInstruments.RFmx.NRMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+        'NationalInstruments.RFmx.InstrMX.RFmxNRMXExtension.GetNRSignalConfiguration',
+        inputs: {'instrSession': deviceHandles.RFmx_Instr_Session, 'signalName': locals.currentWaveform.Name},
+      ); // Create NR Signal Configuration
+      locals.currentRFmxNrSignal = outputs4['Return Value'];
+      final outputs5 = await ts.callDotNet(
+        'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+        'NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
+        inputs: {
+          'instrSession': deviceHandles.RFmx_Instr_Session,
+          'signalName': '${locals.currentWaveform.Name as String}SpecAn',
+        },
+      ); // Create SpecAn Signal Configuration
+      locals.currentRFmxSpecAnSignal = outputs5['Return Value'];
       loadedWaveformIndexes[locals.waveFormConfigsIdx] = locals.waveFormConfigsIdx; // Store Loaded Waveforms
       loadedWaveforms[locals.waveFormConfigsIdx] = locals.currentWaveform;
       locals.waveFormConfigsIdx++;
@@ -377,16 +376,20 @@ Future<void> mainSequence() async {
     }
   } finally {
     // Instrument Cleanup
-    // .NET call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Use Existing Object
-    //   Existing Object <- FileGlobals.Device_Handles.RFmx_Instr_Session
-    // .NET call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close
-    ts.notExported('dotNet call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close'); // RFmx Close [Action]
-    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-    // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.CloseInstrument
-    //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-    ts.notExported(
-      'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.CloseInstrument',
-    ); // Close RFSG [Action]
+    await ts.callDotNet(
+      'NationalInstruments.RFmx.InstrMX.Fx40, Version=19.1.0.32772, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+      'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Use Existing Object',
+      inputs: {'Existing Object': deviceHandles.RFmx_Instr_Session},
+    ); // RFmx Close
+    await ts.callDotNet(
+      'NationalInstruments.RFmx.InstrMX.Fx40, Version=19.1.0.32772, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+      'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close',
+    ); // RFmx Close
+    await ts.callDotNet(
+      '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+      'NationalInstruments.ReferenceDesignLibraries.SG.CloseInstrument',
+      inputs: {'rfsgHandle': deviceHandles.RFSG_Session},
+    ); // Close RFSG
     // With theData Streams API, the reference to the output stream file is closed.
     outputFile.AsOutputRecordStream.Close(); // Close Output Stream Reference
   }
@@ -417,116 +420,163 @@ Future<void> configure() async {
       currentSweepStep.Loaded_Waveform.PAPR_dB +
       staticStationConfigs.DUT_Params.Gain_dB; // Calculate Reference Level
   // Retrieve the saved signal configuration for this waveform based on the waveform's name
-  // .NET call: NationalInstruments.RFmx.InstrMX.RFmxNRMXExtension.GetNRSignalConfiguration
-  //   Return Value <- FileGlobals.Device_Handles.RFmx_NR_Signal_Session
-  //   instrSession <- FileGlobals.Device_Handles.RFmx_Instr_Session
-  //   signalName <- FileGlobals.Current_Sweep_Step.Loaded_Waveform.Name
-  ts.notExported(
-    'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxNRMXExtension.GetNRSignalConfiguration',
-  ); // Get Specific NR Signal Configuration by Name [Action]
+  final outputs = await ts.callDotNet(
+    'NationalInstruments.RFmx.NRMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+    'NationalInstruments.RFmx.InstrMX.RFmxNRMXExtension.GetNRSignalConfiguration',
+    inputs: {'instrSession': deviceHandles.RFmx_Instr_Session, 'signalName': currentSweepStep.Loaded_Waveform.Name},
+  ); // Get Specific NR Signal Configuration by Name
+  deviceHandles.RFmx_NR_Signal_Session = outputs['Return Value'];
   // Retrieve the saved signal configuration for this waveform based on the waveform's name
-  // .NET call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration
-  //   Return Value <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-  //   instrSession <- FileGlobals.Device_Handles.RFmx_Instr_Session
-  //   signalName <- FileGlobals.Current_Sweep_Step.Loaded_Waveform.Name+"SpecAn"
-  ts.notExported(
-    'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
-  ); // Get Specific SpecAn Signal Configuration by Name [Action]
+  final outputs2 = await ts.callDotNet(
+    'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+    'NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
+    inputs: {
+      'instrSession': deviceHandles.RFmx_Instr_Session,
+      'signalName': '${currentSweepStep.Loaded_Waveform.Name as String}SpecAn',
+    },
+  ); // Get Specific SpecAn Signal Configuration by Name
+  deviceHandles.RFmx_SpecAn_Signal_Session = outputs2['Return Value'];
 
   // Configure Generator
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.ConfigureInstrument
-  //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.ConfigureInstrument',
-  ); // RFSG Config Instrument [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.ConfigureContinuousGeneration
-  //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-  //   waveform <- FileGlobals.Current_Sweep_Step.Loaded_Waveform
-  //   markerEventExportTerminal <- FileGlobals.Configurations.Generator.markerEventExportTerminal
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.ConfigureContinuousGeneration',
-  ); // Configure ContinuousGeneration [Action]
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SG.ConfigureInstrument',
+    inputs: {
+      'rfsgHandle': deviceHandles.RFSG_Session,
+      'instrConfig.SelectedPorts': configurations.Generator.RFSGConfig.SelectedPorts,
+      'instrConfig.ReferenceClockSource': configurations.Generator.RFSGConfig.ReferenceClockSource,
+      'instrConfig.CarrierFrequency_Hz': configurations.Generator.RFSGConfig.CarrierFrequency_Hz,
+      'instrConfig.DutAverageInputPower_dBm': configurations.Generator.RFSGConfig.DutAverageInputPower_dBm,
+      'instrConfig.ExternalAttenuation_dB': configurations.Generator.RFSGConfig.ExternalAttenuation_dB,
+      'instrConfig.LOSharingMode': configurations.Generator.RFSGConfig.LOSharingMode,
+    },
+  ); // RFSG Config Instrument
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SG.ConfigureContinuousGeneration',
+    inputs: {
+      'rfsgHandle': deviceHandles.RFSG_Session,
+      'waveform': currentSweepStep.Loaded_Waveform,
+      'markerEventExportTerminal': configurations.Generator.markerEventExportTerminal,
+    },
+  ); // Configure ContinuousGeneration
   // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
   currentSweepStep.Input_and_Output.PARAMS.WaveformName = currentSweepStep.Loaded_Waveform.Name; // Map Results
-  // .NET call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Use Existing Object
-  //   Existing Object <- FileGlobals.Device_Handles.RFSG_Session
-  // .NET call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Initiate
-  ts.notExported(
-    'dotNet call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Initiate',
-  ); // RFSG Initiate [Action]
+  await ts.callDotNet(
+    'NationalInstruments.ModularInstruments.NIRfsg.Fx45, Version=19.2.0.49152, Culture=neutral, PublicKeyToken=4febd62461bf11a4',
+    'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Use Existing Object',
+    inputs: {'Existing Object': deviceHandles.RFSG_Session},
+  ); // RFSG Initiate
+  await ts.callDotNet(
+    'NationalInstruments.ModularInstruments.NIRfsg.Fx45, Version=19.2.0.49152, Culture=neutral, PublicKeyToken=4febd62461bf11a4',
+    'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Initiate',
+  ); // RFSG Initiate
   // Configure Analyzer
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxInstr.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxInstr.ConfigureInstrument
-  //   instrHandle <- FileGlobals.Device_Handles.RFmx_Instr_Session
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxInstr.ConfigureInstrument',
-  ); // RFmx Config Instrument [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.ConfigureStandard
-  //   nr <- FileGlobals.Device_Handles.RFmx_NR_Signal_Session
-  //   standardConfig <- FileGlobals.Configurations.Analyzer.NR_Standard_Config
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.ConfigureStandard',
-  ); // NR Config Standard [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.ConfigureCommon
-  //   nr <- FileGlobals.Device_Handles.RFmx_NR_Signal_Session
-  //   commonConfig <- FileGlobals.Configurations.Analyzer.Common_Config
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.ConfigureCommon',
-  ); // NR Config Common [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.ConfigureModacc
-  //   nr <- FileGlobals.Device_Handles.RFmx_NR_Signal_Session
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.ConfigureModacc',
-  ); // NR Config ModAcc [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.ConfigureAcp
-  //   nr <- FileGlobals.Device_Handles.RFmx_NR_Signal_Session
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.ConfigureAcp',
-  ); // NR Config ACP [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.ConfigureCommon
-  //   specAnSignal <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-  //   commonConfig <- FileGlobals.Configurations.Analyzer.Common_Config
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.ConfigureCommon',
-  ); // SpecAn Config Common [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.ConfigureAmpm
-  //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.ConfigureAmpm',
-  ); // SpecAn Config AMPM [Action]
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxInstr.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxInstr.ConfigureInstrument',
+    inputs: {
+      'instrHandle': deviceHandles.RFmx_Instr_Session,
+      'instrConfig.LOSharingMode': configurations.Analyzer.Instr_Config.LOSharingMode,
+      'instrConfig.FrequencyReferenceSource': configurations.Analyzer.Instr_Config.FrequencyReferenceSource,
+    },
+  ); // RFmx Config Instrument
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.ConfigureStandard',
+    inputs: {
+      'nr': deviceHandles.RFmx_NR_Signal_Session,
+      'standardConfig': configurations.Analyzer.NR_Standard_Config,
+      'selectorString': configurations.Analyzer.RFmx_Selector_String,
+    },
+  ); // NR Config Standard
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.ConfigureCommon',
+    inputs: {
+      'nr': deviceHandles.RFmx_NR_Signal_Session,
+      'commonConfig': configurations.Analyzer.Common_Config,
+      'selectorString': configurations.Analyzer.RFmx_Selector_String,
+    },
+  ); // NR Config Common
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.ConfigureModacc',
+    inputs: {
+      'nr': deviceHandles.RFmx_NR_Signal_Session,
+      'modAccConfig.MeasurementLengthUnit': configurations.Analyzer.Measurements.NR_ModAcc_Config.MeasurementLengthUnit,
+      'modAccConfig.MeasurementOffset': configurations.Analyzer.Measurements.NR_ModAcc_Config.MeasurementOffset,
+      'modAccConfig.MeasurementLength': configurations.Analyzer.Measurements.NR_ModAcc_Config.MeasurementLength,
+      'modAccConfig.EvmUnit': configurations.Analyzer.Measurements.NR_ModAcc_Config.EvmUnit,
+      'modAccConfig.AveragingEnabled': configurations.Analyzer.Measurements.NR_ModAcc_Config.AveragingEnabled,
+      'modAccConfig.AveragingCount': configurations.Analyzer.Measurements.NR_ModAcc_Config.AveragingCount,
+      'selectorString': configurations.Analyzer.RFmx_Selector_String,
+    },
+  ); // NR Config ModAcc
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.ConfigureAcp',
+    inputs: {
+      'nr': deviceHandles.RFmx_NR_Signal_Session,
+      'acpConfig.NumberOfUtraOffsets': configurations.Analyzer.Measurements.NR_ACP_Config.NumberOfUtraOffsets,
+      'acpConfig.NumberOfEutraOffsets': configurations.Analyzer.Measurements.NR_ACP_Config.NumberOfEutraOffsets,
+      'acpConfig.NumberOfNrOffsets': configurations.Analyzer.Measurements.NR_ACP_Config.NumberOfNrOffsets,
+      'acpConfig.NumberOfEndcOffsets': configurations.Analyzer.Measurements.NR_ACP_Config.NumberOfEndcOffsets,
+      'acpConfig.MeasurementMethod': configurations.Analyzer.Measurements.NR_ACP_Config.MeasurementMethod,
+      'acpConfig.NoiseCompensationEnabled': configurations.Analyzer.Measurements.NR_ACP_Config.NoiseCompensationEnabled,
+      'acpConfig.SweepTimeAuto': configurations.Analyzer.Measurements.NR_ACP_Config.SweepTimeAuto,
+      'acpConfig.SweepTimeInterval_s': configurations.Analyzer.Measurements.NR_ACP_Config.SweepTimeInterval_s,
+      'acpConfig.AveragingEnabled': configurations.Analyzer.Measurements.NR_ACP_Config.AveragingEnabled,
+      'acpConfig.AveragingCount': configurations.Analyzer.Measurements.NR_ACP_Config.AveragingCount,
+      'acpConfig.AveragingType': configurations.Analyzer.Measurements.NR_ACP_Config.AveragingType,
+      'selectorString': configurations.Analyzer.RFmx_Selector_String,
+    },
+  ); // NR Config ACP
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.ConfigureCommon',
+    inputs: {
+      'specAnSignal': deviceHandles.RFmx_SpecAn_Signal_Session,
+      'commonConfig': configurations.Analyzer.Common_Config,
+      'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+    },
+  ); // SpecAn Config Common
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.ConfigureAmpm',
+    inputs: {
+      'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+      'ampmConfig.MeasurementInterval_s': configurations.Analyzer.Measurements.SpecAn_AMPM_Config.MeasurementInterval_s,
+      'ampmConfig.DutAverageInputPower_dBm':
+          configurations.Analyzer.Measurements.SpecAn_AMPM_Config.DutAverageInputPower_dBm,
+      'ampmConfig.AveragingCount': configurations.Analyzer.Measurements.SpecAn_AMPM_Config.AveragingCount,
+      'ampmConfig.AveragingEnabled': configurations.Analyzer.Measurements.SpecAn_AMPM_Config.AveragingEnabled,
+      'ampmConfig.ReferenceWaveform': currentSweepStep.Loaded_Waveform,
+      'ampmConfig.SignalType': configurations.Analyzer.Measurements.SpecAn_AMPM_Config.SignalType,
+      'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+    },
+  ); // SpecAn Config AMPM
   // Only configure DPD if its enabled for the current waveform configuration
   if (currentSweepStep.Input_and_Output.PARAMS.DPD_Enabled == true) {
-    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll
-    // .NET call: NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.ConfigureCommon
-    //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-    //   commonConfig <- FileGlobals.Configurations.Analyzer.DPD_Common_Config
-    //   referenceWaveform <- FileGlobals.Current_Sweep_Step.Loaded_Waveform
-    //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-    ts.notExported(
-      'dotNet call: NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.ConfigureCommon',
-    ); // SpecAn DPD Config Common [Action]
-    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll
-    // .NET call: NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.ConfigureMemoryPolynomial
-    //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-    //   mpConfig <- FileGlobals.Configurations.Analyzer.Measurements.DPD_MemoryPolynomial_Config
-    //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-    ts.notExported(
-      'dotNet call: NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.ConfigureMemoryPolynomial',
-    ); // SpecAn DPD Config Memory Polynomial [Action]
+    await ts.callDotNet(
+      '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll',
+      'NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.ConfigureCommon',
+      inputs: {
+        'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+        'commonConfig': configurations.Analyzer.DPD_Common_Config,
+        'referenceWaveform': currentSweepStep.Loaded_Waveform,
+        'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+      },
+    ); // SpecAn DPD Config Common
+    await ts.callDotNet(
+      '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll',
+      'NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.ConfigureMemoryPolynomial',
+      inputs: {
+        'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+        'mpConfig': configurations.Analyzer.Measurements.DPD_MemoryPolynomial_Config,
+        'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+      },
+    ); // SpecAn DPD Config Memory Polynomial
   }
   // Average input power is set to the applied value from the sweep file
   currentSweepStep.Input_and_Output.MEAS.Avg_Input_Power_dBm =
@@ -549,26 +599,34 @@ Future<void> measure() async {
 
     // Only measure and apply DPD if its enabled for the current waveform configuration
     if (currentSweepStep.Input_and_Output.PARAMS.DPD_Enabled == true) {
-      // .NET call: NationalInstruments.RFmx.SpecAnMX.RFmxSpecAnMX.Use Existing Object
-      //   Existing Object <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-      // .NET call: NationalInstruments.RFmx.SpecAnMX.RFmxSpecAnMX.SelectMeasurements
-      //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-      //   measurement <- "Dpd"
-      //   enableAllTraces <- False
-      ts.notExported(
-        'dotNet call: NationalInstruments.RFmx.SpecAnMX.RFmxSpecAnMX.SelectMeasurements',
-      ); // Select Single DPD measurement [Action]
+      await ts.callDotNet(
+        'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+        'NationalInstruments.RFmx.SpecAnMX.RFmxSpecAnMX.Use Existing Object',
+        inputs: {'Existing Object': deviceHandles.RFmx_SpecAn_Signal_Session},
+      ); // Select Single DPD measurement
+      await ts.callDotNet(
+        'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+        'NationalInstruments.RFmx.SpecAnMX.RFmxSpecAnMX.SelectMeasurements',
+        inputs: {
+          'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+          'measurement': 'Dpd',
+          'enableAllTraces': false,
+        },
+      ); // Select Single DPD measurement
       // Starts all measurements configured for the signal
-      // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll
-      // .NET call: NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.PerformMemoryPolynomial
-      //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-      //   rfsgSession <- FileGlobals.Device_Handles.RFSG_Session
-      //   mpConfig <- FileGlobals.Configurations.Analyzer.Measurements.DPD_MemoryPolynomial_Config
-      //   referenceWaveform <- FileGlobals.Current_Sweep_Step.Loaded_Waveform
-      //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-      ts.notExported(
-        'dotNet call: NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.PerformMemoryPolynomial',
-      ); // Perform Memory Polynomial [Action]
+      final outputs = await ts.callDotNet(
+        '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll',
+        'NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.PerformMemoryPolynomial',
+        inputs: {
+          'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+          'rfsgSession': deviceHandles.RFSG_Session,
+          'mpConfig': configurations.Analyzer.Measurements.DPD_MemoryPolynomial_Config,
+          'referenceWaveform': currentSweepStep.Loaded_Waveform,
+          'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+        },
+      ); // Perform Memory Polynomial
+      currentSweepStep.Results.RFmxDPD_MP_Results.PostDpdWaveform = outputs['Return Value.PredistortedWaveform'];
+      currentSweepStep.Results.RFmxDPD_MP_Results.DPD_Poly = outputs['Return Value.Polynomial'];
       // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
       // Map Results
     }
@@ -581,25 +639,28 @@ Future<void> measure() async {
         // AMPM Method
         if (!matched1 && select1 == 'AMPM') {
           matched1 = true;
-          // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
-          // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.SelectAndInitiateMeasurements
-          //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-          //   autoLevelConfig <- FileGlobals.Configurations.Analyzer.Auto_Level_Config
-          //   autoLevelBandwidth_Hz <- FileGlobals.Current_Sweep_Step.Loaded_Waveform.SignalBandwidth_Hz
-          //   enableTraces <- False
-          //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-          //   resultName <- ""
-          ts.notExported(
-            'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.SelectAndInitiateMeasurements',
-          ); // Initiate AMPM measurement [Action]
-          // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
-          // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchAmpm
-          //   Return Value <- FileGlobals.Current_Sweep_Step.Results.RFmxSpecAn_AMPM_Results
-          //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-          //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-          ts.notExported(
-            'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchAmpm',
-          ); // SpecAn Fetch AMPM [Action]
+          await ts.callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.SelectAndInitiateMeasurements',
+            inputs: {
+              'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+              'measurements.[0]': 'Ampm',
+              'autoLevelConfig': configurations.Analyzer.Auto_Level_Config,
+              'autoLevelBandwidth_Hz': currentSweepStep.Loaded_Waveform.SignalBandwidth_Hz,
+              'enableTraces': false,
+              'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+              'resultName': '',
+            },
+          ); // Initiate AMPM measurement
+          final outputs2 = await ts.callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchAmpm',
+            inputs: {
+              'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+              'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+            },
+          ); // SpecAn Fetch AMPM
+          currentSweepStep.Results.RFmxSpecAn_AMPM_Results = outputs2['Return Value'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.AMPM_Mean_LinerGain_dB =
               currentSweepStep.Results.RFmxSpecAn_AMPM_Results.MeanLinearGain_dB; // Map Results
@@ -609,23 +670,29 @@ Future<void> measure() async {
         // Adjacent Channel Power Ratio Measurement
         if (!matched1 && select1 == 'ACP') {
           matched1 = true;
-          // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll
-          // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.SelectAndInitiateMeasurements
-          //   nr <- FileGlobals.Device_Handles.RFmx_NR_Signal_Session
-          //   autoLevelConfig <- FileGlobals.Configurations.Analyzer.Auto_Level_Config
-          //   enableTraces <- False
-          //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-          //   resultName <- ""
-          ts.notExported(
-            'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.SelectAndInitiateMeasurements',
-          ); // Initiate NR ACP measurement [Action]
-          // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll
-          // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.FetchAcp
-          //   nr <- FileGlobals.Device_Handles.RFmx_NR_Signal_Session
-          //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-          ts.notExported(
-            'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.FetchAcp',
-          ); // NR Fetch ACP Results [Action]
+          await ts.callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.SelectAndInitiateMeasurements',
+            inputs: {
+              'nr': deviceHandles.RFmx_NR_Signal_Session,
+              'measurements.[0]': 'Acp',
+              'autoLevelConfig': configurations.Analyzer.Auto_Level_Config,
+              'enableTraces': false,
+              'selectorString': configurations.Analyzer.RFmx_Selector_String,
+              'resultName': '',
+            },
+          ); // Initiate NR ACP measurement
+          final outputs3 = await ts.callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.FetchAcp',
+            inputs: {
+              'nr': deviceHandles.RFmx_NR_Signal_Session,
+              'selectorString': configurations.Analyzer.RFmx_Selector_String,
+            },
+          ); // NR Fetch ACP Results
+          currentSweepStep.Results.RFmxNR_ACP_Results.Offset_Results = outputs3['Return Value.OffsetResults'];
+          currentSweepStep.Results.RFmxNR_ACP_Results.Component_Carrier_Results =
+              outputs3['Return Value.ComponentCarrierResults'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.ACP_CC0_Absolute_Power_dBm =
               currentSweepStep.Results.RFmxNR_ACP_Results.Component_Carrier_Results[0].AbsolutePower_dBm; // Map Results
@@ -641,23 +708,28 @@ Future<void> measure() async {
         // EVM Measurement
         if (!matched1 && select1 == 'EVM') {
           matched1 = true;
-          // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll
-          // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.SelectAndInitiateMeasurements
-          //   nr <- FileGlobals.Device_Handles.RFmx_NR_Signal_Session
-          //   autoLevelConfig <- FileGlobals.Configurations.Analyzer.Auto_Level_Config
-          //   enableTraces <- False
-          //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-          //   resultName <- ""
-          ts.notExported(
-            'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.SelectAndInitiateMeasurements',
-          ); // Initiate NR ModAcc measurement [Action]
-          // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll
-          // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.FetchModAcc
-          //   nr <- FileGlobals.Device_Handles.RFmx_NR_Signal_Session
-          //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-          ts.notExported(
-            'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.FetchModAcc',
-          ); // NR Fetch ModAcc Results [Action]
+          await ts.callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.SelectAndInitiateMeasurements',
+            inputs: {
+              'nr': deviceHandles.RFmx_NR_Signal_Session,
+              'measurements.[0]': 'ModAcc',
+              'autoLevelConfig': configurations.Analyzer.Auto_Level_Config,
+              'enableTraces': false,
+              'selectorString': configurations.Analyzer.RFmx_Selector_String,
+              'resultName': '',
+            },
+          ); // Initiate NR ModAcc measurement
+          final outputs4 = await ts.callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.FetchModAcc',
+            inputs: {
+              'nr': deviceHandles.RFmx_NR_Signal_Session,
+              'selectorString': configurations.Analyzer.RFmx_Selector_String,
+            },
+          ); // NR Fetch ModAcc Results
+          currentSweepStep.Results.RFmxNR_ModAcc_Results.Component_Carrier_Results =
+              outputs4['Return Value.ComponentCarrierResults'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.RMS_Composite_EVM_Percent = currentSweepStep
               .Results
@@ -668,13 +740,11 @@ Future<void> measure() async {
       }
     }
   } finally {
-    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-    // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration
-    //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-    //   timeOut_ms <- 1000
-    ts.notExported(
-      'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration',
-    ); // RFSG Abort Generation [Action]
+    await ts.callDotNet(
+      '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+      'NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration',
+      inputs: {'rfsgHandle': deviceHandles.RFSG_Session, 'timeOut_ms': 1000},
+    ); // RFSG Abort Generation
   }
 }
 

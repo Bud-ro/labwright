@@ -7,12 +7,21 @@ dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap(ts.eval('"..\\pinmap\\FileSessionSharing.pinmap"') as String);
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_nidcpower.py'); // Create and register NI DCPower sessions [Action]
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_nidmm.py'); // Create and register NI DMM sessions [Action]
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_json_logger.py'); // Create and register File sessions [Action]
+    await ts.callPython(
+      'teststand_nidcpower.py',
+      'create_nidcpower_sessions',
+      passesContext: true,
+    ); // Create and register NI DCPower sessions
+    await ts.callPython(
+      'teststand_nidmm.py',
+      'create_nidmm_sessions',
+      passesContext: true,
+    ); // Create and register NI DMM sessions
+    await ts.callPython(
+      'teststand_json_logger.py',
+      'create_file_sessions',
+      passesContext: true,
+    ); // Create and register File sessions
 
     await ts.measurement('ni.examples.NIDCPowerSourceDCVoltageWithLogger', {
       'nidcpower_pins': <dynamic>['DCPowerPin'],
@@ -31,8 +40,11 @@ Future<void> mainSequence() async {
       'resolution_digits': 5.5,
     });
   } finally {
-    ts.notExported('python call: teststand_nidcpower.py'); // Destroy and unregister NI DCPower sessions [Action]
-    ts.notExported('python call: teststand_nidmm.py'); // Destroy and unregister NI DMM sessions [Action]
-    ts.notExported('python call: teststand_json_logger.py'); // Destroy and unregister File sessions [Action]
+    await ts.callPython(
+      'teststand_nidcpower.py',
+      'destroy_nidcpower_sessions',
+    ); // Destroy and unregister NI DCPower sessions
+    await ts.callPython('teststand_nidmm.py', 'destroy_nidmm_sessions'); // Destroy and unregister NI DMM sessions
+    await ts.callPython('teststand_json_logger.py', 'destroy_file_sessions'); // Destroy and unregister File sessions
   }
 }

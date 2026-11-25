@@ -23,7 +23,7 @@ Future<ts.Status> mainSequence() async {
     'PERCENTAGE',
   );
   run.record(numericLimitTestResult.Status);
-  ts.notExported('cModule call: Generates Load-Time Error'); // Generates Load-Time Error [Action]
+  await ts.callDll('', ''); // Generates Load-Time Error
 
   return run.status;
 }

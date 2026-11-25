@@ -27,10 +27,12 @@ Future<void> convert() async {
       break body;
     }
     // It is assumed that xml report stylesheet path is present in the first line of the report.
-    // .NET call: System.IO.File.ReadAllLines
-    //   Return Value <- Locals.XmlFileContent
-    //   path <- Locals.XmlFilePath
-    ts.notExported('dotNet call: System.IO.File.ReadAllLines'); // Get XSL file path from XML [Action]
+    final outputs = await ts.callDotNet(
+      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'System.IO.File.ReadAllLines',
+      inputs: {'path': locals.xmlFilePath},
+    ); // Get XSL file path from XML
+    locals.xmlFileContent = outputs['Return Value'] as List<dynamic>;
     ts.eval(
       '#NoValidation,\nGetNumElements(Locals.XmlFileContent) != 0 ? (\n   Locals.XslFilePath =\n   \' Mid(inputString, startIndex, numberOfCharacters)\n   Mid(\n      \' <inputString>\n      Locals.XmlFileContent[0],\n\n      \' <startIndex>\n      \' Find the beginning of the path by searching for the "xml-stylesheet"\n      \' tag and offset the found index by the tag length\n      Find(\n         Locals.XmlFileContent[0],\n         Locals.Tags.Front\n      ) \' Beginning of the path index\n      + Len(Locals.Tags.Front), \' Tag lenght\n\n      \' <numberOfCharacters>\n      \' From the whole string lenght ...\n      Len(Locals.XmlFileContent[0]) \n      - \' ... subtract the length of the string before the path and ...\n      (\n         Find(\n            Locals.XmlFileContent[0],\n            Locals.Tags.Front\n         ) \' Beginning of the path index\n         + Len(Locals.Tags.Front) \' Tag lenght\n      )\n      - \' ... subtract the length of the string after the path.\n      (\n         Len(Locals.XmlFileContent[0])\n         \' Find the end of the path by searching for the closing tag\n         - Find(\n              Locals.XmlFileContent[0],\n              Locals.Tags.Back,\n              \' Begin searching for the closing tag from the first index of the found path\n              Find(\n                 Locals.XmlFileContent[0],\n                 Locals.Tags.Front\n              ) \' Beginning of the path index\n              + Len(Locals.Tags.Front) \' Tag lenght\n           )\n      )\n   )\n) : Nothing',
     );
@@ -38,40 +40,57 @@ Future<void> convert() async {
       break body;
     }
 
-    ts.notExported('cModule call: Create XML object'); // Create XML object [Action]
-    //   newValue <- False
-    ts.notExported(
-      'cModule call: Disable asynchronous XML file loading',
-    ); // Disable asynchronous XML file loading [Action]
-    //   Return Value -> Locals.Success
-    //   xmlSource <- Locals.XmlFilePath
-    ts.notExported('cModule call: Load XML file'); // Load XML file [Action]
+    ts.notExported('ActiveX object: DOMDocument60 -> Locals.Xml'); // Create XML object [Action]
+    await ts.callActiveX(
+      locals.xml,
+      'IXMLDOMDocument3.async',
+      inputs: {'newValue': false},
+    ); // Disable asynchronous XML file loading
+    final outputs2 = await ts.callActiveX(
+      locals.xml,
+      'IXMLDOMDocument3.load',
+      inputs: {'xmlSource': locals.xmlFilePath},
+    ); // Load XML file
+    locals.success = outputs2['Return Value'] as bool;
     if (!locals.success) {
       break body;
     }
-    ts.notExported('cModule call: Create XSL object'); // Create XSL object [Action]
-    //   newValue <- False
-    ts.notExported(
-      'cModule call: Disable asynchronous XSL file loading',
-    ); // Disable asynchronous XSL file loading [Action]
-    //   name <- "AllowXsltScript"
-    //   value <- True
-    ts.notExported('cModule call: Allow XSLT scripts'); // Allow XSLT scripts [Action]
-    //   newValue <- True
-    ts.notExported('cModule call: Enable external files loading'); // Enable external files loading [Action]
-    //   Return Value -> Locals.Success
-    //   xmlSource <- Locals.XslFilePath
-    ts.notExported('cModule call: Load XSL'); // Load XSL [Action]
+    ts.notExported('ActiveX object: DOMDocument60 -> Locals.Xsl'); // Create XSL object [Action]
+    await ts.callActiveX(
+      locals.xsl,
+      'IXMLDOMDocument3.async',
+      inputs: {'newValue': false},
+    ); // Disable asynchronous XSL file loading
+    await ts.callActiveX(
+      locals.xsl,
+      'IXMLDOMDocument3.setProperty',
+      inputs: {'name': 'AllowXsltScript', 'value': true},
+    ); // Allow XSLT scripts
+    await ts.callActiveX(
+      locals.xsl,
+      'IXMLDOMDocument3.resolveExternals',
+      inputs: {'newValue': true},
+    ); // Enable external files loading
+    final outputs3 = await ts.callActiveX(
+      locals.xsl,
+      'IXMLDOMDocument3.load',
+      inputs: {'xmlSource': locals.xslFilePath},
+    ); // Load XSL
+    locals.success = outputs3['Return Value'] as bool;
     if (!locals.success) {
       break body;
     }
-    //   Return Value -> Locals.HtmlFileContent
-    //   stylesheet <- Locals.Xsl
-    ts.notExported('cModule call: Transform'); // Transform [Action]
-    // .NET call: System.IO.File.WriteAllText
-    //   path <- Locals.HtmlFilePath
-    //   contents <- Locals.HtmlFileContent
-    ts.notExported('dotNet call: System.IO.File.WriteAllText'); // Save HTML file [Action]
+    final outputs4 = await ts.callActiveX(
+      locals.xml,
+      'IXMLDOMDocument3.transformNode',
+      inputs: {'stylesheet': locals.xsl},
+    ); // Transform
+    locals.htmlFileContent = outputs4['Return Value'] as String;
+    await ts.callDotNet(
+      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'System.IO.File.WriteAllText',
+      inputs: {'path': locals.htmlFilePath, 'contents': locals.htmlFileContent},
+    ); // Save HTML file
   } finally {
     locals.xml = null; // Release
     locals.xsl = null;

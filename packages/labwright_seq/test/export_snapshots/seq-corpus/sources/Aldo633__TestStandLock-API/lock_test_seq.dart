@@ -7,21 +7,21 @@ List<dynamic> instrumentList = <dynamic>['DAQ', 'DMM'];
 
 /// Sequence `MainSequence`.
 Future<void> mainSequence() async {
-  //   Sequence Context <- ThisContext
-  //   milliseconds to wait <- 1000
-  //   Instrument Names <- FileGlobals.InstrumentList
-  //   error out <- Step.Result.Error
-  await callLockTestVi(); // 2 Instrument Test [Action]
-  //   Sequence Context <- ThisContext
-  //   milliseconds to wait <- 500
-  //   Instrument Names <- FileGlobals.InstrumentListDMM
-  //   error out <- Step.Result.Error
-  await callLockTestVi(); // DMM Test [Action]
-  //   Sequence Context <- ThisContext
-  //   milliseconds to wait <- 100
-  //   Instrument Names <- FileGlobals.InstrumentListDAQ
-  //   error out <- Step.Result.Error
-  await callLockTestVi(); // DAQ Test [Action]
+  await ts.callVi(
+    'SubStep\\Lock Test VI.vi',
+    inputs: {'milliseconds to wait': 1000, 'Instrument Names': instrumentList},
+    passesContext: true,
+  ); // 2 Instrument Test
+  await ts.callVi(
+    'SubStep\\Lock Test VI.vi',
+    inputs: {'milliseconds to wait': 500, 'Instrument Names': instrumentListDmm},
+    passesContext: true,
+  ); // DMM Test
+  await ts.callVi(
+    'SubStep\\Lock Test VI.vi',
+    inputs: {'milliseconds to wait': 100, 'Instrument Names': instrumentListDaq},
+    passesContext: true,
+  ); // DAQ Test
 }
 
 class _ProcessSetupLocals {
@@ -49,6 +49,3 @@ Future<void> processSetup() async {
     });
   }
 }
-
-/// The labView module `SubStep\Lock Test VI.vi`.
-Future<Object?> callLockTestVi() async => throw UnimplementedError('labView call: SubStep\\Lock Test VI.vi');

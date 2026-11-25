@@ -24,11 +24,16 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 0,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  //   pin <- "DUTPin1"
-  //   expected_switch_names <- {"Multiplexer1", "Multiplexer1"}
-  //   expected_switch_routes <- {"DUTPin1Site0", "DUTPin1Site1"}
-  ts.notExported('python call: switch_codemodules.py'); // Measure Test [NI_SemiconductorModule_MultiTest]
+  await ts.callPython(
+    'switch_codemodules.py',
+    'measure',
+    inputs: {
+      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
+      'pin': 'DUTPin1',
+      'expected_switch_names': <dynamic>['Multiplexer1', 'Multiplexer1'],
+      'expected_switch_routes': <dynamic>['DUTPin1Site0', 'DUTPin1Site1'],
+    },
+  ); // Measure Test
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
@@ -54,8 +59,11 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  ts.notExported('python call: switch_codemodules.py'); // Open Sessions [NI_SemiconductorModule_Action]
+  await ts.callPython(
+    'switch_codemodules.py',
+    'open_sessions',
+    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Open Sessions
 }
 
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
@@ -80,8 +88,11 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  ts.notExported('python call: switch_codemodules.py'); // Close Sessions [NI_SemiconductorModule_Action]
+  await ts.callPython(
+    'switch_codemodules.py',
+    'close_sessions',
+    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Close Sessions
 }
 
 /// Sequence `PreBatch` — Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action..

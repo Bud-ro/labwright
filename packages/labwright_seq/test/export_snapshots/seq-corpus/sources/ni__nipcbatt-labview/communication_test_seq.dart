@@ -33,32 +33,23 @@ Future<void> i2CCommTest() async {
   locals.deviceId.SessionNumber = 0;
 
   // Note to run with Hardware: Update Read data settings for I2C communication
-  //   Use Internal I2C Pullup Resistor <- False
-  //   I/O Voltage Level <- 33
-  //   Device <- Locals.DeviceID
-  //   Address <- 80
-  //   Clock Rate (kHz) <- 100
-  //   EEPROM Data Address <- 0
-  //   Number of Bytes to Read <- 128
-  //   Data Address Width <- 1
-  //   Data Address Endianness <- True
-  //   Read Data <- Locals.Data.I2CReadData
-  //   error out <- Step.Result.Error
-  await callv845xI2CRead(); // I2C Read - Read Register Data [Action]
+  final outputs = await ts.callVi(
+    '845x\\845x_I2C Read.vi',
+    inputs: {'Device': locals.deviceId},
+  ); // I2C Read - Read Register Data
+  locals.data.I2CReadData = outputs['Read Data'];
   // Note to run with Hardware: Update Write data settings for I2C communication
   // Update the I2C Data to Write based on the usecase
-  //   Use Internal I2C Pullup Resistor <- False
-  //   I/O Voltage Level <- 33
-  //   Device <- Locals.DeviceID
-  //   Address <- 80
-  //   Clock Rate (kHz) <- 100
-  //   EEPROM Data Address <- 0
-  //   Data Address Width <- 1
-  //   Data Address Endianness <- True
-  //   Target Page Size (bytes) <- 128
-  //   Write Delay Between Pages (ms) <- 4
-  //   error out <- Step.Result.Error
-  await callv845xI2CWrite(); // I2C Write - Write Register Data [Action]
+  await ts.callVi(
+    '845x\\845x_I2C Write.vi',
+    inputs: {
+      'Device': locals.deviceId,
+      'Data to Write.[0]': 171,
+      'Data to Write.[1]': 29,
+      'Data to Write.[2]': 17,
+      'Data to Write.[3]': 255,
+    },
+  ); // I2C Write - Write Register Data
 }
 
 class _SpiCommTestLocals {
@@ -76,23 +67,19 @@ Future<void> spiCommTest() async {
   locals.deviceId.SessionNumber = 0;
 
   // Note to run with Hardware: Update Read data settings for SPI communication
-  //   Command <- "*IDN?\\n"
-  //   delay before read (ms) <- 500
-  //   error out <- Step.Result.Error
-  await callVisaSimpleSerial(); // SPI Read - Read Register Data [Action]
+  await ts.callVi('Communication\\Serial\\VISA_Simple Serial.vi'); // SPI Read - Read Register Data
   // Note to run with Hardware: Update Write data settings for SPI communication
   // Update the SPI Data to Write based on the usecase
-  //   I/O Voltage Level <- 33
-  //   Device <- Locals.DeviceID
-  //   Chip Select <- 0
-  //   Clock Rate (kHz) <- 1000
-  //   EEPROM Data Address <- 0
-  //   Data Address Width <- 1
-  //   Data Address Endianness <- True
-  //   Target Page Size (bytes) <- 32
-  //   Write Delay Between Pages (ms) <- 5
-  //   error out <- Step.Result.Error
-  await callv845xSpiWrite(); // SPI Write - Write Register Data [Action]
+  await ts.callVi(
+    'Communication\\845x\\845x_SPI Write.vi',
+    inputs: {
+      'Device': locals.deviceId,
+      'Data to Write.[0]': 171,
+      'Data to Write.[1]': 29,
+      'Data to Write.[2]': 17,
+      'Data to Write.[3]': 255,
+    },
+  ); // SPI Write - Write Register Data
 }
 
 class _SerialCommTestLocals {
@@ -111,13 +98,12 @@ Future<void> serialCommTest() async {
 
   // Note to run with Hardware: Update Serial comm settings for write-read operation
   // Update the Serial Write Command based on the usecase
-  //   VISA resource name <- Locals.SerialVISA
-  //   Command <- ""//Update the Serial command to Write here
-  //   delay before read (ms) <- 500
-  //   Response <- Locals.Data.SerialResponse
-  //   bytes read <- Locals.Data.BytesRead
-  //   error out <- Step.Result.Error
-  await callVisaSimpleSerial(); // Simple Serial Comm - Write and Read data from Serial COM port [Action]
+  final outputs = await ts.callVi(
+    'Communication\\Serial\\VISA_Simple Serial.vi',
+    inputs: {'VISA resource name': locals.serialVisa, 'Command': ''},
+  ); // Simple Serial Comm - Write and Read data from Serial COM port
+  locals.data.SerialResponse = outputs['Response'];
+  locals.data.BytesRead = outputs['bytes read'];
 }
 
 /// Sequence `SequenceFileLoad`.
@@ -127,17 +113,3 @@ Future<void> sequenceFileLoad() async {
     'This example automation sequence demonstrates simple read and write data operations through \nI2C and SPI communication protocol using NI 845x device and through Serial COM port. \nThe purpose of this automation sequence template is to provide a method for understanding\nthe use of the values returned by the library in a real world scenario. \n\nEnsure that all the prerequisite software mentioned in the user manual are installed.\n\nFor more information about the Automation Test Sequences, refer to the link mentioned below.\nhttps://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html',
   );
 }
-
-/// The labView module `845x\845x_I2C Read.vi`.
-Future<Object?> callv845xI2CRead() async => throw UnimplementedError('labView call: 845x\\845x_I2C Read.vi');
-
-/// The labView module `845x\845x_I2C Write.vi`.
-Future<Object?> callv845xI2CWrite() async => throw UnimplementedError('labView call: 845x\\845x_I2C Write.vi');
-
-/// The labView module `Communication\Serial\VISA_Simple Serial.vi`.
-Future<Object?> callVisaSimpleSerial() async =>
-    throw UnimplementedError('labView call: Communication\\Serial\\VISA_Simple Serial.vi');
-
-/// The labView module `Communication\845x\845x_SPI Write.vi`.
-Future<Object?> callv845xSpiWrite() async =>
-    throw UnimplementedError('labView call: Communication\\845x\\845x_SPI Write.vi');

@@ -12,15 +12,10 @@ Future<ts.Status> mainSequence() async {
     'Common': ts.PropObj(),
   });
 
-  //   Result <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callWaveformTest(); // TDMS Generating Test [PassFailTest]
+  final outputs = await ts.callVi('LabVIEW\\Attach Test Files.lvlibp\\Waveform Test.vi'); // TDMS Generating Test
+  tdmsGeneratingTestResult.PassFail = outputs['Result'];
   tdmsGeneratingTestResult.Status = ts.truthy(tdmsGeneratingTestResult.PassFail) ? 'Passed' : 'Failed';
   run.record(tdmsGeneratingTestResult.Status);
 
   return run.status;
 }
-
-/// The labView module `LabVIEW\Attach Test Files.lvlibp\Waveform Test.vi`.
-Future<Object?> callWaveformTest() async =>
-    throw UnimplementedError('labView call: LabVIEW\\Attach Test Files.lvlibp\\Waveform Test.vi');

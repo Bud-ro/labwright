@@ -7,8 +7,11 @@ dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('NIDAQmxAnalogInput.pinmap');
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_nidaqmx.py'); // Create and register NI-DAQmx Tasks [Action]
+    await ts.callPython(
+      'teststand_nidaqmx.py',
+      'create_nidaqmx_tasks',
+      passesContext: true,
+    ); // Create and register NI-DAQmx Tasks
 
     await ts.measurement('ni.examples.NIDAQmxAnalogInput_Python', {
       'pin_name': 'Pin1',
@@ -16,6 +19,6 @@ Future<void> mainSequence() async {
       'number_of_samples': 100,
     });
   } finally {
-    ts.notExported('python call: teststand_nidaqmx.py'); // Destroy and unregister NI-DAQmx tasks [Action]
+    await ts.callPython('teststand_nidaqmx.py', 'destroy_nidaqmx_tasks'); // Destroy and unregister NI-DAQmx tasks
   }
 }

@@ -7,8 +7,11 @@ dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('NISwitchControlRelays.pinmap');
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_niswitch.py'); // Create and register NI-Switch Sessions [Action]
+    await ts.callPython(
+      'teststand_niswitch.py',
+      'create_niswitch_sessions',
+      passesContext: true,
+    ); // Create and register NI-Switch Sessions
 
     await ts.measurement('ni.examples.NISwitchControlRelays_Python', {
       'relay_names': 'SiteRelay1',
@@ -20,6 +23,9 @@ Future<void> mainSequence() async {
       'close_relay': false,
     });
   } finally {
-    ts.notExported('python call: teststand_niswitch.py'); // Destroy and unregister NI-Switch sessions [Action]
+    await ts.callPython(
+      'teststand_niswitch.py',
+      'destroy_niswitch_sessions',
+    ); // Destroy and unregister NI-Switch sessions
   }
 }

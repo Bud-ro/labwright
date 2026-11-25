@@ -44,12 +44,11 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 0,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.TMU.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureRiseTimeWithSTL
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: Code Modules\\TestSteps\\MeasureRiseTimeTMU.cs',
-  ); // Measure Rise Time [NI_SemiconductorModule_MultiTest]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.TMU.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureRiseTimeWithSTL',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Measure Rise Time
   // Measure the fall time between a reference pin and a targt pin using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'SemiconductorModuleContext': null,
@@ -79,12 +78,11 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 0,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.TMU.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureFallTimeWithSTL
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: Code Modules\\TestSteps\\MeasureFallTime.cs',
-  ); // Measure Fall Time [NI_SemiconductorModule_MultiTest]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.TMU.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureFallTimeWithSTL',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Measure Fall Time
   // Measure the period of a digital signal using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'SemiconductorModuleContext': null,
@@ -114,12 +112,11 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 0,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.TMU.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasurePeriodWithSTL
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: Code Modules\\TestSteps\\MeasurePeriodTMU.cs',
-  ); // Measure Period [NI_SemiconductorModule_MultiTest]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.TMU.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasurePeriodWithSTL',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Measure Period
   // Measure the skew between a reference pin and a targt pin using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'SemiconductorModuleContext': null,
@@ -149,12 +146,11 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 0,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.TMU.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureSkewWithSTL
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: Code Modules\\TestSteps\\MeasureSkewTMU.cs',
-  ); // Measure Skew [NI_SemiconductorModule_MultiTest]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.TMU.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureSkewWithSTL',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Measure Skew
   // Measure the duty cycle ratio of a digital signal using the PXIe-657x's TMU based on the time duration the signal spends in the high state.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'SemiconductorModuleContext': null,
@@ -184,12 +180,11 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 0,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.TMU.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureDutyCycleWithSTL
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: Code Modules\\TestSteps\\MeasureDutyCycleTMU.cs',
-  ); // Measure Duty Cycle [NI_SemiconductorModule_MultiTest]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.TMU.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureDutyCycleWithSTL',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Measure Duty Cycle
   // Measure the pulse width of a digital signal using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'SemiconductorModuleContext': null,
@@ -219,12 +214,11 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 0,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.TMU.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasurePulseWidthWithSTL
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: Code Modules\\TestSteps\\MeasurePulseWidthTMU.cs',
-  ); // Measure Pulse Width [NI_SemiconductorModule_MultiTest]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.TMU.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasurePulseWidthWithSTL',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Measure Pulse Width
 }
 
 /// Sequence `ProcessSetup` — Runs once at lot start.
@@ -261,12 +255,11 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll
-  // .NET call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.SetupNIDigitalPatternInstrumentation
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.SetupNIDigitalPatternInstrumentation',
-  ); // Setup NI Digital Instrumentation [NI_SemiconductorTest_SetupNIDigitalPatternInstrumentation]
+  await ts.callDotNet(
+    'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll',
+    'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.SetupNIDigitalPatternInstrumentation',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Setup NI Digital Instrumentation
   // This method call is necessary to ensure the cached instrument session information is consistent between the NationalInstruments.SemiconductorTestLibrary.TestStandSteps assembly and client assembly. as they may not share the same memory space if the client assembly is using a newer version of the NationalInstruments.SemiconductorTestLibrary.Abstractions.
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
@@ -288,12 +281,11 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll
-  // .NET call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions',
-  ); // Cache Session Mapping [NI_SemiconductorModule_Action]
+  await ts.callDotNet(
+    'Code Modules\\bin\\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll',
+    'NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Cache Session Mapping
 }
 
 /// Sequence `ProcessCleanup` — Runs once at lot end.
@@ -318,12 +310,11 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll
-  // .NET call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation',
-  ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
+  await ts.callDotNet(
+    'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll',
+    'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Cleanup Instrumentation
 }
 
 /// Sequence `SequenceFileLoad`.

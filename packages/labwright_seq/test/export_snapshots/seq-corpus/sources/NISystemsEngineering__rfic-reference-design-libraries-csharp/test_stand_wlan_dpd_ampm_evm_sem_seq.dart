@@ -272,51 +272,50 @@ Future<void> mainSequence() async {
     ); // Initialize Waveform Arrys
     ts.setNumElements(loadedWaveforms, ts.getNumElements(staticStationConfigs.Waveform_Configs));
     // Initialize Instruments
-    // .NET call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg
-    //   Return Value <- FileGlobals.Device_Handles.RFSG_Session
-    //   resourceName <- FileGlobals.Static_Station_Configs.Device_Names.SG_Name
-    //   idQuery <- False
-    //   reset <- False
-    ts.notExported('dotNet call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg'); // Init RFSG [Action]
-    // .NET call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX
-    //   Return Value <- FileGlobals.Device_Handles.RFmx_Instr_Session
-    //   resourceName <- FileGlobals.Static_Station_Configs.Device_Names.SA_Name
-    //   optionString <- ""
-    ts.notExported('dotNet call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX'); // RFmx Initialize [Action]
+    final outputs = await ts.callDotNet(
+      'NationalInstruments.ModularInstruments.NIRfsg.Fx45, Version=19.2.0.49152, Culture=neutral, PublicKeyToken=4febd62461bf11a4',
+      'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg',
+      inputs: {'resourceName': staticStationConfigs.Device_Names.SG_Name, 'idQuery': false, 'reset': false},
+    ); // Init RFSG
+    deviceHandles.RFSG_Session = outputs['Return Value'];
+    final outputs2 = await ts.callDotNet(
+      'NationalInstruments.RFmx.InstrMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+      'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX',
+      inputs: {'resourceName': staticStationConfigs.Device_Names.SA_Name, 'optionString': ''},
+    ); // RFmx Initialize
+    deviceHandles.RFmx_Instr_Session = outputs2['Return Value'];
     // Load Waveforms and Create Signals
     locals.waveFormConfigsIdx = 0; // Reset Wfm config index
     for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
       locals.currentWaveformConfig = element;
-      // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-      // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS
-      //   Return Value <- Locals.Current_Waveform
-      //   filePath <- Locals.Current_Waveform_Config.Absolute_Disk_Path
-      ts.notExported(
-        'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS',
-      ); // Load Waveform from TDMS [Action]
+      final outputs3 = await ts.callDotNet(
+        '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+        'NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS',
+        inputs: {'filePath': locals.currentWaveformConfig.Absolute_Disk_Path},
+      ); // Load Waveform from TDMS
+      locals.currentWaveform = outputs3['Return Value'];
       // Map Loaded Parameters
-      // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-      // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.DownloadWaveform
-      //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-      //   waveform <- Locals.Current_Waveform
-      ts.notExported(
-        'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.DownloadWaveform',
-      ); // Download Waveform to Generator [Action]
+      await ts.callDotNet(
+        '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+        'NationalInstruments.ReferenceDesignLibraries.SG.DownloadWaveform',
+        inputs: {'rfsgHandle': deviceHandles.RFSG_Session, 'waveform': locals.currentWaveform},
+      ); // Download Waveform to Generator
       // Create a new signal based on the waveform's parameters
-      // .NET call: NationalInstruments.RFmx.InstrMX.RFmxWlanMXExtension.GetWlanSignalConfiguration
-      //   Return Value <- Locals.Current_RFmx_WLAN_Signal
-      //   instrSession <- FileGlobals.Device_Handles.RFmx_Instr_Session
-      //   signalName <- Locals.Current_Waveform.Name
-      ts.notExported(
-        'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxWlanMXExtension.GetWlanSignalConfiguration',
-      ); // Create WLAN Signal Configuration [Action]
-      // .NET call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration
-      //   Return Value <- Locals.Current_RFmx_SpecAn_Signal
-      //   instrSession <- FileGlobals.Device_Handles.RFmx_Instr_Session
-      //   signalName <- Locals.Current_Waveform.Name +"SpecAn"
-      ts.notExported(
-        'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
-      ); // Create SpecAn Signal Configuration [Action]
+      final outputs4 = await ts.callDotNet(
+        'NationalInstruments.RFmx.WlanMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+        'NationalInstruments.RFmx.InstrMX.RFmxWlanMXExtension.GetWlanSignalConfiguration',
+        inputs: {'instrSession': deviceHandles.RFmx_Instr_Session, 'signalName': locals.currentWaveform.Name},
+      ); // Create WLAN Signal Configuration
+      locals.currentRFmxWlanSignal = outputs4['Return Value'];
+      final outputs5 = await ts.callDotNet(
+        'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+        'NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
+        inputs: {
+          'instrSession': deviceHandles.RFmx_Instr_Session,
+          'signalName': '${locals.currentWaveform.Name as String}SpecAn',
+        },
+      ); // Create SpecAn Signal Configuration
+      locals.currentRFmxSpecAnSignal = outputs5['Return Value'];
       loadedWaveformIndexes[locals.waveFormConfigsIdx] = locals.waveFormConfigsIdx; // Store Loaded Waveforms
       loadedWaveforms[locals.waveFormConfigsIdx] = locals.currentWaveform;
       locals.waveFormConfigsIdx++;
@@ -338,16 +337,20 @@ Future<void> mainSequence() async {
     }
   } finally {
     // Instrument Cleanup
-    // .NET call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Use Existing Object
-    //   Existing Object <- FileGlobals.Device_Handles.RFmx_Instr_Session
-    // .NET call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close
-    ts.notExported('dotNet call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close'); // RFmx Close [Action]
-    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-    // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.CloseInstrument
-    //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-    ts.notExported(
-      'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.CloseInstrument',
-    ); // Close RFSG [Action]
+    await ts.callDotNet(
+      'NationalInstruments.RFmx.InstrMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+      'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Use Existing Object',
+      inputs: {'Existing Object': deviceHandles.RFmx_Instr_Session},
+    ); // RFmx Close
+    await ts.callDotNet(
+      'NationalInstruments.RFmx.InstrMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+      'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close',
+    ); // RFmx Close
+    await ts.callDotNet(
+      '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+      'NationalInstruments.ReferenceDesignLibraries.SG.CloseInstrument',
+      inputs: {'rfsgHandle': deviceHandles.RFSG_Session},
+    ); // Close RFSG
     // With theData Streams API, the reference to the output stream file is closed.
     outputFile.AsOutputRecordStream.Close(); // Close Output Stream Reference
   }
@@ -383,116 +386,166 @@ Future<void> configure() async {
       staticStationConfigs.DUT_Params.Gain_dB; // Calculate Reference Level
   configurations.Analyzer.Common_Config.ReferenceLevel_dBm = currentSweepStep.Calculated_Parameters.SA_Ref_Level;
   // Retrieve the saved signal configuration for this waveform based on the waveform's name
-  // .NET call: NationalInstruments.RFmx.InstrMX.RFmxWlanMXExtension.GetWlanSignalConfiguration
-  //   Return Value <- FileGlobals.Device_Handles.RFmx_WLAN_Signal_Session
-  //   instrSession <- FileGlobals.Device_Handles.RFmx_Instr_Session
-  //   signalName <- FileGlobals.Current_Sweep_Step.Loaded_Waveform.Name
-  ts.notExported(
-    'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxWlanMXExtension.GetWlanSignalConfiguration',
-  ); // Get Specific WLAN Signal Configuration by Name [Action]
+  final outputs = await ts.callDotNet(
+    'NationalInstruments.RFmx.WlanMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+    'NationalInstruments.RFmx.InstrMX.RFmxWlanMXExtension.GetWlanSignalConfiguration',
+    inputs: {'instrSession': deviceHandles.RFmx_Instr_Session, 'signalName': currentSweepStep.Loaded_Waveform.Name},
+  ); // Get Specific WLAN Signal Configuration by Name
+  deviceHandles.RFmx_WLAN_Signal_Session = outputs['Return Value'];
   // Retrieve the saved signal configuration for this waveform based on the waveform's name
-  // .NET call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration
-  //   Return Value <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-  //   instrSession <- FileGlobals.Device_Handles.RFmx_Instr_Session
-  //   signalName <- FileGlobals.Current_Sweep_Step.Loaded_Waveform.Name+"SpecAn"
-  ts.notExported(
-    'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
-  ); // Get Specific SpecAn Signal Configuration by Name [Action]
+  final outputs2 = await ts.callDotNet(
+    'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+    'NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
+    inputs: {
+      'instrSession': deviceHandles.RFmx_Instr_Session,
+      'signalName': '${currentSweepStep.Loaded_Waveform.Name as String}SpecAn',
+    },
+  ); // Get Specific SpecAn Signal Configuration by Name
+  deviceHandles.RFmx_SpecAn_Signal_Session = outputs2['Return Value'];
 
   // Configure Generator
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.ConfigureInstrument
-  //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.ConfigureInstrument',
-  ); // RFSG Config Instrument [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.ConfigureContinuousGeneration
-  //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-  //   waveform <- FileGlobals.Current_Sweep_Step.Loaded_Waveform
-  //   markerEventExportTerminal <- FileGlobals.Configurations.Generator.markerEventExportTerminal
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.ConfigureContinuousGeneration',
-  ); // Configure ContinuousGeneration [Action]
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SG.ConfigureInstrument',
+    inputs: {
+      'rfsgHandle': deviceHandles.RFSG_Session,
+      'instrConfig.SelectedPorts': configurations.Generator.RFSGConfig.SelectedPorts,
+      'instrConfig.ReferenceClockSource': configurations.Generator.RFSGConfig.ReferenceClockSource,
+      'instrConfig.CarrierFrequency_Hz': configurations.Generator.RFSGConfig.CarrierFrequency_Hz,
+      'instrConfig.DutAverageInputPower_dBm': configurations.Generator.RFSGConfig.DutAverageInputPower_dBm,
+      'instrConfig.ExternalAttenuation_dB': configurations.Generator.RFSGConfig.ExternalAttenuation_dB,
+      'instrConfig.LOSharingMode': configurations.Generator.RFSGConfig.LOSharingMode,
+    },
+  ); // RFSG Config Instrument
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SG.ConfigureContinuousGeneration',
+    inputs: {
+      'rfsgHandle': deviceHandles.RFSG_Session,
+      'waveform': currentSweepStep.Loaded_Waveform,
+      'markerEventExportTerminal': configurations.Generator.markerEventExportTerminal,
+    },
+  ); // Configure ContinuousGeneration
   // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
   currentSweepStep.Input_and_Output.PARAMS.WaveformName = currentSweepStep.Loaded_Waveform.Name; // Map Results
-  // .NET call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Use Existing Object
-  //   Existing Object <- FileGlobals.Device_Handles.RFSG_Session
-  // .NET call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Initiate
-  ts.notExported(
-    'dotNet call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Initiate',
-  ); // RFSG Initiate [Action]
+  await ts.callDotNet(
+    'NationalInstruments.ModularInstruments.NIRfsg.Fx45, Version=19.2.0.49152, Culture=neutral, PublicKeyToken=4febd62461bf11a4',
+    'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Use Existing Object',
+    inputs: {'Existing Object': deviceHandles.RFSG_Session},
+  ); // RFSG Initiate
+  await ts.callDotNet(
+    'NationalInstruments.ModularInstruments.NIRfsg.Fx45, Version=19.2.0.49152, Culture=neutral, PublicKeyToken=4febd62461bf11a4',
+    'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Initiate',
+  ); // RFSG Initiate
   // Configure Analyzer
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxInstr.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxInstr.ConfigureInstrument
-  //   instrHandle <- FileGlobals.Device_Handles.RFmx_Instr_Session
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxInstr.ConfigureInstrument',
-  ); // RFmx Config Instrument [Action]
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxInstr.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxInstr.ConfigureInstrument',
+    inputs: {
+      'instrHandle': deviceHandles.RFmx_Instr_Session,
+      'instrConfig.LOSharingMode': configurations.Analyzer.Instr_Config.LOSharingMode,
+      'instrConfig.FrequencyReferenceSource': configurations.Analyzer.Instr_Config.FrequencyReferenceSource,
+    },
+  ); // RFmx Config Instrument
   // Configure the WLAN standard and bandwidth Parameters
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.ConfigureStandard
-  //   wlanSignal <- FileGlobals.Device_Handles.RFmx_WLAN_Signal_Session
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.ConfigureStandard',
-  ); // WLAN Config Standard [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.ConfigureCommon
-  //   wlanSignal <- FileGlobals.Device_Handles.RFmx_WLAN_Signal_Session
-  //   commonConfig <- FileGlobals.Configurations.Analyzer.Common_Config
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.ConfigureCommon',
-  ); // WLAN Config Common [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.ConfigureOFDMModAcc
-  //   wlanSignal <- FileGlobals.Device_Handles.RFmx_WLAN_Signal_Session
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.ConfigureOFDMModAcc',
-  ); // WLAN Config OFDM ModAcc [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.ConfigureSEM
-  //   wlanSignal <- FileGlobals.Device_Handles.RFmx_WLAN_Signal_Session
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.ConfigureSEM',
-  ); // WLAN Config SEM [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.ConfigureCommon
-  //   specAnSignal <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-  //   commonConfig <- FileGlobals.Configurations.Analyzer.Common_Config
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.ConfigureCommon',
-  ); // SpecAn Config Common [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.ConfigureAmpm
-  //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  ts.notExported(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.ConfigureAmpm',
-  ); // SpecAn Config AMPM [Action]
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.ConfigureStandard',
+    inputs: {
+      'wlanSignal': deviceHandles.RFmx_WLAN_Signal_Session,
+      'standardConfig.Standard': configurations.Analyzer.WLAN_Standard_Config.Standard,
+      'standardConfig.ChannelBandwidth_Hz': configurations.Analyzer.WLAN_Standard_Config.ChannelBandwidth_Hz,
+      'selectorString': configurations.Analyzer.RFmx_Selector_String,
+    },
+  ); // WLAN Config Standard
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.ConfigureCommon',
+    inputs: {
+      'wlanSignal': deviceHandles.RFmx_WLAN_Signal_Session,
+      'commonConfig': configurations.Analyzer.Common_Config,
+      'selectorString': configurations.Analyzer.RFmx_Selector_String,
+    },
+  ); // WLAN Config Common
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.ConfigureOFDMModAcc',
+    inputs: {
+      'wlanSignal': deviceHandles.RFmx_WLAN_Signal_Session,
+      'modAccConfig.AcquisitionLength_s': configurations.Analyzer.Measurements.WLAN_ModAcc_Config.AcquisitionLength_s,
+      'modAccConfig.MeasurementOffset_sym':
+          configurations.Analyzer.Measurements.WLAN_ModAcc_Config.MeasurementOffset_sym,
+      'modAccConfig.MaximumMeasurementLength_sym':
+          configurations.Analyzer.Measurements.WLAN_ModAcc_Config.MaximumMeasurementLength_sym,
+      'modAccConfig.OptimizeDynamicRangeForEvmEnabled':
+          configurations.Analyzer.Measurements.WLAN_ModAcc_Config.OptimizeDynamicRangeForEvmEnabled,
+      'modAccConfig.OptimizeDynamicRangeForEVMMargin_dB':
+          configurations.Analyzer.Measurements.WLAN_ModAcc_Config.OptimizeDynamicRangeForEVMMargin_dB,
+      'modAccConfig.AveragingEnabled': configurations.Analyzer.Measurements.WLAN_ModAcc_Config.AveragingEnabled,
+      'modAccConfig.AveragingCount': configurations.Analyzer.Measurements.WLAN_ModAcc_Config.AveragingCount,
+      'selectorString': configurations.Analyzer.RFmx_Selector_String,
+    },
+  ); // WLAN Config OFDM ModAcc
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.ConfigureSEM',
+    inputs: {
+      'wlanSignal': deviceHandles.RFmx_WLAN_Signal_Session,
+      'semConfig.SweepTimeAuto': configurations.Analyzer.Measurements.WLAN_SEM_Config.SweepTimeAuto,
+      'semConfig.SweepTime_s': configurations.Analyzer.Measurements.WLAN_SEM_Config.SweepTime_s,
+      'semConfig.SpanAuto': configurations.Analyzer.Measurements.WLAN_SEM_Config.SpanAuto,
+      'semConfig.Span_Hz': configurations.Analyzer.Measurements.WLAN_SEM_Config.Span_Hz,
+      'semConfig.AveragingEnabled': configurations.Analyzer.Measurements.WLAN_SEM_Config.AveragingEnabled,
+      'semConfig.AveragingCount': configurations.Analyzer.Measurements.WLAN_SEM_Config.AveragingCount,
+      'semConfig.AveragingType': configurations.Analyzer.Measurements.WLAN_SEM_Config.AveragingType,
+      'selectorString': configurations.Analyzer.RFmx_Selector_String,
+    },
+  ); // WLAN Config SEM
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.ConfigureCommon',
+    inputs: {
+      'specAnSignal': deviceHandles.RFmx_SpecAn_Signal_Session,
+      'commonConfig': configurations.Analyzer.Common_Config,
+      'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+    },
+  ); // SpecAn Config Common
+  await ts.callDotNet(
+    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
+    'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.ConfigureAmpm',
+    inputs: {
+      'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+      'ampmConfig.MeasurementInterval_s': configurations.Analyzer.Measurements.SpecAn_AMPM_Config.MeasurementInterval_s,
+      'ampmConfig.DutAverageInputPower_dBm':
+          configurations.Analyzer.Measurements.SpecAn_AMPM_Config.DutAverageInputPower_dBm,
+      'ampmConfig.AveragingCount': configurations.Analyzer.Measurements.SpecAn_AMPM_Config.AveragingCount,
+      'ampmConfig.AveragingEnabled': configurations.Analyzer.Measurements.SpecAn_AMPM_Config.AveragingEnabled,
+      'ampmConfig.ReferenceWaveform': currentSweepStep.Loaded_Waveform,
+      'ampmConfig.SignalType': configurations.Analyzer.Measurements.SpecAn_AMPM_Config.SignalType,
+      'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+    },
+  ); // SpecAn Config AMPM
   // Only configure DPD if its enabled for the current waveform configuration
   if (currentSweepStep.Input_and_Output.PARAMS.DPD_Enabled == true) {
-    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll
-    // .NET call: NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.ConfigureCommon
-    //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-    //   commonConfig <- FileGlobals.Configurations.Analyzer.DPD_Common_Config
-    //   referenceWaveform <- FileGlobals.Current_Sweep_Step.Loaded_Waveform
-    //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-    ts.notExported(
-      'dotNet call: NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.ConfigureCommon',
-    ); // SpecAn DPD Config Common [Action]
-    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll
-    // .NET call: NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.ConfigureMemoryPolynomial
-    //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-    //   mpConfig <- FileGlobals.Configurations.Analyzer.Measurements.DPD_MemoryPolynomial_Config
-    //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-    ts.notExported(
-      'dotNet call: NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.ConfigureMemoryPolynomial',
-    ); // SpecAn DPD Config Memory Polynomial [Action]
+    await ts.callDotNet(
+      '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll',
+      'NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.ConfigureCommon',
+      inputs: {
+        'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+        'commonConfig': configurations.Analyzer.DPD_Common_Config,
+        'referenceWaveform': currentSweepStep.Loaded_Waveform,
+        'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+      },
+    ); // SpecAn DPD Config Common
+    await ts.callDotNet(
+      '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll',
+      'NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.ConfigureMemoryPolynomial',
+      inputs: {
+        'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+        'mpConfig': configurations.Analyzer.Measurements.DPD_MemoryPolynomial_Config,
+        'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+      },
+    ); // SpecAn DPD Config Memory Polynomial
   }
   // Average input power is set to the applied value from the sweep file
   currentSweepStep.Input_and_Output.MEAS.Avg_Input_Power_dBm =
@@ -515,26 +568,33 @@ Future<void> measure() async {
 
     // Only measure and apply DPD if its enabled for the current waveform configuration
     if (currentSweepStep.Input_and_Output.PARAMS.DPD_Enabled == true) {
-      // .NET call: NationalInstruments.RFmx.SpecAnMX.RFmxSpecAnMX.Use Existing Object
-      //   Existing Object <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-      // .NET call: NationalInstruments.RFmx.SpecAnMX.RFmxSpecAnMX.SelectMeasurements
-      //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-      //   measurement <- "Dpd"
-      //   enableAllTraces <- False
-      ts.notExported(
-        'dotNet call: NationalInstruments.RFmx.SpecAnMX.RFmxSpecAnMX.SelectMeasurements',
-      ); // Select Single DPD measurement [Action]
+      await ts.callDotNet(
+        'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+        'NationalInstruments.RFmx.SpecAnMX.RFmxSpecAnMX.Use Existing Object',
+        inputs: {'Existing Object': deviceHandles.RFmx_SpecAn_Signal_Session},
+      ); // Select Single DPD measurement
+      await ts.callDotNet(
+        'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+        'NationalInstruments.RFmx.SpecAnMX.RFmxSpecAnMX.SelectMeasurements',
+        inputs: {
+          'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+          'measurement': 'Dpd',
+          'enableAllTraces': false,
+        },
+      ); // Select Single DPD measurement
       // Starts all measurements configured for the signal
-      // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll
-      // .NET call: NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.PerformMemoryPolynomial
-      //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-      //   rfsgSession <- FileGlobals.Device_Handles.RFSG_Session
-      //   mpConfig <- FileGlobals.Configurations.Analyzer.Measurements.DPD_MemoryPolynomial_Config
-      //   referenceWaveform <- FileGlobals.Current_Sweep_Step.Loaded_Waveform
-      //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-      ts.notExported(
-        'dotNet call: NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.PerformMemoryPolynomial',
-      ); // Perform Memory Polynomial [Action]
+      final outputs = await ts.callDotNet(
+        '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll',
+        'NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.PerformMemoryPolynomial',
+        inputs: {
+          'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+          'rfsgSession': deviceHandles.RFSG_Session,
+          'mpConfig': configurations.Analyzer.Measurements.DPD_MemoryPolynomial_Config,
+          'referenceWaveform': currentSweepStep.Loaded_Waveform,
+          'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+        },
+      ); // Perform Memory Polynomial
+      currentSweepStep.Results.RFmxDPD_MP_Results.DPD_Poly = outputs['Return Value.Polynomial'];
       // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
       // Map Results
     }
@@ -547,25 +607,28 @@ Future<void> measure() async {
         // AMPM Method
         if (!matched1 && select1 == 'AMPM') {
           matched1 = true;
-          // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
-          // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.SelectAndInitiateMeasurements
-          //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-          //   autoLevelConfig <- FileGlobals.Configurations.Analyzer.Auto_Level_Config
-          //   autoLevelBandwidth_Hz <- FileGlobals.Configurations.Analyzer.WLAN_Standard_Config.ChannelBandwidth_Hz
-          //   enableTraces <- False
-          //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-          //   resultName <- ""
-          ts.notExported(
-            'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.SelectAndInitiateMeasurements',
-          ); // Initiate AMPM measurement [Action]
-          // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
-          // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchAmpm
-          //   Return Value <- FileGlobals.Current_Sweep_Step.Results.RFmxSpecAn_AMPM_Results
-          //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-          //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-          ts.notExported(
-            'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchAmpm',
-          ); // SpecAn Fetch AMPM [Action]
+          await ts.callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.SelectAndInitiateMeasurements',
+            inputs: {
+              'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+              'measurements.[0]': 'Ampm',
+              'autoLevelConfig': configurations.Analyzer.Auto_Level_Config,
+              'autoLevelBandwidth_Hz': configurations.Analyzer.WLAN_Standard_Config.ChannelBandwidth_Hz,
+              'enableTraces': false,
+              'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+              'resultName': '',
+            },
+          ); // Initiate AMPM measurement
+          final outputs2 = await ts.callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchAmpm',
+            inputs: {
+              'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+              'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+            },
+          ); // SpecAn Fetch AMPM
+          currentSweepStep.Results.RFmxSpecAn_AMPM_Results = outputs2['Return Value'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.AMPM_Mean_LinerGain_dB =
               currentSweepStep.Results.RFmxSpecAn_AMPM_Results.MeanLinearGain_dB; // Map Results
@@ -575,23 +638,49 @@ Future<void> measure() async {
         // Spectral Emission Mask Measurement
         if (!matched1 && select1 == 'SEM') {
           matched1 = true;
-          // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll
-          // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.SelectAndInitiateMeasurements
-          //   wlanSignal <- FileGlobals.Device_Handles.RFmx_WLAN_Signal_Session
-          //   autoLevelConfig <- FileGlobals.Configurations.Analyzer.Auto_Level_Config
-          //   enableTraces <- False
-          //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-          //   resultName <- ""
-          ts.notExported(
-            'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.SelectAndInitiateMeasurements',
-          ); // WLAN Initiate SEM [Action]
-          // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll
-          // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.FetchSEM
-          //   wlanSignal <- FileGlobals.Device_Handles.RFmx_WLAN_Signal_Session
-          //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-          ts.notExported(
-            'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.FetchSEM',
-          ); // WLAN Fetch SEM [Action]
+          await ts.callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.SelectAndInitiateMeasurements',
+            inputs: {
+              'wlanSignal': deviceHandles.RFmx_WLAN_Signal_Session,
+              'measurements.[0]': 'Sem',
+              'autoLevelConfig': configurations.Analyzer.Auto_Level_Config,
+              'enableTraces': false,
+              'selectorString': configurations.Analyzer.RFmx_Selector_String,
+              'resultName': '',
+            },
+          ); // WLAN Initiate SEM
+          final outputs3 = await ts.callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.FetchSEM',
+            inputs: {
+              'wlanSignal': deviceHandles.RFmx_WLAN_Signal_Session,
+              'selectorString': configurations.Analyzer.RFmx_Selector_String,
+            },
+          ); // WLAN Fetch SEM
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.measurementStatus = outputs3['Return Value.measurementStatus'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.AbsolutePower_dBm = outputs3['Return Value.AbsolutePower_dBm'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.RelativePower_dB = outputs3['Return Value.RelativePower_dB'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.upperOffsetMeasurementStatus =
+              outputs3['Return Value.upperOffsetMeasurementStatus'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.UpperOffsetMargin_dB =
+              outputs3['Return Value.UpperOffsetMargin_dB'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.UpperOffsetMarginFrequency_Hz =
+              outputs3['Return Value.UpperOffsetMarginFrequency_Hz'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.UpperOffsetMarginAbsolutePower_dBm =
+              outputs3['Return Value.UpperOffsetMarginAbsolutePower_dBm'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.UpperOffsetMarginRelativePower_dB =
+              outputs3['Return Value.UpperOffsetMarginRelativePower_dB'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMeasurementStatus =
+              outputs3['Return Value.lowerOffsetMeasurementStatus'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMargin_dB =
+              outputs3['Return Value.LowerOffsetMargin_dB'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMarginFrequency_Hz =
+              outputs3['Return Value.LowerOffsetMarginFrequency_Hz'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMarginAbsolutePower_dBm =
+              outputs3['Return Value.LowerOffsetMarginAbsolutePower_dBm'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMarginRelativePower_dB =
+              outputs3['Return Value.LowerOffsetMarginRelativePower_dB'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.SEMMeasurementStatus =
               currentSweepStep.Results.RFmxWLAN_SEM_Results.measurementStatus; // Map Results
@@ -601,23 +690,34 @@ Future<void> measure() async {
         // EVM Measurement
         if (!matched1 && select1 == 'EVM') {
           matched1 = true;
-          // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll
-          // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.SelectAndInitiateMeasurements
-          //   wlanSignal <- FileGlobals.Device_Handles.RFmx_WLAN_Signal_Session
-          //   autoLevelConfig <- FileGlobals.Configurations.Analyzer.Auto_Level_Config
-          //   enableTraces <- False
-          //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-          //   resultName <- ""
-          ts.notExported(
-            'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.SelectAndInitiateMeasurements',
-          ); // WLAN Initiate ModAcc [Action]
-          // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll
-          // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.FetchOFDMModAcc
-          //   wlanSignal <- FileGlobals.Device_Handles.RFmx_WLAN_Signal_Session
-          //   selectorString <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-          ts.notExported(
-            'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.FetchOFDMModAcc',
-          ); // WLAN Fetch OFDM ModAcc [Action]
+          await ts.callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.SelectAndInitiateMeasurements',
+            inputs: {
+              'wlanSignal': deviceHandles.RFmx_WLAN_Signal_Session,
+              'measurements.[0]': 'OfdmModAcc',
+              'autoLevelConfig': configurations.Analyzer.Auto_Level_Config,
+              'enableTraces': false,
+              'selectorString': configurations.Analyzer.RFmx_Selector_String,
+              'resultName': '',
+            },
+          ); // WLAN Initiate ModAcc
+          final outputs4 = await ts.callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.FetchOFDMModAcc',
+            inputs: {
+              'wlanSignal': deviceHandles.RFmx_WLAN_Signal_Session,
+              'selectorString': configurations.Analyzer.RFmx_Selector_String,
+            },
+          ); // WLAN Fetch OFDM ModAcc
+          currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositeRMSEVMMean_dB =
+              outputs4['Return Value.CompositeRMSEVMMean_dB'];
+          currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositeDataRMSEVMMean_dB =
+              outputs4['Return Value.CompositeDataRMSEVMMean_dB'];
+          currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositePilotRMSEVMMean_dB =
+              outputs4['Return Value.CompositePilotRMSEVMMean_dB'];
+          currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.NumberOfSymbolsUsed =
+              outputs4['Return Value.NumberOfSymbolsUsed'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.RMS_EVM_Average_dB =
               currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositeRMSEVMMean_dB; // Map Results
@@ -627,13 +727,11 @@ Future<void> measure() async {
       }
     }
   } finally {
-    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-    // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration
-    //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-    //   timeOut_ms <- 1000
-    ts.notExported(
-      'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration',
-    ); // RFSG Abort Generation [Action]
+    await ts.callDotNet(
+      '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+      'NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration',
+      inputs: {'rfsgHandle': deviceHandles.RFSG_Session, 'timeOut_ms': 1000},
+    ); // RFSG Abort Generation
   }
 }
 

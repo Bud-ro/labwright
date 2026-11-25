@@ -7,10 +7,16 @@ dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('NIDCPowerSourceDCVoltageWithMultiplexer.pinmap');
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_nidcpower.py'); // Create and register NI-DCPower sessions [Action]
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_niswitch.py'); // Create and register NI-SWITCH multiplexer sessions [Action]
+    await ts.callPython(
+      'teststand_nidcpower.py',
+      'create_nidcpower_sessions',
+      passesContext: true,
+    ); // Create and register NI-DCPower sessions
+    await ts.callPython(
+      'teststand_niswitch.py',
+      'create_niswitch_multiplexer_sessions',
+      passesContext: true,
+    ); // Create and register NI-SWITCH multiplexer sessions
 
     await ts.measurement('ni.examples.NIDCPowerSourceDCVoltageWithMultiplexer_Python', {
       'pin_name': 'Pin1',
@@ -21,9 +27,13 @@ Future<void> mainSequence() async {
       'source_delay': 0,
     });
   } finally {
-    ts.notExported('python call: teststand_nidcpower.py'); // Destroy and unregister NI-DCPower sessions [Action]
-    ts.notExported(
-      'python call: teststand_niswitch.py',
-    ); // Destroy and unregister NI-SWITCH multiplexer sessions [Action]
+    await ts.callPython(
+      'teststand_nidcpower.py',
+      'destroy_nidcpower_sessions',
+    ); // Destroy and unregister NI-DCPower sessions
+    await ts.callPython(
+      'teststand_niswitch.py',
+      'destroy_niswitch_multiplexer_sessions',
+    ); // Destroy and unregister NI-SWITCH multiplexer sessions
   }
 }

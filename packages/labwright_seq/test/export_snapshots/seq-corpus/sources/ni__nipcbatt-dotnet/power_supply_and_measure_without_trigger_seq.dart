@@ -10,6 +10,15 @@ Future<ts.Status> mainSequence() async {
   return run.status;
 }
 
+class _PowerSupplyAndMeasureWithoutTriggerLocals {
+  dynamic tdmRessource;
+  dynamic pssmRessource;
+  List<dynamic> channelSettings = <dynamic>[];
+  dynamic artifactsManagerTdm;
+  dynamic artifactsManagerPssm;
+  String documentPath = '';
+}
+
 /// Sequence `Power Supply and Measure without trigger`.
 Future<ts.Status> powerSupplyAndMeasureWithoutTrigger({
   String skipAnalysis = 'ProceedToAnalysis',
@@ -24,6 +33,7 @@ Future<ts.Status> powerSupplyAndMeasureWithoutTrigger({
   dynamic tdmResultData,
   dynamic pssmResultData,
 }) async {
+  final locals = _PowerSupplyAndMeasureWithoutTriggerLocals();
   final run = ts.SequenceRun();
   final dynamic timeDomainMeasurementConfigureAndMeasureResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -52,78 +62,118 @@ Future<ts.Status> powerSupplyAndMeasureWithoutTrigger({
     ts.eval(
       '\n\nLocals.DateTime.Now = Str(Locals.DateTime.Month, "%.2u") + "-" + Str(Locals.DateTime.Day, "%.2u") + "-" + Right(Str(Locals.DateTime.Year, "%u"),2) + "-" + Str(Locals.DateTime.Hours, "%.2u") + "h" + Str(Locals.DateTime.Minutes, "%.2u") + "m" + Str(Locals.DateTime.Seconds, "%.2u") + "s"',
     );
-    // .NET call: System.Environment.GetFolderPath
-    //   Return Value <- Locals.DocumentPath
-    //   folder <- "MyDocuments"
-    ts.notExported('dotNet call: System.Environment.GetFolderPath'); // Get document path [Action]
+    final outputs = await ts.callDotNet(
+      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'System.Environment.GetFolderPath',
+      inputs: {'folder': 'MyDocuments'},
+    ); // Get document path
+    locals.documentPath = outputs['Return Value'] as String;
     // Initialize Result Folder
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-    //   Return Value <- Locals.ArtifactsManagerTDM
-    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\MeasurementIPTraces\\TDM - "+ Locals.DateTime.Now)
-    ts.notExported(
-      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-    ); // Time Domain Measurement - Initialize [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-    //   Return Value <- Locals.ArtifactsManagerPSSM
-    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\MeasurementIPTraces\\PSSM  - "+ Locals.DateTime.Now)
-    ts.notExported(
-      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-    ); // Power Supply Source and Measure - Init Artifacts Manager [Action]
+    final outputs2 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\NI.Measurement.Foundation.dll',
+      'NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+      inputs: {
+        'measurementArtifactsOutputFolderAbsolutePath': ts.eval(
+          '#NoValidation(Locals.DocumentPath + "\\\\MeasurementIPTraces\\\\TDM - "+ Locals.DateTime.Now)',
+        ),
+      },
+    ); // Time Domain Measurement - Initialize
+    locals.artifactsManagerTdm = outputs2['Return Value'];
+    final outputs3 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\NI.Measurement.Foundation.dll',
+      'NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+      inputs: {
+        'measurementArtifactsOutputFolderAbsolutePath': ts.eval(
+          '#NoValidation(Locals.DocumentPath + "\\\\MeasurementIPTraces\\\\PSSM  - "+ Locals.DateTime.Now)',
+        ),
+      },
+    ); // Power Supply Source and Measure - Init Artifacts Manager
+    locals.artifactsManagerPssm = outputs3['Return Value'];
     //
     //
     // Initialize Hardware
     // Note to run with Hardware: Update the Global Channel based on NI MAX in the below Initialize Steps
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.CreateInstance
-    //   Return Value <- Locals.PSSMRessource
-    //   powerChannelName <- "Simulated_Power/Power"
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.CreateInstance',
-    ); // Power Supply Source and Measure - Create Instance [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.CreateInstance
-    //   Return Value <- Locals.TDMRessource
-    //   analogInputChannelExpression <- "TP_Power0:2"
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.CreateInstance',
-    ); // Time Domain Measurement - Create Instance [Action]
+    final outputs4 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.CreateInstance',
+      inputs: {'powerChannelName': 'Simulated_Power/Power'},
+    ); // Power Supply Source and Measure - Create Instance
+    locals.pssmRessource = outputs4['Return Value'];
+    final outputs5 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.CreateInstance',
+      inputs: {'analogInputChannelExpression': 'TP_Power0:2'},
+    ); // Time Domain Measurement - Create Instance
+    locals.tdmRessource = outputs5['Return Value'];
     //
     //
     // Assign Measure folder
     // Note: Build name, Directory and Save csv files.
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object
-    //   Existing Object <- Locals.PSSMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ExternalComponents
-    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-    //   measurementArtifactsManager <- Locals.ArtifactsManagerPSSM
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.AttachArtifactsManager',
-    ); // Power Supply Source and Measure - Asign Artifacts [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
-    //   Existing Object <- Locals.TDMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ExternalComponents
-    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-    //   measurementArtifactsManager <- Locals.ArtifactsManagerTDM
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.AttachArtifactsManager',
-    ); // Time Domain Measurement - Asign Artifacts [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object',
+      inputs: {'Existing Object': locals.pssmRessource},
+    ); // Power Supply Source and Measure - Asign Artifacts
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ExternalComponents',
+    ); // Power Supply Source and Measure - Asign Artifacts
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers',
+    ); // Power Supply Source and Measure - Asign Artifacts
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager',
+      inputs: {'measurementArtifactsManager': locals.artifactsManagerPssm},
+    ); // Power Supply Source and Measure - Asign Artifacts
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.tdmRessource},
+    ); // Time Domain Measurement - Asign Artifacts
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ExternalComponents',
+    ); // Time Domain Measurement - Asign Artifacts
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers',
+    ); // Time Domain Measurement - Asign Artifacts
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager',
+      inputs: {'measurementArtifactsManager': locals.artifactsManagerTdm},
+    ); // Time Domain Measurement - Asign Artifacts
 
     //
     // Timing engine should match with configured Hardware trigger line for Time Domain Measurement
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object
-    //   Existing Object <- Locals.PSSMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ConfigureAndMeasure
-    //   Return Value <- Parameters.PSSMResultData
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ConfigureAndMeasure',
-    ); // Power Supply Source and Measure - Configure and Measure [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object',
+      inputs: {'Existing Object': locals.pssmRessource},
+    ); // Power Supply Source and Measure - Configure and Measure
+    final outputs6 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ConfigureAndMeasure',
+      inputs: {
+        'parameters.Options.MeasurementExecutionType': 'ConfigureAndMeasure',
+        'parameters.Options.MeasurementAnalysisRequirement': 'ProceedToAnalysis',
+        'parameters.TerminalSettings.VoltageSetpointVolts': pssmParameters.TerminalSettings.VoltageSetpointVolts,
+        'parameters.TerminalSettings.CurrentSetpointAmperes': pssmParameters.TerminalSettings.CurrentSetpointAmperes,
+        'parameters.TerminalSettings.PowerSense': 'Local',
+        'parameters.TerminalSettings.PowerIdleOutputBehavior': 'OutputDisabled',
+        'parameters.TerminalSettings.EnableOutput': pssmParameters.TerminalSettings.EnableOutput,
+        'parameters.TimingSettings.SampleClockSource': pssmParameters.TimingSettings.SampleClockSource,
+        'parameters.TimingSettings.SamplingRateHertz': samplingRateHertz,
+        'parameters.TimingSettings.NumberOfSamplesPerChannel': numberOfSamplesPerChannel,
+        'parameters.TimingSettings.SampleTimingEngine': sampleTimingEngine,
+        'parameters.TriggerSettings.TriggerType': triggerSelect,
+        'parameters.TriggerSettings.DigitalStartTriggerSource': digitalStartTriggerSource,
+        'parameters.TriggerSettings.DigitalEdgeStartTriggerEdge': digitalStartTriggerEdge,
+      },
+    ); // Power Supply Source and Measure - Configure and Measure
+    pssmResultData = outputs6['Return Value'];
     //
     //
     // Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
@@ -131,14 +181,31 @@ Future<ts.Status> powerSupplyAndMeasureWithoutTrigger({
     // Fetches the measured DC Voltage (measured when Power Supply sends Trigger after source) and returns Time Domain Analysis
     //
     try {
-      // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-      // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
-      //   Existing Object <- Locals.TDMRessource
-      // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure
-      //   Return Value <- Parameters.TDMResultData
-      ts.notExported(
-        'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure',
-      ); // Time Domain Measurement - Configure and Measure [Action]
+      await ts.callDotNet(
+        '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+        'PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object',
+        inputs: {'Existing Object': locals.tdmRessource},
+      ); // Time Domain Measurement - Configure and Measure
+      final outputs7 = await ts.callDotNet(
+        '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+        'PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure',
+        inputs: {
+          'parameters.Options.MeasurementExecutionType': 'ConfigureAndMeasure',
+          'parameters.Options.MeasurementAnalysisRequirement': 'ProceedToAnalysis',
+          'parameters.ChannelAndTerminalSettings.GlobalSettings.TerminalConfiguration': 'RSE',
+          'parameters.ChannelAndTerminalSettings.GlobalSettings.MinimumValueVolts': -10,
+          'parameters.ChannelAndTerminalSettings.GlobalSettings.MaximumValueVolts': 10,
+          'parameters.ChannelAndTerminalSettings.ChannelsSettings': locals.channelSettings,
+          'parameters.TimingSettings.SampleClockSource': 'OnboardClock',
+          'parameters.TimingSettings.SamplingRateHertz': 10000,
+          'parameters.TimingSettings.NumberOfSamplesPerChannel': 1000,
+          'parameters.TimingSettings.SampleTimingEngine': 'Auto',
+          'parameters.TriggerSettings.TriggerType': 'NoTrigger',
+          'parameters.TriggerSettings.DigitalStartTriggerSource': 'OnboardClock',
+          'parameters.TriggerSettings.DigitalEdgeStartTriggerEdge': 'Rising',
+        },
+      ); // Time Domain Measurement - Configure and Measure
+      tdmResultData = outputs7['Return Value'];
       ts.eval(
         'RunState.GotoCleanup = !(!(Step.Result.Error.Occurred) || (Find(Step.Result.Error.Msg, "ErrorCode = 20308") > 0 && Str(Parameters.SkipAnalysis) == "ProceedToAnalysis"))',
       );
@@ -147,20 +214,24 @@ Future<ts.Status> powerSupplyAndMeasureWithoutTrigger({
     } on ts.RunTimeError catch (_) {}
   } finally {
     // Close all Tasks
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object
-    //   Existing Object <- Locals.PSSMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Close
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Close',
-    ); // Power Supply Source and Measure - Close [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
-    //   Existing Object <- Locals.TDMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Close
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Close',
-    ); // Time Domain Measurement - Close [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object',
+      inputs: {'Existing Object': locals.pssmRessource},
+    ); // Power Supply Source and Measure - Close
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Close',
+    ); // Power Supply Source and Measure - Close
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.tdmRessource},
+    ); // Time Domain Measurement - Close
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Close',
+    ); // Time Domain Measurement - Close
   }
 
   return run.status;

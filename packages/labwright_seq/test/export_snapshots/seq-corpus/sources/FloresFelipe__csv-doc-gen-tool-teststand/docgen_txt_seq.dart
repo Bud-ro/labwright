@@ -53,10 +53,10 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
     'Common': ts.PropObj(),
   });
 
-  //   Return Value -> FileGlobals.Locked
-  ts.notExported('cModule call: GetLocked?'); // GetLocked? [Action]
-  //   Return Value -> FileGlobals.Protection
-  ts.notExported('cModule call: GetProtection?'); // GetProtection? [Action]
+  final outputs = await ts.callActiveX(sequenceFile, 'PropertyObjectFile.Locked'); // GetLocked?
+  locked = outputs['Return Value'] as bool;
+  final outputs2 = await ts.callActiveX(sequenceFile, 'PropertyObjectFile.Protection'); // GetProtection?
+  protection = outputs2['Return Value'] as double;
 
   skipToEndStationGlobals:
   {
@@ -70,7 +70,18 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
       ); // By Operator
       locals.docResult += '${ts.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Sequence File Header
       if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
-        ts.notExported('cModule call: WordWrapComment'); // WordWrapComment [Action]
+        final outputs3 = await ts.callDll(
+          '\$(Platform)\\DocSupport.dll',
+          'WordWrapString',
+          inputs: {
+            'maxLineLen': locals.maxWwLineLength,
+            'numIndentChars': locals.wwIndentNum,
+            'srcString': ts.eval('CommentOf(Parameters.SequenceFile.Data)'),
+            'stringObjToStoreResult': locals.tmpString,
+            'numLines': locals.tmpNum,
+          },
+        ); // WordWrapComment
+        locals.tmpNum = outputs3['numLines'] as int;
       }
       if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
         locals.docResult += '${ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_COMMENT')}\n${locals.tmpString}\n'; // Comment
@@ -134,11 +145,18 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
       if (docOptions.ShowFileGlobals == false) {
         break skipToEndSeqFileGlobals;
       }
-      //   Return Value -> Locals.tmpNum
-      //   lookupString <- ""
-      ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
+      final outputs4 = await ts.callActiveX(
+        sequenceFile.Data.FileGlobalDefaults,
+        'PropertyObject.GetNumSubProperties',
+        inputs: {'lookupString': ''},
+      ); // GetNumSubProperties
+      locals.tmpNum = outputs4['Return Value'] as int;
       if (locals.tmpNum > 0) {
-        ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
+        await ts.callDll(
+          '\$(Platform)\\DocSupport.dll',
+          'UpdateDocProgressTextAndPercent',
+          inputs: {'newTextMsg': ts.resourceString('SEQ_FILE_DOC', 'DOC_DLG_STATUS_SFGLOBALS'), 'percent_done': 0},
+        ); // SetProgressMsg
       }
       if (locals.tmpNum > 0) {
         locals.docResult +=
@@ -156,11 +174,18 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
     if (docOptions.ShowStationGlobals == false) {
       break skipToEndStationGlobals;
     }
-    //   Return Value -> Locals.tmpNum
-    //   lookupString <- ""
-    ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
+    final outputs5 = await ts.callActiveX(
+      ts.eval('StationGlobals'),
+      'PropertyObject.GetNumSubProperties',
+      inputs: {'lookupString': ''},
+    ); // GetNumSubProperties
+    locals.tmpNum = outputs5['Return Value'] as int;
     if (locals.tmpNum > 0) {
-      ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
+      await ts.callDll(
+        '\$(Platform)\\DocSupport.dll',
+        'UpdateDocProgressTextAndPercent',
+        inputs: {'newTextMsg': ts.resourceString('SEQ_FILE_DOC', 'DOC_DLG_STATUS_GLOBALS'), 'percent_done': 0},
+      ); // SetProgressMsg
     }
     if (locals.tmpNum > 0) {
       locals.docResult +=
@@ -189,7 +214,16 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
   }
   forEachSequenceResult.Status = 'Passed';
   run.record(forEachSequenceResult.Status);
-  ts.notExported('cModule call: Save Doc To File'); // Save Doc To File [PassFailTest]
+  await ts.callDll(
+    '\$(Platform)\\DocSupport.dll',
+    'SaveDocToFileEx',
+    inputs: {
+      'engine': ts.eval('RunState.Engine'),
+      'doc_result': locals.docResult,
+      'file_path': docOptions.DestFileAbsPath,
+    },
+    passesContext: true,
+  ); // Save Doc To File
   saveDocToFileResult.Status = ts.truthy(saveDocToFileResult.PassFail) ? 'Passed' : 'Failed';
   run.record(saveDocToFileResult.Status);
 
@@ -237,7 +271,18 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
         'Parameters.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NAME") +\n	"\\"" + NameOf( Parameters.Sequence) + "\\"\\n" +\n	GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"\n',
       ); // Sequence Header
       if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
-        ts.notExported('cModule call: WordWrapComment'); // WordWrapComment [Action]
+        final outputs = await ts.callDll(
+          '\$(Platform)\\DocSupport.dll',
+          'WordWrapString',
+          inputs: {
+            'maxLineLen': locals.maxWwLineLength,
+            'numIndentChars': locals.wwIndentNum,
+            'srcString': ts.eval('CommentOf(Parameters.Sequence)'),
+            'stringObjToStoreResult': locals.tmpString,
+            'numLines': locals.tmpNum,
+          },
+        ); // WordWrapComment
+        locals.tmpNum = outputs['numLines'] as int;
       }
       if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
         docResultRef.value +=
@@ -271,11 +316,23 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
       if (docOptions.ShowParameters == false) {
         break skipToEndParameters;
       }
-      //   Return Value -> Locals.tmpNum
-      //   lookupString <- ""
-      ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
+      final outputs2 = await ts.callActiveX(
+        sequence.Parameters,
+        'PropertyObject.GetNumSubProperties',
+        inputs: {'lookupString': ''},
+      ); // GetNumSubProperties
+      locals.tmpNum = outputs2['Return Value'] as int;
       if (locals.tmpNum > 0) {
-        ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
+        await ts.callDll(
+          '\$(Platform)\\DocSupport.dll',
+          'UpdateDocProgressTextAndPercent',
+          inputs: {
+            'newTextMsg': ts.eval(
+              'ResStr("SEQ_FILE_DOC", "DOC_DLG_STATUS_PARAMS") + "\\"" + NameOf(Parameters.Sequence) + "\\""',
+            ),
+            'percent_done': 0,
+          },
+        ); // SetProgressMsg
       }
       if (locals.tmpNum > 0) {
         docResultRef.value +=
@@ -291,11 +348,23 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
     if (docOptions.ShowLocals == false) {
       break skipToEndLocals;
     }
-    //   Return Value -> Locals.tmpNum
-    //   lookupString <- ""
-    ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
+    final outputs3 = await ts.callActiveX(
+      sequence.Locals,
+      'PropertyObject.GetNumSubProperties',
+      inputs: {'lookupString': ''},
+    ); // GetNumSubProperties
+    locals.tmpNum = outputs3['Return Value'] as int;
     if (locals.tmpNum > 0) {
-      ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
+      await ts.callDll(
+        '\$(Platform)\\DocSupport.dll',
+        'UpdateDocProgressTextAndPercent',
+        inputs: {
+          'newTextMsg': ts.eval(
+            'ResStr("SEQ_FILE_DOC", "DOC_DLG_STATUS_LOCALS") + "\\"" + NameOf(Parameters.Sequence) + "\\""',
+          ),
+          'percent_done': 0,
+        },
+      ); // SetProgressMsg
     }
     if (locals.tmpNum > 0) {
       docResultRef.value +=
@@ -308,7 +377,16 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
   }
   // --- End Locals ---
   // --- Step Doc ---
-  ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
+  await ts.callDll(
+    '\$(Platform)\\DocSupport.dll',
+    'UpdateDocProgressTextAndPercent',
+    inputs: {
+      'newTextMsg': ts.eval(
+        'ResStr("SEQ_FILE_DOC", "DOC_DLG_STATUS_STEPS") + "\\"" + NameOf(Parameters.Sequence) + "\\""',
+      ),
+      'percent_done': 0,
+    },
+  ); // SetProgressMsg
   locals.totalNumSteps =
       ts.getNumElements(sequence.Setup) +
       ts.getNumElements(sequence.Main) +
@@ -410,34 +488,68 @@ Future<ts.Status> stepDoc({
 
   skipToBeginOfMultipleLimits:
   {
-    //   Return Value -> Locals.BlockLevel
-    ts.notExported('cModule call: Get Block Level'); // Get Block Level [Action]
+    final outputs = await ts.callActiveX(step, 'Step.BlockLevel'); // Get Block Level
+    locals.blockLevel = outputs['Return Value'] as int;
     locals.indent = '${ts.str('', '%${ts.str(locals.blockLevel * 5)}s')}     '; // Indent According To Block Level
     locals.doubleIndent = '${locals.indent}     ';
     locals.wwIndentNum = ts.len(locals.doubleIndent) + 5;
     locals.maxWwLineLength = 65 + locals.wwIndentNum;
     stepsSoFarRef.value += 1; // Update StepsSoFar
-    ts.notExported('cModule call: Update Percent Done'); // Update Percent Done [Action]
+    await ts.callDll(
+      '\$(Platform)\\DocSupport.dll',
+      'UpdateDocProgressPercent',
+      inputs: {'percent_done': stepsSoFarRef.value / totalNumSteps * 100},
+    ); // Update Percent Done
     ts.eval(
       'Locals.StepDocs += Locals.Indent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_NAME") + "\\"" + NameOf(Parameters.Step) + "\\"\\n"\n',
     ); // Step Header
-    ts.notExported('cModule call: Get StepType Name'); // Get StepType Name [PassFailTest]
+    final outputs2 = await ts.callDll(
+      '\$(Platform)\\DocSupport.dll',
+      'GetStepTypeName',
+      inputs: {'step': step, 'stringObjToStoreResult': locals.stepTypeName, 'isNIStepType': locals.isNiStepType},
+    ); // Get StepType Name
+    locals.isNiStepType = outputs2['isNIStepType'] as bool;
     getStepTypeNameResult.Status = ts.truthy(getStepTypeNameResult.PassFail) ? 'Passed' : 'Failed';
     run.record(getStepTypeNameResult.Status);
-    //   Return Value -> Locals.StepKeyName
-    ts.notExported('cModule call: GetStepKeyName'); // GetStepKeyName [Action]
+    final outputs3 = await ts.callActiveX(step, 'Step.AdapterKeyName'); // GetStepKeyName
+    locals.stepKeyName = outputs3['Return Value'] as String;
     locals.tmpString = ts.resourceString('Adapter Names', locals.stepKeyName); // Process Adapter Name
     ts.eval(
       'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_TYPE_AND_ADAPTER"), "%-35s") +\nResStr("STEPTYPE_NAMES", Locals.StepTypeName, Locals.StepTypeName) + \n", " + Locals.tmpString + "\\n"\n',
     ); // Step Type, Adapter Name
-    //   Return Value -> Locals.tmpString
-    //   options <- 1 ' long description
-    ts.notExported('cModule call: Get Step Desc'); // Get Step Desc [Action]
-    ts.notExported('cModule call: WordWrapDesc'); // WordWrapDesc [Action]
+    final outputs4 = await ts.callActiveX(
+      step,
+      'Step.GetDescriptionEx',
+      inputs: {'options': ts.eval('1 \' long description')},
+    ); // Get Step Desc
+    locals.tmpString = outputs4['Return Value'] as String;
+    final outputs5 = await ts.callDll(
+      '\$(Platform)\\DocSupport.dll',
+      'WordWrapString',
+      inputs: {
+        'maxLineLen': locals.maxWwLineLength,
+        'numIndentChars': locals.wwIndentNum,
+        'srcString': locals.tmpString,
+        'stringObjToStoreResult': locals.tmpString,
+        'numLines': locals.tmpNum,
+      },
+    ); // WordWrapDesc
+    locals.tmpNum = outputs5['numLines'] as int;
     locals.stepDocs +=
         '${locals.doubleIndent + ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_DESC')}\n${locals.tmpString}\n'; // Step Description
     if (ts.cond('CommentOf(Parameters.Step) != ""')) {
-      ts.notExported('cModule call: WordWrapComment'); // WordWrapComment [Action]
+      final outputs6 = await ts.callDll(
+        '\$(Platform)\\DocSupport.dll',
+        'WordWrapString',
+        inputs: {
+          'maxLineLen': locals.maxWwLineLength,
+          'numIndentChars': locals.wwIndentNum,
+          'srcString': ts.eval('CommentOf(Parameters.Step)'),
+          'stringObjToStoreResult': locals.tmpString,
+          'numLines': locals.tmpNum,
+        },
+      ); // WordWrapComment
+      locals.tmpNum = outputs6['numLines'] as int;
     }
     if (ts.cond('CommentOf(Parameters.Step) != ""')) {
       locals.stepDocs +=
@@ -454,7 +566,18 @@ Future<ts.Status> stepDoc({
     ); // Add Requirements
     locals.stepDocs = docResultRef2.value;
     if (ts.cond('PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False')) {
-      ts.notExported('cModule call: WordWrapInBuf'); // WordWrapInBuf [Action]
+      final outputs7 = await ts.callDll(
+        '\$(Platform)\\DocSupport.dll',
+        'WordWrapString',
+        inputs: {
+          'maxLineLen': locals.maxWwLineLength,
+          'numIndentChars': locals.wwIndentNum,
+          'srcString': step.InBuf,
+          'stringObjToStoreResult': locals.tmpString,
+          'numLines': locals.tmpNum,
+        },
+      ); // WordWrapInBuf
+      locals.tmpNum = outputs7['numLines'] as int;
     }
     if (ts.cond('PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False')) {
       locals.stepDocs +=
@@ -480,7 +603,18 @@ Future<ts.Status> stepDoc({
       break skipToBeginOfMultipleLimits;
     }
     if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
-      ts.notExported('cModule call: WordWrapStringLimit'); // WordWrapStringLimit [Action]
+      final outputs8 = await ts.callDll(
+        '\$(Platform)\\DocSupport.dll',
+        'WordWrapString',
+        inputs: {
+          'maxLineLen': locals.maxWwLineLength,
+          'numIndentChars': locals.wwIndentNum,
+          'srcString': step.Limits.String,
+          'stringObjToStoreResult': locals.tmpString,
+          'numLines': locals.tmpNum,
+        },
+      ); // WordWrapStringLimit
+      locals.tmpNum = outputs8['numLines'] as int;
     }
     if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
       locals.stepDocs +=
@@ -504,11 +638,25 @@ Future<ts.Status> stepDoc({
     ); // Add Multiple Numeric Limits
     locals.stepDocs = docResultRef3.value;
   }
-  //   Return Value -> Locals.ExecFlow
-  //   options <- 0x1 ' StepDescOption_Long
-  ts.notExported('cModule call: Get Execution Flow'); // Get Execution Flow [Action]
+  final outputs9 = await ts.callActiveX(
+    step,
+    'Step.GetExecutionFlowString',
+    inputs: {'options': ts.eval('0x1 \' StepDescOption_Long')},
+  ); // Get Execution Flow
+  locals.execFlow = outputs9['Return Value'] as String;
   if (locals.execFlow != '') {
-    ts.notExported('cModule call: WordWrapExecFlow'); // WordWrapExecFlow [Action]
+    final outputs10 = await ts.callDll(
+      '\$(Platform)\\DocSupport.dll',
+      'WordWrapString',
+      inputs: {
+        'maxLineLen': locals.maxWwLineLength,
+        'numIndentChars': locals.wwIndentNum,
+        'srcString': locals.execFlow,
+        'stringObjToStoreResult': locals.tmpString,
+        'numLines': locals.tmpNum,
+      },
+    ); // WordWrapExecFlow
+    locals.tmpNum = outputs10['numLines'] as int;
   }
   if (locals.execFlow != '') {
     locals.stepDocs +=
@@ -541,26 +689,32 @@ Future<void> writeSubproperties({
 
   endMain:
   {
-    //   Return Value -> Locals.NumSubproperties
-    //   lookupString <- Parameters.ParentPropLookupStr
-    ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
+    final outputs = await ts.callActiveX(
+      root,
+      'PropertyObject.GetNumSubProperties',
+      inputs: {'lookupString': parentPropLookupStr},
+    ); // GetNumSubProperties
+    locals.numSubproperties = outputs['Return Value'] as int;
     backToGotoEndWhenDone:
     while (true) {
       if (locals.i == locals.numSubproperties) {
         break endMain;
       }
-      //   Return Value -> Locals.SubpropName
-      //   lookupString <- Parameters.ParentPropLookupStr
-      //   index <- Locals.i
-      //   options <- 0
-      ts.notExported('cModule call: GetSubPropName'); // GetSubPropName [Action]
+      final outputs2 = await ts.callActiveX(
+        root,
+        'PropertyObject.GetNthSubPropertyName',
+        inputs: {'lookupString': parentPropLookupStr, 'index': locals.i, 'options': 0},
+      ); // GetSubPropName
+      locals.subpropName = outputs2['Return Value'] as String;
       parentPropLookupStr != ''
           ? (locals.subpropLookupStr = '$parentPropLookupStr.${locals.subpropName}')
           : (locals.subpropLookupStr = locals.subpropName); // BuildNewLookupStr
-      //   Return Value -> Locals.SubpropFlags
-      //   lookupString <- Locals.SubpropLookupStr
-      //   options <- 0
-      ts.notExported('cModule call: GetFlags'); // GetFlags [Action]
+      final outputs3 = await ts.callActiveX(
+        root,
+        'PropertyObject.GetFlags',
+        inputs: {'lookupString': locals.subpropLookupStr, 'options': 0},
+      ); // GetFlags
+      locals.subpropFlags = outputs3['Return Value'] as int;
       locals.subpropFlags & 8 != 0 ? (locals.isHidden = true) : (locals.isHidden = false); // IsHidden
       if (locals.isHidden == false || ts.truthy(docOptions.ShowHidden)) {
         await writePropertyDetails(); // DisplayProperty
@@ -570,7 +724,11 @@ Future<void> writeSubproperties({
       }
       locals.i += 1; // Increment index
       if (isRecursiveCall == false) {
-        ts.notExported('cModule call: Update Percent Done'); // Update Percent Done [Action]
+        await ts.callDll(
+          '\$(Platform)\\DocSupport.dll',
+          'UpdateDocProgressPercent',
+          inputs: {'percent_done': locals.i / locals.numSubproperties * 100},
+        ); // Update Percent Done
       }
       continue backToGotoEndWhenDone;
     }
@@ -597,13 +755,12 @@ Future<void> writeArrayElements({
   {
     skipToMaxNumArrayElementsMsg:
     {
-      //   lookupString <- Parameters.ArrayPropLookupStr
-      //   options <- 0
-      //   lowerBounds [out]
-      //   upperBounds [out]
-      //   numElements -> Locals.NumElements
-      //   elementType [out]
-      ts.notExported('cModule call: GetNumElements'); // GetNumElements [Action]
+      final outputs = await ts.callActiveX(
+        root,
+        'PropertyObject.GetDimensions',
+        inputs: {'lookupString': arrayPropLookupStr, 'options': 0},
+      ); // GetNumElements
+      locals.numElements = outputs['numElements'] as int;
       backToStartOfLoop:
       while (true) {
         // --- Start of Loop ---
@@ -614,11 +771,12 @@ Future<void> writeArrayElements({
         if (locals.currentOffset == locals.numElements) {
           break endMain;
         }
-        //   Return Value -> Locals.CurrentArrayIndex
-        //   lookupString <- Parameters.ArrayPropLookupStr
-        //   options <- 0
-        //   offset <- Locals.CurrentOffset
-        ts.notExported('cModule call: GetArrayIndexFromOffset'); // GetArrayIndexFromOffset [Action]
+        final outputs2 = await ts.callActiveX(
+          root,
+          'PropertyObject.GetArrayIndex',
+          inputs: {'lookupString': arrayPropLookupStr, 'options': 0, 'offset': locals.currentOffset},
+        ); // GetArrayIndexFromOffset
+        locals.currentArrayIndex = outputs2['Return Value'] as String;
         await writePropertyDetails(); // DisplayProperty
         await writeSubproperties(); // DisplaySubproperties
         locals.currentOffset += 1; // Inc Loop Var
@@ -663,13 +821,15 @@ Future<void> writePropertyDetails({
 
   skipToSkipEvaluate:
   {
-    //   Return Value -> Locals.valueType
-    //   lookupString <- Parameters.PropertyToDisplayName
-    //   options <- 0
-    //   isObject -> Locals.isObject
-    //   isArray -> Locals.isArray
-    //   typeName -> Locals.typeName
-    ts.notExported('cModule call: GetTypeInfo'); // GetTypeInfo [Action]
+    final outputs = await ts.callActiveX(
+      root,
+      'PropertyObject.GetType',
+      inputs: {'lookupString': propertyToDisplayName, 'options': 0},
+    ); // GetTypeInfo
+    locals.valueType = outputs['Return Value'] as int;
+    locals.isObject = outputs['isObject'] as bool;
+    locals.isArray = outputs['isArray'] as bool;
+    locals.typeName = outputs['typeName'] as String;
     // Normally Evaluate() should only fail if the property name has invalid characters in it.
     // --- Test Evaluate Error ---
     try {
@@ -680,7 +840,18 @@ Future<void> writePropertyDetails({
       locals.subpropValue = '\n${tryToEvaluateResult.Error.Msg as String}'; // Document Error
     }
     if (tryToEvaluateResult.Status == 'Error') {
-      ts.notExported('cModule call: WordWrapStringValue_Copy'); // WordWrapStringValue_Copy [Action]
+      final outputs2 = await ts.callDll(
+        '\$(Platform)\\DocSupport.dll',
+        'WordWrapString',
+        inputs: {
+          'maxLineLen': locals.maxWwLineLength,
+          'numIndentChars': locals.wwIndentNum,
+          'srcString': locals.subpropValue,
+          'stringObjToStoreResult': locals.subpropValue,
+          'numLines': locals.tmpNum,
+        },
+      ); // WordWrapStringValue_Copy
+      locals.tmpNum = outputs2['numLines'] as int;
     }
     if (tryToEvaluateResult.Status == 'Error') {
       break skipToSkipEvaluate;
@@ -706,14 +877,27 @@ Future<void> writePropertyDetails({
       ); // GetSubPropValue7
     }
     if (locals.valueType == 1) {
-      ts.notExported('cModule call: WordWrapStringValue'); // WordWrapStringValue [Action]
+      final outputs3 = await ts.callDll(
+        '\$(Platform)\\DocSupport.dll',
+        'WordWrapString',
+        inputs: {
+          'maxLineLen': locals.maxWwLineLength,
+          'numIndentChars': locals.wwIndentNum,
+          'srcString': locals.subpropValue,
+          'stringObjToStoreResult': locals.subpropValue,
+          'numLines': locals.tmpNum,
+        },
+      ); // WordWrapStringValue
+      locals.tmpNum = outputs3['numLines'] as int;
     }
   }
   // --- Skip Evaluate ---
-  //   Return Value -> Locals.SubpropFlags
-  //   lookupString <- Parameters.PropertyToDisplayName
-  //   options <- 0
-  ts.notExported('cModule call: GetFlags'); // GetFlags [Action]
+  final outputs4 = await ts.callActiveX(
+    root,
+    'PropertyObject.GetFlags',
+    inputs: {'lookupString': propertyToDisplayName, 'options': 0},
+  ); // GetFlags
+  locals.subpropFlags = outputs4['Return Value'] as int;
   locals.subpropFlags & 4 != 0
       ? (locals.byRefStr = ' - ${ts.resourceString('SEQUENCING ADAPTER', 'PASS_BYREFERENCE')}')
       : (locals.byRefStr = ''); // IsByRef
@@ -743,13 +927,12 @@ Future<void> writeMultipleNumericLimitLimits({
 
   skipToAfterLoop:
   {
-    //   lookupString <- ""
-    //   options <- 0
-    //   lowerBounds [out]
-    //   upperBounds [out]
-    //   numElements -> Locals.NumElements
-    //   elementType [out]
-    ts.notExported('cModule call: GetNumElements'); // GetNumElements [Action]
+    final outputs = await ts.callActiveX(
+      step.Result.Measurement,
+      'PropertyObject.GetDimensions',
+      inputs: {'lookupString': '', 'options': 0},
+    ); // GetNumElements
+    locals.numElements = outputs['numElements'] as int;
     backToStartOfLoop:
     while (true) {
       // --- Start of Loop ---
@@ -772,14 +955,20 @@ Future<void> writeMultipleNumericLimitLimits({
       if (ts.cond(
         'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low")',
       )) {
-        //   Return Value -> Locals.LowLimitFmt
-        ts.notExported('cModule call: Get Low Limit Format'); // Get Low Limit Format [Action]
+        final outputs2 = await ts.callActiveX(
+          step.Result.Measurement[locals.currentOffset].Limits.Low,
+          'PropertyObject.NumericFormat',
+        ); // Get Low Limit Format
+        locals.lowLimitFmt = outputs2['Return Value'] as String;
       }
       if (ts.cond(
         'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High")',
       )) {
-        //   Return Value -> Locals.HighLimitFmt
-        ts.notExported('cModule call: Get High Limit Format'); // Get High Limit Format [Action]
+        final outputs3 = await ts.callActiveX(
+          step.Result.Measurement[locals.currentOffset].Limits.High,
+          'PropertyObject.NumericFormat',
+        ); // Get High Limit Format
+        locals.highLimitFmt = outputs3['Return Value'] as String;
       }
       if (ts.cond(
         '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Comp != "LOG"))',
@@ -847,7 +1036,18 @@ Future<void> writeRequirementsElements({
     locals.tmpString += '${locals.currentReqElement}\n'; // Get Requirments
   }
   if (ts.len(locals.tmpString) > 0) {
-    ts.notExported('cModule call: WordWrapInBuf'); // WordWrapInBuf [Action]
+    final outputs = await ts.callDll(
+      '\$(Platform)\\DocSupport.dll',
+      'WordWrapString',
+      inputs: {
+        'maxLineLen': maxWwLineLength,
+        'numIndentChars': wwIndentNum,
+        'srcString': ts.left(locals.tmpString, ts.len(locals.tmpString) - 1),
+        'stringObjToStoreResult': locals.tmpString,
+        'numLines': tmpNum,
+      },
+    ); // WordWrapInBuf
+    tmpNum = outputs['numLines'] as int;
     docResultRef.value +=
         '${doubleIndent + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_REQUIREMENTS'), '%-30s')}\n${locals.tmpString}\n'; // Requirements
   }

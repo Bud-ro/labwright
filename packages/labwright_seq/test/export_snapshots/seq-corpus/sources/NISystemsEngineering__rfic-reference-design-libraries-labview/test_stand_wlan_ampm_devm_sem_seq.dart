@@ -236,46 +236,60 @@ Future<void> mainSequence() async {
     ); // Initialize Waveform Arrys
     ts.setNumElements(loadedWaveforms, ts.getNumElements(staticStationConfigs.Waveform_Configs));
     // Initialize Instruments
-    //   id query <- True
-    //   reset device <- False
-    //   instrument handle <- FileGlobals.Device_Handles.RFSG
-    //   error out <- Step.Result.Error
-    await callNiRfsgInitialize(); // Init RFSG [Action]
-    //   Option String <- ""
-    //   Instrument Handle Out <- FileGlobals.Device_Handles.RFmx
-    //   error out <- Step.Result.Error
-    await callRFmxInstrInitializeNirfsa(); // RFmx Initialize [Action]
+    final outputs = await ts.callVi(
+      'niRFSG.llb\\niRFSG Initialize.vi',
+      inputs: {'resource name.DeviceName': staticStationConfigs.Device_Names.SG_Name, 'resource name.SessionNumber': 0},
+    ); // Init RFSG
+    deviceHandles.RFSG = outputs['instrument handle'];
+    final outputs2 = await ts.callVi(
+      'RFInstr\\mx\\RFmxInstr.llb\\RFmxInstr Initialize NIRFSA.vi',
+      inputs: {'Resource Name.DeviceName': staticStationConfigs.Device_Names.SA_Name, 'Resource Name.SessionNumber': 0},
+    ); // RFmx Initialize
+    deviceHandles.RFmx = outputs2['Instrument Handle Out'];
     // Load Waveforms and Create Signals
     locals.waveformConfigsIdx = 0; // Reset Wfm config index
     for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
       locals.currentWaveformConfig = element;
-      //   TDMS File Path <- Locals.Current_Waveform_Config.Absolute_Disk_Path
-      //   Waveform Name (File Name) <- ""
-      //   Waveform <- Locals.Current_Waveform
-      //   error out <- Step.Result.Error
-      await callLoadWaveformFromTdms(); // Load Waveform from TDMS [Action]
+      final outputs3 = await ts.callVi(
+        '..\\..\\Source\\SG\\Load Waveform From TDMS.vi',
+        inputs: {
+          'TDMS File Path': locals.currentWaveformConfig.Absolute_Disk_Path,
+          'error in (no error).status': false,
+          'error in (no error).code': 0,
+          'error in (no error).source': '',
+        },
+      ); // Load Waveform from TDMS
+      locals.currentWaveform = outputs3['Waveform'];
       configurations.Analyzer.WLAN_Signal_Config.Standard =
           locals.currentWaveformConfig.WLAN_Standard; // Map Loaded Parameters
       configurations.Analyzer.WLAN_Signal_Config.Channel_Bandwidth__Hz =
           locals.currentWaveformConfig.Waveform_Bandwidth;
-      //   RFSG handle <- FileGlobals.Device_Handles.RFSG
-      //   Waveform In <- Locals.Current_Waveform
-      //   error out <- Step.Result.Error
-      await callDownloadWaveform(); // Download Waveform to Generator [Action]
-      //   Signal Name <- Locals.Current_Waveform.Name
-      //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-      //   Selector String Out <- Locals.Current_RFmx_WLAN_Signal
-      //   error out <- Step.Result.Error
-      await callRFmxWlanCreateSignalConfiguration(); // Create WLAN Signal Configuration [Action]
-      //   Signal Name <- Locals.Current_Waveform.Name+"SpecAn"
-      //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-      //   Selector String Out <- Locals.Current_RFmx_SpecAn_Signal
-      //   error out <- Step.Result.Error
-      await callRFmxSpecAnCreateSignalConfiguration(); // Create SpecAn Signal Configuration [Action]
-      //   Selector String <- Locals.Current_RFmx_WLAN_Signal
-      //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-      //   error out <- Step.Result.Error
-      await callWlanConfigureStandard(); // WLAN Standard Config [Action]
+      await ts.callVi(
+        '..\\..\\Source\\SG\\Download Waveform.vi',
+        inputs: {'RFSG handle': deviceHandles.RFSG, 'Waveform In': locals.currentWaveform},
+      ); // Download Waveform to Generator
+      final outputs4 = await ts.callVi(
+        'WLAN\\mx\\RFmxWLAN.llb\\RFmxWLAN Create Signal Configuration.vi',
+        inputs: {'Signal Name': locals.currentWaveform.Name, 'Instrument Handle In': deviceHandles.RFmx},
+      ); // Create WLAN Signal Configuration
+      locals.currentRFmxWlanSignal = outputs4['Selector String Out'] as String;
+      final outputs5 = await ts.callVi(
+        'SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Create Signal Configuration.vi',
+        inputs: {
+          'Signal Name': '${locals.currentWaveform.Name as String}SpecAn',
+          'Instrument Handle In': deviceHandles.RFmx,
+        },
+      ); // Create SpecAn Signal Configuration
+      locals.currentRFmxSpecAnSignal = outputs5['Selector String Out'] as String;
+      await ts.callVi(
+        '..\\..\\Source\\SA\\RFmxWLAN\\WLAN Configure Standard.vi',
+        inputs: {
+          'Selector String': locals.currentRFmxWlanSignal,
+          'Instrument Handle In': deviceHandles.RFmx,
+          'WLAN Standard Configuration.Standard': 6,
+          'WLAN Standard Configuration.Channel Bandwidth (Hz)': 160000000,
+        },
+      ); // WLAN Standard Config
       loadedWaveformIndexes[locals.waveformConfigsIdx] = locals.waveformConfigsIdx; // Store Loaded Waveforms
       loadedWaveforms[locals.waveformConfigsIdx] = locals.currentWaveform;
       locals.waveformConfigsIdx++;
@@ -297,13 +311,11 @@ Future<void> mainSequence() async {
     }
   } finally {
     // Instrument Cleanup
-    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-    //   Force Destroy? (F) <- False
-    //   error out <- Step.Result.Error
-    await callRFmxInstrClose(); // RFmx Close [Action]
-    //   instrument handle <- FileGlobals.Device_Handles.RFSG
-    //   error out <- Step.Result.Error
-    await callNiRfsgClose(); // Close RFSG [Action]
+    await ts.callVi(
+      'RFInstr\\mx\\RFmxInstr.llb\\RFmxInstr Close.vi',
+      inputs: {'Instrument Handle In': deviceHandles.RFmx},
+    ); // RFmx Close
+    await ts.callVi('niRFSG.llb\\niRFSG Close.vi', inputs: {'instrument handle': deviceHandles.RFSG}); // Close RFSG
     // With theData Streams API, the reference to the output stream file is closed.
     outputFile.AsOutputRecordStream.Close(); // Close Output Stream Reference
   }
@@ -334,28 +346,33 @@ Future<void> configure() async {
       currentSweepStep.Loaded_Waveform.PAPR__dB_ +
       staticStationConfigs.DUT_Params.Gain_dB; // Calculate Reference Level
   configurations.Analyzer.Common_Config.Reference_Level__dBm_ = currentSweepStep.Calculated_Parameters.SA_Ref_Level;
-  //   Result Name <- ""
-  //   Signal Name <- FileGlobals.Current_Sweep_Step.Loaded_Waveform.Name
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  await callRFmxWlanBuildSignalString(); // Build WLAN Signal String [Action]
-  //   Result Name <- ""
-  //   Signal Name <- FileGlobals.Current_Sweep_Step.Loaded_Waveform.Name+"SpecAn"
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  await callRFmxSpecAnBuildSignalString(); // Build SpecAn Signal String [Action]
+  final outputs = await ts.callVi(
+    'WLAN\\mx\\RFmxWLAN.llb\\RFmxWLAN Build Signal String.vi',
+    inputs: {'Signal Name': currentSweepStep.Loaded_Waveform.Name},
+  ); // Build WLAN Signal String
+  configurations.Analyzer.RFmx_Selector_String = outputs['Selector String'];
+  final outputs2 = await ts.callVi(
+    'SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Build Signal String.vi',
+    inputs: {'Signal Name': '${currentSweepStep.Loaded_Waveform.Name as String}SpecAn'},
+  ); // Build SpecAn Signal String
+  configurations.Analyzer.RFmxSpecAn_Selector_String = outputs2['Selector String'];
 
   // Configure Generator
-  //   RFSG Session In <- FileGlobals.Device_Handles.RFSG
-  //   SG Configuration <- FileGlobals.Configurations.Generator.RFSGConfig
-  //   error out <- Step.Result.Error
-  await callConfigureInstrument(); // RFSG Config Instrument [Action]
+  await ts.callVi(
+    '..\\..\\Source\\SG\\Configure Instrument.vi',
+    inputs: {'RFSG Session In': deviceHandles.RFSG, 'SG Configuration': configurations.Generator.RFSGConfig},
+  ); // RFSG Config Instrument
   // Configure dynamic timing and PA DUT control settings
-  //   RFSG handle <- FileGlobals.Device_Handles.RFSG
-  //   Waveform <- FileGlobals.Current_Sweep_Step.Loaded_Waveform
-  //   Waveform Timing Configuration <- FileGlobals.Configurations.Generator.Waveform_Timing
-  //   PAEN Configuration <- FileGlobals.Configurations.Generator.PAEN_Config
-  //   Generation Period (s) <- FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Period
-  //   error out <- Step.Result.Error
-  await callConfigureBurstedGeneration(); // Configure Bursted Generation [Action]
+  final outputs3 = await ts.callVi(
+    '..\\..\\Source\\SG\\Configure Bursted Generation.vi',
+    inputs: {
+      'RFSG handle': deviceHandles.RFSG,
+      'Waveform': currentSweepStep.Loaded_Waveform,
+      'Waveform Timing Configuration': configurations.Generator.Waveform_Timing,
+      'PAEN Configuration': configurations.Generator.PAEN_Config,
+    },
+  ); // Configure Bursted Generation
+  currentSweepStep.Calculated_Parameters.Waveform_Period = outputs3['Generation Period (s)'];
   // Set RFmx Autolevel time to the newly calculated period
   configurations.Analyzer.Auto_Level_Configuration.Measurement_Interval__s_ =
       currentSweepStep.Calculated_Parameters.Waveform_Period; // Set RFmx AutoLevel Time
@@ -363,42 +380,74 @@ Future<void> configure() async {
   currentSweepStep.Input_and_Output.PARAMS.Duty_Cycle =
       configurations.Generator.Waveform_Timing.Duty_Cycle; // Map Results
   currentSweepStep.Input_and_Output.PARAMS.WaveformName = currentSweepStep.Loaded_Waveform.Name;
-  //   instrument handle <- FileGlobals.Device_Handles.RFSG
-  //   error out <- Step.Result.Error
-  await callNiRfsgInitiate(); // RFSG Initiate [Action]
+  await ts.callVi('niRFSG.llb\\niRFSG Initiate.vi', inputs: {'instrument handle': deviceHandles.RFSG}); // RFSG Initiate
   // Configure Analyzer
-  //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-  //   Instrument Configuration <- FileGlobals.Configurations.Analyzer.Instrument_Configuration
-  //   error out <- Step.Result.Error
-  await callConfigureInstrument2(); // Configure Instrument [Action]
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  //   RFmx Handle In <- FileGlobals.Device_Handles.RFmx
-  //   Common Configuration <- FileGlobals.Configurations.Analyzer.Common_Config
-  //   error out <- Step.Result.Error
-  await callSpecAnConfigureCommon(); // SpecAn Common Config [Action]
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  //   RFmx Handle In <- FileGlobals.Device_Handles.RFmx
-  //   error out <- Step.Result.Error
-  await callSpecAnConfigureAmpm(); // SpecAn Configure AMPM [Action]
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-  //   Common Configuration <- FileGlobals.Configurations.Analyzer.Common_Config
-  //   error out <- Step.Result.Error
-  await callWlanConfigureCommon(); // WLAN Common Config [Action]
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-  //   error out <- Step.Result.Error
-  await callWlanConfigureStandard(); // WLAN Configure Standard [Action]
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-  //   OFDM ModAcc Configuration <- FileGlobals.Configurations.Analyzer.Measurements.WLAN_ModAcc_Config
-  //   error out <- Step.Result.Error
-  await callWlanConfigureOfdmModAcc(); // WLAN Configure OFDM Modacc [Action]
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-  //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-  //   WLAN SEM Configuration <- FileGlobals.Configurations.Analyzer.Measurements.WLAN_SEM_Config
-  //   error out <- Step.Result.Error
-  await callWlanConfigureSem(); // WLAN Configure SEM [Action]
+  await ts.callVi(
+    '..\\..\\Source\\SA\\RFmxInstr\\Configuration\\Configure Instrument.vi',
+    inputs: {
+      'Instrument Handle In': deviceHandles.RFmx,
+      'Instrument Configuration': configurations.Analyzer.Instrument_Configuration,
+    },
+  ); // Configure Instrument
+  await ts.callVi(
+    '..\\..\\Source\\SA\\RFmxSpecAn\\SpecAn Configure Common.vi',
+    inputs: {
+      'Selector String': configurations.Analyzer.RFmxSpecAn_Selector_String,
+      'RFmx Handle In': deviceHandles.RFmx,
+      'Common Configuration': configurations.Analyzer.Common_Config,
+    },
+  ); // SpecAn Common Config
+  await ts.callVi(
+    '..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Configure AMPM.vi',
+    inputs: {
+      'Selector String': configurations.Analyzer.RFmxSpecAn_Selector_String,
+      'RFmx Handle In': deviceHandles.RFmx,
+      'RFmx SpecAn AMPM Configuration.Measurement Interval (s)':
+          configurations.Analyzer.Measurements.SpecAn_AMPM_Config.Measurement_Interval__s_,
+      'RFmx SpecAn AMPM Configuration.DUT Average Input Power (dBm)':
+          configurations.Analyzer.Measurements.SpecAn_AMPM_Config.DUT_Average_Input_Power__dBm_,
+      'RFmx SpecAn AMPM Configuration.Signal Type': configurations.Analyzer.Measurements.SpecAn_AMPM_Config.Signal_Type,
+      'RFmx SpecAn AMPM Configuration.Averaging Enabled':
+          configurations.Analyzer.Measurements.SpecAn_AMPM_Config.Averaging_Enabled,
+      'RFmx SpecAn AMPM Configuration.Averaging Count':
+          configurations.Analyzer.Measurements.SpecAn_AMPM_Config.Averaging_Count,
+      'RFmx SpecAn AMPM Configuration.Reference Waveform': currentSweepStep.Loaded_Waveform,
+    },
+  ); // SpecAn Configure AMPM
+  await ts.callVi(
+    '..\\..\\Source\\SA\\RFmxWLAN\\WLAN Configure Common.vi',
+    inputs: {
+      'Selector String': configurations.Analyzer.RFmx_Selector_String,
+      'Instrument Handle In': deviceHandles.RFmx,
+      'Common Configuration': configurations.Analyzer.Common_Config,
+    },
+  ); // WLAN Common Config
+  await ts.callVi(
+    '..\\..\\Source\\SA\\RFmxWLAN\\WLAN Configure Standard.vi',
+    inputs: {
+      'Selector String': configurations.Analyzer.RFmx_Selector_String,
+      'Instrument Handle In': deviceHandles.RFmx,
+      'WLAN Standard Configuration.Standard': configurations.Analyzer.WLAN_Signal_Config.Standard,
+      'WLAN Standard Configuration.Channel Bandwidth (Hz)':
+          configurations.Analyzer.WLAN_Signal_Config.Channel_Bandwidth__Hz,
+    },
+  ); // WLAN Configure Standard
+  await ts.callVi(
+    '..\\..\\Source\\SA\\RFmxWLAN\\Measurements\\WLAN Configure OFDM ModAcc.vi',
+    inputs: {
+      'Selector String': configurations.Analyzer.RFmx_Selector_String,
+      'Instrument Handle In': deviceHandles.RFmx,
+      'OFDM ModAcc Configuration': configurations.Analyzer.Measurements.WLAN_ModAcc_Config,
+    },
+  ); // WLAN Configure OFDM Modacc
+  await ts.callVi(
+    '..\\..\\Source\\SA\\RFmxWLAN\\Measurements\\WLAN Configure SEM.vi',
+    inputs: {
+      'Selector String': configurations.Analyzer.RFmx_Selector_String,
+      'Instrument Handle In': deviceHandles.RFmx,
+      'WLAN SEM Configuration': configurations.Analyzer.Measurements.WLAN_SEM_Config,
+    },
+  ); // WLAN Configure SEM
   // Average input power is set to the applied value from the sweep file
   currentSweepStep.Input_and_Output.MEAS.Avg_Input_Power_dBm =
       configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_; // Map Input Power
@@ -427,19 +476,24 @@ Future<void> measure() async {
         // AMPM Method
         if (!matched1 && select1 == 'AMPM') {
           matched1 = true;
-          //   Result Name <- ""
-          //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-          //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-          //   Auto Level Configuration <- FileGlobals.Configurations.Analyzer.Auto_Level_Configuration
-          //   Auto Level Bandwidth (Hz) <- FileGlobals.Configurations.Analyzer.Auto_Level_Bandwidth
-          //   Enable All Traces (F) <- False
-          //   error out <- Step.Result.Error
-          await callSpecAnSelectAndInitiateMeasurements(); // Select and Initiate SpecAn AMPM Measurement [Action]
-          //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-          //   RFmx Handle In <- FileGlobals.Device_Handles.RFmx
-          //   AMPM Results <- FileGlobals.Current_Sweep_Step.Results.SpecAn_AMPM_Results
-          //   error out <- Step.Result.Error
-          await callSpecAnFetchAmpm(); // SpecAn Fetch AMPM [Action]
+          await ts.callVi(
+            '..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Select and Initiate Measurements.vi',
+            inputs: {
+              'Selector String': configurations.Analyzer.RFmxSpecAn_Selector_String,
+              'Instrument Handle In': deviceHandles.RFmx,
+              'Measurements.[0]': 10,
+              'Auto Level Configuration': configurations.Analyzer.Auto_Level_Configuration,
+              'Auto Level Bandwidth (Hz)': configurations.Analyzer.Auto_Level_Bandwidth,
+            },
+          ); // Select and Initiate SpecAn AMPM Measurement
+          final outputs = await ts.callVi(
+            '..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Fetch AMPM.vi',
+            inputs: {
+              'Selector String': configurations.Analyzer.RFmxSpecAn_Selector_String,
+              'RFmx Handle In': deviceHandles.RFmx,
+            },
+          ); // SpecAn Fetch AMPM
+          currentSweepStep.Results.SpecAn_AMPM_Results = outputs['AMPM Results'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.AMPM_Mean_LinerGain_dB =
               currentSweepStep.Results.SpecAn_AMPM_Results.Mean_Linear_Gain__dB_; // Map Results
@@ -449,18 +503,23 @@ Future<void> measure() async {
         // Spectral Emission Mask Measurement
         if (!matched1 && select1 == 'SEM') {
           matched1 = true;
-          //   Result Name <- ""
-          //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-          //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-          //   Auto Level Configuration <- FileGlobals.Configurations.Analyzer.Auto_Level_Configuration
-          //   Enable All Traces (F) <- False
-          //   error out <- Step.Result.Error
-          await callWlanSelectAndInitiateMeasurements(); // Select and Initiate WLAN SEM Measurement [Action]
-          //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-          //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-          //   WLAN SEM Results <- FileGlobals.Current_Sweep_Step.Results.WLAN_SEM_Results
-          //   error out <- Step.Result.Error
-          await callWlanFetchSem(); // WLAN Fetch SEM [Action]
+          await ts.callVi(
+            '..\\..\\Source\\SA\\RFmxWLAN\\Measurements\\WLAN Select and Initiate Measurements.vi',
+            inputs: {
+              'Selector String': configurations.Analyzer.RFmx_Selector_String,
+              'Instrument Handle In': deviceHandles.RFmx,
+              'Measurements.[0]': 4,
+              'Auto Level Configuration': configurations.Analyzer.Auto_Level_Configuration,
+            },
+          ); // Select and Initiate WLAN SEM Measurement
+          final outputs2 = await ts.callVi(
+            '..\\..\\Source\\SA\\RFmxWLAN\\Measurements\\WLAN Fetch SEM.vi',
+            inputs: {
+              'Selector String': configurations.Analyzer.RFmx_Selector_String,
+              'Instrument Handle In': deviceHandles.RFmx,
+            },
+          ); // WLAN Fetch SEM
+          currentSweepStep.Results.WLAN_SEM_Results = outputs2['WLAN SEM Results'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.SEMMeasurementStatus =
               currentSweepStep.Results.WLAN_SEM_Results.Measurement_Status; // Map Results
@@ -470,18 +529,23 @@ Future<void> measure() async {
         // EVM Measurement
         if (!matched1 && select1 == 'EVM') {
           matched1 = true;
-          //   Result Name <- ""
-          //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-          //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-          //   Auto Level Configuration <- FileGlobals.Configurations.Analyzer.Auto_Level_Configuration
-          //   Enable All Traces (F) <- False
-          //   error out <- Step.Result.Error
-          await callWlanSelectAndInitiateMeasurements(); // Select and Initiate WLAN OFDM ModAcc Measurement [Action]
-          //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-          //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-          //   OFDM ModAcc Results <- FileGlobals.Current_Sweep_Step.Results.WLAN_OFDM_ModAcc_Results
-          //   error out <- Step.Result.Error
-          await callWlanFetchOfdmModAcc(); // WLAN Fetch OFDM ModAcc [Action]
+          await ts.callVi(
+            '..\\..\\Source\\SA\\RFmxWLAN\\Measurements\\WLAN Select and Initiate Measurements.vi',
+            inputs: {
+              'Selector String': configurations.Analyzer.RFmx_Selector_String,
+              'Instrument Handle In': deviceHandles.RFmx,
+              'Measurements.[0]': 3,
+              'Auto Level Configuration': configurations.Analyzer.Auto_Level_Configuration,
+            },
+          ); // Select and Initiate WLAN OFDM ModAcc Measurement
+          final outputs3 = await ts.callVi(
+            '..\\..\\Source\\SA\\RFmxWLAN\\Measurements\\WLAN Fetch OFDM ModAcc.vi',
+            inputs: {
+              'Selector String': configurations.Analyzer.RFmx_Selector_String,
+              'Instrument Handle In': deviceHandles.RFmx,
+            },
+          ); // WLAN Fetch OFDM ModAcc
+          currentSweepStep.Results.WLAN_OFDM_ModAcc_Results = outputs3['OFDM ModAcc Results'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.RMS_EVM_Average_dB =
               currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.Composite_RMS_EVM_Mean__dB; // Map Results
@@ -491,10 +555,10 @@ Future<void> measure() async {
       }
     }
   } finally {
-    //   RFSG handle <- FileGlobals.Device_Handles.RFSG
-    //   Timeout (ms) <- 1000
-    //   error out <- Step.Result.Error
-    await callAbortGeneration(); // Abort Dynamic Generation [Action]
+    await ts.callVi(
+      '..\\..\\Source\\SG\\Abort Generation.vi',
+      inputs: {'RFSG handle': deviceHandles.RFSG},
+    ); // Abort Dynamic Generation
   }
 }
 
@@ -505,107 +569,3 @@ Future<void> sequenceFileLoad() async {
     'If this is your first time opening this example sequence, please make sure to check the following:\n\n- To use the proper RF devices, in the Variable pane navigate to FileGlobals.Static_Station_Configs.Device_Names \n  and enter the device identifiers there. \n\n- When using a PXIe 5830/31 enter the respective portnames in FileGlobals.Configurations.Analyzer.Common_Config.SelectedPorts and in\n  FileGlobals.Configurations.Generator.RFSGConfig.SelectedPorts.\n\n- You can change the waveform configuration under FileGlobals.Static_Station_Configs.Waveform_Configs. \n\n- All other Analyzer and Generator configurations can be found in the Configurations Container.\n\n- The sequence will write a CSV result file in <./DataFiles/Results/>. You can change the parameters and measurements written to the file in \n  FileGlobals.Current_Sweep_Step.Input_and_Output and by adapting the \'Map Results\' expression step in the Measure subsequence.\n\nFeel free to keep this message from appearing next time you load the sequence by removing the \'SequenceFileLoad\' callback from the Sequences pane.',
   );
 }
-
-/// The labView module `niRFSG.llb\niRFSG Initialize.vi`.
-Future<Object?> callNiRfsgInitialize() async =>
-    throw UnimplementedError('labView call: niRFSG.llb\\niRFSG Initialize.vi');
-
-/// The labView module `RFInstr\mx\RFmxInstr.llb\RFmxInstr Initialize NIRFSA.vi`.
-Future<Object?> callRFmxInstrInitializeNirfsa() async =>
-    throw UnimplementedError('labView call: RFInstr\\mx\\RFmxInstr.llb\\RFmxInstr Initialize NIRFSA.vi');
-
-/// The labView module `..\..\Source\SG\Load Waveform From TDMS.vi`.
-Future<Object?> callLoadWaveformFromTdms() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SG\\Load Waveform From TDMS.vi');
-
-/// The labView module `..\..\Source\SG\Download Waveform.vi`.
-Future<Object?> callDownloadWaveform() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SG\\Download Waveform.vi');
-
-/// The labView module `WLAN\mx\RFmxWLAN.llb\RFmxWLAN Create Signal Configuration.vi`.
-Future<Object?> callRFmxWlanCreateSignalConfiguration() async =>
-    throw UnimplementedError('labView call: WLAN\\mx\\RFmxWLAN.llb\\RFmxWLAN Create Signal Configuration.vi');
-
-/// The labView module `SpecAn\mx\RFmxSpecAn.llb\RFmxSpecAn Create Signal Configuration.vi`.
-Future<Object?> callRFmxSpecAnCreateSignalConfiguration() async =>
-    throw UnimplementedError('labView call: SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Create Signal Configuration.vi');
-
-/// The labView module `..\..\Source\SA\RFmxWLAN\WLAN Configure Standard.vi`.
-Future<Object?> callWlanConfigureStandard() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxWLAN\\WLAN Configure Standard.vi');
-
-/// The labView module `RFInstr\mx\RFmxInstr.llb\RFmxInstr Close.vi`.
-Future<Object?> callRFmxInstrClose() async =>
-    throw UnimplementedError('labView call: RFInstr\\mx\\RFmxInstr.llb\\RFmxInstr Close.vi');
-
-/// The labView module `niRFSG.llb\niRFSG Close.vi`.
-Future<Object?> callNiRfsgClose() async => throw UnimplementedError('labView call: niRFSG.llb\\niRFSG Close.vi');
-
-/// The labView module `WLAN\mx\RFmxWLAN.llb\RFmxWLAN Build Signal String.vi`.
-Future<Object?> callRFmxWlanBuildSignalString() async =>
-    throw UnimplementedError('labView call: WLAN\\mx\\RFmxWLAN.llb\\RFmxWLAN Build Signal String.vi');
-
-/// The labView module `SpecAn\mx\RFmxSpecAn.llb\RFmxSpecAn Build Signal String.vi`.
-Future<Object?> callRFmxSpecAnBuildSignalString() async =>
-    throw UnimplementedError('labView call: SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Build Signal String.vi');
-
-/// The labView module `..\..\Source\SG\Configure Instrument.vi`.
-Future<Object?> callConfigureInstrument() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SG\\Configure Instrument.vi');
-
-/// The labView module `..\..\Source\SG\Configure Bursted Generation.vi`.
-Future<Object?> callConfigureBurstedGeneration() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SG\\Configure Bursted Generation.vi');
-
-/// The labView module `niRFSG.llb\niRFSG Initiate.vi`.
-Future<Object?> callNiRfsgInitiate() async => throw UnimplementedError('labView call: niRFSG.llb\\niRFSG Initiate.vi');
-
-/// The labView module `..\..\Source\SA\RFmxInstr\Configuration\Configure Instrument.vi`.
-Future<Object?> callConfigureInstrument2() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxInstr\\Configuration\\Configure Instrument.vi');
-
-/// The labView module `..\..\Source\SA\RFmxSpecAn\SpecAn Configure Common.vi`.
-Future<Object?> callSpecAnConfigureCommon() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxSpecAn\\SpecAn Configure Common.vi');
-
-/// The labView module `..\..\Source\SA\RFmxSpecAn\Measurements\SpecAn Configure AMPM.vi`.
-Future<Object?> callSpecAnConfigureAmpm() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Configure AMPM.vi');
-
-/// The labView module `..\..\Source\SA\RFmxWLAN\WLAN Configure Common.vi`.
-Future<Object?> callWlanConfigureCommon() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxWLAN\\WLAN Configure Common.vi');
-
-/// The labView module `..\..\Source\SA\RFmxWLAN\Measurements\WLAN Configure OFDM ModAcc.vi`.
-Future<Object?> callWlanConfigureOfdmModAcc() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxWLAN\\Measurements\\WLAN Configure OFDM ModAcc.vi');
-
-/// The labView module `..\..\Source\SA\RFmxWLAN\Measurements\WLAN Configure SEM.vi`.
-Future<Object?> callWlanConfigureSem() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxWLAN\\Measurements\\WLAN Configure SEM.vi');
-
-/// The labView module `..\..\Source\SA\RFmxSpecAn\Measurements\SpecAn Select and Initiate Measurements.vi`.
-Future<Object?> callSpecAnSelectAndInitiateMeasurements() async => throw UnimplementedError(
-  'labView call: ..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Select and Initiate Measurements.vi',
-);
-
-/// The labView module `..\..\Source\SA\RFmxSpecAn\Measurements\SpecAn Fetch AMPM.vi`.
-Future<Object?> callSpecAnFetchAmpm() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Fetch AMPM.vi');
-
-/// The labView module `..\..\Source\SA\RFmxWLAN\Measurements\WLAN Select and Initiate Measurements.vi`.
-Future<Object?> callWlanSelectAndInitiateMeasurements() async => throw UnimplementedError(
-  'labView call: ..\\..\\Source\\SA\\RFmxWLAN\\Measurements\\WLAN Select and Initiate Measurements.vi',
-);
-
-/// The labView module `..\..\Source\SA\RFmxWLAN\Measurements\WLAN Fetch SEM.vi`.
-Future<Object?> callWlanFetchSem() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxWLAN\\Measurements\\WLAN Fetch SEM.vi');
-
-/// The labView module `..\..\Source\SA\RFmxWLAN\Measurements\WLAN Fetch OFDM ModAcc.vi`.
-Future<Object?> callWlanFetchOfdmModAcc() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxWLAN\\Measurements\\WLAN Fetch OFDM ModAcc.vi');
-
-/// The labView module `..\..\Source\SG\Abort Generation.vi`.
-Future<Object?> callAbortGeneration() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SG\\Abort Generation.vi');

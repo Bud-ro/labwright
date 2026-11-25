@@ -66,10 +66,11 @@ Future<void> processSetup() async {
   ts.eval(
     'FindFile(FileGlobals.MeasurementLink.PinMapFileName,True,FileGlobals.MeasurementLink.PinMapPath)',
   ); // Get absolute path to pinmap file
-  //   Pin Map Path <- FileGlobals.MeasurementLink.PinMapPath
-  //   Pin Map Id Out <- FileGlobals.MeasurementLink.PinMapId
-  //   error out <- Step.Result.Error
-  await callUpdatePinMap(); // Update pin map [Action]
+  final outputs = await ts.callVi(
+    'TestStand Code Modules\\Update Pin Map.vi',
+    inputs: {'Pin Map Path': measurementLink.PinMapPath},
+  ); // Update pin map
+  measurementLink.PinMapId = outputs['Pin Map Id Out'];
   // --- Optional Open Scope Session
   // skipped: Register Sessions
   ts.eval(
@@ -85,7 +86,3 @@ Future<void> processCleanup() async {
   // -- Optional Unregister Sessions
   // skipped: Destroy and unregister NI-DCPower sessions
 }
-
-/// The labView module `TestStand Code Modules\Update Pin Map.vi`.
-Future<Object?> callUpdatePinMap() async =>
-    throw UnimplementedError('labView call: TestStand Code Modules\\Update Pin Map.vi');

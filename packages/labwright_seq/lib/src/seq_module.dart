@@ -7,6 +7,9 @@ enum SeqAdapter {
 
   cModule,
 
+  /// A member of a COM object, called through the ActiveX/COM adapter.
+  activeX,
+
   python,
 
   dotNet,
@@ -209,6 +212,10 @@ class StepModule {
     }
 
     final call = sdata.prop('Call');
+    if (call != null && (call.prop('Interface') != null || call.prop('CoClass') != null)) {
+      final member = [call.prop('InterfaceName')?.scalar, call.prop('MemberName')?.scalar].nonNulls.join('.');
+      return StepModule(adapter: SeqAdapter.activeX, function: member, target: nonEmpty(member), raw: sdata);
+    }
     if (call != null) {
       final lib = nonEmpty(call.prop('LibPath')?.scalar);
       final fn = nonEmpty(call.prop('Func')?.scalar);

@@ -14,13 +14,13 @@ Future<void> loginLogout({bool logout = false, bool isInitialLogin = false}) asy
 
   try {
     if (logout == false) {
-      //   Company Name <- "JME Test Solutions"
-      //   contextType <- 0
-      //   Logged In? <- Locals.Logged_In
-      //   Operator Name <- Locals.operatorName
-      //   Groups <- Locals.groups
-      //   error out <- Step.Result.Error
-      await callOperatorLoginDialog(); // Show Login Dialog [Action]
+      final outputs = await ts.callVi(
+        'Login Library.lvlibp\\Operator Login Dialog.vi',
+        inputs: {'Company Name': 'JME Test Solutions'},
+      ); // Show Login Dialog
+      locals.loggedIn = outputs['Logged In?'] as bool;
+      locals.operatorName = outputs['Operator Name'] as String;
+      locals.groups = outputs['Groups'] as List<dynamic>;
       if (locals.loggedIn) {
         if (ts.cond('RunState.Engine.UserNameExists(Locals.operatorName) == False')) {
           await createUser(user: locals.user, username: locals.operatorName); // Create User
@@ -150,7 +150,3 @@ Future<void> createUser({dynamic user, String username = ''}) async {
   ts.eval('RunState.Engine.UsersFile.UserList.SetPropertyObjectByOffset(0, 0x1, Parameters.User)'); // Insert New User
   ts.eval('RunState.Engine.UsersFile.AsPropertyObjectFile.IncChangeCount()'); // Increment Changecount of User File
 }
-
-/// The labView module `Login Library.lvlibp\Operator Login Dialog.vi`.
-Future<Object?> callOperatorLoginDialog() async =>
-    throw UnimplementedError('labView call: Login Library.lvlibp\\Operator Login Dialog.vi');

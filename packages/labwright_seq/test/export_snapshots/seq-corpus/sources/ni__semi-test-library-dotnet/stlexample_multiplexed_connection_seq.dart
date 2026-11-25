@@ -31,15 +31,16 @@ Future<void> mainSequence() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.MultiplexedConnection.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.TestStep.OneInstrumentChannelToManySitesForOneDutPin
-  //   tsmContext <- Step.SemiconductorModuleContext
-  //   dutPinName <- "A"
-  //   endOfTestingRelayConfigurationName <- "DisconnectDmmFromPinAOnAllSites"
-  //   multiplexerTypeId <- "NIGenericMultiplexer"
-  ts.notExported(
-    'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.TestStep.OneInstrumentChannelToManySitesForOneDutPin',
-  ); // Serial DMM Read - Multiplexed [NI_SemiconductorModule_Action]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.MultiplexedConnection.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.TestStep.OneInstrumentChannelToManySitesForOneDutPin',
+    inputs: {
+      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
+      'dutPinName': 'A',
+      'endOfTestingRelayConfigurationName': 'DisconnectDmmFromPinAOnAllSites',
+      'multiplexerTypeId': 'NIGenericMultiplexer',
+    },
+  ); // Serial DMM Read - Multiplexed
 }
 
 /// Sequence `SequenceFileLoad`.
@@ -79,13 +80,11 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.MultiplexedConnection.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.CleanupGenericMultiplexerSession
-  //   tsmContext <- Step.SemiconductorModuleContext
-  //   multiplexerTypeId <- "NIGenericMultiplexer"
-  ts.notExported(
-    'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.CleanupGenericMultiplexerSession',
-  ); // Cleanup NI Generic Multiplexer [NI_SemiconductorModule_Action]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.MultiplexedConnection.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.CleanupGenericMultiplexerSession',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext'), 'multiplexerTypeId': 'NIGenericMultiplexer'},
+  ); // Cleanup NI Generic Multiplexer
   // Clean Up Instrument Sessions
   await ts.stepType('NI_SemiconductorTest_CleanupInstrumentation', {
     'SemiconductorModuleContext': null,
@@ -174,11 +173,9 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.MultiplexedConnection.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.InitializeGenericMultiplexerSession
-  //   tsmContext <- Step.SemiconductorModuleContext
-  //   multiplexerTypeId <- "NIGenericMultiplexer"
-  ts.notExported(
-    'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.InitializeGenericMultiplexerSession',
-  ); // Setup NI Generic Multiplexer [NI_SemiconductorModule_Action]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.MultiplexedConnection.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.InitializeGenericMultiplexerSession',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext'), 'multiplexerTypeId': 'NIGenericMultiplexer'},
+  ); // Setup NI Generic Multiplexer
 }

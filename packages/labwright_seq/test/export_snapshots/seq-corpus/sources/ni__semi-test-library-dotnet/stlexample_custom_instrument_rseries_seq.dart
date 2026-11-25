@@ -26,16 +26,25 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.RSeries.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.SetupRSeries7822RInstrumentation
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.SetupRSeries7822RInstrumentation',
-  ); // Setup RSeries7822R Instrumentation [NI_SemiconductorModule_Action]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.CustomInstrument.RSeries.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.SetupRSeries7822RInstrumentation',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Setup RSeries7822R Instrumentation
+}
+
+class _MainSequenceLocals {
+  int tolerance = 1;
+  List<dynamic> expectedDigtalData = <dynamic>['127', '255'];
+  List<dynamic> dutDigitalOutputPorts = <dynamic>['DigitalOutput_A', 'DigitalOutput_B'];
+  List<dynamic> dutDigitalInputPorts = <dynamic>['DigitalInput_A', 'DigitalInput_B'];
+  List<dynamic> portData = <dynamic>['127', '255'];
 }
 
 /// Sequence `MainSequence` — Runs for each UUT.
 Future<void> mainSequence() async {
+  final locals = _MainSequenceLocals();
+
   // Provides different digital values to the digital input port and measures the values at digital output port to ensure the measured values match the input values provided.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'SemiconductorModuleContext': null,
@@ -65,15 +74,16 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 1,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.RSeries.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.TestStep.DigitalReadWriteTest
-  //   tsmContext <- Step.SemiconductorModuleContext
-  //   dutDigitalInputPorts <- Locals.DutDigitalInputPorts
-  //   dutDigitalOutputPorts <- Locals.DutDigitalOutputPorts
-  //   portData <- Locals.PortData
-  ts.notExported(
-    'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.TestStep.DigitalReadWriteTest',
-  ); // Digital Read Write Test [NI_SemiconductorModule_MultiTest]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.CustomInstrument.RSeries.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.TestStep.DigitalReadWriteTest',
+    inputs: {
+      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
+      'dutDigitalInputPorts': locals.dutDigitalInputPorts,
+      'dutDigitalOutputPorts': locals.dutDigitalOutputPorts,
+      'portData': locals.portData,
+    },
+  ); // Digital Read Write Test
 }
 
 /// Sequence `SequenceFileLoad`.
@@ -112,10 +122,9 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.RSeries.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.CleanupRSeries7822RInstrumentation
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.CleanupRSeries7822RInstrumentation',
-  ); // Cleanup RSeries7822R Instrumentation [NI_SemiconductorModule_Action]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.CustomInstrument.RSeries.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.CleanupRSeries7822RInstrumentation',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Cleanup RSeries7822R Instrumentation
 }

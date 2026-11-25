@@ -23,10 +23,11 @@ Future<void> mainSequence() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  //   data_id <- "GlobalData"
-  //   data <- "String"
-  ts.notExported('python call: site_and_global_data_codemodules.py'); // Set Global Data [NI_SemiconductorModule_Action]
+  await ts.callPython(
+    'site_and_global_data_codemodules.py',
+    'set_global_data',
+    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext'), 'data_id': 'GlobalData', 'data': 'String'},
+  ); // Set Global Data
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -48,12 +49,11 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 0,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  //   data_id <- "GlobalData"
-  //   data <- "String"
-  ts.notExported(
-    'python call: site_and_global_data_codemodules.py',
-  ); // Global Data Test [NI_SemiconductorModule_MultiTest]
+  await ts.callPython(
+    'site_and_global_data_codemodules.py',
+    'check_global_data',
+    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext'), 'data_id': 'GlobalData', 'data': 'String'},
+  ); // Global Data Test
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -74,10 +74,15 @@ Future<void> mainSequence() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  //   data_id <- "SiteData"
-  //   data <- {"More", "Cowbell"}
-  ts.notExported('python call: site_and_global_data_codemodules.py'); // Set Site Data [NI_SemiconductorModule_Action]
+  await ts.callPython(
+    'site_and_global_data_codemodules.py',
+    'set_site_data',
+    inputs: {
+      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
+      'data_id': 'SiteData',
+      'data': <dynamic>['More', 'Cowbell'],
+    },
+  ); // Set Site Data
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -99,12 +104,15 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 0,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  //   data_id <- "SiteData"
-  //   data <- {"More", "Cowbell"}
-  ts.notExported(
-    'python call: site_and_global_data_codemodules.py',
-  ); // Site Data Test [NI_SemiconductorModule_MultiTest]
+  await ts.callPython(
+    'site_and_global_data_codemodules.py',
+    'check_site_data',
+    inputs: {
+      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
+      'data_id': 'SiteData',
+      'data': <dynamic>['More', 'Cowbell'],
+    },
+  ); // Site Data Test
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -125,9 +133,11 @@ Future<void> mainSequence() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  //   data_id <- "SiteData"
-  ts.notExported('python call: site_and_global_data_codemodules.py'); // Clear Site Data [NI_SemiconductorModule_Action]
+  await ts.callPython(
+    'site_and_global_data_codemodules.py',
+    'clear_site_data',
+    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext'), 'data_id': 'SiteData'},
+  ); // Clear Site Data
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -149,11 +159,11 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 0,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  //   data_id <- "SiteData"
-  ts.notExported(
-    'python call: site_and_global_data_codemodules.py',
-  ); // Site Data Cleared Test [NI_SemiconductorModule_MultiTest]
+  await ts.callPython(
+    'site_and_global_data_codemodules.py',
+    'check_site_data_cleared',
+    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext'), 'data_id': 'SiteData'},
+  ); // Site Data Cleared Test
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..

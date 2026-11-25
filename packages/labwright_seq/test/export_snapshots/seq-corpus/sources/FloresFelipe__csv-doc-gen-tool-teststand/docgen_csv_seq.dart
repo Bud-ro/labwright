@@ -36,7 +36,16 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
     final seqDocStringRef = ts.Ref<String>(locals.docResult);
     run.record(await buildDocString(seqDocString: seqDocStringRef)); // Build Doc String
     locals.docResult = seqDocStringRef.value;
-    ts.notExported('cModule call: Save Doc To File'); // Save Doc To File [PassFailTest]
+    await ts.callDll(
+      '\$(Platform)\\DocSupport.dll',
+      'SaveDocToFileEx',
+      inputs: {
+        'engine': ts.eval('RunState.Engine'),
+        'doc_result': locals.docResult,
+        'file_path': docOptions.DestFileAbsPath,
+      },
+      passesContext: true,
+    ); // Save Doc To File
     saveDocToFileResult.Status = ts.truthy(saveDocToFileResult.PassFail) ? 'Passed' : 'Failed';
     run.record(saveDocToFileResult.Status);
   } finally {
@@ -58,7 +67,14 @@ Future<void> parseSequence({dynamic sequence, String seqDocString = ''}) async {
   final locals = _ParseSequenceLocals();
 
   try {
-    ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
+    await ts.callDll(
+      '\$(Platform)\\DocSupport.dll',
+      'UpdateDocProgressTextAndPercent',
+      inputs: {
+        'newTextMsg': '${ts.resourceString('SEQ_FILE_DOC', 'DOC_DLG_STATUS_PARAMS')}"${sequence.Name as String}"',
+        'percent_done': 0,
+      },
+    ); // SetProgressMsg
 
     // In each step group
     for (final element in ts.iterate(seqGroup)) {
@@ -69,11 +85,29 @@ Future<void> parseSequence({dynamic sequence, String seqDocString = ''}) async {
         final seqDocStringRef = ts.Ref<String>(seqDocString);
         await parseStep(seqDocString: seqDocStringRef, currentStep: locals.currentStep); // Extract Step Data
         seqDocString = seqDocStringRef.value;
-        ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
+        await ts.callDll(
+          '\$(Platform)\\DocSupport.dll',
+          'UpdateDocProgressTextAndPercent',
+          inputs: {
+            'newTextMsg': ts.eval(
+              'ResStr("SEQ_FILE_DOC", "DOC_DLG_STATUS_PARAMS") + "\\"" + NameOf(Locals.CurrentStep) + "\\""',
+            ),
+            'percent_done': ts.eval(
+              'Evaluate("Parameters.Sequence." + Locals.CurrentGroup + ".GetNumElements()") / Locals.TmpNum',
+            ),
+          },
+        ); // SetProgressMsg
       }
     }
   } finally {
-    ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
+    await ts.callDll(
+      '\$(Platform)\\DocSupport.dll',
+      'UpdateDocProgressTextAndPercent',
+      inputs: {
+        'newTextMsg': '${ts.resourceString('SEQ_FILE_DOC', 'DOC_DLG_STATUS_PARAMS')}"${sequence.Name as String}"',
+        'percent_done': 100,
+      },
+    ); // SetProgressMsg
   }
 }
 

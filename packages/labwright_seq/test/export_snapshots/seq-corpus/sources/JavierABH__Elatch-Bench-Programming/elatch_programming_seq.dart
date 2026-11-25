@@ -39,25 +39,25 @@ Future<void> preUut({
 
   skipToEndOfTraceabilitySection:
   {
-    //   Time <- FileGlobals.Ent_Time
-    //   error out <- Step.Result.Error
-    await callWsp2GetDateTimeStr(); // Get Entry Time [Action]
+    final outputs = await ts.callVi('..\\LabVIEW_VIs\\Traceability\\WSP2_GetDateTimeStr.vi'); // Get Entry Time
+    entTime = outputs['Time'] as String;
     testResult = 0; // Init TestResult
     failStringDataToSend = ''; // Init FailString
     if (station.isTraceEnable == 'False') {
       break skipToEndOfTraceabilitySection;
     }
     // Start Traceability Section
-    //   SerialNumber <- Parameters.UUT.SerialNumber
-    //   AssemblyPartNumber <- Parameters.UUT.PartNumber
-    //   error out <- Step.Result.Error
-    await callWsp2PartNumberRef(); // Get_PartNumber [Action]
-    //   serialNumber <- Parameters.UUT.SerialNumber
-    //   stationName <- StationGlobals.StationName
-    //   Status <- Locals.BackCheck
-    //   ReplyTracMex <- Locals.Reply_BackCheck
-    //   error out <- Step.Result.Error
-    await callWsp2BackCheckSerial(); // Get_BackCheck [Action]
+    final outputs2 = await ts.callVi(
+      '..\\LabVIEW_VIs\\Traceability\\WSP2_PartNumberRef.vi',
+      inputs: {' SerialNumber': uut.SerialNumber},
+    ); // Get_PartNumber
+    uut.PartNumber = outputs2['AssemblyPartNumber'];
+    final outputs3 = await ts.callVi(
+      '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
+      inputs: {'serialNumber': uut.SerialNumber, 'stationName': station.stationName},
+    ); // Get_BackCheck
+    locals.backCheck = outputs3['Status'] as int;
+    locals.replyBackCheck = outputs3['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk = true; // Set Backcheck OK
     } else {
@@ -111,35 +111,40 @@ Future<void> postUut({
 
   skipToEndOfTraceabilitySection:
   {
-    //   error out <- Step.Result.Error
-    await callWsp2GetDateTimeStr(); // Get End Time [Action]
+    await ts.callVi('..\\LabVIEW_VIs\\Traceability\\WSP2_GetDateTimeStr.vi'); // Get End Time
     if (station.isTraceEnable == 'False' || !ts.truthy(station.isBackcheckOk)) {
       break skipToEndOfTraceabilitySection;
     }
     // Start Traceability Section
     if (testResult == 1) {
-      //   FailString <- ""
-      //   EntryTime <- FileGlobals.Ent_Time
-      //   SerialNumber <- Parameters.UUT.SerialNumber
-      //   StationName <- StationGlobals.StationName
-      //   ProcessName <- StationGlobals.ProcessName
-      //   PassFail <- FileGlobals.TestResult
-      //   EndTime <- FileGlobals.End_Time
-      //   Employee <- ""
-      //   error out <- Step.Result.Error
-      await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      await ts.callVi(
+        '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+        inputs: {
+          'FailString': '',
+          'EntryTime': entTime,
+          'SerialNumber': uut.SerialNumber,
+          'StationName': station.stationName,
+          'ProcessName': station.processName,
+          'PassFail': testResult,
+          'EndTime': endTime,
+          'Employee': '',
+        },
+      ); // Send Process
     } else {
       if (station.isRecordFail == 'True') {
-        //   FailString <- FileGlobals.FailString_DataToSend
-        //   EntryTime <- FileGlobals.Ent_Time
-        //   SerialNumber <- Parameters.UUT.SerialNumber
-        //   StationName <- StationGlobals.StationName
-        //   ProcessName <- StationGlobals.ProcessName
-        //   PassFail <- FileGlobals.TestResult
-        //   EndTime <- FileGlobals.End_Time
-        //   Employee <- ""
-        //   error out <- Step.Result.Error
-        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+        await ts.callVi(
+          '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+          inputs: {
+            'FailString': failStringDataToSend,
+            'EntryTime': entTime,
+            'SerialNumber': uut.SerialNumber,
+            'StationName': station.stationName,
+            'ProcessName': station.processName,
+            'PassFail': testResult,
+            'EndTime': endTime,
+            'Employee': '',
+          },
+        ); // Send Process
       }
     }
   }
@@ -162,15 +167,14 @@ class _LoadVariablesLocals {
 Future<void> loadVariables({String variableList = ''}) async {
   final locals = _LoadVariablesLocals();
 
-  //   FilePath <- Locals.File_Path
-  //   OutPutValue <- 1
-  //   Section <- Parameters.Variable_list
-  //   Test Limits <- Locals.Array_Index
-  //   Test Names <- Locals.TestName
-  //   ValueNum <- Locals.NumLimits
-  //   ValueStr <- Locals.StrLimits
-  //   Error Out <- Step.Result.Error
-  await callGetLimitsV3(); // ReadFileLimit [Action]
+  final outputs = await ts.callVi(
+    '..\\LabVIEW_VIs\\Generic_Vi\'s\\Get_Limits_V3.vi',
+    inputs: {'FilePath': locals.filePath, 'OutPutValue': 1, 'Section': variableList},
+  ); // ReadFileLimit
+  locals.arrayIndex = outputs['Test Limits'] as int;
+  locals.testName = outputs['Test Names'] as List<dynamic>;
+  locals.numLimits = outputs['ValueNum'] as List<dynamic>;
+  locals.strLimits = outputs['ValueStr'] as List<dynamic>;
   for (locals.tempLoop = 0; locals.tempLoop < locals.arrayIndex; locals.tempLoop += 1) {
     locals.tempStr = locals.strLimits[locals.tempLoop] as String; // Limits
     locals.tempName = locals.testName[locals.tempLoop] as String; // NamesToVariables
@@ -180,23 +184,3 @@ Future<void> loadVariables({String variableList = ''}) async {
 
 /// Sequence `DoPreUUT` in a file outside this export.
 Future<Object?> doPreUut() async => throw UnimplementedError('external sequence: DoPreUUT');
-
-/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_GetDateTimeStr.vi`.
-Future<Object?> callWsp2GetDateTimeStr() async =>
-    throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_GetDateTimeStr.vi');
-
-/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_PartNumberRef.vi`.
-Future<Object?> callWsp2PartNumberRef() async =>
-    throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_PartNumberRef.vi');
-
-/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_BackCheck_Serial.vi`.
-Future<Object?> callWsp2BackCheckSerial() async =>
-    throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi');
-
-/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_InsertProcessDataWithFails.vi`.
-Future<Object?> callWsp2InsertProcessDataWithFails() async =>
-    throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi');
-
-/// The labView module `..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi`.
-Future<Object?> callGetLimitsV3() async =>
-    throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Generic_Vi\'s\\Get_Limits_V3.vi');

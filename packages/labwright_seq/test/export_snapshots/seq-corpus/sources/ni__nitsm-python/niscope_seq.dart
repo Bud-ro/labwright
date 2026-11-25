@@ -24,11 +24,16 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 0,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  //   pins <- {"DUTPin1"}
-  //   expected_instrument_names <- {"SCOPE1", "SCOPE2" }
-  //   expected_channel_strings <- {"0", "1"}
-  ts.notExported('python call: niscope_codemodules.py'); // Measure Test [NI_SemiconductorModule_MultiTest]
+  await ts.callPython(
+    'niscope_codemodules.py',
+    'measure',
+    inputs: {
+      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
+      'pins': <dynamic>['DUTPin1'],
+      'expected_instrument_names': <dynamic>['SCOPE1', 'SCOPE2'],
+      'expected_channel_strings': <dynamic>['0', '1'],
+    },
+  ); // Measure Test
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
@@ -54,8 +59,11 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  ts.notExported('python call: niscope_codemodules.py'); // Open Sessions [NI_SemiconductorModule_Action]
+  await ts.callPython(
+    'niscope_codemodules.py',
+    'open_sessions',
+    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Open Sessions
 }
 
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
@@ -80,8 +88,11 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   tsm_context <- Step.SemiconductorModuleContext
-  ts.notExported('python call: niscope_codemodules.py'); // Close Sessions [NI_SemiconductorModule_Action]
+  await ts.callPython(
+    'niscope_codemodules.py',
+    'close_sessions',
+    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Close Sessions
 }
 
 /// Sequence `PreBatch` — Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action..

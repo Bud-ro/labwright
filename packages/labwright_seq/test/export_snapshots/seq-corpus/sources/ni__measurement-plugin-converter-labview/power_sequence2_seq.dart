@@ -20,17 +20,35 @@ Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
   try {
-    //   Physical Channel <- Locals.Channel
-    //   error out <- Step.Result.Error
-    await callPowMeasInitialize(); // Action [Action]
+    final outputs = await ts.callVi('Pow Meas Initialize.vi', inputs: {'Physical Channel': locals.channel}); // Action
+    locals.task.DevName = outputs['task out.DeviceName'];
+    locals.task.SesNumber = outputs['task out.SessionNumber'];
 
-    //   error in (no error) <- Step.Result.Error
-    //   Operation <- Locals.Operation
-    //   Calculate Analysis? <- Locals.Analyze
-    //   voltage <- Locals.Voltage
-    //   Current <- Locals.Current
-    //   error out <- Step.Result.Error
-    await callPowMeasConfigureAndMeasure(); // Action [Action]
+    final outputs2 = await ts.callVi(
+      'Pow Meas Configure and Measure.vi',
+      inputs: {
+        'task/channels in.DeviceName': locals.task.DevName,
+        'task/channels in.SessionNumber': locals.task.SesNumber,
+        'Channel Settings.Current Setpoint': locals.channelSettings.CurrentSetpoint,
+        'Channel Settings.Voltage Setpoint': locals.channelSettings.VoltageSetpoint,
+        'Timing Settings.Sample Clock Source': locals.timingSettings.Source,
+        'Timing Settings.Sample Rate': locals.timingSettings.SampleRate,
+        'Timing Settings.Number of Samples': locals.timingSettings.NumberOfSamples,
+        'Trigger Settings.Digital Start Trigger?': locals.triggerSettings.StartTrigger,
+        'Trigger Settings.Digital Start Trigger Source': locals.triggerSettings.Source,
+        'Trigger Settings.Digital Start Trigger Edge': locals.triggerSettings.Edge,
+        'Operation': locals.operation,
+        'Calculate Analysis?': locals.analyze,
+      },
+    ); // Action
+    locals.task.DevName = outputs2['task out.DeviceName'];
+    locals.task.SesNumber = outputs2['task out.SessionNumber'];
+    locals.voltage = outputs2['voltage'] as List<dynamic>;
+    locals.current = outputs2['Current'] as List<dynamic>;
+    locals.analyzeddata.MaxVoltage = outputs2['Analyzed Data.Max Voltage'];
+    locals.analyzeddata.MaxCurrent = outputs2['Analyzed Data.Max Current'];
+    locals.analyzeddata.MaxPower = outputs2['Analyzed Data.Max Power'];
+    locals.analyzeddata.AvgPower = outputs2['Analyzed Data.Avg Power'];
     if (locals.analyze && (locals.operation == 'Measure Only' || locals.operation == 'Configure and Measure')) {
       await ts.messagePopup(
         'Message Popup',
@@ -38,18 +56,12 @@ Future<void> mainSequence() async {
       );
     }
   } finally {
-    //   error in (no error) <- Step.Result.Error
-    //   error out <- Step.Result.Error
-    await callPowMeasClose(); // Action [Action]
+    await ts.callVi(
+      'Pow Meas Close.vi',
+      inputs: {
+        'task/channels in.DeviceName': locals.task.DevName,
+        'task/channels in.SessionNumber': locals.task.SesNumber,
+      },
+    ); // Action
   }
 }
-
-/// The labView module `Pow Meas Initialize.vi`.
-Future<Object?> callPowMeasInitialize() async => throw UnimplementedError('labView call: Pow Meas Initialize.vi');
-
-/// The labView module `Pow Meas Configure and Measure.vi`.
-Future<Object?> callPowMeasConfigureAndMeasure() async =>
-    throw UnimplementedError('labView call: Pow Meas Configure and Measure.vi');
-
-/// The labView module `Pow Meas Close.vi`.
-Future<Object?> callPowMeasClose() async => throw UnimplementedError('labView call: Pow Meas Close.vi');

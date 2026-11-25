@@ -6,9 +6,19 @@ Future<void> mainSequence() async {
   await digitalStateTest(); // Digital State Test
 }
 
+class _DigitalStateTestLocals {
+  dynamic sdsgRessource;
+  dynamic sdsmRessource;
+  dynamic artifactsManagerSdsg;
+  dynamic artifactsManagerSdsm;
+  String documentPath = '';
+}
+
 /// Sequence `Digital State Test`.
 Future<void> digitalStateTest({List<dynamic>? dataToWrite, dynamic sdsgResultData, dynamic sdsmResultData}) async {
   dataToWrite ??= <dynamic>['true', 'true'];
+
+  final locals = _DigitalStateTestLocals();
 
   try {
     // This example demonstrates how to set Digital High & Low states using Digital output modules and Measure the digital states of test points using digital input modules
@@ -31,102 +41,133 @@ Future<void> digitalStateTest({List<dynamic>? dataToWrite, dynamic sdsgResultDat
     ts.eval(
       '\n\nLocals.DateTime.Now = Str(Locals.DateTime.Month, "%.2u") + "-" + Str(Locals.DateTime.Day, "%.2u") + "-" + Right(Str(Locals.DateTime.Year, "%u"),2) + "-" + Str(Locals.DateTime.Hours, "%.2u") + "h" + Str(Locals.DateTime.Minutes, "%.2u") + "m" + Str(Locals.DateTime.Seconds, "%.2u") + "s"',
     );
-    // .NET call: System.Environment.GetFolderPath
-    //   Return Value <- Locals.DocumentPath
-    //   folder <- "MyDocuments"
-    ts.notExported('dotNet call: System.Environment.GetFolderPath'); // Get document path [Action]
+    final outputs = await ts.callDotNet(
+      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'System.Environment.GetFolderPath',
+      inputs: {'folder': 'MyDocuments'},
+    ); // Get document path
+    locals.documentPath = outputs['Return Value'] as String;
     //
     //
     // Initialize Result Folder
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-    //   Return Value <- Locals.ArtifactsManagerSDSG
-    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\MeasurementIPTraces\\SDSG - "+ Locals.DateTime.Now)
-    ts.notExported(
-      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-    ); // Static Digital State Generation - Initialize Result Folder [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-    //   Return Value <- Locals.ArtifactsManagerSDSM
-    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\MeasurementIPTraces\\SDSM  - "+ Locals.DateTime.Now)
-    ts.notExported(
-      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-    ); // Static Digital State Measurement - Initialize Result Folder [Action]
+    final outputs2 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\NI.Measurement.Foundation.dll',
+      'NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+      inputs: {
+        'measurementArtifactsOutputFolderAbsolutePath': ts.eval(
+          '#NoValidation(Locals.DocumentPath + "\\\\MeasurementIPTraces\\\\SDSG - "+ Locals.DateTime.Now)',
+        ),
+      },
+    ); // Static Digital State Generation - Initialize Result Folder
+    locals.artifactsManagerSdsg = outputs2['Return Value'];
+    final outputs3 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\NI.Measurement.Foundation.dll',
+      'NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+      inputs: {
+        'measurementArtifactsOutputFolderAbsolutePath': ts.eval(
+          '#NoValidation(Locals.DocumentPath + "\\\\MeasurementIPTraces\\\\SDSM  - "+ Locals.DateTime.Now)',
+        ),
+      },
+    ); // Static Digital State Measurement - Initialize Result Folder
+    locals.artifactsManagerSdsm = outputs3['Return Value'];
     //
     //
     // Initialize Hardware
     // Note to run with Hardware: Update the Global Channel based on NI Max in the below initialize step
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.CreateInstance
-    //   Return Value <- Locals.SDSGRessource
-    //   channelExpression <- "TS_DIn0:1"
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.CreateInstance',
-    ); // Static Digital State Generation -  Initialize [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.CreateInstance
-    //   Return Value <- Locals.SDSMRessource
-    //   channelExpression <- "TP_DOut0:1"
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.CreateInstance',
-    ); // Static Digital State Measurement -  Initialize [Action]
+    final outputs4 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.CreateInstance',
+      inputs: {'channelExpression': 'TS_DIn0:1'},
+    ); // Static Digital State Generation -  Initialize
+    locals.sdsgRessource = outputs4['Return Value'];
+    final outputs5 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.CreateInstance',
+      inputs: {'channelExpression': 'TP_DOut0:1'},
+    ); // Static Digital State Measurement -  Initialize
+    locals.sdsmRessource = outputs5['Return Value'];
     //
     //
     // Assign Measure Folder
     // Note: Build name, directory and save csv files.
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Use Existing Object
-    //   Existing Object <- Locals.SDSGRessource
-    // .NET call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.ExternalComponents
-    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-    //   measurementArtifactsManager <- Locals.ArtifactsManagerSDSG
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.AttachArtifactsManager',
-    ); // Static Digital State Generation - Asign Generation [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Use Existing Object
-    //   Existing Object <- Locals.SDSMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.ExternalComponents
-    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-    //   measurementArtifactsManager <- Locals.ArtifactsManagerSDSM
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.AttachArtifactsManager',
-    ); // Static Digital State Measurement - Asign Measurement [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Use Existing Object',
+      inputs: {'Existing Object': locals.sdsgRessource},
+    ); // Static Digital State Generation - Asign Generation
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.ExternalComponents',
+    ); // Static Digital State Generation - Asign Generation
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers',
+    ); // Static Digital State Generation - Asign Generation
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager',
+      inputs: {'measurementArtifactsManager': locals.artifactsManagerSdsg},
+    ); // Static Digital State Generation - Asign Generation
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.sdsmRessource},
+    ); // Static Digital State Measurement - Asign Measurement
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.ExternalComponents',
+    ); // Static Digital State Measurement - Asign Measurement
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers',
+    ); // Static Digital State Measurement - Asign Measurement
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager',
+      inputs: {'measurementArtifactsManager': locals.artifactsManagerSdsm},
+    ); // Static Digital State Measurement - Asign Measurement
 
     // Set Static State HIGH and measure the test points
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Use Existing Object
-    //   Existing Object <- Locals.SDSGRessource
-    // .NET call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.ConfigureAndGenerate
-    //   Return Value <- Parameters.SDSGResultData
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.ConfigureAndGenerate',
-    ); // Static Digital State Generation - Configure Digital High [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Use Existing Object
-    //   Existing Object <- Locals.SDSMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.ConfigureAndMeasure
-    //   Return Value <- Parameters.SDSMResultData
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.ConfigureAndMeasure',
-    ); // Static Digital State Measurement - Read Digital State [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Use Existing Object',
+      inputs: {'Existing Object': locals.sdsgRessource},
+    ); // Static Digital State Generation - Configure Digital High
+    final outputs6 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.ConfigureAndGenerate',
+      inputs: {'parameters.DataToWrite': dataToWrite},
+    ); // Static Digital State Generation - Configure Digital High
+    sdsgResultData = outputs6['Return Value'];
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.sdsmRessource},
+    ); // Static Digital State Measurement - Read Digital State
+    final outputs7 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.ConfigureAndMeasure',
+    ); // Static Digital State Measurement - Read Digital State
+    sdsmResultData = outputs7['Return Value'];
   } finally {
     // Close all Tasks
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Use Existing Object
-    //   Existing Object <- Locals.SDSGRessource
-    // .NET call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Close
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Close',
-    ); // Static Digital State Generation - Close [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Use Existing Object
-    //   Existing Object <- Locals.SDSMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Close
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Close',
-    ); // Static Digital State Measurement - Close [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Use Existing Object',
+      inputs: {'Existing Object': locals.sdsgRessource},
+    ); // Static Digital State Generation - Close
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Close',
+    ); // Static Digital State Generation - Close
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.sdsmRessource},
+    ); // Static Digital State Measurement - Close
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Close',
+    ); // Static Digital State Measurement - Close
   }
 }

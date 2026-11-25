@@ -7,9 +7,10 @@ dynamic measurementLink = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('NIDmmMeasurement.pinmap');
-    //   sequence context <- ThisContext
-    //   error out <- Step.Result.Error
-    await callInitializeAndRegisterSessions(); // Initialize and register NI-DMM sessions [Action]
+    await ts.callVi(
+      'My Computer\\NIDmmMeasurement.lvlib\\TestStand Code Modules\\Initialize and Register Sessions.vi',
+      passesContext: true,
+    ); // Initialize and register NI-DMM sessions
 
     await ts.measurement('ni.examples.NIDmmMeasurement_LabVIEW', {
       'pin_name': 'Pin1',
@@ -18,17 +19,8 @@ Future<void> mainSequence() async {
       'Resolution in Digits': 2,
     });
   } finally {
-    //   error out <- Step.Result.Error
-    await callUnregisterAndCloseSessions(); // Unregister and close NI-DMM sessions [Action]
+    await ts.callVi(
+      'My Computer\\NIDmmMeasurement.lvlib\\TestStand Code Modules\\Unregister and Close Sessions.vi',
+    ); // Unregister and close NI-DMM sessions
   }
 }
-
-/// The labView module `My Computer\NIDmmMeasurement.lvlib\TestStand Code Modules\Initialize and Register Sessions.vi`.
-Future<Object?> callInitializeAndRegisterSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\NIDmmMeasurement.lvlib\\TestStand Code Modules\\Initialize and Register Sessions.vi',
-);
-
-/// The labView module `My Computer\NIDmmMeasurement.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi`.
-Future<Object?> callUnregisterAndCloseSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\NIDmmMeasurement.lvlib\\TestStand Code Modules\\Unregister and Close Sessions.vi',
-);

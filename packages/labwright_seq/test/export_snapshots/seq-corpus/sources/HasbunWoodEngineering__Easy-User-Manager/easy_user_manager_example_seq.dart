@@ -49,10 +49,11 @@ Future<ts.Status> mainSequence() async {
     // Initialize EasyUserManager object using the VI "Initialize from Teststand.vi". This VI duplicates the engine reference to avoid automatic closing when the VI finishes execution.
     //
     // Save the EasyUserManager object to a local variable (object reference) for further use.
-    //   Engine Reference <- RunState.Engine
-    //   EasyUserManager out <- Locals.EUM
-    //   error out <- Step.Result.Error
-    await callInitializeFromTeststand(); // Initialize EasyUserManager [Action]
+    final outputs = await ts.callVi(
+      'Initialize from Teststand.vi',
+      inputs: {'Engine Reference': ts.eval('RunState.Engine')},
+    ); // Initialize EasyUserManager
+    locals.eum = outputs['EasyUserManager out'];
     while (ts.checkStrLimit(locals.newUserName, '', 'CaseSensitive') == 'Passed') {
       enterANewUserNameResult = ts.PropObj({
         'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -76,11 +77,11 @@ Future<ts.Status> mainSequence() async {
       if (ts.cond('RunState.PreviousStep.Result.ButtonHit==2')) {
         ts.eval('RunState.Execution.Terminate()'); // Terminate execution if user cancels
       }
-      //   EasyUserManager in <- Locals.EUM
-      //   LoginName <- Locals.NewUserName
-      //   User Exists <- Locals.UserExists
-      //   error out <- Step.Result.Error
-      await callUserExists(); // Check if user already exists [Action]
+      final outputs2 = await ts.callVi(
+        'User Exists.vi',
+        inputs: {'EasyUserManager in': locals.eum, 'LoginName': locals.newUserName},
+      ); // Check if user already exists
+      locals.userExists = outputs2['User Exists'] as bool;
       if (locals.userExists) {
         await ts.messagePopup(
           'Warning user already exists',
@@ -89,12 +90,15 @@ Future<ts.Status> mainSequence() async {
         locals.newUserName = '';
       }
     }
-    //   Save File <- Locals.SaveUsersFile
-    //   EasyUserManager in <- Locals.EUM
-    //   LoginName <- Locals.NewUserName
-    //   Password <- "12345"
-    //   error out <- Step.Result.Error
-    await callCreateUser(); // Create user [Action]
+    await ts.callVi(
+      'Create User.vi',
+      inputs: {
+        'Save File': locals.saveUsersFile,
+        'EasyUserManager in': locals.eum,
+        'LoginName': locals.newUserName,
+        'Password': '12345',
+      },
+    ); // Create user
     while (!locals.groupExists) {
       enterAGroupNameResult = ts.PropObj({
         'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -118,11 +122,11 @@ Future<ts.Status> mainSequence() async {
       if (ts.cond('RunState.PreviousStep.Result.ButtonHit==2')) {
         ts.eval('RunState.Execution.Terminate()'); // Terminate execution if user cancels
       }
-      //   EasyUserManager in <- Locals.EUM
-      //   Group Name <- Locals.GroupName
-      //   Group Exists <- Locals.GroupExists
-      //   error out <- Step.Result.Error
-      await callGroupExists(); // Check if group exists [Action]
+      final outputs3 = await ts.callVi(
+        'Group Exists.vi',
+        inputs: {'EasyUserManager in': locals.eum, 'Group Name': locals.groupName},
+      ); // Check if group exists
+      locals.groupExists = outputs3['Group Exists'] as bool;
       if (!locals.groupExists) {
         await ts.messagePopup(
           'Warning group will be created',
@@ -130,55 +134,66 @@ Future<ts.Status> mainSequence() async {
         );
       }
       if (!locals.groupExists) {
-        //   Save File <- Locals.SaveUsersFile
-        //   EasyUserManager in <- Locals.EUM
-        //   Group Name <- Locals.GroupName
-        //   error out <- Step.Result.Error
-        await callCreateGroup(); // Create group [Action]
+        await ts.callVi(
+          'Create Group.vi',
+          inputs: {'Save File': locals.saveUsersFile, 'EasyUserManager in': locals.eum, 'Group Name': locals.groupName},
+        ); // Create group
         locals.groupExists = true;
       }
     }
-    //   Save File <- Locals.SaveUsersFile
-    //   EasyUserManager in <- Locals.EUM
-    //   LoginName <- Locals.NewUserName
-    //   Group Name <- Locals.GroupName
-    //   error out <- Step.Result.Error
-    await callAddUserToGroup(); // Add user to group [Action]
-    //   Save File <- Locals.SaveUsersFile
-    //   EasyUserManager in <- Locals.EUM
-    //   LoginName <- Locals.NewUserName
-    //   FullName <- "Super Cool Name"
-    //   error out <- Step.Result.Error
-    await callSetUserFullName(); // Set User FullName [Action]
-    //   New Value <- True
-    //   Save File <- Locals.SaveUsersFile
-    //   EasyUserManager in <- Locals.EUM
-    //   LoginName <- Locals.NewUserName
-    //   Privilege <- "Configure.ConfigAdapter"
-    //   error out <- Step.Result.Error
-    await callSetUserPrivilege(); // Set user privilege Configure.ConfigAdapter to True [Action]
+    await ts.callVi(
+      'Add User to Group.vi',
+      inputs: {
+        'Save File': locals.saveUsersFile,
+        'EasyUserManager in': locals.eum,
+        'LoginName': locals.newUserName,
+        'Group Name': locals.groupName,
+      },
+    ); // Add user to group
+    await ts.callVi(
+      'Set User FullName.vi',
+      inputs: {
+        'Save File': locals.saveUsersFile,
+        'EasyUserManager in': locals.eum,
+        'LoginName': locals.newUserName,
+        'FullName': 'Super Cool Name',
+      },
+    ); // Set User FullName
+    await ts.callVi(
+      'Set User Privilege.vi',
+      inputs: {
+        'New Value': true,
+        'Save File': locals.saveUsersFile,
+        'EasyUserManager in': locals.eum,
+        'LoginName': locals.newUserName,
+        'Privilege': 'Configure.ConfigAdapter',
+      },
+    ); // Set user privilege Configure.ConfigAdapter to True
 
-    //   EasyUserManager in <- Locals.EUM
-    //   LoginName <- Locals.NewUserName
-    //   Group Name <- Locals.GroupName
-    //   User in Group <- Step.Result.PassFail
-    //   error out <- Step.Result.Error
-    await callUserInGroup(); // User in group? [PassFailTest]
+    final outputs4 = await ts.callVi(
+      'User in Group.vi',
+      inputs: {'EasyUserManager in': locals.eum, 'LoginName': locals.newUserName, 'Group Name': locals.groupName},
+    ); // User in group?
+    userInGroupResult.PassFail = outputs4['User in Group'];
     userInGroupResult.Status = ts.truthy(userInGroupResult.PassFail) ? 'Passed' : 'Failed';
     run.record(userInGroupResult.Status);
-    //   EasyUserManager in <- Locals.EUM
-    //   LoginName <- Locals.NewUserName
-    //   Privilege <- "Configure.ConfigAdapter"
-    //   User Has Privilege <- Step.Result.PassFail
-    //   error out <- Step.Result.Error
-    await callCheckUserHasPrivilege(); // User has privilege? [PassFailTest]
+    final outputs5 = await ts.callVi(
+      'Check User Has Privilege.vi',
+      inputs: {
+        'EasyUserManager in': locals.eum,
+        'LoginName': locals.newUserName,
+        'Privilege': 'Configure.ConfigAdapter',
+      },
+    ); // User has privilege?
+    userHasPrivilegeResult.PassFail = outputs5['User Has Privilege'];
     userHasPrivilegeResult.Status = ts.truthy(userHasPrivilegeResult.PassFail) ? 'Passed' : 'Failed';
     run.record(userHasPrivilegeResult.Status);
   } finally {
     // As the engine reference was duplicated you need to close it in the clean up process.
-    //   EasyUserManager in <- Locals.EUM
-    //   error out <- Step.Result.Error
-    await callCloseEngineReference(); // Close duplicated reference [Action]
+    await ts.callVi(
+      'Close Engine Reference.vi',
+      inputs: {'EasyUserManager in': locals.eum},
+    ); // Close duplicated reference
   }
 
   return run.status;
@@ -194,38 +209,3 @@ Future<void> sequenceFileLoad() async {
         as String,
   );
 }
-
-/// The labView module `Initialize from Teststand.vi`.
-Future<Object?> callInitializeFromTeststand() async =>
-    throw UnimplementedError('labView call: Initialize from Teststand.vi');
-
-/// The labView module `User Exists.vi`.
-Future<Object?> callUserExists() async => throw UnimplementedError('labView call: User Exists.vi');
-
-/// The labView module `Create User.vi`.
-Future<Object?> callCreateUser() async => throw UnimplementedError('labView call: Create User.vi');
-
-/// The labView module `Group Exists.vi`.
-Future<Object?> callGroupExists() async => throw UnimplementedError('labView call: Group Exists.vi');
-
-/// The labView module `Create Group.vi`.
-Future<Object?> callCreateGroup() async => throw UnimplementedError('labView call: Create Group.vi');
-
-/// The labView module `Add User to Group.vi`.
-Future<Object?> callAddUserToGroup() async => throw UnimplementedError('labView call: Add User to Group.vi');
-
-/// The labView module `Set User FullName.vi`.
-Future<Object?> callSetUserFullName() async => throw UnimplementedError('labView call: Set User FullName.vi');
-
-/// The labView module `Set User Privilege.vi`.
-Future<Object?> callSetUserPrivilege() async => throw UnimplementedError('labView call: Set User Privilege.vi');
-
-/// The labView module `User in Group.vi`.
-Future<Object?> callUserInGroup() async => throw UnimplementedError('labView call: User in Group.vi');
-
-/// The labView module `Check User Has Privilege.vi`.
-Future<Object?> callCheckUserHasPrivilege() async =>
-    throw UnimplementedError('labView call: Check User Has Privilege.vi');
-
-/// The labView module `Close Engine Reference.vi`.
-Future<Object?> callCloseEngineReference() async => throw UnimplementedError('labView call: Close Engine Reference.vi');

@@ -26,16 +26,28 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.SetupMyCustomInstruments
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.SetupMyCustomInstruments',
-  ); // Setup Custom Instrument [NI_SemiconductorModule_Action]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.CustomInstrument.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.SetupMyCustomInstruments',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Setup Custom Instrument
+}
+
+class _MainSequenceLocals {
+  int vcc = 5;
+  int offsetVoltage = 0;
+  double tolerance = 0.1;
+  String publishedDataId = 'Analog Output';
+  List<dynamic> expectedAnalogOutput = <dynamic>['1.66', '3.33'];
+  List<dynamic> analogOutputPins = <dynamic>['E', 'F'];
+  List<dynamic> digitalInputPins = <dynamic>['A', 'B', 'C', 'D'];
+  List<dynamic> pinData = <dynamic>['1', '0', '0', '1'];
 }
 
 /// Sequence `MainSequence` — Runs for each UUT.
 Future<void> mainSequence() async {
+  final locals = _MainSequenceLocals();
+
   // Provide '0' input to all digital pins (A, B, C, D) and measure offset voltage on analog pins (E, F). Then compare the measured values with expected offset voltage.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'SemiconductorModuleContext': null,
@@ -65,16 +77,17 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 1,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest
-  //   tsmContext <- Step.SemiconductorModuleContext
-  //   digitalInputPins <- Locals.DigitalInputPins
-  //   analogOutputPins <- Locals.AnalogOutputPins
-  //   pinData <- {0, 0, 0, 0}
-  //   publishedDataID <- Locals.PublishedDataID
-  ts.notExported(
-    'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
-  ); // Zero Scale Test [NI_SemiconductorModule_MultiTest]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.CustomInstrument.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
+    inputs: {
+      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
+      'digitalInputPins': locals.digitalInputPins,
+      'analogOutputPins': locals.analogOutputPins,
+      'pinData': <dynamic>[0, 0, 0, 0],
+      'publishedDataID': locals.publishedDataId,
+    },
+  ); // Zero Scale Test
   // Provide '1' input to all digital pins (A, B, C, D) and measure voltage on analog pins (E, F). Then compare the measured values with expected FullScale voltage (VCC).
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'SemiconductorModuleContext': null,
@@ -104,16 +117,17 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 1,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest
-  //   tsmContext <- Step.SemiconductorModuleContext
-  //   digitalInputPins <- Locals.DigitalInputPins
-  //   analogOutputPins <- Locals.AnalogOutputPins
-  //   pinData <- {1, 1, 1, 1}
-  //   publishedDataID <- Locals.PublishedDataID
-  ts.notExported(
-    'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
-  ); // Full Scale Test [NI_SemiconductorModule_MultiTest]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.CustomInstrument.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
+    inputs: {
+      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
+      'digitalInputPins': locals.digitalInputPins,
+      'analogOutputPins': locals.analogOutputPins,
+      'pinData': <dynamic>[1, 1, 1, 1],
+      'publishedDataID': locals.publishedDataId,
+    },
+  ); // Full Scale Test
   // Provide different test inputs on digital pins (A, B, C, D) for e.g  provide {0,1,0,1} and measure analog  pins (E, F). Then compare the measured values with equivalent analog values.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'SemiconductorModuleContext': null,
@@ -143,16 +157,17 @@ Future<void> mainSequence() async {
     'EvaluationFailureOption': 1,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest
-  //   tsmContext <- Step.SemiconductorModuleContext
-  //   digitalInputPins <- Locals.DigitalInputPins
-  //   analogOutputPins <- Locals.AnalogOutputPins
-  //   pinData <- Locals.PinData
-  //   publishedDataID <- Locals.PublishedDataID
-  ts.notExported(
-    'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
-  ); // Functional Test [NI_SemiconductorModule_MultiTest]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.CustomInstrument.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
+    inputs: {
+      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
+      'digitalInputPins': locals.digitalInputPins,
+      'analogOutputPins': locals.analogOutputPins,
+      'pinData': locals.pinData,
+      'publishedDataID': locals.publishedDataId,
+    },
+  ); // Functional Test
 }
 
 /// Sequence `SequenceFileLoad`.
@@ -190,10 +205,9 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  // .NET assembly: Code Modules\bin\STLExample.CustomInstrument.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.CleanupMyCustomInstruments
-  //   tsmContext <- Step.SemiconductorModuleContext
-  ts.notExported(
-    'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.CleanupMyCustomInstruments',
-  ); // Cleanup Custom Instrument [NI_SemiconductorModule_Action]
+  await ts.callDotNet(
+    'Code Modules\\bin\\STLExample.CustomInstrument.dll',
+    'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.CleanupMyCustomInstruments',
+    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+  ); // Cleanup Custom Instrument
 }

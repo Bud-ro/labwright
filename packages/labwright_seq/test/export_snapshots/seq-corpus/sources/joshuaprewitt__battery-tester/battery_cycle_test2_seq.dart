@@ -170,14 +170,13 @@ Future<ts.Status> mainSequence() async {
         }),
       ],
     });
-    //   Cycle <- Locals.Cycle
-    //   Initial Capacity  (mAh) <- Locals.Capacity
-    //   Voltage <- 1.5
-    //   TDMS File Path In <- Locals.FilePath
-    //   Capacity (mAh) <- Step.NumericArray[0]
-    //   Energy (Wh) <- Step.NumericArray[1]
-    //   TDMS File Path <- Locals.FilePath
-    await callChargeAndDischarge(); // Charge and Discharge [NI_MultipleNumericLimitTest]
+    final outputs = await ts.callVi(
+      'My Computer\\Charge and Discharge.vi',
+      inputs: {'Cycle': locals.cycle, 'Initial Capacity  (mAh)': locals.capacity, 'TDMS File Path In': locals.filePath},
+    ); // Charge and Discharge
+    ts.notExported('output Capacity (mAh) -> Step.NumericArray[0]');
+    ts.notExported('output Energy (Wh) -> Step.NumericArray[1]');
+    locals.filePath = outputs['TDMS File Path'] as String;
     chargeAndDischargeResult.Status = ts.multipleNumericLimitTest([
       (value: ts.eval('Step.NumericArray[0]'), comparison: 'GT', low: 100, high: 11),
       (value: ts.eval('Step.NumericArray[1]'), comparison: 'GT', low: 100, high: 11),
@@ -200,7 +199,3 @@ Future<void> processSetup() async {
   // skipped: Increment Change Count
   // skipped: Action
 }
-
-/// The labView module `My Computer\Charge and Discharge.vi`.
-Future<Object?> callChargeAndDischarge() async =>
-    throw UnimplementedError('labView call: My Computer\\Charge and Discharge.vi');

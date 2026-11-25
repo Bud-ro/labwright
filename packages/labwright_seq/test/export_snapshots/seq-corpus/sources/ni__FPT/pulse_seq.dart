@@ -70,18 +70,28 @@ Future<ts.Status> mainSequence() async {
   });
 
   try {
-    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-    //   Enable Validity Check? <- True
-    //   error out <- Step.Result.Error
-    await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
-    //   measure call context in <- Nothing
-    //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-    //   error out <- Step.Result.Error
-    await callPowerOnDut(); // RX_Power ON [Action]
-    //   measure call context in <- Nothing
-    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-    //   error out <- Step.Result.Error
-    await callSetSwitching(); // RX_Switching Connect [Action]
+    await ts.callVi(
+      'C:\\Program Files\\National Instruments\\NI FPT\\Application\\Power Sequencing\\Power Sequence CSV Validity Check.vi',
+      inputs: {
+        'File Path':
+            'C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv',
+        'Enable Validity Check?': true,
+      },
+    ); // RX_Power Sequence CSV Validity Check
+    await ts.callVi(
+      'C:\\Program Files\\National Instruments\\NI FPT\\Application\\Power Sequencing\\Power On Dut.vi',
+      inputs: {
+        'Power sequencing file path':
+            'C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv',
+      },
+    ); // RX_Power ON
+    await ts.callVi(
+      'C:\\Program Files\\National Instruments\\NI FPT\\Application\\Power Sequencing\\Set Switching.vi',
+      inputs: {
+        'File Path':
+            'C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv',
+      },
+    ); // RX_Switching Connect
 
     final outputs = await ts.measurement('FPT Pulse Measurement_LabVIEW', {
       'Automation Test': true,
@@ -128,38 +138,21 @@ Future<ts.Status> mainSequence() async {
     ]);
     run.record(rxPulseLimitTestResult.Status);
   } finally {
-    //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-    //   error out <- Step.Result.Error
-    await callPowerOffDut(); // RX_Power OFF [Action]
-    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-    //   error out <- Step.Result.Error
-    await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+    await ts.callVi(
+      'C:\\Program Files\\National Instruments\\NI FPT\\Application\\Power Sequencing\\Power Off Dut.vi',
+      inputs: {
+        'Power Sequencing File Path':
+            'C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv',
+      },
+    ); // RX_Power OFF
+    await ts.callVi(
+      'C:\\Program Files\\National Instruments\\NI FPT\\Application\\Power Sequencing\\Disconnect All Switches.vi',
+      inputs: {
+        'File Path':
+            'C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv',
+      },
+    ); // RX_Switching Disconnect
   }
 
   return run.status;
 }
-
-/// The labView module `C:\Program Files\National Instruments\NI FPT\Application\Power Sequencing\Power Sequence CSV Validity Check.vi`.
-Future<Object?> callPowerSequenceCsvValidityCheck() async => throw UnimplementedError(
-  'labView call: C:\\Program Files\\National Instruments\\NI FPT\\Application\\Power Sequencing\\Power Sequence CSV Validity Check.vi',
-);
-
-/// The labView module `C:\Program Files\National Instruments\NI FPT\Application\Power Sequencing\Power On Dut.vi`.
-Future<Object?> callPowerOnDut() async => throw UnimplementedError(
-  'labView call: C:\\Program Files\\National Instruments\\NI FPT\\Application\\Power Sequencing\\Power On Dut.vi',
-);
-
-/// The labView module `C:\Program Files\National Instruments\NI FPT\Application\Power Sequencing\Set Switching.vi`.
-Future<Object?> callSetSwitching() async => throw UnimplementedError(
-  'labView call: C:\\Program Files\\National Instruments\\NI FPT\\Application\\Power Sequencing\\Set Switching.vi',
-);
-
-/// The labView module `C:\Program Files\National Instruments\NI FPT\Application\Power Sequencing\Power Off Dut.vi`.
-Future<Object?> callPowerOffDut() async => throw UnimplementedError(
-  'labView call: C:\\Program Files\\National Instruments\\NI FPT\\Application\\Power Sequencing\\Power Off Dut.vi',
-);
-
-/// The labView module `C:\Program Files\National Instruments\NI FPT\Application\Power Sequencing\Disconnect All Switches.vi`.
-Future<Object?> callDisconnectAllSwitches() async => throw UnimplementedError(
-  'labView call: C:\\Program Files\\National Instruments\\NI FPT\\Application\\Power Sequencing\\Disconnect All Switches.vi',
-);

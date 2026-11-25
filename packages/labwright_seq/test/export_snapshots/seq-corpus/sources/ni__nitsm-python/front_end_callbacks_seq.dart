@@ -32,20 +32,31 @@ Future<ts.Status> loginLogout() async {
   return run.status;
 }
 
+class _AutoLoginLocals {
+  dynamic userToLogin;
+}
+
 /// Sequence `AutoLogin`.
 Future<ts.Status> autoLogin() async {
+  final locals = _AutoLoginLocals();
   final run = ts.SequenceRun();
   final dynamic getUserToLoginResult = ts.PropObj({'Status': ''});
 
-  //   Return Value -> Locals.userToLogin
-  //   LoginName <- FileGlobals.UserToAutoLogin
-  ts.notExported('cModule call: Get User To Login'); // Get User To Login [PassFailTest]
+  final outputs = await ts.callActiveX(
+    ts.eval('RunState.Engine'),
+    'IEngine.GetUser',
+    inputs: {'LoginName': userToAutoLogin},
+  ); // Get User To Login
+  locals.userToLogin = outputs['Return Value'];
   ts.eval('Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False');
   getUserToLoginResult.Status = ts.truthy(getUserToLoginResult.PassFail) ? 'Passed' : 'Failed';
   run.record(getUserToLoginResult.Status);
   if (getUserToLoginResult.Status == 'Passed') {
-    //   newValue <- Locals.userToLogin
-    ts.notExported('cModule call: Set Current User'); // Set Current User [Action]
+    await ts.callActiveX(
+      ts.eval('RunState.Engine'),
+      'IEngine.CurrentUser',
+      inputs: {'newValue': locals.userToLogin},
+    ); // Set Current User
   }
 
   return run.status;

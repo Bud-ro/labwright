@@ -54,7 +54,7 @@ Future<ts.Status> mainSequence() async {
       'Common': ts.PropObj(),
       'Units': '',
     });
-    ts.notExported('cModule call: Numeric Limit Test'); // Numeric Limit Test [NumericLimitTest]
+    await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test
     numericLimitTestResult.Status = ts.checkLimits(
       numericLimitTestResult.Numeric = 10,
       11,
@@ -73,7 +73,7 @@ Future<ts.Status> mainSequence() async {
       'Common': ts.PropObj(),
       'Units': '',
     });
-    ts.notExported('cModule call: Numeric Limit Test 2'); // Numeric Limit Test 2 [NumericLimitTest]
+    await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test 2
     numericLimitTest2Result.Status = ts.checkLimits(
       numericLimitTest2Result.Numeric = 12,
       11,
@@ -92,7 +92,7 @@ Future<ts.Status> mainSequence() async {
       'Common': ts.PropObj(),
       'Units': '',
     });
-    ts.notExported('cModule call: Numeric Limit Test 3'); // Numeric Limit Test 3 [NumericLimitTest]
+    await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test 3
     numericLimitTest3Result.Status = ts.checkLimits(
       numericLimitTest3Result.Numeric = ts.rand(8, 12),
       11,
@@ -111,7 +111,7 @@ Future<ts.Status> mainSequence() async {
       'Common': ts.PropObj(),
       'Units': '',
     });
-    ts.notExported('cModule call: Numeric Limit Test 4'); // Numeric Limit Test 4 [NumericLimitTest]
+    await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test 4
     numericLimitTest4Result.Status = ts.checkLimits(
       numericLimitTest4Result.Numeric = ts.rand(8, 12),
       11,
@@ -130,7 +130,7 @@ Future<ts.Status> mainSequence() async {
       'Common': ts.PropObj(),
       'Units': '',
     });
-    ts.notExported('cModule call: Numeric Limit Test 5'); // Numeric Limit Test 5 [NumericLimitTest]
+    await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test 5
     numericLimitTest5Result.Status = ts.checkLimits(
       numericLimitTest5Result.Numeric = ts.rand(8, 12),
       11,

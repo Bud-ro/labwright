@@ -7,8 +7,11 @@ dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('NIDCPowerSourceDCVoltage.pinmap');
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_nidcpower.py'); // Create and register NI-DCPower Sessions [Action]
+    await ts.callPython(
+      'teststand_nidcpower.py',
+      'create_nidcpower_sessions',
+      passesContext: true,
+    ); // Create and register NI-DCPower Sessions
 
     await ts.measurement('ni.examples.NIDCPowerSourceDCVoltage_Python', {
       'pin_names': <dynamic>['Pin1'],
@@ -19,6 +22,9 @@ Future<void> mainSequence() async {
       'source_delay': 0,
     });
   } finally {
-    ts.notExported('python call: teststand_nidcpower.py'); // Destroy and unregister NI-DCPower sessions [Action]
+    await ts.callPython(
+      'teststand_nidcpower.py',
+      'destroy_nidcpower_sessions',
+    ); // Destroy and unregister NI-DCPower sessions
   }
 }

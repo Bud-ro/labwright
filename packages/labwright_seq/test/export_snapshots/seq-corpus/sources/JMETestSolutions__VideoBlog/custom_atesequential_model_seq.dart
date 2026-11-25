@@ -541,7 +541,12 @@ Future<void> configureResultProcessing() async {
 
 /// Sequence `Configure Model Options` — Appears as Model Options in the Configure menu..
 Future<void> configureModelOptions() async {
-  ts.notExported('cModule call: Edit Model Options'); // Edit Model Options [Action]
+  await ts.callDll(
+    'modelsupport2.dll',
+    'DisplayModelOptionsDialog',
+    inputs: {'modelType': 0},
+    passesContext: true,
+  ); // Edit Model Options
 }
 
 /// Sequence `MainSequence` — Override this in the client file with a sequence that performs tests on the UUT..
@@ -767,7 +772,14 @@ Future<void> doPreUut({
 
   if (modelData.EntryPoint != 'Single Pass' &&
       ts.truthy(modelPluginConfiguration2.RuntimeVariables.ModelDialogsEnabled.SequentialShowSerialNumber)) {
-    ts.notExported('cModule call: IdentifyUUT'); // IdentifyUUT [Action]
+    final outputs = await ts.callDll(
+      'modelsupport2.dll',
+      'DisplayUUTInformationDialog',
+      inputs: {'serialNumber': locals.serialNumber},
+      passesContext: true,
+    ); // IdentifyUUT
+    continueTesting = outputs['Return Value'] as bool;
+    locals.serialNumber = outputs['serialNumber'] as String;
   }
   // Set serial number if testing is continuing
   if (modelData.EntryPoint == 'Test UUTs' &&
@@ -788,22 +800,28 @@ Future<void> doPostUut({
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(modelPluginConfiguration2.RuntimeVariables.ModelDialogsEnabled.SequentialShowStatus) &&
       result.Status == 'Passed') {
-    ts.notExported('cModule call: DisplayPassBanner'); // DisplayPassBanner [Action]
+    await ts.callDll('modelsupport2.dll', 'DisplayPassBanner', passesContext: true); // DisplayPassBanner
   }
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(modelPluginConfiguration2.RuntimeVariables.ModelDialogsEnabled.SequentialShowStatus) &&
       result.Status == 'Failed') {
-    ts.notExported('cModule call: DisplayFailBanner'); // DisplayFailBanner [Action]
+    await ts.callDll('modelsupport2.dll', 'DisplayFailBanner', passesContext: true); // DisplayFailBanner
   }
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(modelPluginConfiguration2.RuntimeVariables.ModelDialogsEnabled.SequentialShowStatus) &&
       result.Status == 'Error') {
-    ts.notExported('cModule call: DisplayErrorBanner'); // DisplayErrorBanner [Action]
+    final outputs = await ts.callDll(
+      'modelsupport2.dll',
+      'DisplayErrorBanner',
+      inputs: {'errorMessage': result.Error.Msg},
+      passesContext: true,
+    ); // DisplayErrorBanner
+    result.Error.Msg = outputs['errorMessage'];
   }
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(modelPluginConfiguration2.RuntimeVariables.ModelDialogsEnabled.SequentialShowStatus) &&
       result.Status == 'Terminated') {
-    ts.notExported('cModule call: DisplayTerminateBanner'); // DisplayTerminateBanner [Action]
+    await ts.callDll('modelsupport2.dll', 'DisplayTerminateBanner', passesContext: true); // DisplayTerminateBanner
   }
 }
 

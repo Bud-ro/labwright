@@ -14,21 +14,33 @@ dynamic measurementPlugIns = ts.PropObj({
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap(measurementPlugIns.PinMapPath as String);
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_nidigital.py'); // Create and register NI-Digital sessions [Action]
-    //   pin_map_path <- FileGlobals.MeasurementPlugIns.PinMapPath
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_nidigital.py'); // Load NI-Digital pin map [Action]
-    //   specifications_file_paths <- FileGlobals.MeasurementPlugIns.SpecificationsFilePaths
-    //   levels_file_paths <- FileGlobals.MeasurementPlugIns.LevelsFilePaths
-    //   timing_file_paths <- FileGlobals.MeasurementPlugIns.TimingFilePaths
-    //   sequence_context <- ThisContext
-    ts.notExported(
-      'python call: teststand_nidigital.py',
-    ); // Load NI-Digital specifications, levels, and timing [Action]
-    //   pattern_file_paths <- FileGlobals.MeasurementPlugIns.PatternFilePaths
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_nidigital.py'); // Load NI-Digital patterns [Action]
+    await ts.callPython(
+      'teststand_nidigital.py',
+      'create_nidigital_sessions',
+      passesContext: true,
+    ); // Create and register NI-Digital sessions
+    await ts.callPython(
+      'teststand_nidigital.py',
+      'load_nidigital_pin_map',
+      inputs: {'pin_map_path': measurementPlugIns.PinMapPath},
+      passesContext: true,
+    ); // Load NI-Digital pin map
+    await ts.callPython(
+      'teststand_nidigital.py',
+      'load_nidigital_specifications_levels_and_timing',
+      inputs: {
+        'specifications_file_paths': measurementPlugIns.SpecificationsFilePaths,
+        'levels_file_paths': measurementPlugIns.LevelsFilePaths,
+        'timing_file_paths': measurementPlugIns.TimingFilePaths,
+      },
+      passesContext: true,
+    ); // Load NI-Digital specifications, levels, and timing
+    await ts.callPython(
+      'teststand_nidigital.py',
+      'load_nidigital_patterns',
+      inputs: {'pattern_file_paths': measurementPlugIns.PatternFilePaths},
+      passesContext: true,
+    ); // Load NI-Digital patterns
 
     await ts.measurement('ni.examples.NIDigitalSPI_Python', {
       'pin_names': <dynamic>['SPI_PINS'],
@@ -39,6 +51,9 @@ Future<void> mainSequence() async {
       'load_files': false,
     });
   } finally {
-    ts.notExported('python call: teststand_nidigital.py'); // Destroy and unregister NI-Digital sessions [Action]
+    await ts.callPython(
+      'teststand_nidigital.py',
+      'destroy_nidigital_sessions',
+    ); // Destroy and unregister NI-Digital sessions
   }
 }

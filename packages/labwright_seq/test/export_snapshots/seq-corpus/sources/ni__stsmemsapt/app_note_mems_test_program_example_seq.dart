@@ -242,11 +242,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 21
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Continuity.ResistanceTest
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Connect SMU0 and SMU1 to pin A and E [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 21,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Continuity.ResistanceTest,
+      },
+    ); // Connect SMU0 and SMU1 to pin A and E
     //
     // Uses SMU resources.
     // Each session is independent so this step will call one instance per site in parallel
@@ -278,11 +281,14 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Pins <- Locals.Pins.SMU
-    //   DCPower_Parameters <- Locals.Parameters.Continuity.DCPower
-    //   error out <- Step.Result.Error
-    await callContinuitySmuResistanceTest(); // Continuity - Resistance Test [NI_SemiconductorModule_MultiTest]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Continuity\\VIs\\Continuity_SMUResistanceTest.vi',
+      inputs: {
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Pins': locals.pins.SMU,
+        'DCPower_Parameters': locals.parameters.Continuity.DCPower,
+      },
+    ); // Continuity - Resistance Test
     //
     // Disconnect the resources from the pins
     await ts.stepType('NI_SemiconductorModule_Action', {
@@ -305,11 +311,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 20
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Continuity.ResistanceTest
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Disconnect SMU0 and SMU1 from pin A and E [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 20,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Continuity.ResistanceTest,
+      },
+    ); // Disconnect SMU0 and SMU1 from pin A and E
     //
     // In this example, for Continuity Diode test we test the voltage on hypothetical pin A,B,C,D.
     // Let's connect PPMU resources  to pin A,B,C,D
@@ -333,11 +342,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 21
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Continuity.DiodeTest
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Connect PPMU to A,B,C,D [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 21,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Continuity.DiodeTest,
+      },
+    ); // Connect PPMU to A,B,C,D
     //
     // Sinking 100uA and measuring Voltage.
     // The PPMU is shared between 2 sites, so this step will call one instance every 2 sites
@@ -369,12 +381,15 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Pins <- Locals.Pins.PPMU
-    //   PPMU_Parameters <- Locals.Parameters.Continuity.PPMU_GND
-    //   Settling (s) <- 0.01
-    //   error out <- Step.Result.Error
-    await callContinuityDiodeTest(); // Continuity - Diode Test through GND [NI_SemiconductorModule_MultiTest]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Continuity\\VIs\\Continuity_DiodeTest.vi',
+      inputs: {
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Pins': locals.pins.PPMU,
+        'PPMU_Parameters': locals.parameters.Continuity.PPMU_GND,
+        'Settling (s)': 0.01,
+      },
+    ); // Continuity - Diode Test through GND
     //
     // Sourcing 100uA and measuring Voltage.
     // The PPMU is shared between 2 sites, so this step will call one instance every 2 sites
@@ -406,12 +421,15 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Pins <- Locals.Pins.PPMU
-    //   PPMU_Parameters <- Locals.Parameters.Continuity.PPMU_VDD
-    //   Settling (s) <- 0.01
-    //   error out <- Step.Result.Error
-    await callContinuityDiodeTest(); // Continuity - Diode Test through VDD [NI_SemiconductorModule_MultiTest]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Continuity\\VIs\\Continuity_DiodeTest.vi',
+      inputs: {
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Pins': locals.pins.PPMU,
+        'PPMU_Parameters': locals.parameters.Continuity.PPMU_VDD,
+        'Settling (s)': 0.01,
+      },
+    ); // Continuity - Diode Test through VDD
     //
     // Disconnect the resources from the pins
     await ts.stepType('NI_SemiconductorModule_Action', {
@@ -434,11 +452,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 21
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Continuity.DiodeTest
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Disconnect PPMU from  A,B,C,D [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 21,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Continuity.DiodeTest,
+      },
+    ); // Disconnect PPMU from  A,B,C,D
     // ---------------------
     // Leakage Test - SMU to force and PPMU to measure
     //
@@ -464,11 +485,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 21
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Leakage
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Connect SMU1 to E and PPMU to A,B,C,D [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 21,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Leakage,
+      },
+    ); // Connect SMU1 to E and PPMU to A,B,C,D
     //
     // Forcing voltage on pin E via SMU0 and measuring leakage on pin A,B,C,D using PPMU.
     // The PPMU is shared between 2 sites, so this step will call one instance every 2 sites
@@ -500,14 +524,17 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Pin Force <- Locals.Pins.SMU[0]
-    //   Pins Meas <- Locals.Pins.PPMU
-    //   DCPower_Parameters <- Locals.Parameters.Leakage.DCPower_Force
-    //   PPMU_Parameters <- Locals.Parameters.Leakage.PPMU_Meas
-    //   Settling (s) <- 0.01
-    //   error out <- Step.Result.Error
-    await callLeakageSmuPpmuTest(); // Leakage - Test [NI_SemiconductorModule_MultiTest]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Leakage\\VIs\\Leakage_SMU_PPMU_Test.vi',
+      inputs: {
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Pin Force': locals.pins.SMU[0],
+        'Pins Meas': locals.pins.PPMU,
+        'DCPower_Parameters': locals.parameters.Leakage.DCPower_Force,
+        'PPMU_Parameters': locals.parameters.Leakage.PPMU_Meas,
+        'Settling (s)': 0.01,
+      },
+    ); // Leakage - Test
     //
     // Disconnect the resources from the pins
     await ts.stepType('NI_SemiconductorModule_Action', {
@@ -530,11 +557,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 20
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Leakage
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Disconnect SMU1 from E and PPMU from A,B,C,D [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 20,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Leakage,
+      },
+    ); // Disconnect SMU1 from E and PPMU from A,B,C,D
     // ---------------------
     // Resistance Test
     //
@@ -559,11 +589,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 21
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Resistance
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Connect SMU0 to C and SMU1 to D [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 21,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Resistance,
+      },
+    ); // Connect SMU0 to C and SMU1 to D
     //
     // Uses SMU resources.
     // Each session is independent so this step will call one instance per site in parallel
@@ -595,11 +628,14 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Pins <- Locals.Pins.SMU
-    //   DCPower_Parameters <- Locals.Parameters.Resistance
-    //   error out <- Step.Result.Error
-    await callResistanceSmuResistanceTest(); // Resistance - Test [NI_SemiconductorModule_MultiTest]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Resistance\\VIs\\Resistance_SMUResistanceTest.vi',
+      inputs: {
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Pins': locals.pins.SMU,
+        'DCPower_Parameters': locals.parameters.Resistance,
+      },
+    ); // Resistance - Test
     //
     // Disconnect the resources from the pins
     await ts.stepType('NI_SemiconductorModule_Action', {
@@ -622,11 +658,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 20
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Resistance
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Disconnect SMU0 from C and SMU1 from D [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 20,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Resistance,
+      },
+    ); // Disconnect SMU0 from C and SMU1 from D
     // ---------------------
     // Offset Test- Static and Dynamic
     //
@@ -652,11 +691,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 21
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Offset.Static
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Connect SMU0 to A, SMU1 to B, V1 to A and V2 to B [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 21,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Offset.Static,
+      },
+    ); // Connect SMU0 to A, SMU1 to B, V1 to A and V2 to B
     //
     // SCOPE is a shared resource every 2 sites, so this step will call 1 instance every 2 sites.
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -687,14 +729,17 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Pins Force <- Locals.Pins.SMU
-    //   Pins Meas <- Locals.Pins.SCOPE
-    //   DCPower_Parameters <- Locals.Parameters.Offset.DCPower
-    //   SCOPE_Parameters <- Locals.Parameters.Offset.SCOPE
-    //   Source Type <- 0
-    //   error out <- Step.Result.Error
-    await callOffsetStaticDynamicTest(); // Offset - Static Test [NI_SemiconductorModule_MultiTest]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Offset\\VIs\\Offset_Static_Dynamic_Test.vi',
+      inputs: {
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Pins Force': locals.pins.SMU,
+        'Pins Meas': locals.pins.SCOPE,
+        'DCPower_Parameters': locals.parameters.Offset.DCPower,
+        'SCOPE_Parameters': locals.parameters.Offset.SCOPE,
+        'Source Type': 0,
+      },
+    ); // Offset - Static Test
     //
     // Disconnect the resources from the pins
     await ts.stepType('NI_SemiconductorModule_Action', {
@@ -717,11 +762,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 20
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Offset.Static
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Disconnect SMU0 from A, SMU1 from B, V1 from A and V2 from B [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 20,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Offset.Static,
+      },
+    ); // Disconnect SMU0 from A, SMU1 from B, V1 from A and V2 from B
     //
     // For Dynamic measurement FGEN and SCOPE are used.
     // In this example we suppose to connect pin A and B to the same FGEN resource, V1 to pin A and V2 to pin B
@@ -745,11 +793,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 21
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Offset.Dynamic
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Connect FGEN  to A and B, V1 to A and V2 to B [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 21,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Offset.Dynamic,
+      },
+    ); // Connect FGEN  to A and B, V1 to A and V2 to B
     //
     // SCOPE and FGEN are shared resources every 2 sites, so this step will call 1 instance every 2 sites.
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -780,14 +831,17 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Pins Force <- {Locals.Pins.FGEN}
-    //   Pins Meas <- Locals.Pins.SCOPE
-    //   FGEN_Parameters <- Locals.Parameters.Offset.FGEN
-    //   SCOPE_Parameters <- Locals.Parameters.Offset.SCOPE
-    //   Source Type <- 1
-    //   error out <- Step.Result.Error
-    await callOffsetStaticDynamicTest(); // Offset - Dynamic Test [NI_SemiconductorModule_MultiTest]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Offset\\VIs\\Offset_Static_Dynamic_Test.vi',
+      inputs: {
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Pins Force': <dynamic>[locals.pins.FGEN],
+        'Pins Meas': locals.pins.SCOPE,
+        'FGEN_Parameters': locals.parameters.Offset.FGEN,
+        'SCOPE_Parameters': locals.parameters.Offset.SCOPE,
+        'Source Type': 1,
+      },
+    ); // Offset - Dynamic Test
     //
     // Disconnect the resources from the pins
     await ts.stepType('NI_SemiconductorModule_Action', {
@@ -810,11 +864,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 20
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Offset.Dynamic
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Disconnect FGEN  from A and B, V1 from A and V2 from B [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 20,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Offset.Dynamic,
+      },
+    ); // Disconnect FGEN  from A and B, V1 from A and V2 from B
     // ---------------------
     // Capacitance Test - Voltage Ramp
     //
@@ -839,11 +896,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 21
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Capacitance.VRamp
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Connect SMU0 to A and SMU1 to B [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 21,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Capacitance.VRamp,
+      },
+    ); // Connect SMU0 to A and SMU1 to B
     //
     // SMUs have independent sessions so this vi will run 1 instance per site in parallel
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -874,12 +934,15 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Pins <- Locals.Pins.SMU
-    //   DCPower_Sequence_Parameters <- Locals.Parameters.Capacitance.VRamp
-    //   Peak duration (s) <- 0.02
-    //   error out <- Step.Result.Error
-    await callCapacitanceVoltageRampTest(); // Capacitance - Voltage Ramp Test [NI_SemiconductorModule_MultiTest]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_VoltageRampTest.vi',
+      inputs: {
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Pins': locals.pins.SMU,
+        'DCPower_Sequence_Parameters': locals.parameters.Capacitance.VRamp,
+        'Peak duration (s)': 0.02,
+      },
+    ); // Capacitance - Voltage Ramp Test
     //
     // Disconnect the resources from the pins
     await ts.stepType('NI_SemiconductorModule_Action', {
@@ -902,11 +965,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 20
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Capacitance.VRamp
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Disconnect SMU0 from A and SMU1 from B [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 20,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Capacitance.VRamp,
+      },
+    ); // Disconnect SMU0 from A and SMU1 from B
   }
   // ---------------------
   // Capacitance Test - Impedance Spectroscopy
@@ -932,11 +998,14 @@ Future<void> mainSequence() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Relay Action <- 21
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Relays <- Locals.Relays.Capacitance.IS
-  //   error Out <- Step.Result.Error
-  await callSharedRelayConnectDisconnect(); // Connect SMU0, FGEN, V1 and V2 to A [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+    inputs: {
+      'Relay Action': 21,
+      'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+      'Relays': locals.relays.Capacitance.IS,
+    },
+  ); // Connect SMU0, FGEN, V1 and V2 to A
   //
   // Configure the instrument sessions.
   // Since there are FGEN and SCOPE sessions that are shared every 2 sites, this step will run 1 instance every 2 sites
@@ -960,16 +1029,19 @@ Future<void> mainSequence() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   DCPower_Parameters <- Locals.Parameters.Capacitance.IS_Bias
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   DCPower Pin <- Locals.Pins.SMU[0]
-  //   Scope Pins <- Locals.Pins.SCOPE
-  //   FGEN Pin <- Locals.Pins.FGEN
-  //   SCOPE Parameters <- Locals.Parameters.Capacitance.IS_Meas
-  //   FGEN Parameters <- Locals.Parameters.Capacitance.IS_Force
-  //   FFT Subset Parameters <- Locals.Parameters.Capacitance.FFTSubset
-  //   error out <- Step.Result.Error
-  await callCapacitanceIsConfigure(); // Capacitance - Impedance Spectroscopy Configure [NI_SemiconductorModule_Action]
+  final outputs = await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_Configure.vi',
+    inputs: {
+      'DCPower_Parameters': locals.parameters.Capacitance.IS_Bias,
+      'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+      'DCPower Pin': locals.pins.SMU[0],
+      'Scope Pins': locals.pins.SCOPE,
+      'FGEN Pin': locals.pins.FGEN,
+      'SCOPE Parameters': locals.parameters.Capacitance.IS_Meas,
+      'FGEN Parameters': locals.parameters.Capacitance.IS_Force,
+    },
+  ); // Capacitance - Impedance Spectroscopy Configure
+  locals.parameters.Capacitance.FFTSubset = outputs['FFT Subset Parameters'];
   //
   // Runs in Calibration configuration performing the measurement and calculating ZRef using a known Capacitance
   if (ts.truthy(locals.parameters.Capacitance.IS_Calibration)) {
@@ -997,14 +1069,17 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Data Id <- Locals.Parameters.Capacitance.DataId
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   FGEN Parameters <- Locals.Parameters.Capacitance.IS_Force
-    //   FGEN Pin <- Locals.Pins.FGEN
-    //   SCOPE Pins <- Locals.Pins.SCOPE
-    //   DCPower Pin <- Locals.Pins.SMU[0]
-    //   error out <- Step.Result.Error
-    await callCapacitanceIsMeasure(); // Capacitance - Impedance Spectroscopy Measure [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_Measure.vi',
+      inputs: {
+        'Data Id': locals.parameters.Capacitance.DataId,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'FGEN Parameters': locals.parameters.Capacitance.IS_Force,
+        'FGEN Pin': locals.pins.FGEN,
+        'SCOPE Pins': locals.pins.SCOPE,
+        'DCPower Pin': locals.pins.SMU[0],
+      },
+    ); // Capacitance - Impedance Spectroscopy Measure
     //
     // Calculate ZRef using ZCal and FFT of V1 and V2.
     // This step is pure computation so it can run in parallel on all sites and there will be one instance per site
@@ -1028,13 +1103,16 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Data Id <- Locals.Parameters.Capacitance.DataId
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   FGEN Parameters <- Locals.Parameters.Capacitance.IS_Force
-    //   ZCal <- 20e-9
-    //   Frequencies <- StationGlobals.IS_ZRef_Frequencies
-    //   error out <- Step.Result.Error
-    await callCapacitanceIsCalculateZRef(); // Capacitance - Impedance Spectroscopy Calculate ZRef [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_CalculateZRef.vi',
+      inputs: {
+        'Data Id': locals.parameters.Capacitance.DataId,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'FGEN Parameters': locals.parameters.Capacitance.IS_Force,
+        'ZCal': 2e-8,
+      },
+    ); // Capacitance - Impedance Spectroscopy Calculate ZRef
+    ts.notExported('output Frequencies -> StationGlobals.IS_ZRef_Frequencies');
     //
     // Runs in Production configuration
   } else {
@@ -1062,14 +1140,17 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Data Id <- Locals.Parameters.Capacitance.DataId
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   FGEN Parameters <- Locals.Parameters.Capacitance.IS_Force
-    //   FGEN Pin <- Locals.Pins.FGEN
-    //   SCOPE Pins <- Locals.Pins.SCOPE
-    //   DCPower Pin <- Locals.Pins.SMU[0]
-    //   error out <- Step.Result.Error
-    await callCapacitanceIsMeasure(); // Capacitance - Impedance Spectroscopy Measure [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_Measure.vi',
+      inputs: {
+        'Data Id': locals.parameters.Capacitance.DataId,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'FGEN Parameters': locals.parameters.Capacitance.IS_Force,
+        'FGEN Pin': locals.pins.FGEN,
+        'SCOPE Pins': locals.pins.SCOPE,
+        'DCPower Pin': locals.pins.SMU[0],
+      },
+    ); // Capacitance - Impedance Spectroscopy Measure
     //
     // Calculate ZDut using ZRef and FFT of V1 and V2.
     // This step is pure computation so it can run in parallel on all sites and there will be one instance per site
@@ -1093,12 +1174,15 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Data Id <- Locals.Parameters.Capacitance.DataId
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   ZRef Real <- StationGlobals.IS_ZRef_Real[RunState.TestSockets.MyIndex]
-    //   ZRef Im <- StationGlobals.IS_ZRef_Im[RunState.TestSockets.MyIndex]
-    //   error out <- Step.Result.Error
-    await callCapacitanceIsCalculateZDut(); // Capacitance - Impedance Spectroscopy Calculate ZDut [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_CalculateZDut.vi',
+      inputs: {
+        'Data Id': locals.parameters.Capacitance.DataId,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'ZRef Real': ts.eval('StationGlobals.IS_ZRef_Real[RunState.TestSockets.MyIndex]'),
+        'ZRef Im': ts.eval('StationGlobals.IS_ZRef_Im[RunState.TestSockets.MyIndex]'),
+      },
+    ); // Capacitance - Impedance Spectroscopy Calculate ZDut
     //
     // Computes Capacitance and Resonant frequency values from ZDut using linear fitting.
     // This step is pure computation so it can run in parallel on all sites and there will be one instance per site
@@ -1130,12 +1214,15 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Published Data Id <- "IS"
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Data Id <- Locals.Parameters.Capacitance.DataId
-    //   Frequencies <- StationGlobals.IS_ZRef_Frequencies
-    //   error out <- Step.Result.Error
-    await callCapacitanceIsTest(); // Capacitance - Impedance Spectroscopy Test [NI_SemiconductorModule_MultiTest]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_Test.vi',
+      inputs: {
+        'Published Data Id': 'IS',
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Data Id': locals.parameters.Capacitance.DataId,
+        'Frequencies': ts.eval('StationGlobals.IS_ZRef_Frequencies'),
+      },
+    ); // Capacitance - Impedance Spectroscopy Test
   }
   //
   // Disconnect the resources from the pins
@@ -1159,11 +1246,14 @@ Future<void> mainSequence() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Relay Action <- 20
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Relays <- Locals.Relays.Capacitance.IS
-  //   error Out <- Step.Result.Error
-  await callSharedRelayConnectDisconnect(); // Disconnect SMU0, FGEN, V1 and V2 from A [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+    inputs: {
+      'Relay Action': 20,
+      'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+      'Relays': locals.relays.Capacitance.IS,
+    },
+  ); // Disconnect SMU0, FGEN, V1 and V2 from A
   // Run the following tests when in Production configuration
   if (!ts.truthy(locals.parameters.Capacitance.IS_Calibration)) {
     // ---------------------
@@ -1190,11 +1280,14 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 21
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Resonance
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Connect FGEN to A,B and V1 to A and V2 to B [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 21,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Resonance,
+      },
+    ); // Connect FGEN to A,B and V1 to A and V2 to B
     //
     // Applying chirp signal on A and B using FGEN and measuring with V1 and V2.
     // Since there are FGEN and SCOPE sessions that are shared every 2 sites, this step will run 1 instance every 2 sites
@@ -1226,14 +1319,17 @@ Future<void> mainSequence() async {
       'EvaluationFailureOption': 1,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Published Data Id <- "resonance"
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   FGEN Pin <- Locals.Pins.FGEN
-    //   SCOPE Pins <- Locals.Pins.SCOPE
-    //   FGEN_Parameters <- Locals.Parameters.Resonance.Force
-    //   SCOPE_Parameters <- Locals.Parameters.Resonance.Meas
-    //   error out <- Step.Result.Error
-    await callResonanceTest(); // Resonance - Test [NI_SemiconductorModule_MultiTest]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Resonance\\VIs\\Resonance_Test.vi',
+      inputs: {
+        'Published Data Id': 'resonance',
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'FGEN Pin': locals.pins.FGEN,
+        'SCOPE Pins': locals.pins.SCOPE,
+        'FGEN_Parameters': locals.parameters.Resonance.Force,
+        'SCOPE_Parameters': locals.parameters.Resonance.Meas,
+      },
+    ); // Resonance - Test
     //
     // Disconnect the resources from the pins
     await ts.stepType('NI_SemiconductorModule_Action', {
@@ -1256,16 +1352,41 @@ Future<void> mainSequence() async {
       'DotNetRuntimeData': null,
       'PerSiteInputs': <dynamic>[],
     });
-    //   Relay Action <- 20
-    //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-    //   Relays <- Locals.Relays.Resonance
-    //   error Out <- Step.Result.Error
-    await callSharedRelayConnectDisconnect(); // Disconnect FGEN from A,B and V1 from A and V2 from B [NI_SemiconductorModule_Action]
+    await ts.callVi(
+      '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
+      inputs: {
+        'Relay Action': 20,
+        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+        'Relays': locals.relays.Resonance,
+      },
+    ); // Disconnect FGEN from A,B and V1 from A and V2 from B
   }
+}
+
+class _ProcessSetupLocals {
+  List<dynamic> parametersRelayControl = <dynamic>[
+    ts.PropObj({
+      'Output': 'DC Voltage',
+      'Current_range': 1,
+      'Current': 1,
+      'Voltage_range': 6,
+      'Voltage': 5,
+      'Aperture_time': 0,
+      'Source_Delay': 0,
+      'Sense': 'Local',
+    }),
+  ];
+  dynamic temporaryObjectReference = ts.PropObj({
+    'IS_ZRef_Real': null,
+    'IS_ZRef_Im': null,
+    'IS_ZRef_Frequencies': null,
+  });
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
 Future<void> processSetup() async {
+  final locals = _ProcessSetupLocals();
+
   // ---------------------
   // Create StationGlobals needed for Impedance Spectroscopy test
   // Creates a new PropertyObject and stores it in Locals.TemporaryObjectReference for temporary editing.
@@ -1302,11 +1423,10 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Driver <- 0
-  //   Simulated HW? <- False
-  //   error out <- Step.Result.Error
-  await callSharedInitialize(); // Initialize DCPower Resources [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Initialize.vi',
+    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 0},
+  ); // Initialize DCPower Resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -1327,11 +1447,10 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Driver <- 4
-  //   Simulated HW? <- False
-  //   error out <- Step.Result.Error
-  await callSharedInitialize(); // Initialize PPMU Resources [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Initialize.vi',
+    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 4},
+  ); // Initialize PPMU Resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -1352,11 +1471,10 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Driver <- 1
-  //   Simulated HW? <- False
-  //   error out <- Step.Result.Error
-  await callSharedInitialize(); // Initialize SCOPE Resources [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Initialize.vi',
+    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 1},
+  ); // Initialize SCOPE Resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -1377,11 +1495,10 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Driver <- 2
-  //   Simulated HW? <- False
-  //   error out <- Step.Result.Error
-  await callSharedInitialize(); // Initialize FGEN Resources [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Initialize.vi',
+    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 2},
+  ); // Initialize FGEN Resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -1402,11 +1519,10 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Driver <- 3
-  //   Simulated HW? <- False
-  //   error out <- Step.Result.Error
-  await callSharedInitialize(); // Initialize Relays Resources [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Initialize.vi',
+    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 3},
+  ); // Initialize Relays Resources
   // ---------------------
   // Configure System Power Supply for Relay Control and Start supplying
   await ts.stepType('NI_SemiconductorModule_Action', {
@@ -1429,12 +1545,14 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   DCPower Parameters <- Locals.Parameters_RelayControl
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Pins <- FileGlobals.Pins_RelayControl
-  //   trigger out? <- False
-  //   error Out <- Step.Result.Error
-  await callSharedDcPowerConfigure(); // Configure System Power Supply [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_DCPower_Configure.vi',
+    inputs: {
+      'DCPower Parameters': locals.parametersRelayControl,
+      'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
+      'Pins': pinsRelayControl,
+    },
+  ); // Configure System Power Supply
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -1455,10 +1573,10 @@ Future<void> processSetup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Pins <- FileGlobals.Pins_RelayControl
-  //   error Out <- Step.Result.Error
-  await callSharedDcPowerStart(); // Start System Power Supply [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_DCPower_Start.vi',
+    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Pins': pinsRelayControl},
+  ); // Start System Power Supply
 }
 
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
@@ -1485,11 +1603,10 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Pins <- FileGlobals.Pins_RelayControl
-  //   Settling Time (s) <- 0.01
-  //   error Out <- Step.Result.Error
-  await callSharedDcPower0VStop(); // Stop System Power Supply [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_DCPower_0V_Stop.vi',
+    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Pins': pinsRelayControl},
+  ); // Stop System Power Supply
   // ---------------------
   // Close Hardware Sessions
   await ts.stepType('NI_SemiconductorModule_Action', {
@@ -1512,11 +1629,10 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Driver <- 3
-  //   Reset? <- False
-  //   error out <- Step.Result.Error
-  await callSharedClose(); // Release Relays resources [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Close.vi',
+    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 3},
+  ); // Release Relays resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -1537,11 +1653,10 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Driver <- 2
-  //   Reset? <- False
-  //   error out <- Step.Result.Error
-  await callSharedClose(); // Release FGEN resources [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Close.vi',
+    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 2},
+  ); // Release FGEN resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -1562,11 +1677,10 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Driver <- 1
-  //   Reset? <- False
-  //   error out <- Step.Result.Error
-  await callSharedClose(); // Release SCOPE  resources [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Close.vi',
+    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 1},
+  ); // Release SCOPE  resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -1587,11 +1701,10 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Driver <- 4
-  //   Reset? <- False
-  //   error out <- Step.Result.Error
-  await callSharedClose(); // Release PPMU  resources [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Close.vi',
+    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 4},
+  ); // Release PPMU  resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'SemiconductorModuleContext': null,
     'Multisite': {
@@ -1612,11 +1725,10 @@ Future<void> processCleanup() async {
     'DotNetRuntimeData': null,
     'PerSiteInputs': <dynamic>[],
   });
-  //   Semiconductor Module Context <- Step.SemiconductorModuleContext
-  //   Driver <- 0
-  //   Reset? <- False
-  //   error out <- Step.Result.Error
-  await callSharedClose(); // Release DCPower  resources [NI_SemiconductorModule_Action]
+  await ts.callVi(
+    '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Close.vi',
+    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 0},
+  ); // Release DCPower  resources
 }
 
 /// Sequence `SequenceFileLoad`.
@@ -1626,89 +1738,3 @@ Future<void> sequenceFileLoad() async {
     'This example test program shows how to perform different tests for MEMS devices.\n\nIf you\'re working in a non STS environment you need to enable the OfflineMode and you can use the offline configuration file STS_MEMS_Offline_Mode_System_Configuration.offlinecfg stored in the Example folder.\n\nThe sequence can run with both LabVIEW Run-Time Engine and LabVIEW Development System configuration.\n\nAll the pins and relays used are not part of a real DUT and system, they\'re intended just to let the user run the full sequence in either simulated mode or with real hardware.\nThe number of parallel sites is 8 and the relays used are to be considered System Relays, having one command driving 8 relays in parallel, one per site.\n\nThere are two configurations, Calibration which is used to simulate the calibration needed for the Impedance Spectroscopy test, and Production which runs the full test program.\n\nFollow these steps to execute correctly the sequence:\n1) Set Active Configuration to Calibration and run once to get the ZRef values needed for Impedance Spectroscopy test \n2) Set Active Configuration to Production and run the sequence',
   );
 }
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_Relay_ConnectDisconnect.vi`.
-Future<Object?> callSharedRelayConnectDisconnect() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Continuity\VIs\Continuity_SMUResistanceTest.vi`.
-Future<Object?> callContinuitySmuResistanceTest() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Continuity\\VIs\\Continuity_SMUResistanceTest.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Continuity\VIs\Continuity_DiodeTest.vi`.
-Future<Object?> callContinuityDiodeTest() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Continuity\\VIs\\Continuity_DiodeTest.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Leakage\VIs\Leakage_SMU_PPMU_Test.vi`.
-Future<Object?> callLeakageSmuPpmuTest() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Leakage\\VIs\\Leakage_SMU_PPMU_Test.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Resistance\VIs\Resistance_SMUResistanceTest.vi`.
-Future<Object?> callResistanceSmuResistanceTest() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Resistance\\VIs\\Resistance_SMUResistanceTest.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Offset\VIs\Offset_Static_Dynamic_Test.vi`.
-Future<Object?> callOffsetStaticDynamicTest() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Offset\\VIs\\Offset_Static_Dynamic_Test.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Capacitance\VIs\Capacitance_VoltageRampTest.vi`.
-Future<Object?> callCapacitanceVoltageRampTest() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_VoltageRampTest.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Capacitance\VIs\Capacitance_IS_Configure.vi`.
-Future<Object?> callCapacitanceIsConfigure() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_Configure.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Capacitance\VIs\Capacitance_IS_Measure.vi`.
-Future<Object?> callCapacitanceIsMeasure() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_Measure.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Capacitance\VIs\Capacitance_IS_CalculateZRef.vi`.
-Future<Object?> callCapacitanceIsCalculateZRef() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_CalculateZRef.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Capacitance\VIs\Capacitance_IS_CalculateZDut.vi`.
-Future<Object?> callCapacitanceIsCalculateZDut() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_CalculateZDut.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Capacitance\VIs\Capacitance_IS_Test.vi`.
-Future<Object?> callCapacitanceIsTest() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_Test.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Resonance\VIs\Resonance_Test.vi`.
-Future<Object?> callResonanceTest() async =>
-    throw UnimplementedError('labView call: ..\\CodeModules-LabVIEW\\Libraries\\Resonance\\VIs\\Resonance_Test.vi');
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_Initialize.vi`.
-Future<Object?> callSharedInitialize() async =>
-    throw UnimplementedError('labView call: ..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Initialize.vi');
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_DCPower_Configure.vi`.
-Future<Object?> callSharedDcPowerConfigure() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_DCPower_Configure.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_DCPower_Start.vi`.
-Future<Object?> callSharedDcPowerStart() async =>
-    throw UnimplementedError('labView call: ..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_DCPower_Start.vi');
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_DCPower_0V_Stop.vi`.
-Future<Object?> callSharedDcPower0VStop() async => throw UnimplementedError(
-  'labView call: ..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_DCPower_0V_Stop.vi',
-);
-
-/// The labView module `..\CodeModules-LabVIEW\Libraries\Shared\VIs\Shared_Close.vi`.
-Future<Object?> callSharedClose() async =>
-    throw UnimplementedError('labView call: ..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Close.vi');

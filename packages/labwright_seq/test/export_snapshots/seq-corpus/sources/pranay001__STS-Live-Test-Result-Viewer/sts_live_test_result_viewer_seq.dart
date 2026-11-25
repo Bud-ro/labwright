@@ -75,11 +75,16 @@ Future<void> modelPluginConfigureStandardOptions({
   dynamic modelPlugin,
 }) async {
   // The Result Processing dialog invokes the "Model Plugin - Configure Standard Options" callback when the user presses the Options button for this plug-in.  "Model Plugin - Configure Standard Options" is not called during a UUT run.  This implementation simply passes the entire Parameters.ModelPlugin container to the configuration dialog.  Most "Model Plugin - Configure Standard Options" callbacks (as well as "Configure Additional Options" when present) should be implemented similarly.
-  //   Engine <- RunState.Engine
-  //   Sequence Context In <- ThisContext
-  //   Changed <- Parameters.Changed
-  //   error out <- Step.Result.Error
-  await callConfigurationUi(); // Launch Options Dialog [Action]
+  final outputs = await ts.callVi(
+    'My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\Views\\Configuration UI.vi',
+    inputs: {
+      'Engine': ts.eval('RunState.Engine'),
+      'Data In.Max UUT Records to Store': modelPlugin.PluginSpecific.Options.Max_UUTs_to_Store,
+    },
+    passesContext: true,
+  ); // Launch Options Dialog
+  modelPlugin.PluginSpecific.Options.Max_UUTs_to_Store = outputs['Data Out.Max UUT Records to Store'];
+  changed = outputs['Changed'] as bool;
 }
 
 /// Sequence `Model Plugin - Initialize`.
@@ -132,9 +137,10 @@ Future<void> modelPluginBegin({
     }
   }
   if (ts.truthy(modelThreadType.IsController)) {
-    //   Max UUTs to Store <- Parameters.ModelPlugin.PluginSpecific.Options.Max_UUTs_to_Store
-    //   error out <- Step.Result.Error
-    await callViewLauncher(); // Action [Action]
+    await ts.callVi(
+      'My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\View Launcher.vi',
+      inputs: {'Max UUTs to Store': modelPlugin.PluginSpecific.Options.Max_UUTs_to_Store},
+    ); // Action
   }
 }
 
@@ -146,8 +152,7 @@ Future<void> modelPluginEnd({
   dynamic modelData,
 }) async {
   if (ts.truthy(modelThreadType.IsController)) {
-    //   error out <- Step.Result.Error
-    await callViewShutdown(); // Action [Action]
+    await ts.callVi('My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\View Shutdown.vi'); // Action
   }
 }
 
@@ -207,11 +212,10 @@ Future<void> modelPluginOnTheFlyStepResults({
   callbackNames ??= <dynamic>[];
   parentIds ??= <dynamic>[];
 
-  //   Result List In <- Parameters.Steps
-  //   UUT.SerialNumber <- Parameters.UUT.SerialNumber
-  //   Site <- Parameters.UUT.TestSocketIndex
-  //   error out <- Step.Result.Error
-  await callResultPublisher(); // Action [Action]
+  await ts.callVi(
+    'My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\Utilities\\TestStand APIs\\SubVIs\\Result Publisher.vi',
+    inputs: {'Result List In': steps, 'UUT.SerialNumber': uut.SerialNumber, 'Site': uut.TestSocketIndex},
+  ); // Action
 }
 
 /// Sequence `Create Header` — Create the report header, appending to Parameters.ReportSection..
@@ -264,21 +268,3 @@ Future<void> generateReportPath({
 
   // (no steps in the source sequence)
 }
-
-/// The labView module `My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\Views\Configuration UI.vi`.
-Future<Object?> callConfigurationUi() async => throw UnimplementedError(
-  'labView call: My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\Views\\Configuration UI.vi',
-);
-
-/// The labView module `My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\View Launcher.vi`.
-Future<Object?> callViewLauncher() async =>
-    throw UnimplementedError('labView call: My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\View Launcher.vi');
-
-/// The labView module `My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\View Shutdown.vi`.
-Future<Object?> callViewShutdown() async =>
-    throw UnimplementedError('labView call: My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\View Shutdown.vi');
-
-/// The labView module `My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\Utilities\TestStand APIs\SubVIs\Result Publisher.vi`.
-Future<Object?> callResultPublisher() async => throw UnimplementedError(
-  'labView call: My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\Utilities\\TestStand APIs\\SubVIs\\Result Publisher.vi',
-);

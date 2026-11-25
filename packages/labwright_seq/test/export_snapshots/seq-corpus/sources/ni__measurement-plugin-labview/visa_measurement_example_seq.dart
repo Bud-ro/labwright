@@ -7,9 +7,10 @@ dynamic measurementLink = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('VISA Measurement.pinmap');
-    //   sequence context <- ThisContext
-    //   error out <- Step.Result.Error
-    await callInitializeAndRegisterSessions(); // Initialize and register sessions [Action]
+    await ts.callVi(
+      'My Computer\\VISA Measurement.lvlib\\TestStand Code Modules\\Initialize and Register Sessions.vi',
+      passesContext: true,
+    ); // Initialize and register sessions
 
     await ts.measurement('ni.examples.VISA_Measurement_LabVIEW', {
       'pin name': 'Pin1',
@@ -24,17 +25,8 @@ Future<void> mainSequence() async {
       'end write on term char': true,
     });
   } finally {
-    //   error out <- Step.Result.Error
-    await callUnregisterAndCloseSessions(); // Unregister and close sessions [Action]
+    await ts.callVi(
+      'My Computer\\VISA Measurement.lvlib\\TestStand Code Modules\\Unregister and Close Sessions.vi',
+    ); // Unregister and close sessions
   }
 }
-
-/// The labView module `My Computer\VISA Measurement.lvlib\TestStand Code Modules\Initialize and Register Sessions.vi`.
-Future<Object?> callInitializeAndRegisterSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\VISA Measurement.lvlib\\TestStand Code Modules\\Initialize and Register Sessions.vi',
-);
-
-/// The labView module `My Computer\VISA Measurement.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi`.
-Future<Object?> callUnregisterAndCloseSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\VISA Measurement.lvlib\\TestStand Code Modules\\Unregister and Close Sessions.vi',
-);

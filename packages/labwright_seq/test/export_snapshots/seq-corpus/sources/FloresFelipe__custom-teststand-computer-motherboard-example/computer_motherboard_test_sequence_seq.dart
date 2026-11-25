@@ -96,44 +96,49 @@ Future<ts.Status> mainSequence() async {
   });
 
   try {
-    //   Sequence Context <- ThisContext
-    //   error out <- Step.Result.Error
-    await callComputerSequenceSimulationDialog(); // Simulation Dialog [Action]
-    //   error out <- Step.Result.Error
-    await callVacuumOn(); // Turn Vacuum Table On [Action]
+    final outputs = await ts.callVi(
+      'Modules\\Computer Sequence Simulation Dialog.vi',
+      passesContext: true,
+    ); // Simulation Dialog
+    locals.powerFail = outputs['Simulation Settings.PowerFail'] as bool;
+    locals.romFail = outputs['Simulation Settings.ROMFail'] as bool;
+    locals.cpuFail = outputs['Simulation Settings.CPUFail'] as bool;
+    locals.ramFail = outputs['Simulation Settings.RAMFail'] as bool;
+    locals.videoValue = outputs['Simulation Settings.VideoValue'] as int;
+    locals.keyboardValue = outputs['Simulation Settings.KeyboardValue'] as int;
+    await ts.callVi('Modules\\Vacuum On.vi'); // Turn Vacuum Table On
 
-    //   PowerFail <- Locals.PowerFail
-    //   Result <- Step.Result.PassFail
-    //   error out <- Step.Result.Error
-    await callPowerupTest(); // Powerup Test [PassFailTest]
+    final outputs2 = await ts.callVi(
+      'Modules\\Powerup Test.vi',
+      inputs: {'PowerFail': locals.powerFail},
+    ); // Powerup Test
+    powerupTestResult.PassFail = outputs2['Result'];
     powerupTestResult.Status = ts.truthy(powerupTestResult.PassFail) ? 'Passed' : 'Failed';
     run.record(powerupTestResult.Status);
     // If the Powerup Test fails, do not test any additional components.
     if (ts.truthy(powerupTestResult.PassFail)) {
       cpuTestResult.Status = await cpuTest(cpuFail: locals.cpuFail); // CPU Test
       run.record(cpuTestResult.Status);
-      //   ROMFail <- Locals.ROMFail
-      //   Result <- Step.Result.PassFail
-      //   error out <- Step.Result.Error
-      await callRomTest(); // ROM Test [PassFailTest]
+      final outputs3 = await ts.callVi('Modules\\ROM Test.vi', inputs: {'ROMFail': locals.romFail}); // ROM Test
+      romTestResult.PassFail = outputs3['Result'];
       romTestResult.Status = ts.truthy(romTestResult.PassFail) ? 'Passed' : 'Failed';
       run.record(romTestResult.Status);
-      //   RAMFail <- Locals.RAMFail
-      //   Result <- Step.Result.PassFail
-      //   error out <- Step.Result.Error
-      await callRamTest(); // RAM Test [PassFailTest]
+      final outputs4 = await ts.callVi('Modules\\RAM Test.vi', inputs: {'RAMFail': locals.ramFail}); // RAM Test
+      ramTestResult.PassFail = outputs4['Result'];
       ramTestResult.Status = ts.truthy(ramTestResult.PassFail) ? 'Passed' : 'Failed';
       run.record(ramTestResult.Status);
-      //   VideoValue <- Locals.VideoValue
-      //   Latency (µs) <- Step.Result.Numeric
-      //   error out <- Step.Result.Error
-      await callVideoTest(); // Video Test [NumericLimitTest]
+      final outputs5 = await ts.callVi(
+        'Modules\\Video Test.vi',
+        inputs: {'VideoValue': locals.videoValue},
+      ); // Video Test
+      videoTestResult.Numeric = outputs5['Latency (µs)'];
       videoTestResult.Status = ts.checkLimits(videoTestResult.Numeric, 10, 0, 'GTLT', true, 100, 'PERCENTAGE');
       run.record(videoTestResult.Status);
-      //   Number of Keystrokes <- Locals.KeyboardValue
-      //   Result <- Step.Result.Numeric
-      //   error out <- Step.Result.Error
-      await callKeyboardTest(); // Keyboard Test [NumericLimitTest]
+      final outputs6 = await ts.callVi(
+        'Modules\\Keyboard Test.vi',
+        inputs: {'Number of Keystrokes': locals.keyboardValue},
+      ); // Keyboard Test
+      keyboardTestResult.Numeric = outputs6['Result'];
       keyboardTestResult.Status = ts.checkLimits(keyboardTestResult.Numeric, 0, 5, 'GT', true, 100, 'PERCENTAGE');
       run.record(keyboardTestResult.Status);
       // If any of the preceding tests failed, perform diagnositcs on the failed component(s) to get more information on the mode of failure
@@ -142,27 +147,24 @@ Future<ts.Status> mainSequence() async {
           run.record(await cpuDiagnostics(cpuFail: locals.cpuFail)); // CPU Diagnostics
         }
         if (romTestResult.Status == 'Failed') {
-          //   Result <- Step.Result.PassFail
-          //   error out <- Step.Result.Error
-          await callRomDiagnostics(); // ROM Diagnostics [PassFailTest]
+          final outputs7 = await ts.callVi('Modules\\ROM Diagnostics.vi'); // ROM Diagnostics
+          romDiagnosticsResult.PassFail = outputs7['Result'];
           romDiagnosticsResult.Status = ts.truthy(romDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
           run.record(romDiagnosticsResult.Status);
         } else {
           romDiagnosticsResult.Status = ts.Status.skipped;
         }
         if (ramTestResult.Status == 'Failed') {
-          //   Result <- Step.Result.PassFail
-          //   error out <- Step.Result.Error
-          await callRamDiagnostics(); // RAM Diagnostics [PassFailTest]
+          final outputs8 = await ts.callVi('Modules\\RAM Diagnostics.vi'); // RAM Diagnostics
+          ramDiagnosticsResult.PassFail = outputs8['Result'];
           ramDiagnosticsResult.Status = ts.truthy(ramDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
           run.record(ramDiagnosticsResult.Status);
         } else {
           ramDiagnosticsResult.Status = ts.Status.skipped;
         }
         if (videoTestResult.Status == 'Failed') {
-          //   Voltage <- Step.Result.Numeric
-          //   error out <- Step.Result.Error
-          await callVideoDiagnostics(); // Video Diagnostics [NumericLimitTest]
+          final outputs9 = await ts.callVi('Modules\\Video Diagnostics.vi'); // Video Diagnostics
+          videoDiagnosticsResult.Numeric = outputs9['Voltage'];
           videoDiagnosticsResult.Status = ts.checkLimits(
             videoDiagnosticsResult.Numeric,
             10,
@@ -177,9 +179,8 @@ Future<ts.Status> mainSequence() async {
           videoDiagnosticsResult.Status = ts.Status.skipped;
         }
         if (keyboardTestResult.Status == 'Failed') {
-          //   Result <- Step.Result.PassFail
-          //   error out <- Step.Result.Error
-          await callKeyboardDiagnostics(); // Keyboard Diagnostics [PassFailTest]
+          final outputs10 = await ts.callVi('Modules\\Keyboard Diagnostics.vi'); // Keyboard Diagnostics
+          keyboardDiagnosticsResult.PassFail = outputs10['Result'];
           keyboardDiagnosticsResult.Status = ts.truthy(keyboardDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
           run.record(keyboardDiagnosticsResult.Status);
         } else {
@@ -187,9 +188,8 @@ Future<ts.Status> mainSequence() async {
         }
       }
     } else {
-      //   Current <- Step.Result.Numeric
-      //   error out <- Step.Result.Error
-      await callPowerupDiagnostics(); // Powerup Diagnostics [NumericLimitTest]
+      final outputs11 = await ts.callVi('Modules\\Powerup Diagnostics.vi'); // Powerup Diagnostics
+      powerupDiagnosticsResult.Numeric = outputs11['Current'];
       powerupDiagnosticsResult.Status = ts.checkLimits(
         powerupDiagnosticsResult.Numeric,
         10,
@@ -202,8 +202,7 @@ Future<ts.Status> mainSequence() async {
       run.record(powerupDiagnosticsResult.Status);
     }
   } finally {
-    //   error out <- Step.Result.Error
-    await callVacuumOff(); // Turn Vacuum Table Off [Action]
+    await ts.callVi('Modules\\Vacuum Off.vi'); // Turn Vacuum Table Off
   }
 
   return run.status;
@@ -241,25 +240,23 @@ Future<ts.Status> cpuTest({bool cpuFail = false}) async {
     'Common': ts.PropObj(),
   });
 
-  //   Result <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callRegisterTest(); // Register Test [PassFailTest]
+  final outputs = await ts.callVi('Modules\\Register Test.vi'); // Register Test
+  registerTestResult.PassFail = outputs['Result'];
   registerTestResult.Status = ts.truthy(registerTestResult.PassFail) ? 'Passed' : 'Failed';
   run.record(registerTestResult.Status);
-  //   CPUFail <- Parameters.CPUFail
-  //   Result <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callInstructionSetTest(); // Instruction Set Test [PassFailTest]
+  final outputs2 = await ts.callVi(
+    'Modules\\Instruction Set Test.vi',
+    inputs: {'CPUFail': cpuFail},
+  ); // Instruction Set Test
+  instructionSetTestResult.PassFail = outputs2['Result'];
   instructionSetTestResult.Status = ts.truthy(instructionSetTestResult.PassFail) ? 'Passed' : 'Failed';
   run.record(instructionSetTestResult.Status);
-  //   Result <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callCacheTest(); // Cache Test [PassFailTest]
+  final outputs3 = await ts.callVi('Modules\\Cache Test.vi'); // Cache Test
+  cacheTestResult.PassFail = outputs3['Result'];
   cacheTestResult.Status = ts.truthy(cacheTestResult.PassFail) ? 'Passed' : 'Failed';
   run.record(cacheTestResult.Status);
-  //   Result <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callFpuTest(); // FPU Test [PassFailTest]
+  final outputs4 = await ts.callVi('Modules\\FPU Test.vi'); // FPU Test
+  fpuTestResult.PassFail = outputs4['Result'];
   fpuTestResult.Status = ts.truthy(fpuTestResult.PassFail) ? 'Passed' : 'Failed';
   run.record(fpuTestResult.Status);
 
@@ -298,25 +295,23 @@ Future<ts.Status> cpuDiagnostics({bool cpuFail = false}) async {
     'Common': ts.PropObj(),
   });
 
-  //   Result <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callRegisterDiagnostics(); // Register Diagnostics [PassFailTest]
+  final outputs = await ts.callVi('Modules\\Register Diagnostics.vi'); // Register Diagnostics
+  registerDiagnosticsResult.PassFail = outputs['Result'];
   registerDiagnosticsResult.Status = ts.truthy(registerDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
   run.record(registerDiagnosticsResult.Status);
-  //   CPUFail <- Parameters.CPUFail
-  //   Result <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callInstructionSetDiagnostics(); // Instruction Set Diagnostics [PassFailTest]
+  final outputs2 = await ts.callVi(
+    'Modules\\Instruction Set Diagnostics.vi',
+    inputs: {'CPUFail': cpuFail},
+  ); // Instruction Set Diagnostics
+  instructionSetDiagnosticsResult.PassFail = outputs2['Result'];
   instructionSetDiagnosticsResult.Status = ts.truthy(instructionSetDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
   run.record(instructionSetDiagnosticsResult.Status);
-  //   Result <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callCacheDiagnostics(); // Cache Diagnostics [PassFailTest]
+  final outputs3 = await ts.callVi('Modules\\Cache Diagnostics.vi'); // Cache Diagnostics
+  cacheDiagnosticsResult.PassFail = outputs3['Result'];
   cacheDiagnosticsResult.Status = ts.truthy(cacheDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
   run.record(cacheDiagnosticsResult.Status);
-  //   Result <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callFpuDiagnostics(); // FPU Diagnostics [PassFailTest]
+  final outputs4 = await ts.callVi('Modules\\FPU Diagnostics.vi'); // FPU Diagnostics
+  fpuDiagnosticsResult.PassFail = outputs4['Result'];
   fpuDiagnosticsResult.Status = ts.truthy(fpuDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
   run.record(fpuDiagnosticsResult.Status);
 
@@ -343,72 +338,3 @@ Future<void> sequenceFileUnload() async {
     'RunState.Thread.PostUIMessageEx(UIMsg_UserMessageBase + 10, 0, "Uloading File", Nothing, False)',
   ); // Send Closing File Message
 }
-
-/// The labView module `Modules\Computer Sequence Simulation Dialog.vi`.
-Future<Object?> callComputerSequenceSimulationDialog() async =>
-    throw UnimplementedError('labView call: Modules\\Computer Sequence Simulation Dialog.vi');
-
-/// The labView module `Modules\Vacuum On.vi`.
-Future<Object?> callVacuumOn() async => throw UnimplementedError('labView call: Modules\\Vacuum On.vi');
-
-/// The labView module `Modules\Powerup Test.vi`.
-Future<Object?> callPowerupTest() async => throw UnimplementedError('labView call: Modules\\Powerup Test.vi');
-
-/// The labView module `Modules\ROM Test.vi`.
-Future<Object?> callRomTest() async => throw UnimplementedError('labView call: Modules\\ROM Test.vi');
-
-/// The labView module `Modules\RAM Test.vi`.
-Future<Object?> callRamTest() async => throw UnimplementedError('labView call: Modules\\RAM Test.vi');
-
-/// The labView module `Modules\Video Test.vi`.
-Future<Object?> callVideoTest() async => throw UnimplementedError('labView call: Modules\\Video Test.vi');
-
-/// The labView module `Modules\Keyboard Test.vi`.
-Future<Object?> callKeyboardTest() async => throw UnimplementedError('labView call: Modules\\Keyboard Test.vi');
-
-/// The labView module `Modules\ROM Diagnostics.vi`.
-Future<Object?> callRomDiagnostics() async => throw UnimplementedError('labView call: Modules\\ROM Diagnostics.vi');
-
-/// The labView module `Modules\RAM Diagnostics.vi`.
-Future<Object?> callRamDiagnostics() async => throw UnimplementedError('labView call: Modules\\RAM Diagnostics.vi');
-
-/// The labView module `Modules\Video Diagnostics.vi`.
-Future<Object?> callVideoDiagnostics() async => throw UnimplementedError('labView call: Modules\\Video Diagnostics.vi');
-
-/// The labView module `Modules\Keyboard Diagnostics.vi`.
-Future<Object?> callKeyboardDiagnostics() async =>
-    throw UnimplementedError('labView call: Modules\\Keyboard Diagnostics.vi');
-
-/// The labView module `Modules\Powerup Diagnostics.vi`.
-Future<Object?> callPowerupDiagnostics() async =>
-    throw UnimplementedError('labView call: Modules\\Powerup Diagnostics.vi');
-
-/// The labView module `Modules\Vacuum Off.vi`.
-Future<Object?> callVacuumOff() async => throw UnimplementedError('labView call: Modules\\Vacuum Off.vi');
-
-/// The labView module `Modules\Register Test.vi`.
-Future<Object?> callRegisterTest() async => throw UnimplementedError('labView call: Modules\\Register Test.vi');
-
-/// The labView module `Modules\Instruction Set Test.vi`.
-Future<Object?> callInstructionSetTest() async =>
-    throw UnimplementedError('labView call: Modules\\Instruction Set Test.vi');
-
-/// The labView module `Modules\Cache Test.vi`.
-Future<Object?> callCacheTest() async => throw UnimplementedError('labView call: Modules\\Cache Test.vi');
-
-/// The labView module `Modules\FPU Test.vi`.
-Future<Object?> callFpuTest() async => throw UnimplementedError('labView call: Modules\\FPU Test.vi');
-
-/// The labView module `Modules\Register Diagnostics.vi`.
-Future<Object?> callRegisterDiagnostics() async =>
-    throw UnimplementedError('labView call: Modules\\Register Diagnostics.vi');
-
-/// The labView module `Modules\Instruction Set Diagnostics.vi`.
-Future<Object?> callInstructionSetDiagnostics() async =>
-    throw UnimplementedError('labView call: Modules\\Instruction Set Diagnostics.vi');
-
-/// The labView module `Modules\Cache Diagnostics.vi`.
-Future<Object?> callCacheDiagnostics() async => throw UnimplementedError('labView call: Modules\\Cache Diagnostics.vi');
-
-/// The labView module `Modules\FPU Diagnostics.vi`.
-Future<Object?> callFpuDiagnostics() async => throw UnimplementedError('labView call: Modules\\FPU Diagnostics.vi');

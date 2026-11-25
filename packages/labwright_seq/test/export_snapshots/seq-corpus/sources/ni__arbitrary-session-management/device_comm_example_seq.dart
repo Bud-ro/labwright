@@ -7,8 +7,11 @@ dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap(ts.eval('"..\\pinmap\\CustomInstrumentInfo.pinmap"') as String);
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_device_comm.py'); // Create and register device comm sessions [Action]
+    await ts.callPython(
+      'teststand_device_comm.py',
+      'create_device_comm_sessions',
+      passesContext: true,
+    ); // Create and register device comm sessions
 
     await ts.measurement('SimpleMeasurement_Python', {
       'Register Value In (Binary)': '11111111',
@@ -19,6 +22,9 @@ Future<void> mainSequence() async {
       'Resource name': 'CustomInstrumentPin',
     });
   } finally {
-    ts.notExported('python call: teststand_device_comm.py'); // Destroy and unregister device comm sessions [Action]
+    await ts.callPython(
+      'teststand_device_comm.py',
+      'destroy_device_comm_sessions',
+    ); // Destroy and unregister device comm sessions
   }
 }

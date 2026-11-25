@@ -60,10 +60,12 @@ Future<void> enableLabViewTcpServer({
 
   body:
   {
-    // .NET call: System.IO.File.Exists
-    //   Return Value <- Locals.LabviewExists
-    //   path <- Parameters.LabviewDirectory + @"\LabVIEW.exe"
-    ts.notExported('dotNet call: System.IO.File.Exists'); // Check if LabVIEW.exe exists [Action]
+    final outputs = await ts.callDotNet(
+      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'System.IO.File.Exists',
+      inputs: {'path': '$labviewDirectory\\LabVIEW.exe'},
+    ); // Check if LabVIEW.exe exists
+    locals.labviewExists = outputs['Return Value'] as bool;
     if (!locals.labviewExists) {
       error.Code = 7; // Error
       error.Msg = '$labviewDirectory\\LabVIEW.exe not found.';
@@ -71,33 +73,41 @@ Future<void> enableLabViewTcpServer({
       break body;
     }
 
-    // .NET call: System.IO.File.Exists
-    //   Return Value <- Locals.LabviewIniExists
-    //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
-    ts.notExported('dotNet call: System.IO.File.Exists'); // Check if LabVIEW.ini exists [Action]
+    final outputs2 = await ts.callDotNet(
+      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'System.IO.File.Exists',
+      inputs: {'path': '$labviewDirectory\\LabVIEW.ini'},
+    ); // Check if LabVIEW.ini exists
+    locals.labviewIniExists = outputs2['Return Value'] as bool;
     if (locals.labviewIniExists) {
-      // .NET call: System.IO.File.ReadAllText
-      //   Return Value <- Locals.LabviewIniText
-      //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
-      ts.notExported('dotNet call: System.IO.File.ReadAllText'); // Read LabVIEW.ini [Action]
+      final outputs3 = await ts.callDotNet(
+        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'System.IO.File.ReadAllText',
+        inputs: {'path': '$labviewDirectory\\LabVIEW.ini'},
+      ); // Read LabVIEW.ini
+      locals.labviewIniText = outputs3['Return Value'] as String;
       ts.eval(
         'SearchPatternAndReplace(Locals.LabviewIniText, "server.tcp.enabled=False", "server.tcp.enabled=True", 0, True)',
       ); // Prepare LabVIEW.ini keys
       ts.eval(
         '\n\n(Find(Locals.LabviewIniText, "server.tcp.enabled=True", 0, True) == -1) ?\n   Locals.LabviewIniText += "\\nserver.tcp.enabled=True"\n:\n   Nothing',
       );
-      // .NET call: System.IO.File.WriteAllText
-      //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
-      //   contents <- Locals.LabviewIniText
-      ts.notExported('dotNet call: System.IO.File.WriteAllText'); // Write LabVIEW.ini [Action]
+      await ts.callDotNet(
+        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'System.IO.File.WriteAllText',
+        inputs: {'path': '$labviewDirectory\\LabVIEW.ini', 'contents': locals.labviewIniText},
+      ); // Write LabVIEW.ini
     } else {
-      // .NET call: System.IO.File.Create
-      //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
-      ts.notExported('dotNet call: System.IO.File.Create'); // Create LabVIEW.ini [Action]
-      // .NET call: System.IO.File.WriteAllText
-      //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
-      //   contents <- "[LabVIEW]\nserver.tcp.enabled=True"
-      ts.notExported('dotNet call: System.IO.File.WriteAllText'); // Write LabVIEW.ini [Action]
+      await ts.callDotNet(
+        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'System.IO.File.Create',
+        inputs: {'path': '$labviewDirectory\\LabVIEW.ini'},
+      ); // Create LabVIEW.ini
+      await ts.callDotNet(
+        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'System.IO.File.WriteAllText',
+        inputs: {'path': '$labviewDirectory\\LabVIEW.ini', 'contents': '[LabVIEW]\nserver.tcp.enabled=True'},
+      ); // Write LabVIEW.ini
     }
   }
 }

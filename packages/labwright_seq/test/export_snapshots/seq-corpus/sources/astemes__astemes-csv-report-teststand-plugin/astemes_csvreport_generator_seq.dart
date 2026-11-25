@@ -68,9 +68,10 @@ Future<void> modelPluginConfigureStandardOptions({
   processModel = ts.copy(processModel);
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  //   Sequence Context In <- ThisContext
-  //   error out <- Step.Result.Error
-  await callOptionsDialog(); // Show Options Dialog [Action]
+  await ts.callVi(
+    'astemes-csv-report-plugin.lvlibp\\Options Dialog\\Options Dialog.vi',
+    passesContext: true,
+  ); // Show Options Dialog
 }
 
 /// Sequence `_Model Plugin - Configure Additional Options`.
@@ -302,16 +303,16 @@ Future<void> modelPluginUutDone({
     });
   }
 
-  //   error out <- Step.Result.Error
-  await callNewReport(); // Open New Report [Action]
+  await ts.callVi('astemes-csv-report-plugin.lvlibp\\Report Generator\\New Report.vi'); // Open New Report
   await addResult(
     resultList: mainSequenceResult.TS.SequenceCall.ResultList as List<dynamic>,
   ); // Recurse Through Result List
   locals.reportName =
       '${modelPlugin.PluginSpecific.Options.ReportDirectory as String}\\${uut.PartNumber == '' ? '' : '${uut.PartNumber as String}_'}${uut.SerialNumber == '' ? 'SN' : uut.SerialNumber as String}_${ts.str(startDate.Year)}${ts.str(startDate.Month)}${ts.str(startDate.MonthDay)}_${ts.str(startTime.Hours)}${ts.str(startTime.Minutes)}${ts.str(startTime.Seconds)}.csv'; // Generate Reporte Name
-  //   Report File Path <- Locals.ReportName
-  //   error out <- Step.Result.Error
-  await callSaveReport(); // Save Report [Action]
+  await ts.callVi(
+    'astemes-csv-report-plugin.lvlibp\\Report Generator\\Save Report.vi',
+    inputs: {'Report File Path': locals.reportName},
+  ); // Save Report
 }
 
 class _ModelPluginBatchDoneLocals {
@@ -461,25 +462,23 @@ Future<void> addResult({List<dynamic>? resultList}) async {
         resultList: locals.currentResult.TS.SequenceCall.ResultList as List<dynamic>,
       ); // Recurse through Subsequences
     } else {
-      //   Sequence Context In <- ThisContext
-      //   error out <- Step.Result.Error
-      await callAddResult(); // Add Result [Action]
+      await ts.callVi(
+        'astemes-csv-report-plugin.lvlibp\\Report Generator\\Add Result.vi',
+        inputs: {
+          'TestStand Result.error in (no error)': locals.currentResult.Error,
+          'TestStand Result.ReportText': locals.currentResult.ReportText,
+          'TestStand Result.TS.Index': locals.currentResult.TS.Index,
+          'TestStand Result.TS.BlockLevel': locals.currentResult.TS.BlockLevel,
+          'TestStand Result.TS.StartTime': locals.currentResult.TS.StartTime,
+          'TestStand Result.TS.Id': locals.currentResult.TS.Id,
+          'TestStand Result.TS.StepType': locals.currentResult.TS.StepType,
+          'TestStand Result.TS.StepID': locals.currentResult.TS.StepId,
+          'TestStand Result.TS.StepGroup': locals.currentResult.TS.StepGroup,
+          'TestStand Result.TS.StepName': locals.currentResult.TS.StepName,
+          'TestStand Result.Status': locals.currentResult.Status,
+        },
+        passesContext: true,
+      ); // Add Result
     }
   }
 }
-
-/// The labView module `astemes-csv-report-plugin.lvlibp\Options Dialog\Options Dialog.vi`.
-Future<Object?> callOptionsDialog() async =>
-    throw UnimplementedError('labView call: astemes-csv-report-plugin.lvlibp\\Options Dialog\\Options Dialog.vi');
-
-/// The labView module `astemes-csv-report-plugin.lvlibp\Report Generator\New Report.vi`.
-Future<Object?> callNewReport() async =>
-    throw UnimplementedError('labView call: astemes-csv-report-plugin.lvlibp\\Report Generator\\New Report.vi');
-
-/// The labView module `astemes-csv-report-plugin.lvlibp\Report Generator\Save Report.vi`.
-Future<Object?> callSaveReport() async =>
-    throw UnimplementedError('labView call: astemes-csv-report-plugin.lvlibp\\Report Generator\\Save Report.vi');
-
-/// The labView module `astemes-csv-report-plugin.lvlibp\Report Generator\Add Result.vi`.
-Future<Object?> callAddResult() async =>
-    throw UnimplementedError('labView call: astemes-csv-report-plugin.lvlibp\\Report Generator\\Add Result.vi');

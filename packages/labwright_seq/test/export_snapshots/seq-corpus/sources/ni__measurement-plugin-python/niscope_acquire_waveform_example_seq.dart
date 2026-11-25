@@ -7,8 +7,11 @@ dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('NIScopeAcquireWaveform.pinmap');
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_niscope.py'); // Create and register NI-Scope Sessions [Action]
+    await ts.callPython(
+      'teststand_niscope.py',
+      'create_niscope_sessions',
+      passesContext: true,
+    ); // Create and register NI-Scope Sessions
 
     await ts.measurement('ni.examples.NIScopeAcquireWaveform_Python', {
       'measurement_pins': <dynamic>['PinGroup1'],
@@ -25,6 +28,6 @@ Future<void> mainSequence() async {
       'timeout': 5,
     });
   } finally {
-    ts.notExported('python call: teststand_niscope.py'); // Destroy and unregister NI-Scope Sessions [Action]
+    await ts.callPython('teststand_niscope.py', 'destroy_niscope_sessions'); // Destroy and unregister NI-Scope Sessions
   }
 }

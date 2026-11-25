@@ -75,7 +75,11 @@ Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dyna
   station.isUutPanelFailed = false; // UUT_Panel_Failed
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(modelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.BatchModelGetNextUUTs)) {
-    ts.notExported('cModule call: Tell Dialog To Get Next UUTs'); // Tell Dialog To Get Next UUTs [Action]
+    await ts.callDll(
+      'modelsupport2.dll',
+      'BUUT_GetNextUUTs',
+      inputs: {'DialogHandle': modelData.DialogHandle},
+    ); // Tell Dialog To Get Next UUTs
   }
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(modelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.BatchModelGetNextUUTs)) {
@@ -88,22 +92,26 @@ Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dyna
       ts.terminate();
     }
     station.panelSerial = ts.mid(modelData.BatchUUT.BatchSerialNumber, 1);
-    // .NET assembly: ..\WSConnector\WSConnector.dll
-    // .NET call: WSConnector.Connector.Connector
-    // .NET call: WSConnector.Connector.CIMP_PanelBoardRef
-    //   PanelNumber <- StationGlobals.PanelSerial
-    //   SerialNumberArray <- StationGlobals.IndividualSerials
-    ts.notExported('dotNet call: WSConnector.Connector.CIMP_PanelBoardRef'); // Get UUT Serial Based on Panel [Action]
+    await ts.callDotNet(
+      '..\\WSConnector\\WSConnector.dll',
+      'WSConnector.Connector.Connector',
+    ); // Get UUT Serial Based on Panel
+    await ts.callDotNet(
+      '..\\WSConnector\\WSConnector.dll',
+      'WSConnector.Connector.CIMP_PanelBoardRef',
+      inputs: {'PanelNumber': station.panelSerial, 'SerialNumberArray': station.individualSerials},
+    ); // Get UUT Serial Based on Panel
     modelData.TestSockets[0].UUT.SerialNumber = station.individualSerials[0]; // Set Serial to UUT 1
     modelData.TestSockets[1].UUT.SerialNumber = station.individualSerials[1]; // Set Serial to UUT 2
     modelData.TestSockets[2].UUT.SerialNumber = station.individualSerials[2]; // Set Serial to UUT 3
     modelData.TestSockets[3].UUT.SerialNumber = station.individualSerials[3]; // Set Serial to UUT 4
     modelData.TestSockets[4].UUT.SerialNumber = station.individualSerials[4]; // Set Serial to UUT 5
     modelData.TestSockets[5].UUT.SerialNumber = station.individualSerials[5]; // Set Serial to UUT 6
-    //   SerialNumber <- StationGlobals.IndividualSerials[0]
-    //   AssemblyPartNumber <- Parameters.ModelData.BatchUUT.PartNumber
-    //   error out <- Step.Result.Error
-    await callWsp2PartNumberRef(); // Get_PartNumber [Action]
+    final outputs = await ts.callVi(
+      '..\\LabVIEW_VIs\\Traceability\\WSP2_PartNumberRef.vi',
+      inputs: {' SerialNumber': station.individualSerials[0]},
+    ); // Get_PartNumber
+    modelData.BatchUUT.PartNumber = outputs['AssemblyPartNumber'];
     getPartNumberResult.Status = station.partNumber;
     run.record(getPartNumberResult.Status);
     // skipped: Activar para mostrar PN
@@ -127,72 +135,72 @@ Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dyna
       break skipToEndOfTraceabilitySection;
     }
     // Start Traceability Section
-    //   serialNumber <- Parameters.ModelData.TestSockets[0].UUT.SerialNumber
-    //   stationName <- StationGlobals.StationName
-    //   Status <- Locals.BackCheck
-    //   ReplyTracMex <- Locals.Reply_BackCheck
-    //   error out <- Step.Result.Error
-    await callWsp2BackCheckSerial(); // BackCheck UUT 0 [Action]
+    final outputs2 = await ts.callVi(
+      '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
+      inputs: {'serialNumber': modelData.TestSockets[0].UUT.SerialNumber, 'stationName': station.stationName},
+    ); // BackCheck UUT 0
+    locals.backCheck = outputs2['Status'] as int;
+    locals.replyBackCheck = outputs2['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk[0] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[0] = false; // Set Backcheck NOG
       await ts.messagePopup('Msg Bachcheck fail', 'UUT  0  reporta: ${locals.replyBackCheck}');
     }
-    //   serialNumber <- Parameters.ModelData.TestSockets[1].UUT.SerialNumber
-    //   stationName <- StationGlobals.StationName
-    //   Status <- Locals.BackCheck
-    //   ReplyTracMex <- Locals.Reply_BackCheck
-    //   error out <- Step.Result.Error
-    await callWsp2BackCheckSerial(); // BackCheck UUT 1 [Action]
+    final outputs3 = await ts.callVi(
+      '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
+      inputs: {'serialNumber': modelData.TestSockets[1].UUT.SerialNumber, 'stationName': station.stationName},
+    ); // BackCheck UUT 1
+    locals.backCheck = outputs3['Status'] as int;
+    locals.replyBackCheck = outputs3['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk[1] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[1] = false; // Set Backcheck NOG
       await ts.messagePopup('Msg Bachcheck fail', 'UUT 1  reporta: ${locals.replyBackCheck}');
     }
-    //   serialNumber <- Parameters.ModelData.TestSockets[2].UUT.SerialNumber
-    //   stationName <- StationGlobals.StationName
-    //   Status <- Locals.BackCheck
-    //   ReplyTracMex <- Locals.Reply_BackCheck
-    //   error out <- Step.Result.Error
-    await callWsp2BackCheckSerial(); // BackCheck UUT 2 [Action]
+    final outputs4 = await ts.callVi(
+      '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
+      inputs: {'serialNumber': modelData.TestSockets[2].UUT.SerialNumber, 'stationName': station.stationName},
+    ); // BackCheck UUT 2
+    locals.backCheck = outputs4['Status'] as int;
+    locals.replyBackCheck = outputs4['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk[2] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[2] = false; // Set Backcheck NOG
       await ts.messagePopup('Msg Bachcheck fail', 'UUT  2  reporta: ${locals.replyBackCheck}');
     }
-    //   serialNumber <- Parameters.ModelData.TestSockets[3].UUT.SerialNumber
-    //   stationName <- StationGlobals.StationName
-    //   Status <- Locals.BackCheck
-    //   ReplyTracMex <- Locals.Reply_BackCheck
-    //   error out <- Step.Result.Error
-    await callWsp2BackCheckSerial(); // BackCheck UUT 3 [Action]
+    final outputs5 = await ts.callVi(
+      '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
+      inputs: {'serialNumber': modelData.TestSockets[3].UUT.SerialNumber, 'stationName': station.stationName},
+    ); // BackCheck UUT 3
+    locals.backCheck = outputs5['Status'] as int;
+    locals.replyBackCheck = outputs5['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk[3] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[3] = false; // Set Backcheck NOG
       await ts.messagePopup('Msg Bachcheck fail', 'UUT 3  reporta: ${locals.replyBackCheck}');
     }
-    //   serialNumber <- Parameters.ModelData.TestSockets[4].UUT.SerialNumber
-    //   stationName <- StationGlobals.StationName
-    //   Status <- Locals.BackCheck
-    //   ReplyTracMex <- Locals.Reply_BackCheck
-    //   error out <- Step.Result.Error
-    await callWsp2BackCheckSerial(); // BackCheck UUT 4 [Action]
+    final outputs6 = await ts.callVi(
+      '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
+      inputs: {'serialNumber': modelData.TestSockets[4].UUT.SerialNumber, 'stationName': station.stationName},
+    ); // BackCheck UUT 4
+    locals.backCheck = outputs6['Status'] as int;
+    locals.replyBackCheck = outputs6['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk[4] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[4] = false; // Set Backcheck NOG
       await ts.messagePopup('Msg Bachcheck fail', 'UUT 4  reporta: ${locals.replyBackCheck}');
     }
-    //   serialNumber <- Parameters.ModelData.TestSockets[5].UUT.SerialNumber
-    //   stationName <- StationGlobals.StationName
-    //   Status <- Locals.BackCheck
-    //   ReplyTracMex <- Locals.Reply_BackCheck
-    //   error out <- Step.Result.Error
-    await callWsp2BackCheckSerial(); // BackCheck UUT 5 [Action]
+    final outputs7 = await ts.callVi(
+      '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
+      inputs: {'serialNumber': modelData.TestSockets[5].UUT.SerialNumber, 'stationName': station.stationName},
+    ); // BackCheck UUT 5
+    locals.backCheck = outputs7['Status'] as int;
+    locals.replyBackCheck = outputs7['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk[5] = true; // Set Backcheck OK
     } else {
@@ -204,8 +212,7 @@ Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dyna
   if (station.isTraceEnable == 'False') {
     await ts.messagePopup('Msg Trace disable', 'Trazabilidad esta desactivada');
   }
-  //   error out <- Step.Result.Error
-  await callAllOffRelays(); // Set relays to init state [Action]
+  await ts.callVi('..\\LabVIEW_VIs\\USB-ERB24\\All_Off_Relays.vi'); // Set relays to init state
 
   return run.status;
 }
@@ -303,9 +310,12 @@ Future<ts.Status> mainSequence() async {
     }
 
     // Start programming
-    //   Return Value <- FileGlobals.Programmer
-    //   serial_number <- #NoValidation(FileGlobals.Serial_segger)
-    ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // Create JLink instance [Action]
+    final outputs = await ts.callPython(
+      '..\\Python\\ecu_programmer.py',
+      'ECUProgrammer',
+      inputs: {'serial_number': ts.eval('#NoValidation(FileGlobals.Serial_segger)')},
+    ); // Create JLink instance
+    programmer = outputs['Return Value'];
     final loop = ts.StepLoop();
     loop.index = 0;
     while (loop.index < 3 && loop.numPassed < 1) {
@@ -316,8 +326,12 @@ Future<ts.Status> mainSequence() async {
         'ReportText': '',
         'Common': ts.PropObj(),
       });
-      //   Return Value <- Step.Result.PassFail
-      ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink Connection Test [PassFailTest]
+      final outputs2 = await ts.callPython(
+        '..\\Python\\ecu_programmer.py',
+        'open_connect',
+        instance: programmer,
+      ); // JLink Connection Test
+      jLinkConnectionTestResult.PassFail = outputs2['Return Value'];
       jLinkConnectionTestResult.Status = ts.truthy(jLinkConnectionTestResult.PassFail) ? 'Passed' : 'Failed';
       loop.count(jLinkConnectionTestResult.Status);
       loop.index += 1;
@@ -338,9 +352,13 @@ Future<ts.Status> mainSequence() async {
         'ReportText': '',
         'Common': ts.PropObj(),
       });
-      //   Return Value <- Step.Result.PassFail
-      //   chip_name <- #NoValidation(FileGlobals.Chip_name)
-      ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // Target Connection Test [PassFailTest]
+      final outputs3 = await ts.callPython(
+        '..\\Python\\ecu_programmer.py',
+        'connect_target',
+        inputs: {'chip_name': ts.eval('#NoValidation(FileGlobals.Chip_name)')},
+        instance: programmer,
+      ); // Target Connection Test
+      targetConnectionTestResult.PassFail = outputs3['Return Value'];
       targetConnectionTestResult.Status = ts.truthy(targetConnectionTestResult.PassFail) ? 'Passed' : 'Failed';
       loop2.count(targetConnectionTestResult.Status);
       loop2.index += 1;
@@ -350,8 +368,8 @@ Future<ts.Status> mainSequence() async {
     if (run.failed) {
       break body;
     }
-    //   Return Value <- Step.Result.PassFail
-    ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_reset [PassFailTest]
+    final outputs4 = await ts.callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer); // JLink_reset
+    jLinkResetResult.PassFail = outputs4['Return Value'];
     jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
     run.record(jLinkResetResult.Status);
     if (run.failed) {
@@ -374,8 +392,12 @@ Future<ts.Status> mainSequence() async {
   } finally {
     if (cleanupFrom < 3) {
       // Failed Point
-      //   Return Value <- Step.Result.PassFail
-      ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_close Test [PassFailTest]
+      final outputs5 = await ts.callPython(
+        '..\\Python\\ecu_programmer.py',
+        'close_connection',
+        instance: programmer,
+      ); // JLink_close Test
+      jLinkCloseTestResult.PassFail = outputs5['Return Value'];
       jLinkCloseTestResult.Status = ts.truthy(jLinkCloseTestResult.PassFail) ? 'Passed' : 'Failed';
       run.record(jLinkCloseTestResult.Status);
       if (run.failed) {
@@ -387,21 +409,18 @@ Future<ts.Status> mainSequence() async {
     }
     // BackCheck Point
     if (ts.cond('RunState.TestSockets.MyIndex == 0')) {
-      //   Nest <- 1
-      //   error out <- Step.Result.Error
-      await callChooseNest(); // Change NO staterele 1 to 6 [Action]
+      await ts.callVi('..\\LabVIEW_VIs\\USB-ERB24\\Choose_nest.vi', inputs: {'Nest': 1}); // Change NO staterele 1 to 6
       await Future<void>.delayed(const Duration(seconds: 2));
       station.releProgrammer[0] = true; // Change boolean group 1
     } else if (ts.cond('RunState.TestSockets.MyIndex == 2')) {
-      //   Nest <- 3
-      //   error out <- Step.Result.Error
-      await callChooseNest(); // Change NO staterele 7 to 12 [Action]
+      await ts.callVi('..\\LabVIEW_VIs\\USB-ERB24\\Choose_nest.vi', inputs: {'Nest': 3}); // Change NO staterele 7 to 12
       await Future<void>.delayed(const Duration(seconds: 2));
       station.releProgrammer[1] = true; // Change boolean group 2
     } else if (ts.cond('RunState.TestSockets.MyIndex == 4')) {
-      //   Nest <- 5
-      //   error out <- Step.Result.Error
-      await callChooseNest(); // Change NO staterele 13 to 18 [Action]
+      await ts.callVi(
+        '..\\LabVIEW_VIs\\USB-ERB24\\Choose_nest.vi',
+        inputs: {'Nest': 5},
+      ); // Change NO staterele 13 to 18
       await Future<void>.delayed(const Duration(seconds: 2));
       station.releProgrammer[2] = true; // Change boolean group 3
     }
@@ -421,29 +440,35 @@ Future<void> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) as
     // UUT 0
     if (station.testResult[0] == 1) {
       if (ts.truthy(station.isBackcheckOk[0])) {
-        //   FailString <- ""
-        //   EntryTime <- StationGlobals.Ent_Time
-        //   SerialNumber <- StationGlobals.IndividualSerials[0]
-        //   StationName <- StationGlobals.StationName
-        //   ProcessName <- StationGlobals.ProcessName
-        //   PassFail <- StationGlobals.TestResult[0]
-        //   EndTime <- StationGlobals.End_Time
-        //   Employee <- ""
-        //   error out <- Step.Result.Error
-        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+        await ts.callVi(
+          '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+          inputs: {
+            'FailString': '',
+            'EntryTime': ts.eval('StationGlobals.Ent_Time'),
+            'SerialNumber': station.individualSerials[0],
+            'StationName': station.stationName,
+            'ProcessName': station.processName,
+            'PassFail': station.testResult[0],
+            'EndTime': ts.eval('StationGlobals.End_Time'),
+            'Employee': '',
+          },
+        ); // Send Process
       }
     } else {
       if (station.isRecordFail == 'True' && ts.truthy(station.isBackcheckOk[0])) {
-        //   FailString <- StationGlobals.FailString[0]
-        //   EntryTime <- StationGlobals.Ent_Time
-        //   SerialNumber <- StationGlobals.IndividualSerials[0]
-        //   StationName <- StationGlobals.StationName
-        //   ProcessName <- StationGlobals.ProcessName
-        //   PassFail <- StationGlobals.TestResult[0]
-        //   EndTime <- StationGlobals.End_Time
-        //   Employee <- ""
-        //   error out <- Step.Result.Error
-        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+        await ts.callVi(
+          '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+          inputs: {
+            'FailString': station.failString[0],
+            'EntryTime': ts.eval('StationGlobals.Ent_Time'),
+            'SerialNumber': station.individualSerials[0],
+            'StationName': station.stationName,
+            'ProcessName': station.processName,
+            'PassFail': station.testResult[0],
+            'EndTime': ts.eval('StationGlobals.End_Time'),
+            'Employee': '',
+          },
+        ); // Send Process
       }
       if (!ts.truthy(station.isBackcheckOk[0])) {
         ts.eval(
@@ -453,28 +478,34 @@ Future<void> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) as
     }
     // UUT 1
     if (station.testResult[1] == 1 && ts.truthy(station.isBackcheckOk[1])) {
-      //   FailString <- ""
-      //   EntryTime <- StationGlobals.Ent_Time
-      //   SerialNumber <- StationGlobals.IndividualSerials[1]
-      //   StationName <- StationGlobals.StationName
-      //   ProcessName <- StationGlobals.ProcessName
-      //   PassFail <- StationGlobals.TestResult[1]
-      //   EndTime <- StationGlobals.End_Time
-      //   Employee <- ""
-      //   error out <- Step.Result.Error
-      await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      await ts.callVi(
+        '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+        inputs: {
+          'FailString': '',
+          'EntryTime': ts.eval('StationGlobals.Ent_Time'),
+          'SerialNumber': station.individualSerials[1],
+          'StationName': station.stationName,
+          'ProcessName': station.processName,
+          'PassFail': station.testResult[1],
+          'EndTime': ts.eval('StationGlobals.End_Time'),
+          'Employee': '',
+        },
+      ); // Send Process
     } else {
       if (station.isRecordFail == 'True' && ts.truthy(station.isBackcheckOk[1])) {
-        //   FailString <- StationGlobals.FailString[1]
-        //   EntryTime <- StationGlobals.Ent_Time
-        //   SerialNumber <- StationGlobals.IndividualSerials[1]
-        //   StationName <- StationGlobals.StationName
-        //   ProcessName <- StationGlobals.ProcessName
-        //   PassFail <- StationGlobals.TestResult[1]
-        //   EndTime <- StationGlobals.End_Time
-        //   Employee <- ""
-        //   error out <- Step.Result.Error
-        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+        await ts.callVi(
+          '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+          inputs: {
+            'FailString': station.failString[1],
+            'EntryTime': ts.eval('StationGlobals.Ent_Time'),
+            'SerialNumber': station.individualSerials[1],
+            'StationName': station.stationName,
+            'ProcessName': station.processName,
+            'PassFail': station.testResult[1],
+            'EndTime': ts.eval('StationGlobals.End_Time'),
+            'Employee': '',
+          },
+        ); // Send Process
       }
       if (!ts.truthy(station.isBackcheckOk[1])) {
         ts.eval(
@@ -484,28 +515,34 @@ Future<void> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) as
     }
     // UUT 2
     if (station.testResult[2] == 1 && ts.truthy(station.isBackcheckOk[2])) {
-      //   FailString <- ""
-      //   EntryTime <- StationGlobals.Ent_Time
-      //   SerialNumber <- StationGlobals.IndividualSerials[2]
-      //   StationName <- StationGlobals.StationName
-      //   ProcessName <- StationGlobals.ProcessName
-      //   PassFail <- StationGlobals.TestResult[2]
-      //   EndTime <- StationGlobals.End_Time
-      //   Employee <- ""
-      //   error out <- Step.Result.Error
-      await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      await ts.callVi(
+        '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+        inputs: {
+          'FailString': '',
+          'EntryTime': ts.eval('StationGlobals.Ent_Time'),
+          'SerialNumber': station.individualSerials[2],
+          'StationName': station.stationName,
+          'ProcessName': station.processName,
+          'PassFail': station.testResult[2],
+          'EndTime': ts.eval('StationGlobals.End_Time'),
+          'Employee': '',
+        },
+      ); // Send Process
     } else {
       if (station.isRecordFail == 'True' && ts.truthy(station.isBackcheckOk[2])) {
-        //   FailString <- StationGlobals.FailString[2]
-        //   EntryTime <- StationGlobals.Ent_Time
-        //   SerialNumber <- StationGlobals.IndividualSerials[2]
-        //   StationName <- StationGlobals.StationName
-        //   ProcessName <- StationGlobals.ProcessName
-        //   PassFail <- StationGlobals.TestResult[2]
-        //   EndTime <- StationGlobals.End_Time
-        //   Employee <- ""
-        //   error out <- Step.Result.Error
-        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+        await ts.callVi(
+          '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+          inputs: {
+            'FailString': station.failString[2],
+            'EntryTime': ts.eval('StationGlobals.Ent_Time'),
+            'SerialNumber': station.individualSerials[2],
+            'StationName': station.stationName,
+            'ProcessName': station.processName,
+            'PassFail': station.testResult[2],
+            'EndTime': ts.eval('StationGlobals.End_Time'),
+            'Employee': '',
+          },
+        ); // Send Process
       }
       if (!ts.truthy(station.isBackcheckOk[2])) {
         ts.eval(
@@ -515,28 +552,34 @@ Future<void> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) as
     }
     // UUT 3
     if (station.testResult[3] == 1) {
-      //   FailString <- ""
-      //   EntryTime <- StationGlobals.Ent_Time
-      //   SerialNumber <- StationGlobals.IndividualSerials[3]
-      //   StationName <- StationGlobals.StationName
-      //   ProcessName <- StationGlobals.ProcessName
-      //   PassFail <- StationGlobals.TestResult[3]
-      //   EndTime <- StationGlobals.End_Time
-      //   Employee <- ""
-      //   error out <- Step.Result.Error
-      await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      await ts.callVi(
+        '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+        inputs: {
+          'FailString': '',
+          'EntryTime': ts.eval('StationGlobals.Ent_Time'),
+          'SerialNumber': station.individualSerials[3],
+          'StationName': station.stationName,
+          'ProcessName': station.processName,
+          'PassFail': station.testResult[3],
+          'EndTime': ts.eval('StationGlobals.End_Time'),
+          'Employee': '',
+        },
+      ); // Send Process
     } else {
       if (station.isRecordFail == 'True' && ts.truthy(station.isBackcheckOk[3])) {
-        //   FailString <- StationGlobals.FailString[3]
-        //   EntryTime <- StationGlobals.Ent_Time
-        //   SerialNumber <- StationGlobals.IndividualSerials[3]
-        //   StationName <- StationGlobals.StationName
-        //   ProcessName <- StationGlobals.ProcessName
-        //   PassFail <- StationGlobals.TestResult[3]
-        //   EndTime <- StationGlobals.End_Time
-        //   Employee <- ""
-        //   error out <- Step.Result.Error
-        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+        await ts.callVi(
+          '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+          inputs: {
+            'FailString': station.failString[3],
+            'EntryTime': ts.eval('StationGlobals.Ent_Time'),
+            'SerialNumber': station.individualSerials[3],
+            'StationName': station.stationName,
+            'ProcessName': station.processName,
+            'PassFail': station.testResult[3],
+            'EndTime': ts.eval('StationGlobals.End_Time'),
+            'Employee': '',
+          },
+        ); // Send Process
       }
       if (!ts.truthy(station.isBackcheckOk[3])) {
         ts.eval(
@@ -546,28 +589,34 @@ Future<void> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) as
     }
     // UUT 4
     if (station.testResult[4] == 1) {
-      //   FailString <- ""
-      //   EntryTime <- StationGlobals.Ent_Time
-      //   SerialNumber <- StationGlobals.IndividualSerials[4]
-      //   StationName <- StationGlobals.StationName
-      //   ProcessName <- StationGlobals.ProcessName
-      //   PassFail <- StationGlobals.TestResult[4]
-      //   EndTime <- StationGlobals.End_Time
-      //   Employee <- ""
-      //   error out <- Step.Result.Error
-      await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      await ts.callVi(
+        '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+        inputs: {
+          'FailString': '',
+          'EntryTime': ts.eval('StationGlobals.Ent_Time'),
+          'SerialNumber': station.individualSerials[4],
+          'StationName': station.stationName,
+          'ProcessName': station.processName,
+          'PassFail': station.testResult[4],
+          'EndTime': ts.eval('StationGlobals.End_Time'),
+          'Employee': '',
+        },
+      ); // Send Process
     } else {
       if (station.isRecordFail == 'True' && ts.truthy(station.isBackcheckOk[4])) {
-        //   FailString <- StationGlobals.FailString[4]
-        //   EntryTime <- StationGlobals.Ent_Time
-        //   SerialNumber <- StationGlobals.IndividualSerials[4]
-        //   StationName <- StationGlobals.StationName
-        //   ProcessName <- StationGlobals.ProcessName
-        //   PassFail <- StationGlobals.TestResult[4]
-        //   EndTime <- StationGlobals.End_Time
-        //   Employee <- ""
-        //   error out <- Step.Result.Error
-        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+        await ts.callVi(
+          '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+          inputs: {
+            'FailString': station.failString[4],
+            'EntryTime': ts.eval('StationGlobals.Ent_Time'),
+            'SerialNumber': station.individualSerials[4],
+            'StationName': station.stationName,
+            'ProcessName': station.processName,
+            'PassFail': station.testResult[4],
+            'EndTime': ts.eval('StationGlobals.End_Time'),
+            'Employee': '',
+          },
+        ); // Send Process
       }
       if (!ts.truthy(station.isBackcheckOk[4])) {
         ts.eval(
@@ -577,28 +626,34 @@ Future<void> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) as
     }
     // UUT 5
     if (station.testResult[5] == 1) {
-      //   FailString <- ""
-      //   EntryTime <- StationGlobals.Ent_Time
-      //   SerialNumber <- StationGlobals.IndividualSerials[5]
-      //   StationName <- StationGlobals.StationName
-      //   ProcessName <- StationGlobals.ProcessName
-      //   PassFail <- StationGlobals.TestResult[5]
-      //   EndTime <- StationGlobals.End_Time
-      //   Employee <- ""
-      //   error out <- Step.Result.Error
-      await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      await ts.callVi(
+        '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+        inputs: {
+          'FailString': '',
+          'EntryTime': ts.eval('StationGlobals.Ent_Time'),
+          'SerialNumber': station.individualSerials[5],
+          'StationName': station.stationName,
+          'ProcessName': station.processName,
+          'PassFail': station.testResult[5],
+          'EndTime': ts.eval('StationGlobals.End_Time'),
+          'Employee': '',
+        },
+      ); // Send Process
     } else {
       if (station.isRecordFail == 'True' && ts.truthy(station.isBackcheckOk[5])) {
-        //   FailString <- StationGlobals.FailString[5]
-        //   EntryTime <- StationGlobals.Ent_Time
-        //   SerialNumber <- StationGlobals.IndividualSerials[5]
-        //   StationName <- StationGlobals.StationName
-        //   ProcessName <- StationGlobals.ProcessName
-        //   PassFail <- StationGlobals.TestResult[5]
-        //   EndTime <- StationGlobals.End_Time
-        //   Employee <- ""
-        //   error out <- Step.Result.Error
-        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+        await ts.callVi(
+          '..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi',
+          inputs: {
+            'FailString': station.failString[5],
+            'EntryTime': ts.eval('StationGlobals.Ent_Time'),
+            'SerialNumber': station.individualSerials[5],
+            'StationName': station.stationName,
+            'ProcessName': station.processName,
+            'PassFail': station.testResult[5],
+            'EndTime': ts.eval('StationGlobals.End_Time'),
+            'Employee': '',
+          },
+        ); // Send Process
       }
       if (!ts.truthy(station.isBackcheckOk[5])) {
         ts.eval(
@@ -610,7 +665,11 @@ Future<void> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) as
   // End Of Traceability Section
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(modelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.BatchModelShowStatus)) {
-    ts.notExported('cModule call: Tell Dialog To Show Status'); // Tell Dialog To Show Status [Action]
+    await ts.callDll(
+      'modelsupport2.dll',
+      'BUUT_ShowStatus',
+      inputs: {'DialogHandle': modelData.DialogHandle},
+    ); // Tell Dialog To Show Status
   }
 }
 
@@ -630,15 +689,14 @@ class _LoadVariablesLocals {
 Future<void> loadVariables({String variableList = ''}) async {
   final locals = _LoadVariablesLocals();
 
-  //   FilePath <- Locals.File_Path
-  //   OutPutValue <- 1
-  //   Section <- Parameters.Variable_list
-  //   Test Limits <- Locals.Array_Index
-  //   Test Names <- Locals.TestName
-  //   ValueNum <- Locals.NumLimits
-  //   ValueStr <- Locals.StrLimits
-  //   Error Out <- Step.Result.Error
-  await callGetLimitsV3(); // ReadFileLimit [Action]
+  final outputs = await ts.callVi(
+    '..\\LabVIEW_VIs\\Generic_Vi\'s\\Get_Limits_V3.vi',
+    inputs: {'FilePath': locals.filePath, 'OutPutValue': 1, 'Section': variableList},
+  ); // ReadFileLimit
+  locals.arrayIndex = outputs['Test Limits'] as int;
+  locals.testName = outputs['Test Names'] as List<dynamic>;
+  locals.numLimits = outputs['ValueNum'] as List<dynamic>;
+  locals.strLimits = outputs['ValueStr'] as List<dynamic>;
   for (locals.tempLoop = 0; locals.tempLoop < locals.arrayIndex; locals.tempLoop += 1) {
     locals.tempStr = locals.strLimits[locals.tempLoop] as String; // Limits
     locals.tempName = locals.testName[locals.tempLoop] as String; // NamesToVariables
@@ -679,22 +737,30 @@ Future<ts.Status> writeResetFlexProvision() async {
     'Common': ts.PropObj(),
   });
 
-  //   Return Value <- Step.Result.PassFail
-  //   path_file <- StationGlobals.Path_reset_flex_provision
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // Flash_Flex_Provision_Reset [PassFailTest]
+  final outputs = await ts.callPython(
+    '..\\Python\\ecu_programmer.py',
+    'flash_file',
+    inputs: {'path_file': station.pathResetFlexProvision},
+    instance: programmer,
+  ); // Flash_Flex_Provision_Reset
+  flashFlexProvisionResetResult.PassFail = outputs['Return Value'];
   flashFlexProvisionResetResult.Status = ts.truthy(flashFlexProvisionResetResult.PassFail) ? 'Passed' : 'Failed';
   run.record(flashFlexProvisionResetResult.Status);
-  //   Return Value <- Step.Result.PassFail
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_reset [PassFailTest]
+  final outputs2 = await ts.callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer); // JLink_reset
+  jLinkResetResult.PassFail = outputs2['Return Value'];
   jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult.Status);
-  //   Return Value <- Step.Result.PassFail
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_restart [PassFailTest]
+  final outputs3 = await ts.callPython(
+    '..\\Python\\ecu_programmer.py',
+    'restart',
+    instance: programmer,
+  ); // JLink_restart
+  jLinkRestartResult.PassFail = outputs3['Return Value'];
   jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 2));
-  //   Return Value <- Step.Result.PassFail
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_reset [PassFailTest]
+  final outputs4 = await ts.callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer); // JLink_reset
+  jLinkResetResult2.PassFail = outputs4['Return Value'];
   jLinkResetResult2.Status = ts.truthy(jLinkResetResult2.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult2.Status);
 
@@ -733,22 +799,30 @@ Future<ts.Status> writeFlexProvision() async {
     'Common': ts.PropObj(),
   });
 
-  //   Return Value <- Step.Result.PassFail
-  //   path_file <- StationGlobals.Path_flex_provision
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // Fllash_Flex_Provision [PassFailTest]
+  final outputs = await ts.callPython(
+    '..\\Python\\ecu_programmer.py',
+    'flash_file',
+    inputs: {'path_file': station.pathFlexProvision},
+    instance: programmer,
+  ); // Fllash_Flex_Provision
+  fllashFlexProvisionResult.PassFail = outputs['Return Value'];
   fllashFlexProvisionResult.Status = ts.truthy(fllashFlexProvisionResult.PassFail) ? 'Passed' : 'Failed';
   run.record(fllashFlexProvisionResult.Status);
-  //   Return Value <- Step.Result.PassFail
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_reset [PassFailTest]
+  final outputs2 = await ts.callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer); // JLink_reset
+  jLinkResetResult.PassFail = outputs2['Return Value'];
   jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult.Status);
-  //   Return Value <- Step.Result.PassFail
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_restart [PassFailTest]
+  final outputs3 = await ts.callPython(
+    '..\\Python\\ecu_programmer.py',
+    'restart',
+    instance: programmer,
+  ); // JLink_restart
+  jLinkRestartResult.PassFail = outputs3['Return Value'];
   jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 12));
-  //   Return Value <- Step.Result.PassFail
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_reset [PassFailTest]
+  final outputs4 = await ts.callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer); // JLink_reset
+  jLinkResetResult2.PassFail = outputs4['Return Value'];
   jLinkResetResult2.Status = ts.truthy(jLinkResetResult2.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult2.Status);
 
@@ -794,26 +868,38 @@ Future<ts.Status> writeProgramCombined() async {
     'Common': ts.PropObj(),
   });
 
-  //   Return Value <- Step.Result.PassFail
-  //   path_file <- StationGlobals.Path_program_combined
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // Fllash_Flex_Combined [PassFailTest]
+  final outputs = await ts.callPython(
+    '..\\Python\\ecu_programmer.py',
+    'flash_file',
+    inputs: {'path_file': station.pathProgramCombined},
+    instance: programmer,
+  ); // Fllash_Flex_Combined
+  fllashFlexCombinedResult.PassFail = outputs['Return Value'];
   fllashFlexCombinedResult.Status = ts.truthy(fllashFlexCombinedResult.PassFail) ? 'Passed' : 'Failed';
   run.record(fllashFlexCombinedResult.Status);
-  //   Return Value <- Step.Result.PassFail
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_halt [PassFailTest]
+  final outputs2 = await ts.callPython('..\\Python\\ecu_programmer.py', 'halt', instance: programmer); // JLink_halt
+  jLinkHaltResult.PassFail = outputs2['Return Value'];
   jLinkHaltResult.Status = ts.truthy(jLinkHaltResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkHaltResult.Status);
-  //   Return Value <- Step.Result.PassFail
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_restart [PassFailTest]
+  final outputs3 = await ts.callPython(
+    '..\\Python\\ecu_programmer.py',
+    'restart',
+    instance: programmer,
+  ); // JLink_restart
+  jLinkRestartResult.PassFail = outputs3['Return Value'];
   jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 12));
-  //   Return Value <- Step.Result.PassFail
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_reset [PassFailTest]
+  final outputs4 = await ts.callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer); // JLink_reset
+  jLinkResetResult.PassFail = outputs4['Return Value'];
   jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult.Status);
-  //   Return Value <- Step.Result.PassFail
-  ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_restart [PassFailTest]
+  final outputs5 = await ts.callPython(
+    '..\\Python\\ecu_programmer.py',
+    'restart',
+    instance: programmer,
+  ); // JLink_restart
+  jLinkRestartResult2.PassFail = outputs5['Return Value'];
   jLinkRestartResult2.Status = ts.truthy(jLinkRestartResult2.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkRestartResult2.Status);
 
@@ -822,27 +908,3 @@ Future<ts.Status> writeProgramCombined() async {
 
 /// Sequence `ProcessDialogRequests` in a file outside this export.
 Future<Object?> processDialogRequests() async => throw UnimplementedError('external sequence: ProcessDialogRequests');
-
-/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_PartNumberRef.vi`.
-Future<Object?> callWsp2PartNumberRef() async =>
-    throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_PartNumberRef.vi');
-
-/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_BackCheck_Serial.vi`.
-Future<Object?> callWsp2BackCheckSerial() async =>
-    throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi');
-
-/// The labView module `..\LabVIEW_VIs\USB-ERB24\All_Off_Relays.vi`.
-Future<Object?> callAllOffRelays() async =>
-    throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\USB-ERB24\\All_Off_Relays.vi');
-
-/// The labView module `..\LabVIEW_VIs\USB-ERB24\Choose_nest.vi`.
-Future<Object?> callChooseNest() async =>
-    throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\USB-ERB24\\Choose_nest.vi');
-
-/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_InsertProcessDataWithFails.vi`.
-Future<Object?> callWsp2InsertProcessDataWithFails() async =>
-    throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi');
-
-/// The labView module `..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi`.
-Future<Object?> callGetLimitsV3() async =>
-    throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Generic_Vi\'s\\Get_Limits_V3.vi');

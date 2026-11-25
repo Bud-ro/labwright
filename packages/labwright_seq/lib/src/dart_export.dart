@@ -600,6 +600,8 @@ typedef _Param = ({String id, _DartSlot type, String? init, bool boxed});
 
 typedef _CallArgs = ({String text, List<String> before, List<String> after});
 
+typedef _ModuleArg = ({String name, String bound, bool input, bool output});
+
 class _SeqScope {
   _SeqScope({
     required this.emittedParams,
@@ -3000,17 +3002,9 @@ class _DartExporter {
               : _sequenceCallLine(step, '${call.callee}(${call.args.text})', '$name${call.note}'),
         );
         call.args.after.forEach(_line);
-      case SeqAdapter.labView:
-        _emitModuleNotes(module);
-        _line(
-          'await ${_stubFor(step, module).name}(); // $name'
-          '${step.type != null ? ' [${_comment(step.type!)}]' : ''}',
-        );
-      case SeqAdapter.cModule:
-      case SeqAdapter.python:
-      case SeqAdapter.dotNet:
+      case SeqAdapter.labView || SeqAdapter.cModule || SeqAdapter.activeX || SeqAdapter.python || SeqAdapter.dotNet:
+        _emitModuleCall(step);
       case SeqAdapter.unknown:
-        _emitModuleNotes(module);
         _throwLine(step, '${module.adapter.name} call', _stubTarget(step, module));
       case SeqAdapter.none:
         if (_hostedPhases(step).isEmpty && _runsSubsteps(step.type) && step.type != null) {
@@ -3249,45 +3243,133 @@ class _DartExporter {
     return (callee: stub.name, args: args, note: ': external sequence call', stub: true);
   }
 
+  static final _thisContext = RegExp(r'^(RunState\.)?(ThisContext|SequenceContext)$', caseSensitive: false);
+  static final _ownError = RegExp(r'^(RunState\.)?Step\.Result\.Error(\.\w+)?$', caseSensitive: false);
+
+  /// The name the adapters give a parameter whose prototype has none.
+  static const _unnamedParameter = '_notNamed';
+  static final _variable = RegExp(r'^[A-Za-z_][\w.]*(\[.*\])?$');
+
+  /// The bound arguments of [parameters], with the members of a cluster or struct parameter as `parameter.member`.
+  Iterable<_ModuleArg> _moduleArgs(
+    Iterable<SeqProperty> parameters,
+    String members,
+    ({bool input, bool output}) Function(SeqProperty parameter) direction, {
+    String prefix = '',
+    ({bool input, bool output})? inherited,
+  }) sync* {
+    for (final (index, p) in parameters.indexed) {
+      if (p.prop('UseDefaultValues')?.scalar?.toLowerCase() == 'true') continue;
+      final given = nonEmpty(p.prop('Name')?.scalar) ?? nonEmpty(p.prop('Label')?.scalar) ?? p.name;
+      final name = '$prefix${given == _unnamedParameter || given.isEmpty ? '#${index + 1}' : given}';
+      final way = inherited ?? direction(p);
+      final bound = nonEmpty((p.prop('ArgVal') ?? p.prop('ArgumentValue'))?.scalar?.trim());
+      if (bound != null) {
+        yield (name: name, bound: bound, input: way.input, output: way.output);
+      } else {
+        yield* _moduleArgs(p.prop(members)?.array ?? const [], members, direction, prefix: '$name.', inherited: way);
+      }
+    }
+  }
+
+  void _emitModuleCall(Step step) {
+    final module = step.module;
+    final data = module.raw;
+    String? at(String path) => path.split('.').fold<SeqProperty?>(data, (p, name) => p?.prop(name))?.scalar;
+    List<SeqProperty> list(SeqProperty? p) => p?.array ?? const [];
+    String text(String? value) => "'${_escape(value ?? '')}'";
+    ({bool input, bool output}) returned(SeqProperty p) =>
+        p.prop('Name')?.scalar == 'Return Value' ? (input: false, output: true) : (input: true, output: false);
+    void emit(String callee, List<String> positional, Iterable<_ModuleArg> args, {String? instance}) {
+      var context = false;
+      final inputs = <String>[];
+      final outputs = <_ModuleArg>[];
+      for (final arg in args) {
+        if (_thisContext.hasMatch(arg.bound)) {
+          context = true;
+        } else if (!_ownError.hasMatch(arg.bound)) {
+          if (arg.input) inputs.add("'${_escape(arg.name)}': ${_expr(arg.bound)}");
+          if (arg.output) outputs.add(arg);
+        }
+      }
+      final call =
+          'ts.$callee(${[...positional, if (inputs.isNotEmpty) 'inputs: {${inputs.join(', ')}}', if (instance != null) 'instance: $instance', if (context) 'passesContext: true'].join(', ')})';
+      final note = ' // ${_comment(step.name)}';
+      if (outputs.isEmpty) {
+        _line('await $call;$note');
+        return;
+      }
+      const answer = '\u0000';
+      final stores = [
+        for (final output in outputs)
+          switch (_assignment(output.bound, "$answer['${_escape(output.name)}']")) {
+            final store? when _variable.hasMatch(store.substring(0, store.indexOf(' = '))) => store,
+            _ => "ts.notExported('${_escape('output ${output.name} -> ${output.bound}')}');",
+          },
+      ];
+      final id = stores.any((line) => line.contains(answer)) ? _claimId('outputs') : null;
+      _line(id == null ? 'await $call;$note' : 'final $id = await $call;$note');
+      for (final line in stores) {
+        _line(id == null ? line : line.replaceAll(answer, id));
+      }
+    }
+
+    switch (module.adapter) {
+      case SeqAdapter.labView:
+        emit(
+          'callVi',
+          [text(module.viPath ?? module.viCallName)],
+          _moduleArgs(
+            list(data?.prop('ViCall')?.prop('Parms')),
+            'ArrayClusterEls',
+            (p) => p.prop('Direction')?.scalar == '1' ? (input: false, output: true) : (input: true, output: false),
+          ),
+        );
+      case SeqAdapter.cModule:
+        emit(
+          'callDll',
+          [text(module.libPath), text(module.function)],
+          _moduleArgs(list(data?.prop('Call')?.prop('Parms')), '', (p) {
+            final byPointer = p.prop('NumPass')?.scalar == '1' || p.prop('StrPass')?.scalar == '2';
+            return byPointer ? (input: true, output: true) : returned(p);
+          }),
+        );
+      case SeqAdapter.activeX when at('Call.MakeCall')?.toLowerCase() == 'false':
+        _throwLine(step, 'ActiveX object', '${at('Call.CoClassName')} -> ${at('Call.ObjectVariable')}');
+      case SeqAdapter.activeX:
+        emit(
+          'callActiveX',
+          [_expr(at('Call.ObjectVariable') ?? 'Nothing'), text(module.function)],
+          _moduleArgs(list(data?.prop('Call')?.prop('Parameters')), '', (p) {
+            final code = p.prop('Direction')?.scalar;
+            return (input: code != '2', output: code == '2' || code == '3');
+          }),
+        );
+      case SeqAdapter.python:
+        final instance = module.pythonClassInstanceLocation;
+        emit(
+          'callPython',
+          [text(module.pythonModulePath), text(module.pythonFunction ?? module.pythonClassName)],
+          _moduleArgs(list(data?.prop('PythonCall')?.prop('Parameters')), '', returned),
+          instance: instance == null ? null : _expr(instance),
+        );
+      case SeqAdapter.dotNet:
+        for (final call in list(data?.prop('Calls'))) {
+          emit('callDotNet', [
+            text(module.assemblyPath ?? at('AssemblyStrongName')),
+            text([call.prop('ClassName')?.scalar, call.prop('MemberName')?.scalar].nonNulls.join('.')),
+          ], _moduleArgs(list(call.prop('Params')), 'MultiElement', returned));
+        }
+      case _:
+    }
+  }
+
   void _throwLine(Step step, String kind, String target) {
     _line(
       "ts.notExported('${_escape('$kind: $target')}'); "
       '// ${_comment(step.name)}'
       '${step.type != null ? ' [${_comment(step.type!)}]' : ''}',
     );
-  }
-
-  void _emitCallWiring(List<CallParameter> parameters) {
-    for (final parameter in parameters) {
-      final expression = parameter.boundExpression ?? parameter.displayValue;
-      final direction = parameter.direction;
-      if (expression == null && direction != 'out' && direction != 'in/out') continue;
-      final arrow = switch (direction) {
-        'out' => '->',
-        'in/out' => '<->',
-        _ => '<-',
-      };
-      _line(
-        '//   ${_comment(expression != null ? '${parameter.name} $arrow $expression' : '${parameter.name} [$direction]')}',
-      );
-    }
-  }
-
-  void _emitModuleNotes(StepModule module) {
-    if (module.adapter == SeqAdapter.dotNet) {
-      if (module.assemblyPath != null) {
-        _line('// .NET assembly: ${_comment(module.assemblyPath!)}');
-      }
-      for (final call in module.dotNetCalls) {
-        _line(
-          '// .NET call: '
-          '${_comment('${call.className ?? module.dotNetClassName ?? '?'}.${call.memberName ?? '?'}')}',
-        );
-        _emitCallWiring(call.parameters);
-      }
-      return;
-    }
-    _emitCallWiring(module.adapter == SeqAdapter.labView ? module.viParameters : module.callParameters);
   }
 
   String _stubTarget(Step step, StepModule module) =>

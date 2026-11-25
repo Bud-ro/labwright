@@ -140,27 +140,24 @@ Future<void> modelPluginBegin({
     ); // Set OTF Callback Requirements
   }
   if (ts.truthy(modelThreadType.IsController)) {
-    // .NET assembly: API\DotNET\Assemblies\CurrentVersion\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.SemiconductorModuleManagerFactory.GetSemiconductorModuleManager
-    //   Return Value <- Locals.SemiconductorModuleManager
-    //   engine <- RunState.Engine
-    ts.notExported(
-      'dotNet call: NationalInstruments.TestStand.SemiconductorModule.SemiconductorModuleManagerFactory.GetSemiconductorModuleManager',
-    ); // Get SemiconductorModuleManager [Action]
-    // .NET assembly: NationalInstruments.TestStand.SemiconductorModule.dll
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementUtility.PerformanceMeasurementUtility
-    //   Return Value <- Locals.PerformanceMeasurementUtility
-    //   engine <- RunState.Engine
-    ts.notExported(
-      'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementUtility.PerformanceMeasurementUtility',
-    ); // Create Performance Measurement Utility [Action]
-    // .NET assembly: NationalInstruments.TestStand.SemiconductorModule.dll
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.PerformanceMeasurementLogger
-    //   Return Value <- Parameters.ModelPlugin.PluginSpecific.RuntimeVariables.PerformanceMeasurementLogger
-    //   performanceMeasurementUtility <- Locals.PerformanceMeasurementUtility
-    ts.notExported(
-      'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.PerformanceMeasurementLogger',
-    ); // Create Performance Measurement Logger [Action]
+    final outputs = await ts.callDotNet(
+      'API\\DotNET\\Assemblies\\CurrentVersion\\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.SemiconductorModuleManagerFactory.GetSemiconductorModuleManager',
+      inputs: {'engine': ts.eval('RunState.Engine')},
+    ); // Get SemiconductorModuleManager
+    locals.semiconductorModuleManager = outputs['Return Value'];
+    final outputs2 = await ts.callDotNet(
+      'NationalInstruments.TestStand.SemiconductorModule.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementUtility.PerformanceMeasurementUtility',
+      inputs: {'engine': ts.eval('RunState.Engine')},
+    ); // Create Performance Measurement Utility
+    locals.performanceMeasurementUtility = outputs2['Return Value'];
+    final outputs3 = await ts.callDotNet(
+      'NationalInstruments.TestStand.SemiconductorModule.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.PerformanceMeasurementLogger',
+      inputs: {'performanceMeasurementUtility': locals.performanceMeasurementUtility},
+    ); // Create Performance Measurement Logger
+    modelPlugin.PluginSpecific.RuntimeVariables.PerformanceMeasurementLogger = outputs3['Return Value'];
     locals.dateString =
         ts.str(startDate.Year, '%04d') +
         ts.str(startDate.Month, '%02d') +
@@ -169,24 +166,32 @@ Future<void> modelPluginBegin({
         ts.str(startTime.Hours, '%02d') +
         ts.str(startTime.Minutes, '%02d') +
         ts.str(startTime.Seconds, '%02d'); // Build Time String
-    // .NET assembly: NationalInstruments.TestStand.SemiconductorModule.dll
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementUtility.Use Existing Object
-    //   Existing Object <- Locals.PerformanceMeasurementUtility
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementUtility.LogFileBaseDirectory
-    //   Value <- Parameters.ModelPlugin.PluginSpecific.Options.LogFileFolder
-    ts.notExported(
-      'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementUtility.LogFileBaseDirectory',
-    ); // Set Log File Base Directory [Action]
-    // .NET assembly: NationalInstruments.TestStand.SemiconductorModule.dll
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.Use Existing Object
-    //   Existing Object <- Parameters.ModelPlugin.PluginSpecific.RuntimeVariables.PerformanceMeasurementLogger
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.SetPerformanceLogFileLocation
-    //   sequenceFilePath <- Parameters.ProcessModelClientPath
-    //   dateTimeText <- Locals.DateString + "_" + Locals.TimeString
-    ts.notExported(
-      'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.SetPerformanceLogFileLocation',
-    ); // Set Output File Path [Action]
+    await ts.callDotNet(
+      'NationalInstruments.TestStand.SemiconductorModule.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementUtility.Use Existing Object',
+      inputs: {'Existing Object': locals.performanceMeasurementUtility},
+    ); // Set Log File Base Directory
+    await ts.callDotNet(
+      'NationalInstruments.TestStand.SemiconductorModule.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementUtility.LogFileBaseDirectory',
+      inputs: {'Value': modelPlugin.PluginSpecific.Options.LogFileFolder},
+    ); // Set Log File Base Directory
+    await ts.callDotNet(
+      'NationalInstruments.TestStand.SemiconductorModule.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.Use Existing Object',
+      inputs: {'Existing Object': modelPlugin.PluginSpecific.RuntimeVariables.PerformanceMeasurementLogger},
+    ); // Set Output File Path
+    await ts.callDotNet(
+      'NationalInstruments.TestStand.SemiconductorModule.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.SetPerformanceLogFileLocation',
+      inputs: {'sequenceFilePath': processModelClientPath, 'dateTimeText': '${locals.dateString}_${locals.timeString}'},
+    ); // Set Output File Path
   }
+}
+
+class _ModelPluginPostUutLocals {
+  int siteNumber = 0;
+  int numberOfSites = 0;
 }
 
 /// Sequence `Model Plugin - Post UUT`.
@@ -204,38 +209,56 @@ Future<void> modelPluginPostUut({
 }) async {
   mainSequenceResult = ts.copy(mainSequenceResult);
 
+  final locals = _ModelPluginPostUutLocals();
+
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   if (ts.cond(
     '#NoValidation(\nParameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate == 0? True:\n(Parameters.ModelData.BatchLoopIndex % Parameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate) == 0\n)',
   )) {
-    // .NET assembly: NationalInstruments.TestStand.SemiconductorModule.dll
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.Manager.ISiteNumberMapper.Use Existing Object
-    //   Existing Object <- #NoValidation(RunState.Execution.RunTimeVariables.NI.SemiconductorModule.Restricted.SiteNumberMapper)
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.Manager.ISiteNumberMapper.TestSocketIndexToSiteNumber
-    //   Return Value <- Locals.SiteNumber
-    //   testSocketIndex <- RunState.TestSockets.MyIndex
-    ts.notExported(
-      'dotNet call: NationalInstruments.TestStand.SemiconductorModule.Manager.ISiteNumberMapper.TestSocketIndexToSiteNumber',
-    ); // Convert Test Socket Index to Site Number [Action]
-    // .NET assembly: NationalInstruments.TestStand.SemiconductorModule.dll
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.Manager.SemiconductorModuleManager.Use Existing Object
-    //   Existing Object <- RunState.Engine.TemporaryGlobals.NI.SemiconductorModule.SemiconductorModuleManager
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.Manager.SemiconductorModuleManager.NumberOfSites
-    //   Return Value <- Locals.NumberOfSites
-    ts.notExported(
-      'dotNet call: NationalInstruments.TestStand.SemiconductorModule.Manager.SemiconductorModuleManager.NumberOfSites',
-    ); // Get Number Of Sites [Action]
-    // .NET assembly: NationalInstruments.TestStand.SemiconductorModule.dll
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.Use Existing Object
-    //   Existing Object <- Parameters.ModelPlugin.PluginSpecific.RuntimeVariables.PerformanceMeasurementLogger
-    // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.ProcessMainSequenceResult
-    //   mainSequenceResult <- Parameters.MainSequenceResult
-    //   uutContainer <- Parameters.UUT
-    //   siteNumber <- Locals.SiteNumber
-    //   numberOfSites <- Locals.NumberOfSites
-    ts.notExported(
-      'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.ProcessMainSequenceResult',
-    ); // Process MainSequence Result [Action]
+    await ts.callDotNet(
+      'NationalInstruments.TestStand.SemiconductorModule.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.Manager.ISiteNumberMapper.Use Existing Object',
+      inputs: {
+        'Existing Object': ts.eval(
+          '#NoValidation(RunState.Execution.RunTimeVariables.NI.SemiconductorModule.Restricted.SiteNumberMapper)',
+        ),
+      },
+    ); // Convert Test Socket Index to Site Number
+    final outputs = await ts.callDotNet(
+      'NationalInstruments.TestStand.SemiconductorModule.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.Manager.ISiteNumberMapper.TestSocketIndexToSiteNumber',
+      inputs: {'testSocketIndex': ts.eval('RunState.TestSockets.MyIndex')},
+    ); // Convert Test Socket Index to Site Number
+    locals.siteNumber = outputs['Return Value'] as int;
+    await ts.callDotNet(
+      'NationalInstruments.TestStand.SemiconductorModule.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.Manager.SemiconductorModuleManager.Use Existing Object',
+      inputs: {
+        'Existing Object': ts.eval(
+          'RunState.Engine.TemporaryGlobals.NI.SemiconductorModule.SemiconductorModuleManager',
+        ),
+      },
+    ); // Get Number Of Sites
+    final outputs2 = await ts.callDotNet(
+      'NationalInstruments.TestStand.SemiconductorModule.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.Manager.SemiconductorModuleManager.NumberOfSites',
+    ); // Get Number Of Sites
+    locals.numberOfSites = outputs2['Return Value'] as int;
+    await ts.callDotNet(
+      'NationalInstruments.TestStand.SemiconductorModule.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.Use Existing Object',
+      inputs: {'Existing Object': modelPlugin.PluginSpecific.RuntimeVariables.PerformanceMeasurementLogger},
+    ); // Process MainSequence Result
+    await ts.callDotNet(
+      'NationalInstruments.TestStand.SemiconductorModule.dll',
+      'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.ProcessMainSequenceResult',
+      inputs: {
+        'mainSequenceResult': mainSequenceResult,
+        'uutContainer': uut,
+        'siteNumber': locals.siteNumber,
+        'numberOfSites': locals.numberOfSites,
+      },
+    ); // Process MainSequence Result
     if (modelData.ModelType == 'Sequential') {
       // We log the data here for the sequential model since Post Batch is only called for the batch model.
       await logDataToFile(
@@ -270,34 +293,49 @@ Future<void> modelPluginPostBatch({
   }
 }
 
+class _LogDataToFileLocals {
+  int socketTime = 0;
+}
+
 /// Sequence `Log Data to File`.
 Future<void> logDataToFile({dynamic performanceMeasurementLogger}) async {
   performanceMeasurementLogger = ts.copy(performanceMeasurementLogger);
 
-  // .NET assembly: API\DotNET\Assemblies\CurrentVersion\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll
-  // .NET call: NationalInstruments.TestStand.SemiconductorModule.SemiconductorModuleManagerFactory.GetSemiconductorModuleManager
-  //   engine <- RunState.Engine
-  // .NET call: NationalInstruments.TestStand.SemiconductorModule.ISemiconductorModuleManager.AllSiteLotStatistics
-  // .NET call: NationalInstruments.TestStand.SemiconductorModule.ILotStatistics.LastSocketTime
-  //   Return Value <- Locals.SocketTime
-  ts.notExported(
-    'dotNet call: NationalInstruments.TestStand.SemiconductorModule.SemiconductorModuleManagerFactory.LastSocketTime',
-  ); // Get Socket Time [Action]
-  // .NET assembly: NationalInstruments.TestStand.SemiconductorModule.dll
-  // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.Use Existing Object
-  //   Existing Object <- Parameters.PerformanceMeasurementLogger
-  // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.AddSocketTimeToStepData
-  //   socketTimeInMilliseconds <- Locals.SocketTime
-  ts.notExported(
-    'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.AddSocketTimeToStepData',
-  ); // Record Socket Time [Action]
-  // .NET assembly: NationalInstruments.TestStand.SemiconductorModule.dll
-  // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.Use Existing Object
-  //   Existing Object <- Parameters.PerformanceMeasurementLogger
-  // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.WriteAllStepDataToPerformanceLogFile
-  ts.notExported(
-    'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.WriteAllStepDataToPerformanceLogFile',
-  ); // Log to File [Action]
+  final locals = _LogDataToFileLocals();
+
+  await ts.callDotNet(
+    'API\\DotNET\\Assemblies\\CurrentVersion\\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll',
+    'NationalInstruments.TestStand.SemiconductorModule.SemiconductorModuleManagerFactory.GetSemiconductorModuleManager',
+    inputs: {'engine': ts.eval('RunState.Engine')},
+  ); // Get Socket Time
+  await ts.callDotNet(
+    'API\\DotNET\\Assemblies\\CurrentVersion\\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll',
+    'NationalInstruments.TestStand.SemiconductorModule.ISemiconductorModuleManager.AllSiteLotStatistics',
+  ); // Get Socket Time
+  final outputs = await ts.callDotNet(
+    'API\\DotNET\\Assemblies\\CurrentVersion\\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll',
+    'NationalInstruments.TestStand.SemiconductorModule.ILotStatistics.LastSocketTime',
+  ); // Get Socket Time
+  locals.socketTime = outputs['Return Value'] as int;
+  await ts.callDotNet(
+    'NationalInstruments.TestStand.SemiconductorModule.dll',
+    'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.Use Existing Object',
+    inputs: {'Existing Object': performanceMeasurementLogger},
+  ); // Record Socket Time
+  await ts.callDotNet(
+    'NationalInstruments.TestStand.SemiconductorModule.dll',
+    'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.AddSocketTimeToStepData',
+    inputs: {'socketTimeInMilliseconds': locals.socketTime},
+  ); // Record Socket Time
+  await ts.callDotNet(
+    'NationalInstruments.TestStand.SemiconductorModule.dll',
+    'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.Use Existing Object',
+    inputs: {'Existing Object': performanceMeasurementLogger},
+  ); // Log to File
+  await ts.callDotNet(
+    'NationalInstruments.TestStand.SemiconductorModule.dll',
+    'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.WriteAllStepDataToPerformanceLogFile',
+  ); // Log to File
 }
 
 /// Sequence `(Reserved) Model Plugin - Pre Batch`.

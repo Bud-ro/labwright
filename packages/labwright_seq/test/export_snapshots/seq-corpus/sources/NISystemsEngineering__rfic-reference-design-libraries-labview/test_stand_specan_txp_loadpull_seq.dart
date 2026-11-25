@@ -193,39 +193,51 @@ Future<void> mainSequence() async {
     ); // Initialize Waveform Arrays
     ts.setNumElements(loadedWaveforms, ts.getNumElements(staticStationConfigs.Waveform_Configs));
     // Initialize Instruments
-    //   IP Address <- FileGlobals.Static_Station_Configs.Device_Names.Tuner_IP
-    //   Verify Communication (True) <- True
-    //   Reset (True) <- False
-    //   iTuner reference out <- FileGlobals.Device_Handles.iTunerReference
-    //   error out <- Step.Result.Error
-    await callInitialize(); // Init Tuner [Action]
-    //   id query <- True
-    //   reset device <- False
-    //   instrument handle <- FileGlobals.Device_Handles.RFSG
-    //   error out <- Step.Result.Error
-    await callNiRfsgInitialize(); // Init RFSG [Action]
-    //   Option String <- ""
-    //   Instrument Handle Out <- FileGlobals.Device_Handles.RFmx
-    //   error out <- Step.Result.Error
-    await callRFmxInstrInitializeNirfsa(); // RFmx Initialize [Action]
+    final outputs = await ts.callVi(
+      'Public\\Initialize.vi',
+      inputs: {
+        'IP Address': staticStationConfigs.Device_Names.Tuner_IP,
+        'Verify Communication (True)': true,
+        'Reset (True)': false,
+      },
+    ); // Init Tuner
+    deviceHandles.iTunerReference = outputs['iTuner reference out'];
+    final outputs2 = await ts.callVi(
+      'niRFSG.llb\\niRFSG Initialize.vi',
+      inputs: {'resource name.DeviceName': staticStationConfigs.Device_Names.SG_Name, 'resource name.SessionNumber': 0},
+    ); // Init RFSG
+    deviceHandles.RFSG = outputs2['instrument handle'];
+    final outputs3 = await ts.callVi(
+      'RFInstr\\mx\\RFmxInstr.llb\\RFmxInstr Initialize NIRFSA.vi',
+      inputs: {'Resource Name.DeviceName': staticStationConfigs.Device_Names.SA_Name, 'Resource Name.SessionNumber': 0},
+    ); // RFmx Initialize
+    deviceHandles.RFmx = outputs3['Instrument Handle Out'];
     // Load Waveforms and Create Signals
     locals.waveformConfigsIdx = 0; // Reset Wfm config index
     for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
       locals.currentWaveformConfig = element;
-      //   TDMS File Path <- Locals.Current_Waveform_Config.Absolute_Disk_Path
-      //   Waveform Name (File Name) <- ""
-      //   Waveform <- Locals.Current_Waveform
-      //   error out <- Step.Result.Error
-      await callLoadWaveformFromTdms(); // Load Waveform from TDMS [Action]
-      //   RFSG handle <- FileGlobals.Device_Handles.RFSG
-      //   Waveform In <- Locals.Current_Waveform
-      //   error out <- Step.Result.Error
-      await callDownloadWaveform(); // Download Waveform to Generator [Action]
-      //   Signal Name <- Locals.Current_Waveform.Name+"SpecAn"
-      //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-      //   Selector String Out <- Locals.Current_RFmx_SpecAn_Signal
-      //   error out <- Step.Result.Error
-      await callRFmxSpecAnCreateSignalConfiguration(); // Create SpecAn Signal Configuration [Action]
+      final outputs4 = await ts.callVi(
+        '..\\..\\Source\\SG\\Load Waveform From TDMS.vi',
+        inputs: {
+          'TDMS File Path': locals.currentWaveformConfig.Absolute_Disk_Path,
+          'error in (no error).status': false,
+          'error in (no error).code': 0,
+          'error in (no error).source': '',
+        },
+      ); // Load Waveform from TDMS
+      locals.currentWaveform = outputs4['Waveform'];
+      await ts.callVi(
+        '..\\..\\Source\\SG\\Download Waveform.vi',
+        inputs: {'RFSG handle': deviceHandles.RFSG, 'Waveform In': locals.currentWaveform},
+      ); // Download Waveform to Generator
+      final outputs5 = await ts.callVi(
+        'SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Create Signal Configuration.vi',
+        inputs: {
+          'Signal Name': '${locals.currentWaveform.Name as String}SpecAn',
+          'Instrument Handle In': deviceHandles.RFmx,
+        },
+      ); // Create SpecAn Signal Configuration
+      locals.currentRFmxSpecAnSignal = outputs5['Selector String Out'] as String;
       loadedWaveformIndexes[locals.waveformConfigsIdx] = locals.waveformConfigsIdx; // Store Loaded Waveforms
       loadedWaveforms[locals.waveformConfigsIdx] = locals.currentWaveform;
       locals.waveformConfigsIdx++;
@@ -247,16 +259,15 @@ Future<void> mainSequence() async {
     }
   } finally {
     // Instrument Cleanup
-    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-    //   Force Destroy? (F) <- False
-    //   error out <- Step.Result.Error
-    await callRFmxInstrClose(); // RFmx Close [Action]
-    //   instrument handle <- FileGlobals.Device_Handles.RFSG
-    //   error out <- Step.Result.Error
-    await callNiRfsgClose(); // Close RFSG [Action]
-    //   iTuner reference in <- FileGlobals.Device_Handles.iTunerReference
-    //   error out <- Step.Result.Error
-    await callCloseTuner(); // Close Tuner [Action]
+    await ts.callVi(
+      'RFInstr\\mx\\RFmxInstr.llb\\RFmxInstr Close.vi',
+      inputs: {'Instrument Handle In': deviceHandles.RFmx},
+    ); // RFmx Close
+    await ts.callVi('niRFSG.llb\\niRFSG Close.vi', inputs: {'instrument handle': deviceHandles.RFSG}); // Close RFSG
+    await ts.callVi(
+      '..\\..\\Source\\FocusTuner\\Methods\\Close Tuner.vi',
+      inputs: {'iTuner reference in': deviceHandles.iTunerReference},
+    ); // Close Tuner
     // With theData Streams API, the reference to the output stream file is closed.
     outputFile.AsOutputRecordStream.Close(); // Close Output Stream Reference
   }
@@ -285,48 +296,61 @@ Future<void> configure() async {
       staticStationConfigs.DUT_Params.Gain_dB; // Calculate Reference Level
   configurations.Analyzer.SpecAn_Common_Config.Reference_Level__dBm_ =
       currentSweepStep.Calculated_Parameters.SA_Ref_Level;
-  //   Result Name <- ""
-  //   Signal Name <- FileGlobals.Current_Sweep_Step.Loaded_Waveform.Name+"SpecAn"
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  await callRFmxSpecAnBuildSignalString(); // Build SpecAn Signal String [Action]
+  final outputs = await ts.callVi(
+    'SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Build Signal String.vi',
+    inputs: {'Signal Name': '${currentSweepStep.Loaded_Waveform.Name as String}SpecAn'},
+  ); // Build SpecAn Signal String
+  configurations.Analyzer.RFmxSpecAn_Selector_String = outputs['Selector String'];
 
   // Configure Generator
   // Configure continuous generation and software triggers.
-  //   RFSG handle <- FileGlobals.Device_Handles.RFSG
-  //   Waveform in <- FileGlobals.Current_Sweep_Step.Loaded_Waveform
-  //   Waveform Start Trigger Export <- "PXI_Trig0"
-  //   error out <- Step.Result.Error
-  await callConfigureContinuousGeneration(); // Configure Continuous Generation [Action]
-  //   RFSG Session In <- FileGlobals.Device_Handles.RFSG
-  //   SG Configuration <- FileGlobals.Configurations.Generator.RFSGConfig
-  //   error out <- Step.Result.Error
-  await callConfigureInstrument(); // RFSG Config Instrument [Action]
-  //   instrument handle <- FileGlobals.Device_Handles.RFSG
-  //   error out <- Step.Result.Error
-  await callNiRfsgInitiate(); // RFSG Initiate [Action]
+  await ts.callVi(
+    '..\\..\\Source\\SG\\Configure Continuous Generation.vi',
+    inputs: {'RFSG handle': deviceHandles.RFSG, 'Waveform in': currentSweepStep.Loaded_Waveform},
+  ); // Configure Continuous Generation
+  await ts.callVi(
+    '..\\..\\Source\\SG\\Configure Instrument.vi',
+    inputs: {'RFSG Session In': deviceHandles.RFSG, 'SG Configuration': configurations.Generator.RFSGConfig},
+  ); // RFSG Config Instrument
+  await ts.callVi('niRFSG.llb\\niRFSG Initiate.vi', inputs: {'instrument handle': deviceHandles.RFSG}); // RFSG Initiate
   // Configure Analyzer
-  //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-  //   Instrument Configuration <- FileGlobals.Configurations.Analyzer.Instrument_Configuration
-  //   error out <- Step.Result.Error
-  await callConfigureInstrument2(); // Configure Instrument [Action]
+  await ts.callVi(
+    '..\\..\\Source\\SA\\RFmxInstr\\Configuration\\Configure Instrument.vi',
+    inputs: {
+      'Instrument Handle In': deviceHandles.RFmx,
+      'Instrument Configuration': configurations.Analyzer.Instrument_Configuration,
+    },
+  ); // Configure Instrument
   // Configure SpecAn measurements
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  //   RFmx Handle In <- FileGlobals.Device_Handles.RFmx
-  //   Common Configuration <- FileGlobals.Configurations.Analyzer.SpecAn_Common_Config
-  //   error out <- Step.Result.Error
-  await callSpecAnConfigureCommon(); // SpecAn Common Config [Action]
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-  //   TxP Config <- FileGlobals.Configurations.Analyzer.Measurements.TxP_Config
-  //   error out <- Step.Result.Error
-  await callSpecAnConfigureTxP(); // SpecAn Configure TxP [Action]
+  await ts.callVi(
+    '..\\..\\Source\\SA\\RFmxSpecAn\\SpecAn Configure Common.vi',
+    inputs: {
+      'Selector String': configurations.Analyzer.RFmxSpecAn_Selector_String,
+      'RFmx Handle In': deviceHandles.RFmx,
+      'Common Configuration': configurations.Analyzer.SpecAn_Common_Config,
+    },
+  ); // SpecAn Common Config
+  await ts.callVi(
+    '..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Configure TxP.vi',
+    inputs: {
+      'Selector String': configurations.Analyzer.RFmxSpecAn_Selector_String,
+      'Instrument Handle In': deviceHandles.RFmx,
+      'TxP Config': configurations.Analyzer.Measurements.TxP_Config,
+    },
+  ); // SpecAn Configure TxP
   // Average input power is set to the applied value from the sweep file
   currentSweepStep.Input_and_Output.MEAS.Avg_Input_Power_dBm =
       configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_; // Map Input Power
-  //   iTuner reference in <- FileGlobals.Device_Handles.iTunerReference
-  //   Primary Frequency (GHz) <- FileGlobals.Current_Sweep_Step.Results.Tuner_Primary_Frequency_GHz
-  //   error out <- Step.Result.Error
-  await callConfigureCommon(); // Configure Tuner [Action]
+  final outputs2 = await ts.callVi(
+    '..\\..\\Source\\FocusTuner\\Methods\\Configure Common.vi',
+    inputs: {
+      'iTuner reference in': deviceHandles.iTunerReference,
+      'Common Configuration.Tuner Mode': configurations.Tuner.Tuner_Config.Tuner_Mode,
+      'Common Configuration.Calibration ID': configurations.Tuner.Tuner_Config.Calibration_ID,
+      'Common Configuration.DUT to Tuner S-parameters': configurations.Tuner.Tuner_Config.DUT_to_Tuner_S_parameters,
+    },
+  ); // Configure Tuner
+  currentSweepStep.Results.Tuner_Primary_Frequency_GHz = outputs2['Primary Frequency (GHz)'];
   // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
   currentSweepStep.Input_and_Output.PARAMS.WaveformName = currentSweepStep.Loaded_Waveform.Name; // Map Results
 }
@@ -334,24 +358,33 @@ Future<void> configure() async {
 /// Sequence `Measure`.
 Future<void> measure() async {
   try {
-    //   iTuner reference in <- FileGlobals.Device_Handles.iTunerReference
-    //   Timeout (s) <- 60
-    //   Current VSWR and Phase <- FileGlobals.Current_Sweep_Step.Results.VSWR_and_Phase
-    //   error out <- Step.Result.Error
-    await callMoveTunerPerVswr(); // Move Tuner [Action]
-    //   Result Name <- ""
-    //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-    //   Auto Level Configuration <- FileGlobals.Configurations.Analyzer.Auto_Level_Config
-    //   Auto Level Bandwidth (Hz) <- 400000000
-    //   Enable All Traces (F) <- False
-    //   error out <- Step.Result.Error
-    await callSpecAnSelectAndInitiateMeasurements(); // Select and Initiate SpecAn TxP Measurement [Action]
-    //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-    //   TxP Results <- FileGlobals.Current_Sweep_Step.Results.TxP_Results
-    //   error out <- Step.Result.Error
-    await callSpecAnFetchTxP(); // SpecAn Fetch TxP [Action]
+    final outputs = await ts.callVi(
+      '..\\..\\Source\\FocusTuner\\Methods\\Move Tuner per VSWR.vi',
+      inputs: {
+        'iTuner reference in': deviceHandles.iTunerReference,
+        'VSWR and Phase.VSWR': configurations.Tuner.VSWR_And_Phase.VSWR,
+        'VSWR and Phase.Phase': configurations.Tuner.VSWR_And_Phase.Phase,
+      },
+    ); // Move Tuner
+    currentSweepStep.Results.VSWR_and_Phase = outputs['Current VSWR and Phase'];
+    await ts.callVi(
+      '..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Select and Initiate Measurements.vi',
+      inputs: {
+        'Selector String': configurations.Analyzer.RFmxSpecAn_Selector_String,
+        'Instrument Handle In': deviceHandles.RFmx,
+        'Measurements.[0]': 9,
+        'Auto Level Configuration': configurations.Analyzer.Auto_Level_Config,
+        'Auto Level Bandwidth (Hz)': 400000000,
+      },
+    ); // Select and Initiate SpecAn TxP Measurement
+    final outputs2 = await ts.callVi(
+      '..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Fetch TxP.vi',
+      inputs: {
+        'Selector String': configurations.Analyzer.RFmxSpecAn_Selector_String,
+        'Instrument Handle In': deviceHandles.RFmx,
+      },
+    ); // SpecAn Fetch TxP
+    currentSweepStep.Results.TxP_Results = outputs2['TxP Results'];
     // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
     currentSweepStep.Input_and_Output.MEAS.Avg_Mean_Power_dBm =
         currentSweepStep.Results.TxP_Results.Average_Mean_Power__dBm_; // Map Results
@@ -360,10 +393,10 @@ Future<void> measure() async {
     currentSweepStep.Input_and_Output.MEAS.Tuner_Primary_Frequency =
         currentSweepStep.Results.Tuner_Primary_Frequency_GHz * 1000000000.0;
   } finally {
-    //   RFSG handle <- FileGlobals.Device_Handles.RFSG
-    //   Timeout (ms) <- 1000
-    //   error out <- Step.Result.Error
-    await callAbortGeneration(); // Abort Dynamic Generation [Action]
+    await ts.callVi(
+      '..\\..\\Source\\SG\\Abort Generation.vi',
+      inputs: {'RFSG handle': deviceHandles.RFSG},
+    ); // Abort Dynamic Generation
   }
 }
 
@@ -374,85 +407,3 @@ Future<void> sequenceFileLoad() async {
     'If this is your first time opening this example sequence, please make sure to check the following:\n\n- To use the proper RF devices, in the Variable pane navigate to FileGlobals.Static_Station_Configs.Device_Names \n  and enter the device identifiers there. \n\n- When using a PXIe 5830/31 enter the respective portnames in FileGlobals.Configurations.Analyzer.Common_Config.SelectedPorts and in\n  FileGlobals.Configurations.Generator.RFSGConfig.SelectedPorts.\n\n- You can change the waveform configuration under FileGlobals.Static_Station_Configs.Waveform_Configs. \n\n- All other Analyzer and Generator configurations can be found in the Configurations Container.\n\n- The sequence will write a CSV result file in <./DataFiles/Results/>. You can change the parameters and measurements written to the file in \n  FileGlobals.Current_Sweep_Step.Input_and_Output and by adapting the \'Map Results\' expression step in the Measure subsequence.\n\nFeel free to keep this message from appearing next time you load the sequence by removing the \'SequenceFileLoad\' callback from the Sequences pane.',
   );
 }
-
-/// The labView module `Public\Initialize.vi`.
-Future<Object?> callInitialize() async => throw UnimplementedError('labView call: Public\\Initialize.vi');
-
-/// The labView module `niRFSG.llb\niRFSG Initialize.vi`.
-Future<Object?> callNiRfsgInitialize() async =>
-    throw UnimplementedError('labView call: niRFSG.llb\\niRFSG Initialize.vi');
-
-/// The labView module `RFInstr\mx\RFmxInstr.llb\RFmxInstr Initialize NIRFSA.vi`.
-Future<Object?> callRFmxInstrInitializeNirfsa() async =>
-    throw UnimplementedError('labView call: RFInstr\\mx\\RFmxInstr.llb\\RFmxInstr Initialize NIRFSA.vi');
-
-/// The labView module `..\..\Source\SG\Load Waveform From TDMS.vi`.
-Future<Object?> callLoadWaveformFromTdms() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SG\\Load Waveform From TDMS.vi');
-
-/// The labView module `..\..\Source\SG\Download Waveform.vi`.
-Future<Object?> callDownloadWaveform() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SG\\Download Waveform.vi');
-
-/// The labView module `SpecAn\mx\RFmxSpecAn.llb\RFmxSpecAn Create Signal Configuration.vi`.
-Future<Object?> callRFmxSpecAnCreateSignalConfiguration() async =>
-    throw UnimplementedError('labView call: SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Create Signal Configuration.vi');
-
-/// The labView module `RFInstr\mx\RFmxInstr.llb\RFmxInstr Close.vi`.
-Future<Object?> callRFmxInstrClose() async =>
-    throw UnimplementedError('labView call: RFInstr\\mx\\RFmxInstr.llb\\RFmxInstr Close.vi');
-
-/// The labView module `niRFSG.llb\niRFSG Close.vi`.
-Future<Object?> callNiRfsgClose() async => throw UnimplementedError('labView call: niRFSG.llb\\niRFSG Close.vi');
-
-/// The labView module `..\..\Source\FocusTuner\Methods\Close Tuner.vi`.
-Future<Object?> callCloseTuner() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\FocusTuner\\Methods\\Close Tuner.vi');
-
-/// The labView module `SpecAn\mx\RFmxSpecAn.llb\RFmxSpecAn Build Signal String.vi`.
-Future<Object?> callRFmxSpecAnBuildSignalString() async =>
-    throw UnimplementedError('labView call: SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Build Signal String.vi');
-
-/// The labView module `..\..\Source\SG\Configure Continuous Generation.vi`.
-Future<Object?> callConfigureContinuousGeneration() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SG\\Configure Continuous Generation.vi');
-
-/// The labView module `..\..\Source\SG\Configure Instrument.vi`.
-Future<Object?> callConfigureInstrument() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SG\\Configure Instrument.vi');
-
-/// The labView module `niRFSG.llb\niRFSG Initiate.vi`.
-Future<Object?> callNiRfsgInitiate() async => throw UnimplementedError('labView call: niRFSG.llb\\niRFSG Initiate.vi');
-
-/// The labView module `..\..\Source\SA\RFmxInstr\Configuration\Configure Instrument.vi`.
-Future<Object?> callConfigureInstrument2() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxInstr\\Configuration\\Configure Instrument.vi');
-
-/// The labView module `..\..\Source\SA\RFmxSpecAn\SpecAn Configure Common.vi`.
-Future<Object?> callSpecAnConfigureCommon() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxSpecAn\\SpecAn Configure Common.vi');
-
-/// The labView module `..\..\Source\SA\RFmxSpecAn\Measurements\SpecAn Configure TxP.vi`.
-Future<Object?> callSpecAnConfigureTxP() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Configure TxP.vi');
-
-/// The labView module `..\..\Source\FocusTuner\Methods\Configure Common.vi`.
-Future<Object?> callConfigureCommon() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\FocusTuner\\Methods\\Configure Common.vi');
-
-/// The labView module `..\..\Source\FocusTuner\Methods\Move Tuner per VSWR.vi`.
-Future<Object?> callMoveTunerPerVswr() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\FocusTuner\\Methods\\Move Tuner per VSWR.vi');
-
-/// The labView module `..\..\Source\SA\RFmxSpecAn\Measurements\SpecAn Select and Initiate Measurements.vi`.
-Future<Object?> callSpecAnSelectAndInitiateMeasurements() async => throw UnimplementedError(
-  'labView call: ..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Select and Initiate Measurements.vi',
-);
-
-/// The labView module `..\..\Source\SA\RFmxSpecAn\Measurements\SpecAn Fetch TxP.vi`.
-Future<Object?> callSpecAnFetchTxP() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Fetch TxP.vi');
-
-/// The labView module `..\..\Source\SG\Abort Generation.vi`.
-Future<Object?> callAbortGeneration() async =>
-    throw UnimplementedError('labView call: ..\\..\\Source\\SG\\Abort Generation.vi');

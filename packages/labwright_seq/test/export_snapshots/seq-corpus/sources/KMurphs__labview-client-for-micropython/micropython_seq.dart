@@ -9,8 +9,13 @@ dynamic uut = ts.PropObj({
   }),
 });
 
+class _MainSequenceLocals {
+  String reply = '';
+}
+
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
+  final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
   final dynamic downloadTestFunctionsScriptResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -28,18 +33,23 @@ Future<ts.Status> mainSequence() async {
   });
 
   try {
-    //   Timeout <- 100
-    //   Comport Out <- FileGlobals.UUT.Serial.SessionReference
-    //   error out <- Step.Result.Error
-    await callInitialize(); // Initialize Connection [Action]
+    final outputs = await ts.callVi(
+      '..\\..\\MicroPythonClient\\Public\\Initialize.vi',
+      inputs: {
+        'Comport.DeviceName': uut.Serial.Comport,
+        'Comport.SessionNumber': -1026555904,
+        'Serial Settings.baud rate': uut.Serial.BaudRate,
+      },
+    ); // Initialize Connection
+    uut.Serial.SessionReference = outputs['Comport Out'];
     // Provide a script with a set of (test) functions, so these can be invoked as needed using SendCommand.vi
-    //   Comport <- FileGlobals.UUT.Serial.SessionReference
-    //   Script File <- "sample.script.py"
-    //   Comport Out <- FileGlobals.UUT.Serial.SessionReference
-    //   Reply <- Step.Result.ReportText
-    //   DownloadSuccessful <- Step.Result.PassFail
-    //   error out <- Step.Result.Error
-    await callUploadScript(); // Download Test Functions / Script [PassFailTest]
+    final outputs2 = await ts.callVi(
+      '..\\..\\MicroPythonClient\\Public\\UploadScript.vi',
+      inputs: {'Comport': uut.Serial.SessionReference},
+    ); // Download Test Functions / Script
+    uut.Serial.SessionReference = outputs2['Comport Out'];
+    downloadTestFunctionsScriptResult.ReportText = outputs2['Reply'];
+    downloadTestFunctionsScriptResult.PassFail = outputs2['DownloadSuccessful'];
     downloadTestFunctionsScriptResult.Status = ts.truthy(downloadTestFunctionsScriptResult.PassFail)
         ? 'Passed'
         : 'Failed';
@@ -47,39 +57,22 @@ Future<ts.Status> mainSequence() async {
 
     // Invoke one of these previously test functions and assess the response.
     // This might be the state of some Pin, the content of the EEPROM, ...
-    //   Comport <- FileGlobals.UUT.Serial.SessionReference
-    //   Command <- "help()"
-    //   Timeout (Sec) <- 500
-    //   Wait Before Read (Ms) <- 50
-    //   Comport Out <- FileGlobals.UUT.Serial.SessionReference
-    //   Reply <- Step.Result.ReportText
-    //   Last Reply Entry <- Locals.Reply
-    //   error out <- Step.Result.Error
-    await callSendCommand(); // Interact with Device [PassFailTest]
+    final outputs3 = await ts.callVi(
+      '..\\..\\MicroPythonClient\\Public\\SendCommand.vi',
+      inputs: {'Comport': uut.Serial.SessionReference, 'Command': 'help()'},
+    ); // Interact with Device
+    uut.Serial.SessionReference = outputs3['Comport Out'];
+    interactWithDeviceResult.ReportText = outputs3['Reply'];
+    locals.reply = outputs3['Last Reply Entry'] as String;
     ts.eval('Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False');
     interactWithDeviceResult.Status = ts.truthy(interactWithDeviceResult.PassFail) ? 'Passed' : 'Failed';
     run.record(interactWithDeviceResult.Status);
   } finally {
-    //   Comport <- FileGlobals.UUT.Serial.SessionReference
-    //   error out <- Step.Result.Error
-    await callClose(); // Close Connection [Action]
+    await ts.callVi(
+      '..\\..\\MicroPythonClient\\Public\\Close.vi',
+      inputs: {'Comport': uut.Serial.SessionReference},
+    ); // Close Connection
   }
 
   return run.status;
 }
-
-/// The labView module `..\..\MicroPythonClient\Public\Initialize.vi`.
-Future<Object?> callInitialize() async =>
-    throw UnimplementedError('labView call: ..\\..\\MicroPythonClient\\Public\\Initialize.vi');
-
-/// The labView module `..\..\MicroPythonClient\Public\UploadScript.vi`.
-Future<Object?> callUploadScript() async =>
-    throw UnimplementedError('labView call: ..\\..\\MicroPythonClient\\Public\\UploadScript.vi');
-
-/// The labView module `..\..\MicroPythonClient\Public\SendCommand.vi`.
-Future<Object?> callSendCommand() async =>
-    throw UnimplementedError('labView call: ..\\..\\MicroPythonClient\\Public\\SendCommand.vi');
-
-/// The labView module `..\..\MicroPythonClient\Public\Close.vi`.
-Future<Object?> callClose() async =>
-    throw UnimplementedError('labView call: ..\\..\\MicroPythonClient\\Public\\Close.vi');

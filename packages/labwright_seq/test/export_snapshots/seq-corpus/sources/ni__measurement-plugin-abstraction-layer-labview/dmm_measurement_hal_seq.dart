@@ -9,9 +9,10 @@ Future<void> mainSequence() async {
     await ts.updatePinMap(
       'D:\\RA Tools Git\\abstraction-layer-labview\\Source\\HAL Implementation\\DmmMeasurementHAL.pinmap',
     );
-    //   sequence context in <- ThisContext
-    //   error out <- Step.Result.Error
-    await callInitializeAndRegisterSessions(); // Initialize and Register DMM sessions [Action]
+    await ts.callVi(
+      'My Computer\\DmmMeasurementHAL.lvlib\\TestStand Code Modules\\Initialize and Register Sessions.vi',
+      passesContext: true,
+    ); // Initialize and Register DMM sessions
 
     await ts.measurement('DmmMeasurementHAL_LabVIEW', {
       'pin_name': 'NI_DMM_PIN',
@@ -20,17 +21,8 @@ Future<void> mainSequence() async {
       'Resolution in Digits': 2,
     });
   } finally {
-    //   error out <- Step.Result.Error
-    await callUnregisterAndCloseSessions(); // Unregister and Close DMM Sessions [Action]
+    await ts.callVi(
+      'My Computer\\DmmMeasurementHAL.lvlib\\TestStand Code Modules\\Unregister and Close Sessions.vi',
+    ); // Unregister and Close DMM Sessions
   }
 }
-
-/// The labView module `My Computer\DmmMeasurementHAL.lvlib\TestStand Code Modules\Initialize and Register Sessions.vi`.
-Future<Object?> callInitializeAndRegisterSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\DmmMeasurementHAL.lvlib\\TestStand Code Modules\\Initialize and Register Sessions.vi',
-);
-
-/// The labView module `My Computer\DmmMeasurementHAL.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi`.
-Future<Object?> callUnregisterAndCloseSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\DmmMeasurementHAL.lvlib\\TestStand Code Modules\\Unregister and Close Sessions.vi',
-);

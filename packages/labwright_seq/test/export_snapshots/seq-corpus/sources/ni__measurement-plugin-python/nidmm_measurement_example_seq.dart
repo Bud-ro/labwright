@@ -7,8 +7,11 @@ dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('NIDmmMeasurement.pinmap');
-    //   sequence_context <- ThisContext
-    ts.notExported('python call: teststand_nidmm.py'); // Create and register NI-DMM Sessions [Action]
+    await ts.callPython(
+      'teststand_nidmm.py',
+      'create_nidmm_sessions',
+      passesContext: true,
+    ); // Create and register NI-DMM Sessions
 
     await ts.measurement('ni.examples.NIDmmMeasurement_Python', {
       'pin_name': 'Pin1',
@@ -17,6 +20,6 @@ Future<void> mainSequence() async {
       'resolution_digits': 5.5,
     });
   } finally {
-    ts.notExported('python call: teststand_nidmm.py'); // Destroy and unregister NI-DMM sessions [Action]
+    await ts.callPython('teststand_nidmm.py', 'destroy_nidmm_sessions'); // Destroy and unregister NI-DMM sessions
   }
 }

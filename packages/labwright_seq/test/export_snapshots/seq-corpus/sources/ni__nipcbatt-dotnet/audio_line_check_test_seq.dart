@@ -6,6 +6,15 @@ Future<void> mainSequence() async {
   await audioLineCheckTest(); // Audio Line Check Test
 }
 
+class _AudioLineCheckTestLocals {
+  dynamic svgRessource;
+  dynamic fdmRessource;
+  List<dynamic> channelSettings = <dynamic>[];
+  dynamic artifactsManagerSvg;
+  dynamic artifactsManagerFdm;
+  String documentPath = '';
+}
+
 /// Sequence `Audio Line Check Test`.
 Future<void> audioLineCheckTest({
   dynamic generationType,
@@ -19,6 +28,8 @@ Future<void> audioLineCheckTest({
   dynamic fdmResultData,
 }) async {
   multiToneSettings ??= <dynamic>[];
+
+  final locals = _AudioLineCheckTestLocals();
 
   try {
     // Example  - Demonstrates extraction of tones (Frequency domain measurement) from the captured Audio Signal (Single tone sine wave)
@@ -40,27 +51,35 @@ Future<void> audioLineCheckTest({
     ts.eval(
       '\n\nLocals.DateTime.Now = Str(Locals.DateTime.Month, "%.2u") + "-" + Str(Locals.DateTime.Day, "%.2u") + "-" + Right(Str(Locals.DateTime.Year, "%u"),2) + "-" + Str(Locals.DateTime.Hours, "%.2u") + "h" + Str(Locals.DateTime.Minutes, "%.2u") + "m" + Str(Locals.DateTime.Seconds, "%.2u") + "s"',
     );
-    // .NET call: System.Environment.GetFolderPath
-    //   Return Value <- Locals.DocumentPath
-    //   folder <- "MyDocuments"
-    ts.notExported('dotNet call: System.Environment.GetFolderPath'); // Get document path [Action]
+    final outputs = await ts.callDotNet(
+      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'System.Environment.GetFolderPath',
+      inputs: {'folder': 'MyDocuments'},
+    ); // Get document path
+    locals.documentPath = outputs['Return Value'] as String;
     //
     //
     // Initialize Result Folder
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-    //   Return Value <- Locals.ArtifactsManagerSVG
-    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\PCBA\\SVG - "+ Locals.DateTime.Now)
-    ts.notExported(
-      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-    ); // Signal Voltage Generation -  Initialize Result Folder [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-    //   Return Value <- Locals.ArtifactsManagerFDM
-    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\PCBA\\FDM  - "+ Locals.DateTime.Now)
-    ts.notExported(
-      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-    ); // Frequency Domain Measurement -  Initialize Result Folder [Action]
+    final outputs2 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\NI.Measurement.Foundation.dll',
+      'NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+      inputs: {
+        'measurementArtifactsOutputFolderAbsolutePath': ts.eval(
+          '#NoValidation(Locals.DocumentPath + "\\\\PCBA\\\\SVG - "+ Locals.DateTime.Now)',
+        ),
+      },
+    ); // Signal Voltage Generation -  Initialize Result Folder
+    locals.artifactsManagerSvg = outputs2['Return Value'];
+    final outputs3 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\NI.Measurement.Foundation.dll',
+      'NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+      inputs: {
+        'measurementArtifactsOutputFolderAbsolutePath': ts.eval(
+          '#NoValidation(Locals.DocumentPath + "\\\\PCBA\\\\FDM  - "+ Locals.DateTime.Now)',
+        ),
+      },
+    ); // Frequency Domain Measurement -  Initialize Result Folder
+    locals.artifactsManagerFdm = outputs3['Return Value'];
     //
     //
     // Initialize Hardware
@@ -68,96 +87,169 @@ Future<void> audioLineCheckTest({
     //
     // Generates Sine wave and Trigger to Initiate measurement
     //
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.CreateInstance
-    //   Return Value <- Locals.SVGRessource
-    //   analogOutputChannelExpression <- "TS_AudioLineIn0"
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.CreateInstance',
-    ); // Signal Voltage Generation - Initialize TS Analog Out [Action]
+    final outputs4 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.CreateInstance',
+      inputs: {'analogOutputChannelExpression': 'TS_AudioLineIn0'},
+    ); // Signal Voltage Generation - Initialize TS Analog Out
+    locals.svgRessource = outputs4['Return Value'];
     //
     // Configure Freq Domain Measurement settings to wait for Hardware Trigger
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.CreateInstance
-    //   Return Value <- Locals.FDMRessource
-    //   analogInputChannelExpression <- "TP_AudioLineOut0"
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.CreateInstance',
-    ); // Frequency Domain Measurement - Initialize TP [Action]
+    final outputs5 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.CreateInstance',
+      inputs: {'analogInputChannelExpression': 'TP_AudioLineOut0'},
+    ); // Frequency Domain Measurement - Initialize TP
+    locals.fdmRessource = outputs5['Return Value'];
     //
     //
     // Assign Measure Folder
     // Note: Build name, Directory and Save csv files.
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object
-    //   Existing Object <- Locals.SVGRessource
-    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.ExternalComponents
-    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-    //   measurementArtifactsManager <- Locals.ArtifactsManagerSVG
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.AttachArtifactsManager',
-    ); // Signal Voltage Generation - Assign Generation [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
-    //   Existing Object <- Locals.FDMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ExternalComponents
-    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-    //   measurementArtifactsManager <- Locals.ArtifactsManagerFDM
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.AttachArtifactsManager',
-    ); // Frequency Domain Measurement - Asign Assign Measure TP [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object',
+      inputs: {'Existing Object': locals.svgRessource},
+    ); // Signal Voltage Generation - Assign Generation
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.ExternalComponents',
+    ); // Signal Voltage Generation - Assign Generation
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers',
+    ); // Signal Voltage Generation - Assign Generation
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager',
+      inputs: {'measurementArtifactsManager': locals.artifactsManagerSvg},
+    ); // Signal Voltage Generation - Assign Generation
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.fdmRessource},
+    ); // Frequency Domain Measurement - Asign Assign Measure TP
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ExternalComponents',
+    ); // Frequency Domain Measurement - Asign Assign Measure TP
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers',
+    ); // Frequency Domain Measurement - Asign Assign Measure TP
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager',
+      inputs: {'measurementArtifactsManager': locals.artifactsManagerFdm},
+    ); // Frequency Domain Measurement - Asign Assign Measure TP
 
     // Audio Line Check
     // Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
     //
     // Configure Freq Domain Measurement settings to wait for Hardware Trigger (ConfigureOnly)
     //
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
-    //   Existing Object <- Locals.FDMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure
-    //   Return Value <- Parameters.FDMResultData
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure',
-    ); // Generates Sine wave and Trigger to Initiate measurement [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.fdmRessource},
+    ); // Generates Sine wave and Trigger to Initiate measurement
+    final outputs6 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure',
+      inputs: {
+        'parameters.ChannelAndTerminalSettings.GlobalSettings.TerminalConfiguration': 'RSE',
+        'parameters.ChannelAndTerminalSettings.GlobalSettings.MinimumValueVolts': -10,
+        'parameters.ChannelAndTerminalSettings.GlobalSettings.MaximumValueVolts': 10,
+        'parameters.ChannelAndTerminalSettings.ChannelsSettings': locals.channelSettings,
+        'parameters.Options.MeasurementExecutionType': 'ConfigureOnly',
+        'parameters.Options.MeasurementAnalysisRequirement': 'SkipAnalysis',
+        'parameters.TimingSettings.SampleClockSource': 'OnboardClock',
+        'parameters.TimingSettings.SamplingRateHertz': 10000,
+        'parameters.TimingSettings.NumberOfSamplesPerChannel': 1000,
+        'parameters.TimingSettings.SampleTimingEngine': 'Auto',
+        'parameters.TriggerSettings.TriggerType': 'DigitalStartTrigger',
+        'parameters.TriggerSettings.DigitalStartTriggerSource': '/Sim_TS/ao/StartTrigger',
+        'parameters.TriggerSettings.DigitalEdgeStartTriggerEdge': 'Rising',
+      },
+    ); // Generates Sine wave and Trigger to Initiate measurement
+    fdmResultData = outputs6['Return Value'];
     //
     // Generates Sine wave and Trigger to Initiate measurement
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object
-    //   Existing Object <- Locals.SVGRessource
-    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.ConfigureAndGenerate
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.ConfigureAndGenerate',
-    ); // Signal Voltage Generation - Configure and Generate Sine tones in TS Analog Out [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object',
+      inputs: {'Existing Object': locals.svgRessource},
+    ); // Signal Voltage Generation - Configure and Generate Sine tones in TS Analog Out
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.ConfigureAndGenerate',
+      inputs: {
+        'parameters.RangeSettings.MinimumValueVolts': -10,
+        'parameters.RangeSettings.MaximumValueVolts': 10,
+        'parameters.TimingSettings.SampleClockSource': 'OnboardClock',
+        'parameters.TimingSettings.SamplingRateHertz': 10000,
+        'parameters.TimingSettings.SampleTimingEngine': 'Auto',
+        'parameters.TriggerSettings.TriggerType': 'NoTrigger',
+        'parameters.TriggerSettings.DigitalStartTriggerSource': 'NA',
+        'parameters.TriggerSettings.DigitalEdgeStartTriggerEdge': 'Rising',
+        'parameters.SignalGenerationSettings.DurationSeconds': durationSeconds,
+        'parameters.SignalGenerationSettings.OffsetVolts': offsetVolts,
+        'parameters.SignalGenerationSettings.SignalGenerationWaveformType': generationType,
+        'parameters.SignalGenerationSettings.PeriodicWaveformSettings.PeriodicWaveformType': waveformType,
+        'parameters.SignalGenerationSettings.PeriodicWaveformSettings.FrequencyHertz': frequencyHertz,
+        'parameters.SignalGenerationSettings.PeriodicWaveformSettings.AmplitudeVolts': amplitudeVolts,
+        'parameters.SignalGenerationSettings.PeriodicWaveformSettings.PhaseRadians': 0,
+        'parameters.SignalGenerationSettings.PeriodicWaveformSettings.DutyCyclePercent': dutyCycle,
+        'parameters.SignalGenerationSettings.MultipleTonesWaveformSettings': multiToneSettings,
+      },
+    ); // Signal Voltage Generation - Configure and Generate Sine tones in TS Analog Out
     //
     //
     // Measures the Analog Input voltage waveforms (Started measure when Signal Voltage generation sends Trigger after source) and returns Freq Domain Analysis (MeasureOnly)
     //
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
-    //   Existing Object <- Locals.FDMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure
-    //   Return Value <- Parameters.FDMResultData
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure',
-    ); // Generates Sine wave and Trigger to Initiate measurement [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.fdmRessource},
+    ); // Generates Sine wave and Trigger to Initiate measurement
+    final outputs7 = await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure',
+      inputs: {
+        'parameters.ChannelAndTerminalSettings.GlobalSettings.TerminalConfiguration': 'RSE',
+        'parameters.ChannelAndTerminalSettings.GlobalSettings.MinimumValueVolts': -10,
+        'parameters.ChannelAndTerminalSettings.GlobalSettings.MaximumValueVolts': 10,
+        'parameters.ChannelAndTerminalSettings.ChannelsSettings': locals.channelSettings,
+        'parameters.Options.MeasurementExecutionType': 'MeasureOnly',
+        'parameters.Options.MeasurementAnalysisRequirement': 'ProceedToAnalysis',
+        'parameters.TimingSettings.SampleClockSource': 'OnboardClock',
+        'parameters.TimingSettings.SamplingRateHertz': 10000,
+        'parameters.TimingSettings.NumberOfSamplesPerChannel': 1000,
+        'parameters.TimingSettings.SampleTimingEngine': 'Auto',
+        'parameters.TriggerSettings.TriggerType': 'NoTrigger',
+        'parameters.TriggerSettings.DigitalStartTriggerSource': 'NA',
+        'parameters.TriggerSettings.DigitalEdgeStartTriggerEdge': 'Rising',
+      },
+    ); // Generates Sine wave and Trigger to Initiate measurement
+    fdmResultData = outputs7['Return Value'];
   } finally {
     // Close all Tasks
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
-    //   Existing Object <- Locals.FDMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Close
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Close',
-    ); // Frequency Domain Measurement - Close TS Analog Out [Action]
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object
-    //   Existing Object <- Locals.SVGRessource
-    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Close
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Close',
-    ); // Signal Voltage Generation -  Close TP [Action]
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object',
+      inputs: {'Existing Object': locals.fdmRessource},
+    ); // Frequency Domain Measurement - Close TS Analog Out
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Close',
+    ); // Frequency Domain Measurement - Close TS Analog Out
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object',
+      inputs: {'Existing Object': locals.svgRessource},
+    ); // Signal Voltage Generation -  Close TP
+    await ts.callDotNet(
+      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+      'PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Close',
+    ); // Signal Voltage Generation -  Close TP
   }
 }

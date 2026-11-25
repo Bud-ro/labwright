@@ -54,10 +54,11 @@ Future<void> processSetup() async {
   ); // Get Sequence Directory
   measurementLink.PinMapPath =
       '$folderPath\\InstrumentStudio Proj\\${measurementLink.PinMapFileName as String}'; // Get absolute path to pinmap file and SDC config file
-  //   Pin Map Path <- FileGlobals.MeasurementLink.PinMapPath
-  //   Pin Map Id Out <- FileGlobals.MeasurementLink.PinMapId
-  //   error out <- Step.Result.Error
-  await callUpdatePinMap(); // Update Pinmap [Action]
+  final outputs = await ts.callVi(
+    'VIs\\Update Pin Map.vi',
+    inputs: {'Pin Map Path': measurementLink.PinMapPath},
+  ); // Update Pinmap
+  measurementLink.PinMapId = outputs['Pin Map Id Out'];
   ts.eval(
     'RunState.Engine.TemporaryGlobals.SetValString("NI.MeasurementLink.PinMapId", 0x1, FileGlobals.MeasurementLink.PinMapId)',
   ); // Register active PinMapId
@@ -69,6 +70,3 @@ Future<void> processCleanup() async {
     'RunState.Engine.TemporaryGlobals.DeleteSubProperty("NI.MeasurementLink.PinMapId", 0x2)',
   ); // Unregister active PinMapId
 }
-
-/// The labView module `VIs\Update Pin Map.vi`.
-Future<Object?> callUpdatePinMap() async => throw UnimplementedError('labView call: VIs\\Update Pin Map.vi');

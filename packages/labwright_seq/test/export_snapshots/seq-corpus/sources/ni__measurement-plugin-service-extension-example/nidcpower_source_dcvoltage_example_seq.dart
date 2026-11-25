@@ -7,9 +7,10 @@ dynamic measurementLink = ts.PropObj({'EnableMonitoring': false});
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('NIDCPowerSourceDCVoltage.pinmap');
-    //   sequence context <- ThisContext
-    //   error out <- Step.Result.Error
-    await callInitializeAndRegisterSessions(); // Initialize and register NI-DCPower Sessions [Action]
+    await ts.callVi(
+      'My Computer\\NIDCPowerSourceDCVoltage.lvlib\\TestStand Code Modules\\Initialize and Register Sessions.vi',
+      passesContext: true,
+    ); // Initialize and register NI-DCPower Sessions
 
     await ts.measurement('ni.examples.NIDCPowerSourceDCVoltageWithLogger_LabVIEW', {
       'pin_names': <dynamic>['Pin1'],
@@ -20,17 +21,8 @@ Future<void> mainSequence() async {
       'source_delay': 0,
     });
   } finally {
-    //   error out <- Step.Result.Error
-    await callUnregisterAndCloseSessions(); // Unregister and close NI-DCPower sessions [Action]
+    await ts.callVi(
+      'My Computer\\NIDCPowerSourceDCVoltage.lvlib\\TestStand Code Modules\\Unregister and Close Sessions.vi',
+    ); // Unregister and close NI-DCPower sessions
   }
 }
-
-/// The labView module `My Computer\NIDCPowerSourceDCVoltage.lvlib\TestStand Code Modules\Initialize and Register Sessions.vi`.
-Future<Object?> callInitializeAndRegisterSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\NIDCPowerSourceDCVoltage.lvlib\\TestStand Code Modules\\Initialize and Register Sessions.vi',
-);
-
-/// The labView module `My Computer\NIDCPowerSourceDCVoltage.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi`.
-Future<Object?> callUnregisterAndCloseSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\NIDCPowerSourceDCVoltage.lvlib\\TestStand Code Modules\\Unregister and Close Sessions.vi',
-);

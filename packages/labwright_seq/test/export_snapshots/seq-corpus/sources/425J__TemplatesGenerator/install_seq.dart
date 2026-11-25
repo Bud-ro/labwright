@@ -53,26 +53,32 @@ Future<void> install() async {
   locals.target.ExportFile = '${locals.testStandPublic}\\Setup\\ToolMenusToInstall\\Tools.ini';
   locals.toolSetupDir = '${locals.testStandPublic}\\Setup';
   locals.toolMenusToInstallDir = '${locals.toolSetupDir}\\ToolMenusToInstall';
-  // .NET call: System.IO.Directory.CreateDirectory
-  //   path <- Locals.ToolsDir
-  ts.notExported('dotNet call: System.IO.Directory.CreateDirectory'); // Create Tools Directory [Action]
-  // .NET call: System.IO.File.Copy
-  //   sourceFileName <- Locals.Source.Tool
-  //   destFileName <- Locals.Target.Tool
-  //   overwrite <- True
-  ts.notExported('dotNet call: System.IO.File.Copy'); // Copy Tool [Action]
+  await ts.callDotNet(
+    'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+    'System.IO.Directory.CreateDirectory',
+    inputs: {'path': locals.toolsDir},
+  ); // Create Tools Directory
+  await ts.callDotNet(
+    'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+    'System.IO.File.Copy',
+    inputs: {'sourceFileName': locals.source.Tool, 'destFileName': locals.target.Tool, 'overwrite': true},
+  ); // Copy Tool
   ts.eval('OutputMessage("Tool copied: " + Locals.Source.Tool + " » " + Locals.Target.Tool)');
-  // .NET call: System.IO.Directory.CreateDirectory
-  //   path <- Locals.ToolSetupDir
-  ts.notExported('dotNet call: System.IO.Directory.CreateDirectory'); // Create Setup Directory [Action]
-  // .NET call: System.IO.Directory.CreateDirectory
-  //   path <- Locals.ToolMenusToInstallDir
-  ts.notExported('dotNet call: System.IO.Directory.CreateDirectory'); // Create ToolMenusToInstall Directory [Action]
-  // .NET call: System.IO.File.Copy
-  //   sourceFileName <- Locals.Source.ExportFile
-  //   destFileName <- Locals.Target.ExportFile
-  //   overwrite <- True
-  ts.notExported('dotNet call: System.IO.File.Copy'); // Copy Tool.ini [Action]
+  await ts.callDotNet(
+    'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+    'System.IO.Directory.CreateDirectory',
+    inputs: {'path': locals.toolSetupDir},
+  ); // Create Setup Directory
+  await ts.callDotNet(
+    'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+    'System.IO.Directory.CreateDirectory',
+    inputs: {'path': locals.toolMenusToInstallDir},
+  ); // Create ToolMenusToInstall Directory
+  await ts.callDotNet(
+    'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+    'System.IO.File.Copy',
+    inputs: {'sourceFileName': locals.source.ExportFile, 'destFileName': locals.target.ExportFile, 'overwrite': true},
+  ); // Copy Tool.ini
   ts.eval('OutputMessage("Tool.ini copied: " + Locals.Source.ExportFile + " » " + Locals.Target.ExportFile)');
   await ts.messagePopup('Success', 'Templates Generator successfully installed.\n\nRestart Sequence Editor.');
 }

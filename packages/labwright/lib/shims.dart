@@ -385,6 +385,55 @@ Future<Map<String, Object?>> measurement(String service, [Map<String, Object?> i
 /// `NI_UpdatePinMap` translation.
 Future<void> updatePinMap(String path) => throw UnimplementedError('update pin map $path');
 
+/// What a code module answers: its outputs by parameter name, with a cluster or struct member as `parameter.member`.
+typedef ModuleOutputs = Map<String, Object?>;
+
+/// Runs the LabVIEW VI at [path] with [inputs] wired to its controls by label.
+///
+/// LabVIEW adapter translation. A VI that [passesContext] receives the calling sequence's context and can read and
+/// write its variables. An error on the VI's error out raises [RunTimeError].
+Future<ModuleOutputs> callVi(String path, {Map<String, Object?> inputs = const {}, bool passesContext = false}) =>
+    throw UnimplementedError('VI $path');
+
+/// Calls [function] exported by the DLL at [library] with [inputs] by parameter name.
+///
+/// C/C++ DLL adapter translation. The function's return value answers as `Return Value`.
+Future<ModuleOutputs> callDll(
+  String library,
+  String function, {
+  Map<String, Object?> inputs = const {},
+  bool passesContext = false,
+}) => throw UnimplementedError('DLL $library:$function');
+
+/// Uses [member], a constructor, method or property named with its class, of the .NET [assembly] with [inputs] by
+/// parameter name. After the first call of a step, each call acts on the object the previous one answered.
+///
+/// .NET adapter translation. The member's value answers as `Return Value`.
+Future<ModuleOutputs> callDotNet(
+  String assembly,
+  String member, {
+  Map<String, Object?> inputs = const {},
+  bool passesContext = false,
+}) => throw UnimplementedError('.NET $member');
+
+/// Calls [function] of the Python module at [module] with [inputs] by parameter name; with an [instance], calls it
+/// as a method of that object.
+///
+/// Python adapter translation. The function's value answers as `Return Value`.
+Future<ModuleOutputs> callPython(
+  String module,
+  String function, {
+  Map<String, Object?> inputs = const {},
+  Object? instance,
+  bool passesContext = false,
+}) => throw UnimplementedError('Python $module:$function');
+
+/// Uses [member], a method or property named with its interface, of the COM [object] with [inputs] by parameter name.
+///
+/// ActiveX/COM adapter translation. The member's value answers as `Return Value`.
+Future<ModuleOutputs> callActiveX(Object? object, String member, {Map<String, Object?> inputs = const {}}) =>
+    throw UnimplementedError('ActiveX $member');
+
 /// The text of [tag] in [category] of the station's localized resource strings.
 ///
 /// `ResStr` and `GetResourceString` translation.

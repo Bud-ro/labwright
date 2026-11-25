@@ -23,7 +23,7 @@ Future<ts.Status> mainSequence() async {
     'PERCENTAGE',
   );
   run.record(numericLimitTestResult.Status);
-  ts.notExported('cModule call: Generates Run-Time Error'); // Generates Run-Time Error [Action]
+  await ts.callDll('', ''); // Generates Run-Time Error
 
   return run.status;
 }

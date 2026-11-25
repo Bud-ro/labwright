@@ -9,39 +9,35 @@ class _StartLocals {
 Future<void> start() async {
   final locals = _StartLocals();
 
-  //   Engine <- RunState.Engine
-  await callIsRunning(); // Is already running? [Action]
+  await ts.callVi(
+    'Resources\\Seq Edit Quick Drop.lvlibp\\Sources\\Is Running.vi',
+    inputs: {'Engine': ts.eval('RunState.Engine')},
+  ); // Is already running?
   // Start quick drop if not already running...
   if (!locals.running) {
     ts.eval('OutputMessage("Quick Drop started.")');
-    //   Context <- ThisContext
-    //   Engine <- RunState.Engine
-    await callStart(); // Start [Action]
+    await ts.callVi(
+      'Resources\\Seq Edit Quick Drop.lvlibp\\Sources\\Start.vi',
+      inputs: {'Engine': ts.eval('RunState.Engine')},
+      passesContext: true,
+    ); // Start
   }
 }
 
 /// Sequence `Stop`.
 Future<void> stop() async {
   ts.eval('OutputMessage("Quick Drop stoped.")');
-  //   Engine <- RunState.Engine
-  await callStop(); // Stop [Action]
+  await ts.callVi(
+    'Resources\\Seq Edit Quick Drop.lvlibp\\Sources\\Stop.vi',
+    inputs: {'Engine': ts.eval('RunState.Engine')},
+  ); // Stop
 }
 
 /// Sequence `IsRunning`.
 Future<void> isRunning({bool running = false}) async {
-  //   Engine <- RunState.Engine
-  //   Running <- Parameters.Running
-  await callIsRunning(); // Is already running? [Action]
+  final outputs = await ts.callVi(
+    'Resources\\Seq Edit Quick Drop.lvlibp\\Sources\\Is Running.vi',
+    inputs: {'Engine': ts.eval('RunState.Engine')},
+  ); // Is already running?
+  running = outputs['Running'] as bool;
 }
-
-/// The labView module `Resources\Seq Edit Quick Drop.lvlibp\Sources\Is Running.vi`.
-Future<Object?> callIsRunning() async =>
-    throw UnimplementedError('labView call: Resources\\Seq Edit Quick Drop.lvlibp\\Sources\\Is Running.vi');
-
-/// The labView module `Resources\Seq Edit Quick Drop.lvlibp\Sources\Start.vi`.
-Future<Object?> callStart() async =>
-    throw UnimplementedError('labView call: Resources\\Seq Edit Quick Drop.lvlibp\\Sources\\Start.vi');
-
-/// The labView module `Resources\Seq Edit Quick Drop.lvlibp\Sources\Stop.vi`.
-Future<Object?> callStop() async =>
-    throw UnimplementedError('labView call: Resources\\Seq Edit Quick Drop.lvlibp\\Sources\\Stop.vi');

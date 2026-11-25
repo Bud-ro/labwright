@@ -13,22 +13,31 @@ dynamic measurementLink = ts.PropObj({
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('PinMap.pinmap');
-    //   sequence context <- ThisContext
-    //   error out <- Step.Result.Error
-    await callInitializeAndRegisterSessions(); // Initialize and register NI-Digital sessions [Action]
-    //   sequence context <- ThisContext
-    //   error out <- Step.Result.Error
-    await callLoadPinMapToSessions(); // Load NI-Digital pin map [Action]
-    //   sequence context <- ThisContext
-    //   specification file paths <- FileGlobals.MeasurementLink.SpecificationsFilePaths
-    //   levels file paths <- FileGlobals.MeasurementLink.LevelsFilePaths
-    //   timing file paths <- FileGlobals.MeasurementLink.TimingFilePaths
-    //   error out <- Step.Result.Error
-    await callLoadSpecsTimingLevelsToSessions(); // Load NI-Digital specifications, levels, and timing [Action]
-    //   sequence context <- ThisContext
-    //   pattern file paths <- FileGlobals.MeasurementLink.PatternFilePaths
-    //   error out <- Step.Result.Error
-    await callLoadPatternsToSessions(); // Load NI-Digital patterns [Action]
+    await ts.callVi(
+      'My Computer\\NIDigitalSPI.lvlib\\TestStand Code Modules\\Initialize and Register Sessions.vi',
+      passesContext: true,
+    ); // Initialize and register NI-Digital sessions
+    await ts.callVi(
+      'My Computer\\NIDigitalSPI.lvlib\\TestStand Code Modules\\Load Pin Map to Sessions.vi',
+      passesContext: true,
+    ); // Load NI-Digital pin map
+    await ts.callVi(
+      'My Computer\\NIDigitalSPI.lvlib\\TestStand Code Modules\\Load Specs Timing Levels to Sessions.vi',
+      inputs: {
+        'specification file paths': measurementLink.SpecificationsFilePaths,
+        'levels file paths': measurementLink.LevelsFilePaths,
+        'timing file paths': measurementLink.TimingFilePaths,
+        'error in.status': false,
+        'error in.code': 0,
+        'error in.source': '',
+      },
+      passesContext: true,
+    ); // Load NI-Digital specifications, levels, and timing
+    await ts.callVi(
+      'My Computer\\NIDigitalSPI.lvlib\\TestStand Code Modules\\Load Patterns to Sessions.vi',
+      inputs: {'pattern file paths': measurementLink.PatternFilePaths},
+      passesContext: true,
+    ); // Load NI-Digital patterns
 
     await ts.measurement('ni.examples.NIDigitalSPI_LabVIEW', {
       'Pin names': <dynamic>['SPI_PINS'],
@@ -39,32 +48,8 @@ Future<void> mainSequence() async {
       'Load files': false,
     });
   } finally {
-    //   error out <- Step.Result.Error
-    await callUnregisterAndCloseSessions(); // Unregister and close NI-Digital sessions [Action]
+    await ts.callVi(
+      'My Computer\\NIDigitalSPI.lvlib\\TestStand Code Modules\\Unregister and Close Sessions.vi',
+    ); // Unregister and close NI-Digital sessions
   }
 }
-
-/// The labView module `My Computer\NIDigitalSPI.lvlib\TestStand Code Modules\Initialize and Register Sessions.vi`.
-Future<Object?> callInitializeAndRegisterSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\NIDigitalSPI.lvlib\\TestStand Code Modules\\Initialize and Register Sessions.vi',
-);
-
-/// The labView module `My Computer\NIDigitalSPI.lvlib\TestStand Code Modules\Load Pin Map to Sessions.vi`.
-Future<Object?> callLoadPinMapToSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\NIDigitalSPI.lvlib\\TestStand Code Modules\\Load Pin Map to Sessions.vi',
-);
-
-/// The labView module `My Computer\NIDigitalSPI.lvlib\TestStand Code Modules\Load Specs Timing Levels to Sessions.vi`.
-Future<Object?> callLoadSpecsTimingLevelsToSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\NIDigitalSPI.lvlib\\TestStand Code Modules\\Load Specs Timing Levels to Sessions.vi',
-);
-
-/// The labView module `My Computer\NIDigitalSPI.lvlib\TestStand Code Modules\Load Patterns to Sessions.vi`.
-Future<Object?> callLoadPatternsToSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\NIDigitalSPI.lvlib\\TestStand Code Modules\\Load Patterns to Sessions.vi',
-);
-
-/// The labView module `My Computer\NIDigitalSPI.lvlib\TestStand Code Modules\Unregister and Close Sessions.vi`.
-Future<Object?> callUnregisterAndCloseSessions() async => throw UnimplementedError(
-  'labView call: My Computer\\NIDigitalSPI.lvlib\\TestStand Code Modules\\Unregister and Close Sessions.vi',
-);

@@ -12,9 +12,17 @@ Future<void> loginLogout({bool logout = false, bool isInitialLogin = false}) asy
 
   try {
     if (logout) {
-      ts.notExported('cModule call: Logout'); // Logout [Action]
+      await ts.callDll('\$(Platform)\\frontend.dll', 'LogoutUser', passesContext: true); // Logout
     } else {
-      ts.notExported('cModule call: Login'); // Login [Action]
+      await ts.callDll(
+        '\$(Platform)\\frontend.dll',
+        'LoginUser',
+        inputs: {
+          '#3': ts.eval('PropertyExists("StationGlobals.TS.LastUserName") ? StationGlobals.TS.LastUserName : ""'),
+          '#4': isInitialLogin,
+        },
+        passesContext: true,
+      ); // Login
       await quick_drop_seq.isRunning(running: locals.quickDropRunning); // Is Quick Drop Running?: external sequence
       // Start if not already running
       if (!locals.quickDropRunning) {

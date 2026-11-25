@@ -13,12 +13,11 @@ Future<void> mainSequence() async {
 
   // Voltage Loop from 1V to 5V
   for (locals.voltage = 1; locals.voltage <= 5; locals.voltage += 1) {
-    //   output_dir <- "C:\\Temp"
-    //   base_filename <- "InstrumentStudio_Screenshot.png"
-    //   add_timestamp <- True
-    ts.notExported(
-      'python call: C:\\dev\\Screenshot Utility\\screenshot_utility.py',
-    ); // Instrument Studio Screenshot [Action]
+    await ts.callPython(
+      'C:\\dev\\Screenshot Utility\\screenshot_utility.py',
+      'capture_instrument_studio',
+      inputs: {'output_dir': 'C:\\Temp', 'base_filename': 'InstrumentStudio_Screenshot.png', 'add_timestamp': true},
+    ); // Instrument Studio Screenshot
     await Future<void>.delayed(const Duration(seconds: 1));
   }
 }

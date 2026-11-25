@@ -23,23 +23,36 @@ Future<ts.Status> isProcessRunning({
 
   body:
   try {
-    // .NET call: System.Diagnostics.Process.GetProcessesByName
-    //   Return Value <- Locals.Processes
-    //   processName <- Parameters.ProcessName
-    ts.notExported('dotNet call: System.Diagnostics.Process.GetProcessesByName'); // Get process [Action]
+    final outputs = await ts.callDotNet(
+      'System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'System.Diagnostics.Process.GetProcessesByName',
+      inputs: {'processName': processName},
+    ); // Get process
+    locals.processes = outputs['Return Value'] as List<dynamic>;
     if (!ts.cond(
       'Parameters.ProcessFound = (GetNumElements(Locals.Processes) != 0 && Locals.Processes[0] != Nothing),\nParameters.ProcessFound\n',
     )) {
       break body;
     }
     if (descriptionToSearch != '') {
-      // .NET call: System.Diagnostics.Process.Use Existing Object
-      //   Existing Object <- Locals.Processes[0]
-      // .NET call: System.Diagnostics.Process.MainModule
-      // .NET call: System.Diagnostics.ProcessModule.FileVersionInfo
-      // .NET call: System.Diagnostics.FileVersionInfo.FileDescription
-      //   Return Value <- Locals.Description
-      ts.notExported('dotNet call: System.Diagnostics.Process.FileDescription'); // Get description [Action]
+      await ts.callDotNet(
+        'System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'System.Diagnostics.Process.Use Existing Object',
+        inputs: {'Existing Object': locals.processes[0]},
+      ); // Get description
+      await ts.callDotNet(
+        'System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'System.Diagnostics.Process.MainModule',
+      ); // Get description
+      await ts.callDotNet(
+        'System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'System.Diagnostics.ProcessModule.FileVersionInfo',
+      ); // Get description
+      final outputs2 = await ts.callDotNet(
+        'System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'System.Diagnostics.FileVersionInfo.FileDescription',
+      ); // Get description
+      locals.description = outputs2['Return Value'] as String;
       ts.eval(
         'Parameters.ProcessFound = MatchPattern(Locals.Description, Parameters.DescriptionToSearch, True)',
       ); // Check description
