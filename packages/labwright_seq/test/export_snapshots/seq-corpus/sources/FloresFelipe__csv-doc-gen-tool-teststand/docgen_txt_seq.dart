@@ -413,9 +413,9 @@ Future<ts.Status> stepDoc({
     //   Return Value -> Locals.BlockLevel
     ts.notExported('cModule call: Get Block Level'); // Get Block Level [Action]
     locals.indent = '${ts.str('', '%${ts.str(locals.blockLevel * 5)}s')}     '; // Indent According To Block Level
-    locals.doubleIndent = '${locals.indent}     '; // Indent According To Block Level (cont.)
-    locals.wwIndentNum = ts.len(locals.doubleIndent) + 5; // Indent According To Block Level (cont.)
-    locals.maxWwLineLength = 65 + locals.wwIndentNum; // Indent According To Block Level (cont.)
+    locals.doubleIndent = '${locals.indent}     ';
+    locals.wwIndentNum = ts.len(locals.doubleIndent) + 5;
+    locals.maxWwLineLength = 65 + locals.wwIndentNum;
     stepsSoFarRef.value += 1; // Update StepsSoFar
     ts.notExported('cModule call: Update Percent Done'); // Update Percent Done [Action]
     ts.eval(
@@ -672,8 +672,10 @@ Future<void> writePropertyDetails({
     ts.notExported('cModule call: GetTypeInfo'); // GetTypeInfo [Action]
     // Normally Evaluate() should only fail if the property name has invalid characters in it.
     // --- Test Evaluate Error ---
-    ts.eval('Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName)'); // TryToEvaluate
-    tryToEvaluateResult.Status = ts.Status.done;
+    try {
+      ts.eval('Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName)'); // TryToEvaluate
+      tryToEvaluateResult.Status = ts.Status.done;
+    } on ts.RunTimeError catch (_) {}
     if (tryToEvaluateResult.Status == 'Error') {
       locals.subpropValue = '\n${tryToEvaluateResult.Error.Msg as String}'; // Document Error
     }

@@ -39,9 +39,8 @@ Future<void> createCompiledObjectCache({
   } finally {
     if (locals.cliErrorText != '') {
       error.Code = 123; // Error
-      error.Msg =
-          'Unable to prepare compiled object cache. Try to extend the Timeout.\n${locals.cliErrorText}'; // Error (cont.)
-      error.Occurred = true; // Error (cont.)
+      error.Msg = 'Unable to prepare compiled object cache. Try to extend the Timeout.\n${locals.cliErrorText}';
+      error.Occurred = true;
     }
   }
 }
@@ -67,8 +66,8 @@ Future<void> enableLabViewTcpServer({
     ts.notExported('dotNet call: System.IO.File.Exists'); // Check if LabVIEW.exe exists [Action]
     if (!locals.labviewExists) {
       error.Code = 7; // Error
-      error.Msg = '$labviewDirectory\\LabVIEW.exe not found.'; // Error (cont.)
-      error.Occurred = true; // Error (cont.)
+      error.Msg = '$labviewDirectory\\LabVIEW.exe not found.';
+      error.Occurred = true;
       break body;
     }
 
@@ -86,7 +85,7 @@ Future<void> enableLabViewTcpServer({
       ); // Prepare LabVIEW.ini keys
       ts.eval(
         '\n\n(Find(Locals.LabviewIniText, "server.tcp.enabled=True", 0, True) == -1) ?\n   Locals.LabviewIniText += "\\nserver.tcp.enabled=True"\n:\n   Nothing',
-      ); // Prepare LabVIEW.ini keys (cont.)
+      );
       // .NET call: System.IO.File.WriteAllText
       //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
       //   contents <- Locals.LabviewIniText

@@ -36,7 +36,7 @@ Future<void> mainSequence() async {
     // Note to run with Hardware: Enable the below example for HW Run
     // Example 6 - Demonstrates digital pattern generation and digital edge count measurement through counter-based measurements using Core Digital IO Modules. Digital edge counting is performed at Hardware timed using with Trigger to create a measurement window for fixed duration.
     // The below Tests is disabled. Since HW timed count digital events will throw error during simulated Run
-    // [skipped in source] Digital Count Event Tests - HW Timed (With Trigger)
+    // skipped: Digital Count Event Tests - HW Timed (With Trigger)
   } finally {
     // Turn off all configured DO channels by setting Digital LOW state
     await turnOffAllDoChannels(); // Power down all DO Channels

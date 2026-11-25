@@ -88,9 +88,7 @@ Future<void> modelPluginConfigureStandardOptions({
   );
   if (ts.cond('RunState.PreviousStep.Result.ButtonHit == "1"')) {
     changedRef.value = true; // Apply changes if user click OK
-    ts.eval(
-      '\nParameters.ModelPlugin.PluginSpecific.Options.LogFileFolder = RunState.PreviousStep.Result.Response',
-    ); // Apply changes if user click OK (cont.)
+    ts.eval('\nParameters.ModelPlugin.PluginSpecific.Options.LogFileFolder = RunState.PreviousStep.Result.Response');
   }
   await ts.messagePopup(
     'Set Batch Sample Rate',
@@ -103,7 +101,7 @@ Future<void> modelPluginConfigureStandardOptions({
     ts.eval(
       'Parameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate = Val(RunState.PreviousStep.Result.Response)',
     ); // Apply changes if user click OK
-    changedRef.value = true; // Apply changes if user click OK (cont.)
+    changedRef.value = true;
   }
 }
 

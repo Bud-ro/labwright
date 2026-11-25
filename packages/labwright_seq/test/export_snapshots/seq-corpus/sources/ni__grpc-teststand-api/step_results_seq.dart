@@ -2,12 +2,26 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<void> mainSequence() async {
-  // [force-pass in source] Pass
-  // [force-fail in source] Fail
-  // [skipped in source] Skip
+Future<ts.Status> mainSequence() async {
+  final run = ts.SequenceRun();
+  final dynamic errorResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  });
+
+  // forced to pass: Pass
+  run.record(ts.Status.failed); // Fail
+  // skipped: Skip
   // Done
-  ts.eval('RunState.Step.Result.Error.Occurred = True'); // Error
-  ts.eval('\nRunState.Step.Result.Error.Code = 123'); // Error (cont.)
-  ts.eval('\nRunState.Step.Result.Error.Msg = "Error occurred"'); // Error (cont.)
+  try {
+    errorResult.Error.Occurred = true; // Error
+    errorResult.Error.Code = 123;
+    errorResult.Error.Msg = 'Error occurred';
+    if (ts.truthy(errorResult.Error.Occurred)) throw ts.RunTimeError(errorResult.Error.Code, errorResult.Error.Msg);
+    errorResult.Status = ts.Status.done;
+  } on ts.RunTimeError catch (_) {}
+
+  return run.status;
 }

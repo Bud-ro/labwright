@@ -117,10 +117,10 @@ Future<void> modelPluginBegin({
       ); // Set OTF Callback Requirements
       ts.eval(
         '\nRunState.Execution.PostResultsCallback_PreFlushMask |= PostResultsCallbackMaskOption_SequenceCall | PostResultsCallbackMaskOption_PostAction',
-      ); // Set OTF Callback Requirements (cont.)
+      );
       ts.eval(
         ' \nRunState.Execution.PostResultsCallback_PostFlushMask |= PostResultsCallbackMaskOption_SequenceCall | PostResultsCallbackMaskOption_PostAction',
-      ); // Set OTF Callback Requirements (cont.)
+      );
     }
     // If this plug-in is the displayed report, initialize its Report object to be the active report.
     //

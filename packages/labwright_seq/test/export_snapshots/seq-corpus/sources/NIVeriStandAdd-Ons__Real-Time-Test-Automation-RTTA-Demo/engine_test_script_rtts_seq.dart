@@ -38,14 +38,16 @@ Future<ts.Status> mainSequence() async {
       'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.Factory',
     ); // Open VS Interface [Action]
     do {
-      // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
-      //   Existing Object <- Locals.NI_VS_Factory
-      // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace
-      //   Return Value <- Locals.NI_VS_Workspace
-      ts.notExported(
-        'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace',
-      ); // Open VS Workspace Mngr Ref [Action]
-      ts.eval('Locals.NotReady=RunState.PreviousStep.Result.Error.Occurred');
+      try {
+        // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
+        //   Existing Object <- Locals.NI_VS_Factory
+        // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace
+        //   Return Value <- Locals.NI_VS_Workspace
+        ts.notExported(
+          'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace',
+        ); // Open VS Workspace Mngr Ref [Action]
+        ts.eval('Locals.NotReady=RunState.PreviousStep.Result.Error.Occurred');
+      } on ts.RunTimeError catch (_) {}
       await Future<void>.delayed(const Duration(seconds: 2));
     } while (locals.notReady == true);
     // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object

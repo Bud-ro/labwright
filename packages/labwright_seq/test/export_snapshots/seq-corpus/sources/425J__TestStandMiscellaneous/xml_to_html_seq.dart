@@ -74,6 +74,6 @@ Future<void> convert() async {
     ts.notExported('dotNet call: System.IO.File.WriteAllText'); // Save HTML file [Action]
   } finally {
     locals.xml = null; // Release
-    locals.xsl = null; // Release (cont.)
+    locals.xsl = null;
   }
 }

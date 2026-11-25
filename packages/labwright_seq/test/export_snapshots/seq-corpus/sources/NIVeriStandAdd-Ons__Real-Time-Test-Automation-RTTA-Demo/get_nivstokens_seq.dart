@@ -3,74 +3,96 @@ import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
 Future<void> mainSequence() async {
-  ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetConstructorMetadataToken()');
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Factory
-  //   Return Value <- Locals.temp
-  ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.Factory'); // Constructor [Action]
-  ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
-  //   Existing Object <- Locals.temp
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace
-  ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace'); // IWorkspace [Action]
-  ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
-  //   Existing Object <- Locals.temp
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIStimulus
-  ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIStimulus'); // IStim [Action]
-  ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
-  //   Existing Object <- Locals.temp
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIModelManager
-  ts.notExported(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIModelManager',
-  ); // IModelManager [Action]
-  ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
-  //   Existing Object <- Locals.temp
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject
-  //   Return Value <- Locals.temp
-  //   gateway_ip_address <- ""
-  //   project_path <- ""
-  //   username <- ""
-  //   password <- ""
-  ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject'); // IProject [Action]
-  ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IModelManager.Use Existing Object
-  //   Existing Object <- Locals.temp
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IModelManager.SetMultipleParameterValues
-  ts.notExported(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.IModelManager.SetMultipleParameterValues',
-  ); // SetMultiParam [Action]
-  ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object
-  //   Existing Object <- Locals.temp
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.RunStimulusProfile
-  ts.notExported(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.IStimulus.RunStimulusProfile',
-  ); // RunStim [Action]
-  ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object
-  //   Existing Object <- Locals.temp
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.GetStimulusProfileManagerState
-  ts.notExported(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.IStimulus.GetStimulusProfileManagerState',
-  ); // GetStimState [Action]
-  ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
-  //   Existing Object <- Locals.temp
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.OpenWorkspace
-  ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.OpenWorkspace'); // OpenWks [Action]
-  ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
-  //   Existing Object <- Locals.temp
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Deploy
-  ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Deploy'); // Deploy [Action]
-  ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
-  //   Existing Object <- Locals.temp
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit
-  ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit'); // Quit [Action]
+  try {
+    ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetConstructorMetadataToken()');
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Factory
+    //   Return Value <- Locals.temp
+    ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.Factory'); // Constructor [Action]
+  } on ts.RunTimeError catch (_) {}
+  try {
+    ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
+    //   Existing Object <- Locals.temp
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace
+    ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace'); // IWorkspace [Action]
+  } on ts.RunTimeError catch (_) {}
+  try {
+    ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
+    //   Existing Object <- Locals.temp
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIStimulus
+    ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIStimulus'); // IStim [Action]
+  } on ts.RunTimeError catch (_) {}
+  try {
+    ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
+    //   Existing Object <- Locals.temp
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIModelManager
+    ts.notExported(
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIModelManager',
+    ); // IModelManager [Action]
+  } on ts.RunTimeError catch (_) {}
+  try {
+    ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
+    //   Existing Object <- Locals.temp
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject
+    //   Return Value <- Locals.temp
+    //   gateway_ip_address <- ""
+    //   project_path <- ""
+    //   username <- ""
+    //   password <- ""
+    ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject'); // IProject [Action]
+  } on ts.RunTimeError catch (_) {}
+  try {
+    ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IModelManager.Use Existing Object
+    //   Existing Object <- Locals.temp
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IModelManager.SetMultipleParameterValues
+    ts.notExported(
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.IModelManager.SetMultipleParameterValues',
+    ); // SetMultiParam [Action]
+  } on ts.RunTimeError catch (_) {}
+  try {
+    ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object
+    //   Existing Object <- Locals.temp
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.RunStimulusProfile
+    ts.notExported(
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.IStimulus.RunStimulusProfile',
+    ); // RunStim [Action]
+  } on ts.RunTimeError catch (_) {}
+  try {
+    ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object
+    //   Existing Object <- Locals.temp
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.GetStimulusProfileManagerState
+    ts.notExported(
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.IStimulus.GetStimulusProfileManagerState',
+    ); // GetStimState [Action]
+  } on ts.RunTimeError catch (_) {}
+  try {
+    ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
+    //   Existing Object <- Locals.temp
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.OpenWorkspace
+    ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.OpenWorkspace'); // OpenWks [Action]
+  } on ts.RunTimeError catch (_) {}
+  try {
+    ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
+    //   Existing Object <- Locals.temp
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Deploy
+    ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Deploy'); // Deploy [Action]
+  } on ts.RunTimeError catch (_) {}
+  try {
+    ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
+    //   Existing Object <- Locals.temp
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit
+    ts.notExported('dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit'); // Quit [Action]
+  } on ts.RunTimeError catch (_) {}
   // UNUSED & SKIPPED!
-  // [skipped in source] RunProj
-  // [skipped in source] CloseProj
+  // skipped: RunProj
+  // skipped: CloseProj
 }

@@ -187,14 +187,14 @@ Future<ts.Status> mainSequence() async {
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
 Future<void> processSetup() async {
-  // [skipped in source] Update Saved File Global Cache
-  // [skipped in source] Update Runtime File Global
+  // skipped: Update Saved File Global Cache
+  // skipped: Update Runtime File Global
   ts.eval(
     'RunState.Root.Locals.UUT.SerialNumber = Round(Random(100000, 999999, 0.0))',
   ); // Set Process Model Serial Number to File Global
   ts.eval('RunState.Root.Locals.UUT.PartNumber = "HR-3UTG-AMZN"'); // Set Process Model Part Number to File Global
-  // [skipped in source] Increment Change Count
-  // [skipped in source] Action
+  // skipped: Increment Change Count
+  // skipped: Action
 }
 
 /// The labView module `My Computer\Charge and Discharge.vi`.

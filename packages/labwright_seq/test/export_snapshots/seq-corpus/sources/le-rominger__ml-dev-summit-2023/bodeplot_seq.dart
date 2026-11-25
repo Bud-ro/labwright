@@ -47,9 +47,9 @@ Future<void> mainSequence() async {
       locals.results.gain = outputs['actual_gain'];
       locals.results.phase = outputs['actual_phase'];
       // -- Call Python Service
-      // [skipped in source] Acquire a waveform using an NI oscilloscope
+      // skipped: Acquire a waveform using an NI oscilloscope
       // -- Call Python Service: Simulation
-      // [skipped in source] Acquire a waveform using an NI oscilloscope
+      // skipped: Acquire a waveform using an NI oscilloscope
       ts.eval(
         'OutputMessage("f = "+ Str(Locals.Frequency,"%g Hz; ") + "Gain = "+Str(Locals.Results.gain,"%.2f dB; ") + "Phase = " + Str(Locals.Results.phase," %.2f °"),"Result",0,tsBlue)',
       );
@@ -71,7 +71,7 @@ Future<void> processSetup() async {
   //   error out <- Step.Result.Error
   await callUpdatePinMap(); // Update pin map [Action]
   // --- Optional Open Scope Session
-  // [skipped in source] Register Sessions
+  // skipped: Register Sessions
   ts.eval(
     'RunState.Engine.TemporaryGlobals.SetValString("NI.MeasurementLink.PinMapId", 0x1, FileGlobals.MeasurementLink.PinMapId)',
   ); // Register active PinMapId
@@ -83,7 +83,7 @@ Future<void> processCleanup() async {
     'RunState.Engine.TemporaryGlobals.DeleteSubProperty("NI.MeasurementLink.PinMapId", 0x2)',
   ); // Unregister active PinMapId
   // -- Optional Unregister Sessions
-  // [skipped in source] Destroy and unregister NI-DCPower sessions
+  // skipped: Destroy and unregister NI-DCPower sessions
 }
 
 /// The labView module `TestStand Code Modules\Update Pin Map.vi`.

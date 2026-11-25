@@ -316,6 +316,16 @@ Status checkStrLimit(Object? value, Object? limit, Object? comparison, [Object? 
   return equal ? Status.passed : Status.failed;
 }
 
+/// A run-time error in a step: a problem with the testing process itself, not a test failure. It unwinds through each
+/// sequence's cleanup to the caller unless the step ignores run-time errors.
+final class RunTimeError implements Exception {
+  const RunTimeError(this.code, this.message);
+  final Object? code;
+  final Object? message;
+  @override
+  String toString() => 'run-time error $code: $message';
+}
+
 /// Raised by a Terminate post action: the execution stops after each sequence on the way out runs its cleanup.
 final class SequenceTermination implements Exception {
   const SequenceTermination();

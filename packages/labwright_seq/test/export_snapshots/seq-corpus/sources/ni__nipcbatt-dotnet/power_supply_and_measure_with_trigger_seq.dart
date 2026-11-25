@@ -37,25 +37,21 @@ Future<ts.Status> powerSupplyAndMeasureWithTrigger({
     //
     // Power Supply Source and Measure To Time Domain Measurement With Trigger
     ts.eval('Locals.NewSubProperty("DateTime",PropValType_Container,False,"",0)'); // Get current date
-    ts.eval('\nLocals.DateTime.NewSubProperty("Now",PropValType_String,False,"",0)'); // Get current date (cont.)
-    ts.eval('\nLocals.DateTime.NewSubProperty("Year",PropValType_Number,False,"",0)'); // Get current date (cont.)
-    ts.eval('\nLocals.DateTime.NewSubProperty("Month",PropValType_Number,False,"",0)'); // Get current date (cont.)
-    ts.eval('\nLocals.DateTime.NewSubProperty("Day",PropValType_Number,False,"",0)'); // Get current date (cont.)
-    ts.eval('\nLocals.DateTime.NewSubProperty("Hours",PropValType_Number,False,"",0)'); // Get current date (cont.)
-    ts.eval('\nLocals.DateTime.NewSubProperty("Minutes",PropValType_Number,False,"",0)'); // Get current date (cont.)
-    ts.eval('\nLocals.DateTime.NewSubProperty("Seconds",PropValType_Number,False,"",0)'); // Get current date (cont.)
-    ts.eval(
-      '\nLocals.DateTime.NewSubProperty("Milliseconds",PropValType_Number,False,"",0)',
-    ); // Get current date (cont.)
-    ts.eval(
-      '\n\nDate(False, Locals.DateTime.Year, Locals.DateTime.Month, Locals.DateTime.Day)',
-    ); // Get current date (cont.)
+    ts.eval('\nLocals.DateTime.NewSubProperty("Now",PropValType_String,False,"",0)');
+    ts.eval('\nLocals.DateTime.NewSubProperty("Year",PropValType_Number,False,"",0)');
+    ts.eval('\nLocals.DateTime.NewSubProperty("Month",PropValType_Number,False,"",0)');
+    ts.eval('\nLocals.DateTime.NewSubProperty("Day",PropValType_Number,False,"",0)');
+    ts.eval('\nLocals.DateTime.NewSubProperty("Hours",PropValType_Number,False,"",0)');
+    ts.eval('\nLocals.DateTime.NewSubProperty("Minutes",PropValType_Number,False,"",0)');
+    ts.eval('\nLocals.DateTime.NewSubProperty("Seconds",PropValType_Number,False,"",0)');
+    ts.eval('\nLocals.DateTime.NewSubProperty("Milliseconds",PropValType_Number,False,"",0)');
+    ts.eval('\n\nDate(False, Locals.DateTime.Year, Locals.DateTime.Month, Locals.DateTime.Day)');
     ts.eval(
       ' \nTime(True, Locals.DateTime.Hours, Locals.DateTime.Minutes, Locals.DateTime.Seconds, Locals.DateTime.MilliSeconds)',
-    ); // Get current date (cont.)
+    );
     ts.eval(
       '\n\nLocals.DateTime.Now = Str(Locals.DateTime.Month, "%.2u") + "-" + Str(Locals.DateTime.Day, "%.2u") + "-" + Right(Str(Locals.DateTime.Year, "%u"),2) + "-" + Str(Locals.DateTime.Hours, "%.2u") + "h" + Str(Locals.DateTime.Minutes, "%.2u") + "m" + Str(Locals.DateTime.Seconds, "%.2u") + "s"',
-    ); // Get current date (cont.)
+    );
     // .NET call: System.Environment.GetFolderPath
     //   Return Value <- Locals.DocumentPath
     //   folder <- "MyDocuments"
@@ -144,19 +140,21 @@ Future<ts.Status> powerSupplyAndMeasureWithTrigger({
     //
     // Fetches the measured DC Voltage (measured when Power Supply sends Trigger after source) and returns Time Domain Analysis
     //
-    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
-    //   Existing Object <- Locals.TDMRessource
-    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure
-    //   Return Value <- Parameters.TDMResultData
-    ts.notExported(
-      'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure',
-    ); // Time Domain Measurement - MeasureOnly [Action]
-    ts.eval(
-      'RunState.GotoCleanup = !(!(Step.Result.Error.Occurred) || (Find(Step.Result.Error.Msg, "ErrorCode = 20308") > 0 && Str(Parameters.SkipAnalysis) == "ProceedToAnalysis"))',
-    );
-    ts.eval('\nRunState.SequenceFailed = RunState.GotoCleanup');
-    timeDomainMeasurementMeasureOnlyResult.Status = ts.Status.done;
+    try {
+      // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+      // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
+      //   Existing Object <- Locals.TDMRessource
+      // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure
+      //   Return Value <- Parameters.TDMResultData
+      ts.notExported(
+        'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure',
+      ); // Time Domain Measurement - MeasureOnly [Action]
+      ts.eval(
+        'RunState.GotoCleanup = !(!(Step.Result.Error.Occurred) || (Find(Step.Result.Error.Msg, "ErrorCode = 20308") > 0 && Str(Parameters.SkipAnalysis) == "ProceedToAnalysis"))',
+      );
+      ts.eval('\nRunState.SequenceFailed = RunState.GotoCleanup');
+      timeDomainMeasurementMeasureOnlyResult.Status = ts.Status.done;
+    } on ts.RunTimeError catch (_) {}
   } finally {
     // Close all Tasks
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll

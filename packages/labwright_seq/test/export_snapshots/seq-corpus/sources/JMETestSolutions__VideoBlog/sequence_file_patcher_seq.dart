@@ -19,9 +19,9 @@ Future<void> mainSequence() async {
     locals.modelPath =
         'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\SequentialModel.seq'; // Setup Paths
     locals.modelPatchesPath =
-        'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\SequentialModel Patches.seq'; // Setup Paths (cont.)
+        'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\SequentialModel Patches.seq';
     locals.outputPath =
-        'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\Outputs\\CustomATESequentialModel.seq'; // Setup Paths (cont.)
+        'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\Outputs\\CustomATESequentialModel.seq';
     ts.eval('Locals.originalModel = RunState.Engine.GetSequenceFileEx(locals.Model_Path)\n'); // Open Model
     ts.eval('Locals.patchesFile = RunState.Engine.GetSequenceFileEx(locals.Model_Patches_Path)\n'); // Open Patches
     ts.eval('Locals.patchedSequenceFile = RunState.Engine.NewSequenceFile()'); // Create New Sequence File

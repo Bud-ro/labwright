@@ -9,7 +9,7 @@ Future<void> loginLogout({bool logout = false, bool isInitialLogin = false}) asy
       ts.notExported('cModule call: Logout'); // Logout [Action]
       break endMain;
     }
-    // [skipped in source] Login
+    // skipped: Login
     if (!logout) {
       ts.eval('RunState.Engine.CurrentUser = RunState.Engine.GetUser("administrator")'); // Auto Login
     }

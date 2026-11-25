@@ -98,7 +98,7 @@ Future<ts.Status> mainSequence() async {
       },
     });
     await subtest_set_channel_timeout_seq.mainSequence(); // Set Channel Timeout Subtest: external sequence
-    // [skipped in source] Extended RT Sequence Test
+    // skipped: Extended RT Sequence Test
     run.record(
       await subtest_rt_sequence_parameter_return_test_seq.mainSequence(),
     ); // Test sequence parameters & return values: external sequence
@@ -289,7 +289,7 @@ Future<ts.Status> mainSequence() async {
     });
     run.record(await main_sub_seq.mainSequence()); // Call Subsequence (seperate file): external sequence
     run.record(await subsequence()); // Call Subsequence (same file)
-    // [skipped in source] Silent disconnect test
+    // skipped: Silent disconnect test
   } finally {
     await ts.stepType('StopVeriStand', {
       'Veristand': {'CloseUIManager': false, 'CloseApp': true, 'ShowProgress': false},
@@ -313,7 +313,7 @@ Future<void> preUut({
   dynamic modelPluginConfiguration,
 }) async {
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
-  // [skipped in source] Call DoPreUUT
+  // skipped: Call DoPreUUT
 }
 
 /// Sequence `PostUUT` — Displays a pass, fail, error, or terminated banner. Override this in client file to change or replace this action..
@@ -325,7 +325,7 @@ Future<void> postUut({
   dynamic modelPluginConfiguration,
 }) async {
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
-  // [skipped in source] Call DoPostUUT
+  // skipped: Call DoPostUUT
 }
 
 /// Sequence `Subsequence`.
@@ -404,7 +404,7 @@ Future<ts.Status> subsequence() async {
     },
   });
   await subtest_set_channel_timeout_seq.mainSequence(); // Set Channel Timeout Subtest: external sequence
-  // [skipped in source] Extended RT Sequence Test
+  // skipped: Extended RT Sequence Test
   run.record(
     await subtest_rt_sequence_parameter_return_test_seq.mainSequence(),
   ); // Test sequence parameters & return values: external sequence

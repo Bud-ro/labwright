@@ -27,7 +27,7 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
   try {
     sequenceFileObj = sequenceFile; // Set Sequence File Ref
     // Enable this step to test this sequence in isolation. Make sure the path to the example sequence is valid and the "Release Sequence File" is Enabled.
-    // [skipped in source] Get Sequence File Ref
+    // skipped: Get Sequence File Ref
 
     for (final element in ts.iterate(sequenceFileObj.Data.Seq)) {
       locals.currentSequence = element;
@@ -41,7 +41,7 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
     run.record(saveDocToFileResult.Status);
   } finally {
     // Enable this step to test this sequence in isolation.
-    // [skipped in source] Release Sequence File
+    // skipped: Release Sequence File
   }
 
   return run.status;

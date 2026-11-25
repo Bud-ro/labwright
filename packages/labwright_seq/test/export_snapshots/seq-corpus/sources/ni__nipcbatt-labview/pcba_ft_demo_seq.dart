@@ -692,17 +692,19 @@ Future<ts.Status> animationAndSoundUserInputTest() async {
     // Note to run with Hardware: Review the step settings configurations to handle Run-Time Errors
     // Fetches the measured DC Voltage (measured when Button action sends Trigger after source) and returns Time Domain Analysis.
     // NOTE: This Step errors outs for non-periodic waveform captures.
-    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-    //   Periodic Waveform  | Measurements? <- True
-    //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
-    //   Voltage Waveforms <- Locals.Meas_Data.Voltage_Waveform
-    //   error out <- Step.Result.Error
-    await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Fetch Volume LED Dutycycle and Tweeter Frequency [NI_MultipleNumericLimitTest]
-    timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult.Status = ts.multipleNumericLimitTest([
-      (value: locals.measData.Dutycycle[0], comparison: 'GELE', low: 25, high: 35),
-      (value: locals.measData.Frequency[1], comparison: 'GELE', low: 990, high: 1010),
-    ]);
-    run.record(timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult.Status);
+    try {
+      //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+      //   Periodic Waveform  | Measurements? <- True
+      //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
+      //   Voltage Waveforms <- Locals.Meas_Data.Voltage_Waveform
+      //   error out <- Step.Result.Error
+      await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Fetch Volume LED Dutycycle and Tweeter Frequency [NI_MultipleNumericLimitTest]
+      timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult.Status = ts.multipleNumericLimitTest([
+        (value: locals.measData.Dutycycle[0], comparison: 'GELE', low: 25, high: 35),
+        (value: locals.measData.Frequency[1], comparison: 'GELE', low: 990, high: 1010),
+      ]);
+      run.record(timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult.Status);
+    } on ts.RunTimeError catch (_) {}
     // Note to run with Hardware: Review the Configurations for the intended use case
     // Note: To simulate the push on a volume button to generate a sound and a light animation to the LED
     //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task

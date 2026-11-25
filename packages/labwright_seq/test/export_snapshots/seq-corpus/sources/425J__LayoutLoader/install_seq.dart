@@ -44,16 +44,11 @@ Future<ts.Status> install() async {
     'Locals.CurrentDir = Left(ThisContext.SequenceFile.Path, Find(ThisContext.SequenceFile.Path, "\\\\", 0, True, True)),\nLocals.Source.SeqEdit = Locals.CurrentDir + @"\\Resources\\SeqEdit",\nLocals.Source.Users = Locals.CurrentDir + @"\\Resources\\Users.ini",\nLocals.Source.FrontEndCallback = Locals.CurrentDir + @"\\Resources\\FrontEnd"',
   ); // Set Source Directories
   ts.eval('Locals.TestStandPublic = RunState.Engine.GetTestStandPath(TestStandPath_Public)'); // Set Target Directories
-  ts.eval(
-    '\nLocals.TestStandCfg = RunState.Engine.GetTestStandPath(TestStandPath_Config)',
-  ); // Set Target Directories (cont.)
-  ts.eval(
-    '\nLocals.TestStandGlobalCfg = RunState.Engine.GetTestStandPath(TestStandPath_GlobalConfig)',
-  ); // Set Target Directories (cont.)
-  locals.target.UsersDir = '${locals.testStandGlobalCfg}\\Users.ini'; // Set Target Directories (cont.)
-  locals.target.SeqEditDir = '${locals.testStandCfg}\\SeqEdit'; // Set Target Directories (cont.)
-  locals.target.FrontEndCallbackDir =
-      '${locals.testStandPublic}\\Components\\Callbacks\\FrontEnd'; // Set Target Directories (cont.)
+  ts.eval('\nLocals.TestStandCfg = RunState.Engine.GetTestStandPath(TestStandPath_Config)');
+  ts.eval('\nLocals.TestStandGlobalCfg = RunState.Engine.GetTestStandPath(TestStandPath_GlobalConfig)');
+  locals.target.UsersDir = '${locals.testStandGlobalCfg}\\Users.ini';
+  locals.target.SeqEditDir = '${locals.testStandCfg}\\SeqEdit';
+  locals.target.FrontEndCallbackDir = '${locals.testStandPublic}\\Components\\Callbacks\\FrontEnd';
   run.record(
     await copy(
       sourceDirectoryPath: locals.source.SeqEdit as String,
@@ -103,7 +98,7 @@ Future<ts.Status> copy({String sourceDirectoryPath = '', String targetDirectoryP
     run.record(await copyAll()); // CopyAll
   } finally {
     locals.diSourceDirectory = null; // Release
-    locals.diTargetDirectory = null; // Release (cont.)
+    locals.diTargetDirectory = null;
   }
 
   return run.status;

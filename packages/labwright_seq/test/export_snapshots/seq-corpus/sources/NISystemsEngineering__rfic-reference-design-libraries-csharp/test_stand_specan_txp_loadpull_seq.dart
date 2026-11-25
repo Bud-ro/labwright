@@ -194,10 +194,7 @@ Future<void> mainSequence() async {
       loadedWaveformIndexes,
       ts.getNumElements(staticStationConfigs.Waveform_Configs),
     ); // Initialize Waveform Arrays
-    ts.setNumElements(
-      loadedWaveforms,
-      ts.getNumElements(staticStationConfigs.Waveform_Configs),
-    ); // Initialize Waveform Arrays (cont.)
+    ts.setNumElements(loadedWaveforms, ts.getNumElements(staticStationConfigs.Waveform_Configs));
     // Initialize Instruments
     // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll
     // .NET call: NationalInstruments.ReferenceDesignLibraries.FocusITuner.FocusITunerBroker.FocusITunerBroker
@@ -246,8 +243,8 @@ Future<void> mainSequence() async {
         'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
       ); // Create SpecAn Signal Configuration [Action]
       loadedWaveformIndexes[locals.waveFormConfigsIdx] = locals.waveFormConfigsIdx; // Store Loaded Waveforms
-      loadedWaveforms[locals.waveFormConfigsIdx] = locals.currentWaveform; // Store Loaded Waveforms (cont.)
-      locals.waveFormConfigsIdx++; // Store Loaded Waveforms (cont.)
+      loadedWaveforms[locals.waveFormConfigsIdx] = locals.currentWaveform;
+      locals.waveFormConfigsIdx++;
     }
 
     // TODO: sweep loop (FileGlobals.Configurations.Tuner.VSWR._VSWR_k__BackingField, FileGlobals.Configurations.Tuner.VSWR._DegreePhase_k__BackingField, FileGlobals.Configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_, FileGlobals.Configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Index) not exported; the body runs once
@@ -293,25 +290,22 @@ Future<void> configure() async {
   currentSweepStep.Loaded_Waveform =
       loadedWaveforms[(currentSweepStep.Calculated_Parameters.Waveform_Index as num)
           .toInt()]; // Map Calculated Parameters
-  currentSweepStep.Input_and_Output.PARAMS.Test_Config = staticStationConfigs
-      .Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index]
-      .Test_Config; // Map Calculated Parameters (cont.)
+  currentSweepStep.Input_and_Output.PARAMS.Test_Config =
+      staticStationConfigs.Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index].Test_Config;
   configurations.Generator.RFSGConfig.External_Attenuation__dB_ =
-      currentSweepStep.Calculated_Parameters.Path_Losses.SG_to_DUT; // Map Calculated Parameters (cont.)
+      currentSweepStep.Calculated_Parameters.Path_Losses.SG_to_DUT;
   currentSweepStep.Input_and_Output.PARAMS.Center_Frequency =
-      configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_; // Map Calculated Parameters (cont.)
+      configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_;
   configurations.Analyzer.SpecAn_Common_Config.CenterFrequency_Hz =
-      configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_; // Map Calculated Parameters (cont.)
+      configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_;
   configurations.Analyzer.SpecAn_Common_Config.ExternalAttenuation_dB =
-      currentSweepStep.Calculated_Parameters.Path_Losses.DUT_to_SA; // Map Calculated Parameters (cont.)
-  configurations.Analyzer.RFmx_Selector_String =
-      currentSweepStep.Calculated_Parameters.RFmx_Selector_String; // Map Calculated Parameters (cont.)
+      currentSweepStep.Calculated_Parameters.Path_Losses.DUT_to_SA;
+  configurations.Analyzer.RFmx_Selector_String = currentSweepStep.Calculated_Parameters.RFmx_Selector_String;
   currentSweepStep.Calculated_Parameters.SA_Ref_Level =
       configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_ +
       currentSweepStep.Loaded_Waveform.PAPR_dB +
       staticStationConfigs.DUT_Params.Gain_dB; // Calculate Reference Level
-  configurations.Analyzer.SpecAn_Common_Config.ReferenceLevel_dBm =
-      currentSweepStep.Calculated_Parameters.SA_Ref_Level; // Calculate Reference Level (cont.)
+  configurations.Analyzer.SpecAn_Common_Config.ReferenceLevel_dBm = currentSweepStep.Calculated_Parameters.SA_Ref_Level;
   // Retrieve the saved signal configuration for this waveform based on the waveform's name
   // .NET call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration
   //   Return Value <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
@@ -415,12 +409,11 @@ Future<void> measure() async {
     // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
     currentSweepStep.Input_and_Output.MEAS.Avg_Mean_Power_dBm =
         currentSweepStep.Results.TxP_Results.AverageMeanPower_dBm; // Map Results
-    currentSweepStep.Input_and_Output.MEAS.VSWR =
-        currentSweepStep.Results.VSWR_and_Phase[0]._VSWR_k__BackingField; // Map Results (cont.)
+    currentSweepStep.Input_and_Output.MEAS.VSWR = currentSweepStep.Results.VSWR_and_Phase[0]._VSWR_k__BackingField;
     currentSweepStep.Input_and_Output.MEAS.Phase =
-        currentSweepStep.Results.VSWR_and_Phase[0]._DegreePhase_k__BackingField; // Map Results (cont.)
+        currentSweepStep.Results.VSWR_and_Phase[0]._DegreePhase_k__BackingField;
     currentSweepStep.Input_and_Output.MEAS.Tuner_Primary_Frequency =
-        currentSweepStep.Results.Tuner_Primary_Frequency_GHz * 1000000000.0; // Map Results (cont.)
+        currentSweepStep.Results.Tuner_Primary_Frequency_GHz * 1000000000.0;
   } finally {
     // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
     // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration

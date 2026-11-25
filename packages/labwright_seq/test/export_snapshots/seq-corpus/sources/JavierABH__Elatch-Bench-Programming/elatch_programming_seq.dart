@@ -11,9 +11,9 @@ String failStringDataToSend = '';
 Future<void> processSetup() async {
   await loadVariables(variableList: 'Init'); // Load var init
   ts.eval('StationGlobals.isTraceEnable = FileGlobals.isTraceEnable'); // Assign TraceabilityEnabled Var
-  ts.eval('\nStationGlobals.isRecordFail = FileGlobals.isRecordFail'); // Assign TraceabilityEnabled Var (cont.)
-  ts.eval('\nStationGlobals.StationName = FileGlobals.StationName'); // Assign TraceabilityEnabled Var (cont.)
-  ts.eval('\nStationGlobals.ProcessName = FileGlobals.ProcessName'); // Assign TraceabilityEnabled Var (cont.)
+  ts.eval('\nStationGlobals.isRecordFail = FileGlobals.isRecordFail');
+  ts.eval('\nStationGlobals.StationName = FileGlobals.StationName');
+  ts.eval('\nStationGlobals.ProcessName = FileGlobals.ProcessName');
 }
 
 class _PreUutLocals {
@@ -32,8 +32,8 @@ Future<void> preUut({
   final locals = _PreUutLocals();
 
   station.isBackcheckOk = false; // Reset Traceability Variables
-  locals.backCheck = 0; // Reset Traceability Variables (cont.)
-  locals.replyBackCheck = ''; // Reset Traceability Variables (cont.)
+  locals.backCheck = 0;
+  locals.replyBackCheck = '';
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
   await doPreUut(); // Call DoPreUUT: external sequence call
 

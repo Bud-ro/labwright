@@ -79,9 +79,9 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
       locals.docResult += '</TABLE><BR></H4>\n'; // End Main Header
       locals.docResult += locals.tableHtml; // Sequence File Header
       ts.eval('Locals.tmpString = CommentOf(Parameters.SequenceFile.Data)'); // ProcessComment
-      ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")'); // ProcessComment (cont.)
-      ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")'); // ProcessComment (cont.)
-      ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")'); // ProcessComment (cont.)
+      ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")');
+      ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")');
+      ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")');
       if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
         locals.docResult +=
             '${locals.rowHtml + locals.propColHtml + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_COMMENT'), '%-30s') + locals.valColHtml + locals.tmpString}\n'; // Comment
@@ -253,9 +253,9 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
         'Parameters.DocResult += "<HR>" + Locals.TableHTML + Locals.RowHTML + Locals.TitleColHTML +\n	"<FONT COLOR=WHITE SIZE=+2><B>" +\n	GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NAME") +\n	NameOf(Parameters.Sequence) + "</B></FONT>\\n"\n',
       ); // Sequence Header
       ts.eval('Locals.tmpString = CommentOf(Parameters.Sequence)'); // ProcessComment
-      ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")'); // ProcessComment (cont.)
-      ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")'); // ProcessComment (cont.)
-      ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")'); // ProcessComment (cont.)
+      ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")');
+      ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")');
+      ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")');
       if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
         docResultRef.value +=
             '${locals.rowHtml + locals.propColHtml + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_COMMENT'), '%-30s') + locals.valColHtml + locals.tmpString}\n'; // Comment
@@ -485,9 +485,9 @@ Future<ts.Status> stepDoc({
     //   Return Value -> Locals.StepKeyName
     ts.notExported('cModule call: GetStepKeyName'); // GetStepKeyName [Action]
     locals.tmpString = ts.resourceString('Adapter Names', locals.stepKeyName); // Process Adapter Name
-    ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")'); // Process Adapter Name (cont.)
-    ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")'); // Process Adapter Name (cont.)
-    ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")'); // Process Adapter Name (cont.)
+    ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")');
+    ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")');
+    ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")');
     ts.eval(
       'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\nStr(ResStr("SEQ_FILE_DOC", "DOC_STEP_TYPE_AND_ADAPTER"), "%-30s") +\nLocals.ValColHTML +\nResStr("STEPTYPE_NAMES", Locals.StepTypeName, Locals.StepTypeName) + \n", " + Locals.tmpString + "\\n"\n',
     ); // Step Type, Adapter Name
@@ -495,23 +495,23 @@ Future<ts.Status> stepDoc({
     //   options <- 1 ' long description
     ts.notExported('cModule call: Get Step Desc'); // Get Step Desc [Action]
     ts.eval('FindAndReplace(Locals.tmpString, "<", "&lt;")'); // Process Desc
-    ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")'); // Process Desc (cont.)
-    ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")'); // Process Desc (cont.)
+    ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")');
+    ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")');
     docResultRef.value +=
         '${locals.rowHtml + locals.propColHtml + ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_DESC') + locals.valColHtml + locals.tmpString}\n'; // Step Description
     ts.eval('Locals.tmpString = CommentOf(Parameters.Step)'); // Process Comment
-    ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")'); // Process Comment (cont.)
-    ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")'); // Process Comment (cont.)
-    ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")'); // Process Comment (cont.)
+    ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")');
+    ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")');
+    ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")');
     if (ts.cond('CommentOf(Parameters.Step) != ""')) {
       docResultRef.value +=
           '${locals.rowHtml + locals.propColHtml + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_COMMENT'), '%-30s') + locals.valColHtml + locals.tmpString}\n'; // Comment
     }
     if (ts.cond('PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False')) {
       locals.tmpString = step.InBuf as String; // Process InBuf
-      ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")'); // Process InBuf (cont.)
-      ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")'); // Process InBuf (cont.)
-      ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")'); // Process InBuf (cont.)
+      ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")');
+      ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")');
+      ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")');
     }
     if (ts.cond('PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False')) {
       docResultRef.value +=
@@ -539,9 +539,9 @@ Future<ts.Status> stepDoc({
     }
     if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
       locals.tmpString = step.Limits.String as String; // Process String Limit
-      ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")'); // Process String Limit (cont.)
-      ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")'); // Process String Limit (cont.)
-      ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")'); // Process String Limit (cont.)
+      ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")');
+      ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")');
+      ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")');
     }
     if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
       docResultRef.value +=
@@ -726,8 +726,10 @@ Future<void> writePropertyDetails({
     ts.notExported('cModule call: GetTypeInfo'); // GetTypeInfo [Action]
     // Normally Evaluate() should only fail if the property name has invalid characters in it.
     // --- Test Evaluate Error ---
-    ts.eval('Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName)'); // TryToEvaluate
-    tryToEvaluateResult.Status = ts.Status.done;
+    try {
+      ts.eval('Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName)'); // TryToEvaluate
+      tryToEvaluateResult.Status = ts.Status.done;
+    } on ts.RunTimeError catch (_) {}
     if (tryToEvaluateResult.Status == 'Error') {
       locals.subpropValue = tryToEvaluateResult.Error.Msg as String; // Document Error
     }
@@ -757,8 +759,8 @@ Future<void> writePropertyDetails({
   }
   // --- Skip Evaluate ---
   ts.eval('FindAndReplace(Locals.SubpropValue, "<", "&lt;")'); // Process SubpropValue
-  ts.eval('\nFindAndReplace(Locals.SubpropValue, ">", "&gt;")'); // Process SubpropValue (cont.)
-  ts.eval('\nFindAndReplace(Locals.SubpropValue, "\\n", "<BR>")'); // Process SubpropValue (cont.)
+  ts.eval('\nFindAndReplace(Locals.SubpropValue, ">", "&gt;")');
+  ts.eval('\nFindAndReplace(Locals.SubpropValue, "\\n", "<BR>")');
   //   Return Value -> Locals.SubpropFlags
   //   lookupString <- Parameters.PropertyToDisplayName
   //   options <- 0
@@ -892,9 +894,9 @@ Future<void> writeRequirementsElements({dynamic requirements, ts.Ref<String>? do
   }
   if (ts.len(locals.tmpString) > 0) {
     ts.eval('FindAndReplace(Locals.tmpString, "<", "&lt;")'); // Requirements
-    ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")'); // Requirements (cont.)
-    ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<br>")'); // Requirements (cont.)
+    ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")');
+    ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<br>")');
     docResultRef.value +=
-        '${locals.rowHtml + locals.propColHtml + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_REQUIREMENTS'), '%-30s') + locals.valColHtml + locals.tmpString}\n'; // Requirements (cont.)
+        '${locals.rowHtml + locals.propColHtml + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_REQUIREMENTS'), '%-30s') + locals.valColHtml + locals.tmpString}\n';
   }
 }

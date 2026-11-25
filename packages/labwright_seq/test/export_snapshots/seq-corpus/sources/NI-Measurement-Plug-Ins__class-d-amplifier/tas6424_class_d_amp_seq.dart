@@ -32,8 +32,7 @@ Future<void> mainSequence() async {
 /// Sequence `ReportOptions` — The report generator result processing component calls this from its Begin sequence.  Override it to modify the options..
 Future<void> reportOptions({dynamic reportOptions2, dynamic modelPlugin, dynamic modelPluginConfiguration}) async {
   reportOptions2.GeneratePDFReport = true; // Update Report Options
-  reportOptions2.SaveTransformedHtmlForXmlReport = false; // Update Report Options (cont.)
-  reportOptions2.DirectoryType = 'SpecificDirectory'; // Update Report Options (cont.)
-  reportOptions2.Directory =
-      'C:\\dev\\class-d-amplifier\\demo\\InstrStudio\\Sequence Results'; // Update Report Options (cont.)
+  reportOptions2.SaveTransformedHtmlForXmlReport = false;
+  reportOptions2.DirectoryType = 'SpecificDirectory';
+  reportOptions2.Directory = 'C:\\dev\\class-d-amplifier\\demo\\InstrStudio\\Sequence Results';
 }

@@ -9,11 +9,11 @@ String partNumber = '';
 Future<void> processSetup() async {
   await loadVariables(variableList: 'FirstRun'); // Load var init
   ts.eval('StationGlobals.isTraceEnable = FileGlobals.isTraceEnable'); // Assign TraceabilityEnabled Var
-  ts.eval('\nStationGlobals.isRecordFail = FileGlobals.isRecordFail'); // Assign TraceabilityEnabled Var (cont.)
-  ts.eval('\nStationGlobals.StationName = FileGlobals.StationName'); // Assign TraceabilityEnabled Var (cont.)
-  ts.eval('\nStationGlobals.ProcessName = FileGlobals.ProcessName'); // Assign TraceabilityEnabled Var (cont.)
-  station.initPnWithsequence == ''; // Assign TraceabilityEnabled Var (cont.)
-  station.initPnWithsequence == ''; // Assign TraceabilityEnabled Var (cont.)
+  ts.eval('\nStationGlobals.isRecordFail = FileGlobals.isRecordFail');
+  ts.eval('\nStationGlobals.StationName = FileGlobals.StationName');
+  ts.eval('\nStationGlobals.ProcessName = FileGlobals.ProcessName');
+  station.initPnWithsequence == '';
+  station.initPnWithsequence == '';
 }
 
 class _PreBatchLocals {
@@ -33,45 +33,45 @@ Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dyna
   });
 
   locals.backCheck = 0; // Reset Traceability Variables
-  locals.replyBackCheck = ''; // Reset Traceability Variables (cont.)
-  modelData.BatchUUT.BatchSerialNumber = ''; // Reset Traceability Variables (cont.)
-  station.individualSerials[0] = ''; // Reset Traceability Variables (cont.)
-  station.individualSerials[1] = ''; // Reset Traceability Variables (cont.)
-  station.individualSerials[2] = ''; // Reset Traceability Variables (cont.)
-  station.individualSerials[3] = ''; // Reset Traceability Variables (cont.)
-  station.individualSerials[4] = ''; // Reset Traceability Variables (cont.)
-  station.individualSerials[5] = ''; // Reset Traceability Variables (cont.)
-  station.isBackcheckOk[0] = false; // Reset Traceability Variables (cont.)
-  station.isBackcheckOk[1] = false; // Reset Traceability Variables (cont.)
-  station.isBackcheckOk[2] = false; // Reset Traceability Variables (cont.)
-  station.isBackcheckOk[3] = false; // Reset Traceability Variables (cont.)
-  station.isBackcheckOk[4] = false; // Reset Traceability Variables (cont.)
-  station.isBackcheckOk[5] = false; // Reset Traceability Variables (cont.)
-  station.modelId = ''; // Reset Traceability Variables (cont.)
-  station.pathResetFlexProvision = ''; // Reset Traceability Variables (cont.)
-  station.pathFlexProvision = ''; // Reset Traceability Variables (cont.)
-  station.pathProgramCombined = ''; // Reset Traceability Variables (cont.)
+  locals.replyBackCheck = '';
+  modelData.BatchUUT.BatchSerialNumber = '';
+  station.individualSerials[0] = '';
+  station.individualSerials[1] = '';
+  station.individualSerials[2] = '';
+  station.individualSerials[3] = '';
+  station.individualSerials[4] = '';
+  station.individualSerials[5] = '';
+  station.isBackcheckOk[0] = false;
+  station.isBackcheckOk[1] = false;
+  station.isBackcheckOk[2] = false;
+  station.isBackcheckOk[3] = false;
+  station.isBackcheckOk[4] = false;
+  station.isBackcheckOk[5] = false;
+  station.modelId = '';
+  station.pathResetFlexProvision = '';
+  station.pathFlexProvision = '';
+  station.pathProgramCombined = '';
   station.releProgrammer[0] = false; // Reset Reles
-  station.releProgrammer[1] = false; // Reset Reles (cont.)
-  station.releProgrammer[2] = false; // Reset Reles (cont.)
+  station.releProgrammer[1] = false;
+  station.releProgrammer[2] = false;
   station.testResult[0] = 0; // Reset TestResults
-  station.testResult[1] = 0; // Reset TestResults (cont.)
-  station.testResult[2] = 0; // Reset TestResults (cont.)
-  station.testResult[3] = 0; // Reset TestResults (cont.)
-  station.testResult[4] = 0; // Reset TestResults (cont.)
-  station.testResult[5] = 0; // Reset TestResults (cont.)
+  station.testResult[1] = 0;
+  station.testResult[2] = 0;
+  station.testResult[3] = 0;
+  station.testResult[4] = 0;
+  station.testResult[5] = 0;
   station.failString[0] = ''; // Reset FailStrings
-  station.failString[1] = ''; // Reset FailStrings (cont.)
-  station.failString[2] = ''; // Reset FailStrings (cont.)
-  station.failString[3] = ''; // Reset FailStrings (cont.)
-  station.failString[4] = ''; // Reset FailStrings (cont.)
-  station.failString[5] = ''; // Reset FailStrings (cont.)
+  station.failString[1] = '';
+  station.failString[2] = '';
+  station.failString[3] = '';
+  station.failString[4] = '';
+  station.failString[5] = '';
   station.isSequenceComplete[0] = false; // Set Sequence complete to False
-  station.isSequenceComplete[1] = false; // Set Sequence complete to False (cont.)
-  station.isSequenceComplete[2] = false; // Set Sequence complete to False (cont.)
-  station.isSequenceComplete[3] = false; // Set Sequence complete to False (cont.)
-  station.isSequenceComplete[4] = false; // Set Sequence complete to False (cont.)
-  station.isSequenceComplete[5] = false; // Set Sequence complete to False (cont.)
+  station.isSequenceComplete[1] = false;
+  station.isSequenceComplete[2] = false;
+  station.isSequenceComplete[3] = false;
+  station.isSequenceComplete[4] = false;
+  station.isSequenceComplete[5] = false;
   station.isUutPanelFailed = false; // UUT_Panel_Failed
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(modelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.BatchModelGetNextUUTs)) {
@@ -106,22 +106,20 @@ Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dyna
     await callWsp2PartNumberRef(); // Get_PartNumber [Action]
     getPartNumberResult.Status = station.partNumber;
     run.record(getPartNumberResult.Status);
-    // [skipped in source] Activar para mostrar PN
+    // skipped: Activar para mostrar PN
     await loadVariables(variableList: modelData.BatchUUT.PartNumber as String); // Get FW paths for PN
     ts.eval('StationGlobals.ModelID = FileGlobals.Model_ID'); // Set FW Paths
-    ts.eval('\nStationGlobals.Path_flex_provision = FileGlobals.Path_flex_provision'); // Set FW Paths (cont.)
-    ts.eval(
-      '\nStationGlobals.Path_reset_flex_provision = FileGlobals.Path_reset_flex_provision',
-    ); // Set FW Paths (cont.)
-    ts.eval('\nStationGlobals.Path_program_combined = FileGlobals.Path_program_combined'); // Set FW Paths (cont.)
+    ts.eval('\nStationGlobals.Path_flex_provision = FileGlobals.Path_flex_provision');
+    ts.eval('\nStationGlobals.Path_reset_flex_provision = FileGlobals.Path_reset_flex_provision');
+    ts.eval('\nStationGlobals.Path_program_combined = FileGlobals.Path_program_combined');
     // This part is for future update
-    // [skipped in source] Save PN for check for PN at other panel
+    // skipped: Save PN for check for PN at other panel
     if (ts.cond(
       'StationGlobals.PartNumber <> StationGlobals.Init_PN_withsequence && StationGlobals.Init_PN_withsequence <> ""',
     )) {
       // [Skip in source]
-      // [skipped in source] Msg for pn diferent
-      // [skipped in source] Close the sequence ifdetect other pn
+      // skipped: Msg for pn diferent
+      // skipped: Close the sequence ifdetect other pn
       // This part is for future update
     } // [Skip in source]
     // This part is for future update
@@ -227,7 +225,7 @@ Future<void> preUutLoop({dynamic modelPluginConfiguration}) async {
   } else if (ts.cond('RunState.TestSockets.MyIndex == 5')) {
     await loadVariables(variableList: 'UUT_6'); // Load_Var_UUT 6
   }
-  // [skipped in source] Save PN for check for PN at other panel
+  // skipped: Save PN for check for PN at other panel
 }
 
 /// Sequence `MainSequence`.
@@ -272,7 +270,7 @@ Future<ts.Status> mainSequence() async {
   var cleanupFrom = 0;
   body:
   try {
-    // [skipped in source] Go to cleanup on failure
+    // skipped: Go to cleanup on failure
     if (ts.cond(
       'StationGlobals.isBackCheckOK[RunState.TestSockets.MyIndex] == False && StationGlobals.isTraceEnable == "True"',
     )) {
@@ -646,7 +644,7 @@ Future<void> loadVariables({String variableList = ''}) async {
     locals.tempName = locals.testName[locals.tempLoop] as String; // NamesToVariables
     ts.eval('RunState.Main.FileGlobals.SetValString(Locals.Temp_Name,0x1,Locals.Temp_Str)'); // CreateLimits
   }
-  // [skipped in source] Message Popup
+  // skipped: Message Popup
 }
 
 /// Sequence `Write_reset_flex_provision`.

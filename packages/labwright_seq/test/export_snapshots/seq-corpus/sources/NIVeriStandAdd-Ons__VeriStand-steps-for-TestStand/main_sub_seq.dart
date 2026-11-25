@@ -93,7 +93,7 @@ Future<ts.Status> mainSequence() async {
     },
   });
   await subtest_set_channel_timeout_seq.mainSequence(); // Set Channel Timeout Subtest: external sequence
-  // [skipped in source] Extended RT Sequence Test
+  // skipped: Extended RT Sequence Test
   run.record(
     await subtest_rt_sequence_parameter_return_test_seq.mainSequence(),
   ); // Test sequence parameters & return values: external sequence

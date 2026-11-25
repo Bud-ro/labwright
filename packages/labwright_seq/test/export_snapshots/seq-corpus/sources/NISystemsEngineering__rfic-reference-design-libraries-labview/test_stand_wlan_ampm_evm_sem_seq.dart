@@ -253,10 +253,7 @@ Future<void> mainSequence() async {
       loadedWaveformIndexes,
       ts.getNumElements(staticStationConfigs.Waveform_Configs),
     ); // Initialize Waveform Arrays
-    ts.setNumElements(
-      loadedWaveforms,
-      ts.getNumElements(staticStationConfigs.Waveform_Configs),
-    ); // Initialize Waveform Arrays (cont.)
+    ts.setNumElements(loadedWaveforms, ts.getNumElements(staticStationConfigs.Waveform_Configs));
     // Initialize Instruments
     //   id query <- True
     //   reset device <- False
@@ -279,9 +276,9 @@ Future<void> mainSequence() async {
       configurations.Analyzer.WLAN_Signal_Config.Standard =
           locals.currentWaveformConfig.WLAN_Standard; // Map Loaded Parameters
       configurations.Analyzer.WLAN_Signal_Config.Channel_Bandwidth__Hz =
-          locals.currentWaveformConfig.Waveform_Bandwidth; // Map Loaded Parameters (cont.)
+          locals.currentWaveformConfig.Waveform_Bandwidth;
       configurations.Analyzer.Auto_Level_Configuration.Measurement_Interval__s_ =
-          locals.currentWaveform.Burst_Length__s_; // Map Loaded Parameters (cont.)
+          locals.currentWaveform.Burst_Length__s_;
       //   RFSG handle <- FileGlobals.Device_Handles.RFSG
       //   Waveform In <- Locals.Current_Waveform
       //   error out <- Step.Result.Error
@@ -301,8 +298,8 @@ Future<void> mainSequence() async {
       //   error out <- Step.Result.Error
       await callWlanConfigureStandard(); // WLAN Signal Config [Action]
       loadedWaveformIndexes[locals.waveformConfigsIdx] = locals.waveformConfigsIdx; // Store Loaded Waveforms
-      loadedWaveforms[locals.waveformConfigsIdx] = locals.currentWaveform; // Store Loaded Waveforms (cont.)
-      locals.waveformConfigsIdx++; // Store Loaded Waveforms (cont.)
+      loadedWaveforms[locals.waveformConfigsIdx] = locals.currentWaveform;
+      locals.waveformConfigsIdx++;
     }
 
     // TODO: sweep loop (FileGlobals.Configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_, FileGlobals.Configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Index) not exported; the body runs once
@@ -339,36 +336,32 @@ Future<void> configure() async {
   configurations.Analyzer.Measurements.SpecAn_AMPM_Config.DUT_Average_Input_Power__dBm_ =
       configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_; // Map Calculated Parameters
   configurations.Analyzer.SpecAn_DPD.DPD_Common_Config.DUT_Average_Input_Power__dBm_ =
-      configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_; // Map Calculated Parameters (cont.)
+      configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_;
   currentSweepStep.Loaded_Waveform =
-      loadedWaveforms[(currentSweepStep.Calculated_Parameters.Waveform_Index as num)
-          .toInt()]; // Map Calculated Parameters (cont.)
-  currentSweepStep.Input_and_Output.PARAMS.Test_Config = staticStationConfigs
-      .Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index]
-      .Test_Config; // Map Calculated Parameters (cont.)
-  currentSweepStep.Input_and_Output.PARAMS.DPD_Enabled = staticStationConfigs
-      .Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index]
-      .DPD_Enabled; // Map Calculated Parameters (cont.)
+      loadedWaveforms[(currentSweepStep.Calculated_Parameters.Waveform_Index as num).toInt()];
+  currentSweepStep.Input_and_Output.PARAMS.Test_Config =
+      staticStationConfigs.Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index].Test_Config;
+  currentSweepStep.Input_and_Output.PARAMS.DPD_Enabled =
+      staticStationConfigs.Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index].DPD_Enabled;
   configurations.Generator.RFSGConfig.External_Attenuation__dB_ =
-      currentSweepStep.Calculated_Parameters.Path_Losses.SG_to_DUT; // Map Calculated Parameters (cont.)
+      currentSweepStep.Calculated_Parameters.Path_Losses.SG_to_DUT;
   currentSweepStep.Input_and_Output.PARAMS.Center_Frequency =
-      configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_; // Map Calculated Parameters (cont.)
+      configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_;
   configurations.Analyzer.SpecAn_Common_Config.Center_Frequency__Hz_ =
-      configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_; // Map Calculated Parameters (cont.)
+      configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_;
   configurations.Analyzer.SpecAn_Common_Config.External_Attenuation__dB_ =
-      currentSweepStep.Calculated_Parameters.Path_Losses.DUT_to_SA; // Map Calculated Parameters (cont.)
-  configurations.Analyzer.RFmx_Selector_String =
-      currentSweepStep.Calculated_Parameters.RFmx_Selector_String; // Map Calculated Parameters (cont.)
+      currentSweepStep.Calculated_Parameters.Path_Losses.DUT_to_SA;
+  configurations.Analyzer.RFmx_Selector_String = currentSweepStep.Calculated_Parameters.RFmx_Selector_String;
   configurations.Analyzer.Measurements.WLAN_ModAcc_Config.Acquisition_Length__s_ =
-      currentSweepStep.Loaded_Waveform.Burst_Length__s_; // Map Calculated Parameters (cont.)
+      currentSweepStep.Loaded_Waveform.Burst_Length__s_;
   configurations.Analyzer.Measurements.SpecAn_AMPM_Config.Measurement_Interval__s_ =
-      currentSweepStep.Loaded_Waveform.Burst_Length__s_; // Map Calculated Parameters (cont.)
+      currentSweepStep.Loaded_Waveform.Burst_Length__s_;
   currentSweepStep.Calculated_Parameters.SA_Ref_Level =
       configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_ +
       currentSweepStep.Loaded_Waveform.PAPR__dB_ +
       staticStationConfigs.DUT_Params.Gain_dB; // Calculate Reference Level
   configurations.Analyzer.SpecAn_Common_Config.Reference_Level__dBm_ =
-      currentSweepStep.Calculated_Parameters.SA_Ref_Level; // Calculate Reference Level (cont.)
+      currentSweepStep.Calculated_Parameters.SA_Ref_Level;
   //   Result Name <- ""
   //   Signal Name <- FileGlobals.Current_Sweep_Step.Loaded_Waveform.Name
   //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
@@ -507,7 +500,7 @@ Future<void> measure() async {
           currentSweepStep.Input_and_Output.MEAS.AMPM_Mean_LinerGain_dB =
               currentSweepStep.Results.SpecAn_AMPM_Results.Mean_Linear_Gain__dB_; // Map Results
           currentSweepStep.Input_and_Output.MEAS.AMPM_Mean_RMS_EVM =
-              currentSweepStep.Results.SpecAn_AMPM_Results.Mean_RMS_EVM____; // Map Results (cont.)
+              currentSweepStep.Results.SpecAn_AMPM_Results.Mean_RMS_EVM____;
         }
         // Spectral Emission Mask Measurement
         if (!matched1 && select1 == 'SEM') {
@@ -528,7 +521,7 @@ Future<void> measure() async {
           currentSweepStep.Input_and_Output.MEAS.SEMMeasurementStatus =
               currentSweepStep.Results.WLAN_SEM_Results.Measurement_Status; // Map Results
           currentSweepStep.Input_and_Output.MEAS.SEM_Absolute_Power_dBm =
-              currentSweepStep.Results.WLAN_SEM_Results.Absolute_Power__dBm; // Map Results (cont.)
+              currentSweepStep.Results.WLAN_SEM_Results.Absolute_Power__dBm;
         }
         // EVM Measurement
         if (!matched1 && select1 == 'EVM') {
@@ -549,7 +542,7 @@ Future<void> measure() async {
           currentSweepStep.Input_and_Output.MEAS.RMS_EVM_Average_dB =
               currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.Composite_RMS_EVM_Mean__dB; // Map Results
           currentSweepStep.Input_and_Output.MEAS.Data_RMS_EVM_dB =
-              currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.Composite_Data_RMS_EVM_Mean__dB; // Map Results (cont.)
+              currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.Composite_Data_RMS_EVM_Mean__dB;
         }
       }
     }

@@ -1745,11 +1745,11 @@ Future<void> mainSequence() async {
 /// Sequence `ReportOptions` — The report generator result processing component calls this from its Begin sequence.  Override it to modify the options..
 Future<void> reportOptions({dynamic reportOptions2, dynamic modelPlugin, dynamic modelPluginConfiguration}) async {
   reportOptions2.GeneratePDFReport = true; // Update Report Options
-  reportOptions2.SaveTransformedHtmlForXmlReport = false; // Update Report Options (cont.)
-  reportOptions2.GeneratePath = true; // Update Report Options (cont.)
-  reportOptions2.DirectoryType = 'SpecifyByExpression'; // Update Report Options (cont.)
+  reportOptions2.SaveTransformedHtmlForXmlReport = false;
+  reportOptions2.GeneratePath = true;
+  reportOptions2.DirectoryType = 'SpecifyByExpression';
   reportOptions2.ReportFileSequentialModelExpression =
-      '"C:\\\\Users\\\\8880_AN\\\\Documents\\\\Customers\\\\National Instruments\\\\AppNote_ModernLab\\\\InstrumentStudio\\\\AppNote_LabSetUp\\\\Sequence Results\\\\AppNote_LabSetUp Report " + Str(RunState.Root.Locals.ModelData.StartDate.Year,"%02u") + "-" + Str(RunState.Root.Locals.ModelData.StartDate.Month,"%02u") + "-" + Str(RunState.Root.Locals.ModelData.StartDate.MonthDay,"%02u") + " " + Str(RunState.Root.Locals.ModelData.StartTime.Hours,"%02u") + "-" + Str(RunState.Root.Locals.ModelData.StartTime.Minutes,"%02u") + "-" + Str(RunState.Root.Locals.ModelData.StartTime.Seconds,"%02u") + ".xml"'; // Update Report Options (cont.)
-  reportOptions2.Colors.ReportTextBg = '#000000'; // Update Report Options (cont.)
-  reportOptions2.ArrayMeasurementMax = 1000; // Update Report Options (cont.)
+      '"C:\\\\Users\\\\8880_AN\\\\Documents\\\\Customers\\\\National Instruments\\\\AppNote_ModernLab\\\\InstrumentStudio\\\\AppNote_LabSetUp\\\\Sequence Results\\\\AppNote_LabSetUp Report " + Str(RunState.Root.Locals.ModelData.StartDate.Year,"%02u") + "-" + Str(RunState.Root.Locals.ModelData.StartDate.Month,"%02u") + "-" + Str(RunState.Root.Locals.ModelData.StartDate.MonthDay,"%02u") + " " + Str(RunState.Root.Locals.ModelData.StartTime.Hours,"%02u") + "-" + Str(RunState.Root.Locals.ModelData.StartTime.Minutes,"%02u") + "-" + Str(RunState.Root.Locals.ModelData.StartTime.Seconds,"%02u") + ".xml"';
+  reportOptions2.Colors.ReportTextBg = '#000000';
+  reportOptions2.ArrayMeasurementMax = 1000;
 }

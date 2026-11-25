@@ -48,20 +48,12 @@ Future<ts.Status> outputToStream() async {
   ts.eval(
     'Locals.Stream = RunState.Engine.NewCsvFileOutputRecordStream(Locals.StreamFilePath, FileOpenMode_Truncate)',
   ); // Create stream
-  ts.eval(
-    '\nRunState.Execution.OutputRecordStreams.NewStream("Output").Insert(Locals.Stream)',
-  ); // Create stream (cont.)
-  ts.eval(
-    '\n\nRunState.Execution.OutputRecordStreams.GetStream("Output").DefineFields(Locals.Fields)',
-  ); // Create stream (cont.)
-  ts.eval(
-    '\nRunState.Execution.OutputRecordStreams.GetStream("Output").CloseAtNextUUTOrBatch = True',
-  ); // Create stream (cont.)
-  ts.eval(
-    '\nRunState.Execution.OutputRecordStreams.GetStream("Output").NumRecordsToDisplayInReportView = -1',
-  ); // Create stream (cont.)
-  ts.eval('\nRunState.Execution.OutputRecordStreams.GetStream("Output").Format = "html"'); // Create stream (cont.)
-  ts.eval('\nRunState.Execution.OutputRecordStreams.GetStream("Output").SetActiveReport()'); // Create stream (cont.)
+  ts.eval('\nRunState.Execution.OutputRecordStreams.NewStream("Output").Insert(Locals.Stream)');
+  ts.eval('\n\nRunState.Execution.OutputRecordStreams.GetStream("Output").DefineFields(Locals.Fields)');
+  ts.eval('\nRunState.Execution.OutputRecordStreams.GetStream("Output").CloseAtNextUUTOrBatch = True');
+  ts.eval('\nRunState.Execution.OutputRecordStreams.GetStream("Output").NumRecordsToDisplayInReportView = -1');
+  ts.eval('\nRunState.Execution.OutputRecordStreams.GetStream("Output").Format = "html"');
+  ts.eval('\nRunState.Execution.OutputRecordStreams.GetStream("Output").SetActiveReport()');
   // Write example message in the loop
   final loop = ts.StepLoop();
   loop.index = 0;
@@ -73,21 +65,19 @@ Future<ts.Status> outputToStream() async {
       'Common': ts.PropObj(),
     });
     locals.values.Message = ts.str(loop.index, 'Example message %d'); // Write output message
-    ts.eval('\nLocals.Values.TimeStamp = Date() + " " + Time()'); // Write output message (cont.)
-    locals.values.Category = 'Uncategorized'; // Write output message (cont.)
-    locals.values.Severity = 'Information'; // Write output message (cont.)
-    ts.eval('\nLocals.Values.Step = Step.Name'); // Write output message (cont.)
-    locals.values.Sequence = 'Output to Stream'; // Write output message (cont.)
-    ts.eval(
-      '\nLocals.Values.SequenceFile = RunState.SequenceFile.AsPropertyObjectFile.DisplayName',
-    ); // Write output message (cont.)
-    ts.eval('\nLocals.Values.Execution = Execution.DisplayName'); // Write output message (cont.)
-    ts.eval('\nLocals.Values.ThreadID = Str(RunState.Thread.Id, "%d")'); // Write output message (cont.)
-    ts.eval('\n\nOutputMessage(Locals.Values.Message, Locals.Values.Category, 0)'); // Write output message (cont.)
+    ts.eval('\nLocals.Values.TimeStamp = Date() + " " + Time()');
+    locals.values.Category = 'Uncategorized';
+    locals.values.Severity = 'Information';
+    ts.eval('\nLocals.Values.Step = Step.Name');
+    locals.values.Sequence = 'Output to Stream';
+    ts.eval('\nLocals.Values.SequenceFile = RunState.SequenceFile.AsPropertyObjectFile.DisplayName');
+    ts.eval('\nLocals.Values.Execution = Execution.DisplayName');
+    ts.eval('\nLocals.Values.ThreadID = Str(RunState.Thread.Id, "%d")');
+    ts.eval('\n\nOutputMessage(Locals.Values.Message, Locals.Values.Category, 0)');
     ts.eval(
       '\nRunState.Execution.OutputRecordStreams.GetStream("Output").WriteRecordFrom(ThisContext, {"Locals.Values"})',
-    ); // Write output message (cont.)
-    ts.eval('\n\n\'Severity:\n\'0 = Information\n\'1 = Warning\n\'2 = Error'); // Write output message (cont.)
+    );
+    ts.eval('\n\n\'Severity:\n\'0 = Information\n\'1 = Warning\n\'2 = Error');
     writeOutputMessageResult.Status = ts.Status.done;
     loop.count(writeOutputMessageResult.Status);
     loop.index += 1;

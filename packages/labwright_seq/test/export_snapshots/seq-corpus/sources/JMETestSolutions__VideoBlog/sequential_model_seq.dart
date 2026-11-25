@@ -184,15 +184,17 @@ Future<void> testUuTs({String sequence = 'MainSequence'}) async {
           testSocket: locals.testSocket,
         ); // PreMainSequence Callback
         // Because Parameters.Sequence defaults to "MainSequence", this step calls the MainSequence callback in the client file unless you call this entry point sequence directly and pass a different sequence name.
-        mainSequenceCallbackResult = ts.PropObj({
-          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-          'Status': '',
-          'ReportText': '',
-          'Common': ts.PropObj(),
-        });
-        await parametersSequence(); // MainSequence Callback: external sequence call
-        locals.uutTerminated = locals.uutTerminated || mainSequenceCallbackResult.Status == 'Terminated';
-        mainSequenceCallbackResult.Status = ts.Status.done;
+        try {
+          mainSequenceCallbackResult = ts.PropObj({
+            'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+            'Status': '',
+            'ReportText': '',
+            'Common': ts.PropObj(),
+          });
+          await parametersSequence(); // MainSequence Callback: external sequence call
+          locals.uutTerminated = locals.uutTerminated || mainSequenceCallbackResult.Status == 'Terminated';
+          mainSequenceCallbackResult.Status = ts.Status.done;
+        } on ts.RunTimeError catch (_) {}
         await postMainSequence(
           modelPluginConfiguration2: locals.modelPluginConfiguration2,
           modelThreadType: locals.modelThreadType,
@@ -444,8 +446,10 @@ Future<void> singlePass({String sequence = 'MainSequence'}) async {
         testSocket: locals.testSocket,
       ); // PreMainSequence Callback
       // Because Parameters.Sequence defaults to "MainSequence", this step calls the MainSequence callback in the client file unless you call this entry point sequence directly and pass a different sequence name.
-      await parametersSequence(); // MainSequence Callback: external sequence call
-      mainSequenceCallbackResult.Status = ts.Status.done;
+      try {
+        await parametersSequence(); // MainSequence Callback: external sequence call
+        mainSequenceCallbackResult.Status = ts.Status.done;
+      } on ts.RunTimeError catch (_) {}
       await postMainSequence(
         modelPluginConfiguration2: locals.modelPluginConfiguration2,
         modelThreadType: locals.modelThreadType,

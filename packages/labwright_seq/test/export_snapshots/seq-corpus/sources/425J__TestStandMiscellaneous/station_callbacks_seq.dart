@@ -32,34 +32,34 @@ Future<ts.Status> stationPostResults({
   });
 
   if (ts.cond('RunState.Caller.Sequence.Id == RunState.Main.Sequence.Id')) {
-    final loop = ts.StepLoop();
-    loop.index = 0;
-    while (loop.index < ts.getNumElements(results)) {
-      outputMessageResult = ts.PropObj({
-        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-        'Status': '',
-        'ReportText': '',
-        'Common': ts.PropObj(),
-      });
-      ts.eval('Locals.Name = Parameters.Steps[RunState.LoopIndex]->Name'); // Output Message
-      ts.eval('\nLocals.Status = Parameters.Results[RunState.LoopIndex]->Status'); // Output Message (cont.)
-      ts.eval(
-        '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
-      ); // Output Message (cont.)
-      locals.icon = locals.status == 'Running'
-          ? 'NI_FileDiffer\\Right.ico'
-          : (locals.status == 'Passed' || locals.status == 'Failed'
-                ? 'NI_FileDiffer\\Left.ico'
-                : 'ni_blank.ico'); // Output Message (cont.)
-      ts.eval(
-        '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
-      ); // Output Message (cont.)
-      outputMessageResult.Status = ts.Status.done;
-      loop.count(outputMessageResult.Status);
-      loop.index += 1;
-    }
-    outputMessageResult.Status = 'Done';
-    run.record(outputMessageResult.Status);
+    try {
+      final loop = ts.StepLoop();
+      loop.index = 0;
+      while (loop.index < ts.getNumElements(results)) {
+        outputMessageResult = ts.PropObj({
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        });
+        ts.eval('Locals.Name = Parameters.Steps[RunState.LoopIndex]->Name'); // Output Message
+        ts.eval('\nLocals.Status = Parameters.Results[RunState.LoopIndex]->Status');
+        ts.eval(
+          '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
+        );
+        locals.icon = locals.status == 'Running'
+            ? 'NI_FileDiffer\\Right.ico'
+            : (locals.status == 'Passed' || locals.status == 'Failed' ? 'NI_FileDiffer\\Left.ico' : 'ni_blank.ico');
+        ts.eval(
+          '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
+        );
+        outputMessageResult.Status = ts.Status.done;
+        loop.count(outputMessageResult.Status);
+        loop.index += 1;
+      }
+      outputMessageResult.Status = 'Done';
+      run.record(outputMessageResult.Status);
+    } on ts.RunTimeError catch (_) {}
   } else {
     outputMessageResult.Status = ts.Status.skipped;
   }
@@ -79,21 +79,19 @@ Future<void> stationPostResultListEntry({dynamic step, dynamic result, bool disc
   final locals = _StationPostResultListEntryLocals();
 
   if (ts.cond('RunState.Caller.Sequence.Id == RunState.Main.Sequence.Id')) {
-    locals.name = step.AsPropertyObject.Name as String; // Output Message
-    ts.eval(
-      '\nLocals.Status = Parameters.Result.GetValString("Status", PropOption_NoOptions)',
-    ); // Output Message (cont.)
-    ts.eval(
-      '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
-    ); // Output Message (cont.)
-    locals.icon = locals.status == 'Running'
-        ? 'NI_FileDiffer\\Right.ico'
-        : (locals.status == 'Passed' || locals.status == 'Failed'
-              ? 'NI_FileDiffer\\Left.ico'
-              : 'ni_blank.ico'); // Output Message (cont.)
-    ts.eval(
-      '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
-    ); // Output Message (cont.)
+    try {
+      locals.name = step.AsPropertyObject.Name as String; // Output Message
+      ts.eval('\nLocals.Status = Parameters.Result.GetValString("Status", PropOption_NoOptions)');
+      ts.eval(
+        '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
+      );
+      locals.icon = locals.status == 'Running'
+          ? 'NI_FileDiffer\\Right.ico'
+          : (locals.status == 'Passed' || locals.status == 'Failed' ? 'NI_FileDiffer\\Left.ico' : 'ni_blank.ico');
+      ts.eval(
+        '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
+      );
+    } on ts.RunTimeError catch (_) {}
   }
 }
 
@@ -111,19 +109,19 @@ Future<void> stationPreStep({dynamic step, dynamic result}) async {
   if (ts.cond(
     '(RunState.Caller.Sequence.Id == RunState.Main.Sequence.Id) &&\n(\n   ((Parameters.Step.TS.ResultOption == 1 ) && !(RunState.Caller.Sequence.DisableResults || RunState.Engine.StationOptions.DisableResults)) ||\n   ((Parameters.Step.TS.ResultOption == 2 ) && !RunState.Engine.StationOptions.DisableResults)\n)',
   )) {
-    locals.name = step.AsPropertyObject.Name as String; // Output Message
-    locals.status = step.Result.Status as String; // Output Message (cont.)
-    ts.eval(
-      '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
-    ); // Output Message (cont.)
-    locals.icon = locals.status == 'Running'
-        ? 'NI_FileDiffer\\Right.ico'
-        : (locals.status == 'Passed' || locals.status == 'Failed'
-              ? 'NI_FileDiffer\\Left.ico'
-              : 'ni_blank.ico'); // Output Message (cont.)
-    locals.status == 'Running' ? (locals.status = 'Started') : null; // Output Message (cont.)
-    ts.eval(
-      '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
-    ); // Output Message (cont.)
+    try {
+      locals.name = step.AsPropertyObject.Name as String; // Output Message
+      locals.status = step.Result.Status as String;
+      ts.eval(
+        '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
+      );
+      locals.icon = locals.status == 'Running'
+          ? 'NI_FileDiffer\\Right.ico'
+          : (locals.status == 'Passed' || locals.status == 'Failed' ? 'NI_FileDiffer\\Left.ico' : 'ni_blank.ico');
+      locals.status == 'Running' ? (locals.status = 'Started') : null;
+      ts.eval(
+        '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
+      );
+    } on ts.RunTimeError catch (_) {}
   }
 }

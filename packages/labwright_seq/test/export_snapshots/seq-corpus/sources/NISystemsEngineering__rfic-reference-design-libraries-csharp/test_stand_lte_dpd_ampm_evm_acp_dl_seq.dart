@@ -289,10 +289,7 @@ Future<void> mainSequence() async {
       loadedRFmxWaveforms,
       ts.getNumElements(staticStationConfigs.Waveform_Configs),
     ); // Initialize Waveform Arrays
-    ts.setNumElements(
-      loadedWaveforms,
-      ts.getNumElements(staticStationConfigs.Waveform_Configs),
-    ); // Initialize Waveform Arrays (cont.)
+    ts.setNumElements(loadedWaveforms, ts.getNumElements(staticStationConfigs.Waveform_Configs));
     // Initialize Instruments
     // .NET call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg
     //   Return Value <- FileGlobals.Device_Handles.RFSG_Session
@@ -339,8 +336,8 @@ Future<void> mainSequence() async {
         'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
       ); // Create SpecAn Signal Configuration [Action]
       loadedWaveformIndexes[locals.waveFormConfigsIdx] = locals.waveFormConfigsIdx; // Store Loaded Waveforms
-      loadedWaveforms[locals.waveFormConfigsIdx] = locals.currentWaveform; // Store Loaded Waveforms (cont.)
-      locals.waveFormConfigsIdx++; // Store Loaded Waveforms (cont.)
+      loadedWaveforms[locals.waveFormConfigsIdx] = locals.currentWaveform;
+      locals.waveFormConfigsIdx++;
     }
 
     // TODO: sweep loop (FileGlobals.Configurations.Generator.RFSGConfig.CarrierFrequency_Hz, FileGlobals.Configurations.Generator.RFSGConfig.DutAverageInputPower_dBm, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Name) not exported; the body runs once
@@ -380,34 +377,26 @@ Future<void> configure() async {
   configurations.Analyzer.Measurements.SpecAn_AMPM_Config.DutAverageInputPower_dBm =
       configurations.Generator.RFSGConfig.DutAverageInputPower_dBm; // Map Calculated Parameters
   currentSweepStep.Loaded_Waveform =
-      loadedWaveforms[(currentSweepStep.Calculated_Parameters.Waveform_Index as num)
-          .toInt()]; // Map Calculated Parameters (cont.)
-  currentSweepStep.Input_and_Output.PARAMS.Test_Config = staticStationConfigs
-      .Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index]
-      .Test_Config; // Map Calculated Parameters (cont.)
-  currentSweepStep.Input_and_Output.PARAMS.DPD_Enabled = staticStationConfigs
-      .Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index]
-      .DPD_Enabled; // Map Calculated Parameters (cont.)
-  configurations.Analyzer.LTE_Standard_Config = staticStationConfigs
-      .Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index]
-      .Standard_Config; // Map Calculated Parameters (cont.)
+      loadedWaveforms[(currentSweepStep.Calculated_Parameters.Waveform_Index as num).toInt()];
+  currentSweepStep.Input_and_Output.PARAMS.Test_Config =
+      staticStationConfigs.Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index].Test_Config;
+  currentSweepStep.Input_and_Output.PARAMS.DPD_Enabled =
+      staticStationConfigs.Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index].DPD_Enabled;
+  configurations.Analyzer.LTE_Standard_Config =
+      staticStationConfigs.Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index].Standard_Config;
   configurations.Analyzer.Auto_Level_Config.MeasurementInterval_s =
-      loadedWaveforms[(currentSweepStep.Calculated_Parameters.Waveform_Index as num).toInt()]
-          .BurstLength_s; // Map Calculated Parameters (cont.)
+      loadedWaveforms[(currentSweepStep.Calculated_Parameters.Waveform_Index as num).toInt()].BurstLength_s;
   configurations.Generator.RFSGConfig.ExternalAttenuation_dB =
-      currentSweepStep.Calculated_Parameters.Path_Losses.SG_to_DUT; // Map Calculated Parameters (cont.)
-  currentSweepStep.Input_and_Output.PARAMS.Center_Frequency =
-      configurations.Generator.RFSGConfig.CarrierFrequency_Hz; // Map Calculated Parameters (cont.)
-  configurations.Analyzer.Common_Config.CenterFrequency_Hz =
-      configurations.Generator.RFSGConfig.CarrierFrequency_Hz; // Map Calculated Parameters (cont.)
+      currentSweepStep.Calculated_Parameters.Path_Losses.SG_to_DUT;
+  currentSweepStep.Input_and_Output.PARAMS.Center_Frequency = configurations.Generator.RFSGConfig.CarrierFrequency_Hz;
+  configurations.Analyzer.Common_Config.CenterFrequency_Hz = configurations.Generator.RFSGConfig.CarrierFrequency_Hz;
   configurations.Analyzer.DPD_Common_Config.DutAverageInputPower_dBm =
-      configurations.Generator.RFSGConfig.DutAverageInputPower_dBm; // Map Calculated Parameters (cont.)
+      configurations.Generator.RFSGConfig.DutAverageInputPower_dBm;
   currentSweepStep.Calculated_Parameters.SA_Ref_Level =
       configurations.Generator.RFSGConfig.DutAverageInputPower_dBm +
       currentSweepStep.Loaded_Waveform.PAPR_dB +
       staticStationConfigs.DUT_Params.Gain_dB; // Calculate Reference Level
-  configurations.Analyzer.Common_Config.ReferenceLevel_dBm =
-      currentSweepStep.Calculated_Parameters.SA_Ref_Level; // Calculate Reference Level (cont.)
+  configurations.Analyzer.Common_Config.ReferenceLevel_dBm = currentSweepStep.Calculated_Parameters.SA_Ref_Level;
   // Retrieve the saved signal configuration for this waveform based on the waveform's name
   // .NET call: NationalInstruments.RFmx.InstrMX.RFmxLteMXExtension.GetLteSignalConfiguration
   //   Return Value <- FileGlobals.Device_Handles.RFmx_LTE_Signal_Session
@@ -595,7 +584,7 @@ Future<void> measure() async {
           currentSweepStep.Input_and_Output.MEAS.AMPM_Mean_LinerGain_dB =
               currentSweepStep.Results.RFmxSpecAn_AMPM_Results.MeanLinearGain_dB; // Map Results
           currentSweepStep.Input_and_Output.MEAS.AMPM_Mean_RMS_EVM =
-              currentSweepStep.Results.RFmxSpecAn_AMPM_Results.MeanRmsEvm_percent; // Map Results (cont.)
+              currentSweepStep.Results.RFmxSpecAn_AMPM_Results.MeanRmsEvm_percent;
         }
         // Adjacent Channel Power Ratio Measurement
         if (!matched1 && select1 == 'ACP') {
@@ -623,26 +612,14 @@ Future<void> measure() async {
               .RFmxLTE_ACP_Results
               .Component_Carrier_Results[0]
               .AbsolutePower_dBm; // Map Results
-          currentSweepStep.Input_and_Output.MEAS.ACP_Offset0_Lower_Absolute_Power_dBm = currentSweepStep
-              .Results
-              .RFmxLTE_ACP_Results
-              .Offset_Results[0]
-              .LowerAbsolutePower_dBm; // Map Results (cont.)
-          currentSweepStep.Input_and_Output.MEAS.ACP_Offset0_Upper_Relative_Power_dB = currentSweepStep
-              .Results
-              .RFmxLTE_ACP_Results
-              .Offset_Results[0]
-              .UpperRelativePower_dB; // Map Results (cont.)
-          currentSweepStep.Input_and_Output.MEAS.ACP_Offset0_Lower_Relative_Power_dB = currentSweepStep
-              .Results
-              .RFmxLTE_ACP_Results
-              .Offset_Results[0]
-              .LowerRelativePower_dB; // Map Results (cont.)
-          currentSweepStep.Input_and_Output.MEAS.ACP_Offset0_Upper_Absolute_Power_dBm = currentSweepStep
-              .Results
-              .RFmxLTE_ACP_Results
-              .Offset_Results[0]
-              .UpperAbsolutePower_dBm; // Map Results (cont.)
+          currentSweepStep.Input_and_Output.MEAS.ACP_Offset0_Lower_Absolute_Power_dBm =
+              currentSweepStep.Results.RFmxLTE_ACP_Results.Offset_Results[0].LowerAbsolutePower_dBm;
+          currentSweepStep.Input_and_Output.MEAS.ACP_Offset0_Upper_Relative_Power_dB =
+              currentSweepStep.Results.RFmxLTE_ACP_Results.Offset_Results[0].UpperRelativePower_dB;
+          currentSweepStep.Input_and_Output.MEAS.ACP_Offset0_Lower_Relative_Power_dB =
+              currentSweepStep.Results.RFmxLTE_ACP_Results.Offset_Results[0].LowerRelativePower_dB;
+          currentSweepStep.Input_and_Output.MEAS.ACP_Offset0_Upper_Absolute_Power_dBm =
+              currentSweepStep.Results.RFmxLTE_ACP_Results.Offset_Results[0].UpperAbsolutePower_dBm;
         }
         // EVM Measurement
         if (!matched1 && select1 == 'EVM') {

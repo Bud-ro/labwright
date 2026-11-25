@@ -1506,6 +1506,12 @@ class _DartExporter {
       case SeqName() || SeqSequence():
         return null;
       case SeqMember(:final target, :final name):
+        if (target case SeqMember(
+          target: SeqName(name: final root),
+          name: final step,
+        ) when root.toLowerCase() == 'runstate' && step.toLowerCase() == 'step') {
+          return _emit(SeqMember(const SeqName('Step'), name));
+        }
         final folded = _foldedStepProperty(e) ?? _runStateName(e);
         if (folded != null) return folded;
         if (target is SeqIndex && name.toLowerCase() == 'result') {
@@ -2117,13 +2123,18 @@ class _DartExporter {
       if (!step.settings.isNormalMode) {
         final structural = flow != null && flow.kind != FlowKind.breakStmt && flow.kind != FlowKind.continueStmt;
         if (!structural) {
-          final what = switch (mode) {
-            'Skip' => 'skipped',
-            'Pass' => 'force-pass',
-            'Fail' => 'force-fail',
-            _ => 'mode $mode',
-          };
-          _line('// [$what in source] $rawName');
+          if (_forcedToFail(step)) {
+            _line('$_runId.record(ts.Status.failed); // $rawName');
+          } else {
+            _line(
+              '// ${switch (mode) {
+                'Skip' => 'skipped',
+                'Pass' => 'forced to pass',
+                'Fail' => 'forced to fail',
+                _ => 'run mode $mode',
+              }}: $rawName',
+            );
+          }
           continue;
         }
         modeNote = ' [$mode in source]';
@@ -2651,7 +2662,7 @@ class _DartExporter {
         if (!_literalCode.hasMatch(part)) part,
     ];
     for (var i = 0; i < parts.length; i++) {
-      final suffix = note.isEmpty ? '' : (i == 0 ? ' // $note' : ' // $note (cont.)');
+      final suffix = note.isEmpty || i > 0 ? '' : ' // $note';
       _line('${parts[i]};$suffix');
     }
     return parts.isNotEmpty;
@@ -2670,6 +2681,11 @@ class _DartExporter {
     final precondition = settings.precondition ?? _typePreconditions[step.type];
     if (precondition != null) {
       _line('if (${_cond(precondition)}) {');
+      _indent++;
+    }
+    final ignoresErrors = settings.ignoresRunTimeErrors == true;
+    if (ignoresErrors) {
+      _line('try {');
       _indent++;
     }
     final loop = settings.isLooping && result != null ? _claimId('loop') : null;
@@ -2698,6 +2714,9 @@ class _DartExporter {
     if (post != null && step.stepType != StepType.statement) {
       _emitStmt(post, '');
     }
+    if (result != null && _stepExpressions(step).any(_raisesOwnError.hasMatch)) {
+      _line('if (ts.truthy($result.Error.Occurred)) throw ts.RunTimeError($result.Error.Code, $result.Error.Msg);');
+    }
     final status = _statusExpression(step);
     if (result != null) {
       if (status != null) {
@@ -2723,6 +2742,10 @@ class _DartExporter {
     }
     if (result != null && _failsSequence(step) && (_judges(step) || _callsFailingSequence(step))) {
       _line('$_runId.record($result.Status);');
+    }
+    if (ignoresErrors) {
+      _indent--;
+      _line('} on ts.RunTimeError catch (_) {}');
     }
     _emitPostAction(step, result);
 
@@ -2824,8 +2847,11 @@ class _DartExporter {
         settings.loopStatus,
       ],
       for (final argument in step.module.sequenceArguments) argument.expression,
-    ].nonNulls;
+    ].nonNulls.map((e) => e.replaceAll(_runStateStep, 'Step.'));
   }
+
+  static final _runStateStep = RegExp(r'(?<![\w.])RunState\.Step\.', caseSensitive: false);
+  static final _raisesOwnError = RegExp(r'(?<![\w.])Step\.Result\.Error\.Occurred\s*=(?!=)', caseSensitive: false);
 
   static final _writesOwnStatus = RegExp(r'(?<![\w.])Step\.Result\.Status\s*=(?!=)', caseSensitive: false);
   static final _sequenceFailed = RegExp(r'RunState\.SequenceFailed\b', caseSensitive: false);
@@ -2844,9 +2870,21 @@ class _DartExporter {
   bool _failsSequence(Step step) =>
       step.flowControl == null && step.settings.isNormalMode && step.settings.failureCausesSequenceFailure != false;
 
+  /// Whether a step's run mode is Force Fail and its failure fails the sequence: it does not run and its status is
+  /// Failed.
+  bool _forcedToFail(Step step) {
+    final flow = step.flowControl;
+    return step.settings.mode == 'Fail' &&
+        step.settings.failureCausesSequenceFailure != false &&
+        (flow == null || flow.kind == FlowKind.breakStmt || flow.kind == FlowKind.continueStmt);
+  }
+
   /// Whether a sequence can fail without any of its sequence calls failing.
   bool _failsItself(Sequence sequence) => sequence.steps.any(
-    (step) => (_failsSequence(step) && _judges(step)) || _stepExpressions(step).any(_sequenceFailed.hasMatch),
+    (step) =>
+        _forcedToFail(step) ||
+        (_failsSequence(step) && _judges(step)) ||
+        _stepExpressions(step).any(_sequenceFailed.hasMatch),
   );
 
   String _resultInit(Step step) {

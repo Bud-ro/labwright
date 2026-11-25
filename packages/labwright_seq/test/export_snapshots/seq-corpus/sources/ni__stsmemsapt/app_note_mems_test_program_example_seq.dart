@@ -1272,19 +1272,13 @@ Future<void> processSetup() async {
   ts.eval(
     '\nStationGlobals.SetPropertyObject("IS_ZRef_Real", 1, RunState.Engine.NewPropertyObject(3, True, "", 0))',
   ); // Create New PropertyObject
-  ts.eval(
-    ' \n\n\nSetArrayBounds(StationGlobals.IS_ZRef_Real, "[0][0]", "[7][262144]")',
-  ); // Create New PropertyObject (cont.)
-  ts.eval(
-    '\n\n\nStationGlobals.SetPropertyObject("IS_ZRef_Im", 1, RunState.Engine.NewPropertyObject(3, True, "", 0))',
-  ); // Create New PropertyObject (cont.)
-  ts.eval(
-    ' \n\n\nSetArrayBounds(StationGlobals.IS_ZRef_Im, "[0][0]", "[7][262144]")',
-  ); // Create New PropertyObject (cont.)
+  ts.eval(' \n\n\nSetArrayBounds(StationGlobals.IS_ZRef_Real, "[0][0]", "[7][262144]")');
+  ts.eval('\n\n\nStationGlobals.SetPropertyObject("IS_ZRef_Im", 1, RunState.Engine.NewPropertyObject(3, True, "", 0))');
+  ts.eval(' \n\n\nSetArrayBounds(StationGlobals.IS_ZRef_Im, "[0][0]", "[7][262144]")');
   ts.eval(
     '\n\n\nStationGlobals.SetPropertyObject("IS_ZRef_Frequencies", 1, RunState.Engine.NewPropertyObject(3, True, "", 0))',
-  ); // Create New PropertyObject (cont.)
-  ts.eval('\n\n\nRunState.Engine.CommitGlobalsToDisk()'); // Create New PropertyObject (cont.)
+  );
+  ts.eval('\n\n\nRunState.Engine.CommitGlobalsToDisk()');
 
   // ---------------------
   // Initialize Hardware Resources

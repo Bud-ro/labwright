@@ -48,13 +48,11 @@ Future<void> install() async {
     'Locals.CurrentDir = Left(ThisContext.SequenceFile.Path, Find(ThisContext.SequenceFile.Path, "\\\\", 0, True, True)),\nLocals.Source.Tool = Locals.CurrentDir + @"\\Resources\\TemplatesGenerator.seq",\nLocals.Source.ExportFile = Locals.CurrentDir + @"\\Resources\\Tools.ini",\n',
   ); // Set Source Directories
   ts.eval('Locals.TestStandPublic = RunState.Engine.GetTestStandPath(TestStandPath_Public)'); // Set Target Directories
-  locals.toolsDir = '${locals.testStandPublic}\\Components\\Tools'; // Set Target Directories (cont.)
-  locals.target.Tool =
-      '${locals.testStandPublic}\\Components\\Tools\\TemplatesGenerator.seq'; // Set Target Directories (cont.)
-  locals.target.ExportFile =
-      '${locals.testStandPublic}\\Setup\\ToolMenusToInstall\\Tools.ini'; // Set Target Directories (cont.)
-  locals.toolSetupDir = '${locals.testStandPublic}\\Setup'; // Set Target Directories (cont.)
-  locals.toolMenusToInstallDir = '${locals.toolSetupDir}\\ToolMenusToInstall'; // Set Target Directories (cont.)
+  locals.toolsDir = '${locals.testStandPublic}\\Components\\Tools';
+  locals.target.Tool = '${locals.testStandPublic}\\Components\\Tools\\TemplatesGenerator.seq';
+  locals.target.ExportFile = '${locals.testStandPublic}\\Setup\\ToolMenusToInstall\\Tools.ini';
+  locals.toolSetupDir = '${locals.testStandPublic}\\Setup';
+  locals.toolMenusToInstallDir = '${locals.toolSetupDir}\\ToolMenusToInstall';
   // .NET call: System.IO.Directory.CreateDirectory
   //   path <- Locals.ToolsDir
   ts.notExported('dotNet call: System.IO.Directory.CreateDirectory'); // Create Tools Directory [Action]

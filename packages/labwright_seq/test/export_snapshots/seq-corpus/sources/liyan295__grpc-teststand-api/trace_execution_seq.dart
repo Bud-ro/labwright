@@ -97,7 +97,7 @@ Future<ts.Status> mainSequence() async {
 
   try {
     ts.eval('Locals.OldTracingSpeed = RunState.Engine.StationOptions.UIMessageDelay'); // Slow Down Tracing
-    ts.eval('\r\nRunState.Engine.StationOptions.UIMessageDelay = 150'); // Slow Down Tracing (cont.)
+    ts.eval('\r\nRunState.Engine.StationOptions.UIMessageDelay = 150');
 
     numericLimitTestResult.Status = ts.checkLimits(
       numericLimitTestResult.Numeric = 10,
@@ -117,8 +117,10 @@ Future<ts.Status> mainSequence() async {
     run.record(multipleNumericLimitTestResult.Status);
     passFailTestResult.Status = ts.truthy(passFailTestResult.PassFail) ? 'Passed' : 'Failed';
     run.record(passFailTestResult.Status);
-    // [skipped in source] This step is skipped
-    ts.notExported('cModule call: Generate Run-Time Error'); // Generate Run-Time Error [Action]
+    // skipped: This step is skipped
+    try {
+      ts.notExported('cModule call: Generate Run-Time Error'); // Generate Run-Time Error [Action]
+    } on ts.RunTimeError catch (_) {}
     await sequence1(); // Call Sequence1
     // sequence call spawns a new execution in the engine — exported as a plain awaited call
     await sequence2(); // Call Sequence 2 In A New Execution
@@ -149,6 +151,8 @@ Future<void> sequence3() async {
 
 /// Sequence `Sequence4`.
 Future<void> sequence4() async {
-  // [skipped in source] Sequence4-Skipped
-  ts.notExported('cModule call: Sequence4-GeneratesError'); // Sequence4-GeneratesError [Action]
+  // skipped: Sequence4-Skipped
+  try {
+    ts.notExported('cModule call: Sequence4-GeneratesError'); // Sequence4-GeneratesError [Action]
+  } on ts.RunTimeError catch (_) {}
 }

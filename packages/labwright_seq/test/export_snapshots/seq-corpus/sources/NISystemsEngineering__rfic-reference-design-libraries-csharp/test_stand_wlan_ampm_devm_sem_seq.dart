@@ -250,10 +250,7 @@ Future<void> mainSequence() async {
       loadedRFmxWaveforms,
       ts.getNumElements(staticStationConfigs.Waveform_Configs),
     ); // Initialize Waveform Arrys
-    ts.setNumElements(
-      loadedWaveforms,
-      ts.getNumElements(staticStationConfigs.Waveform_Configs),
-    ); // Initialize Waveform Arrys (cont.)
+    ts.setNumElements(loadedWaveforms, ts.getNumElements(staticStationConfigs.Waveform_Configs));
     // Initialize Instruments
     // .NET call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg
     //   Return Value <- FileGlobals.Device_Handles.RFSG_Session
@@ -280,7 +277,7 @@ Future<void> mainSequence() async {
       configurations.Analyzer.WLAN_Standard_Config.Standard =
           locals.currentWaveformConfig.WLAN_Standard; // Map Loaded Parameters
       configurations.Analyzer.WLAN_Standard_Config.ChannelBandwidth_Hz =
-          locals.currentWaveformConfig.Waveform_Bandwidth; // Map Loaded Parameters (cont.)
+          locals.currentWaveformConfig.Waveform_Bandwidth;
       // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
       // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.DownloadWaveform
       //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
@@ -304,8 +301,8 @@ Future<void> mainSequence() async {
         'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
       ); // Create SpecAn Signal Configuration [Action]
       loadedWaveformIndexes[locals.waveFormConfigsIdx] = locals.waveFormConfigsIdx; // Store Loaded Waveforms
-      loadedWaveforms[locals.waveFormConfigsIdx] = locals.currentWaveform; // Store Loaded Waveforms (cont.)
-      locals.waveFormConfigsIdx++; // Store Loaded Waveforms (cont.)
+      loadedWaveforms[locals.waveFormConfigsIdx] = locals.currentWaveform;
+      locals.waveFormConfigsIdx++;
     }
 
     // TODO: sweep loop (FileGlobals.Configurations.Generator.RFSGConfig.CarrierFrequency_Hz, FileGlobals.Configurations.Generator.RFSGConfig.DutAverageInputPower_dBm, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Name) not exported; the body runs once
@@ -345,33 +342,25 @@ Future<void> configure() async {
   configurations.Analyzer.Measurements.SpecAn_AMPM_Config.DutAverageInputPower_dBm =
       configurations.Generator.RFSGConfig.DutAverageInputPower_dBm; // Map Calculated Parameters
   currentSweepStep.Loaded_Waveform =
-      loadedWaveforms[(currentSweepStep.Calculated_Parameters.Waveform_Index as num)
-          .toInt()]; // Map Calculated Parameters (cont.)
-  currentSweepStep.Input_and_Output.PARAMS.Test_Config = staticStationConfigs
-      .Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index]
-      .Test_Config; // Map Calculated Parameters (cont.)
+      loadedWaveforms[(currentSweepStep.Calculated_Parameters.Waveform_Index as num).toInt()];
+  currentSweepStep.Input_and_Output.PARAMS.Test_Config =
+      staticStationConfigs.Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index].Test_Config;
   configurations.Generator.RFSGConfig.ExternalAttenuation_dB =
-      currentSweepStep.Calculated_Parameters.Path_Losses.SG_to_DUT; // Map Calculated Parameters (cont.)
-  currentSweepStep.Input_and_Output.PARAMS.Center_Frequency =
-      configurations.Generator.RFSGConfig.CarrierFrequency_Hz; // Map Calculated Parameters (cont.)
-  configurations.Analyzer.Common_Config.CenterFrequency_Hz =
-      configurations.Generator.RFSGConfig.CarrierFrequency_Hz; // Map Calculated Parameters (cont.)
-  configurations.Analyzer.Auto_Level_Config.MeasurementInterval_s =
-      currentSweepStep.Loaded_Waveform.BurstLength_s; // Map Calculated Parameters (cont.)
-  configurations.Analyzer.WLAN_Standard_Config.Standard = staticStationConfigs
-      .Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index]
-      .WLAN_Standard; // Map Calculated Parameters (cont.)
-  configurations.Analyzer.WLAN_Standard_Config.ChannelBandwidth_Hz = staticStationConfigs
-      .Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index]
-      .Waveform_Bandwidth; // Map Calculated Parameters (cont.)
+      currentSweepStep.Calculated_Parameters.Path_Losses.SG_to_DUT;
+  currentSweepStep.Input_and_Output.PARAMS.Center_Frequency = configurations.Generator.RFSGConfig.CarrierFrequency_Hz;
+  configurations.Analyzer.Common_Config.CenterFrequency_Hz = configurations.Generator.RFSGConfig.CarrierFrequency_Hz;
+  configurations.Analyzer.Auto_Level_Config.MeasurementInterval_s = currentSweepStep.Loaded_Waveform.BurstLength_s;
+  configurations.Analyzer.WLAN_Standard_Config.Standard =
+      staticStationConfigs.Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index].WLAN_Standard;
+  configurations.Analyzer.WLAN_Standard_Config.ChannelBandwidth_Hz =
+      staticStationConfigs.Waveform_Configs[currentSweepStep.Calculated_Parameters.Waveform_Index].Waveform_Bandwidth;
   configurations.Analyzer.Measurements.WLAN_ModAcc_Config.AcquisitionLength_s =
-      currentSweepStep.Loaded_Waveform.BurstLength_s; // Map Calculated Parameters (cont.)
+      currentSweepStep.Loaded_Waveform.BurstLength_s;
   currentSweepStep.Calculated_Parameters.SA_Ref_Level =
       configurations.Generator.RFSGConfig.DutAverageInputPower_dBm +
       currentSweepStep.Loaded_Waveform.PAPR_dB +
       staticStationConfigs.DUT_Params.Gain_dB; // Calculate Reference Level
-  configurations.Analyzer.Common_Config.ReferenceLevel_dBm =
-      currentSweepStep.Calculated_Parameters.SA_Ref_Level; // Calculate Reference Level (cont.)
+  configurations.Analyzer.Common_Config.ReferenceLevel_dBm = currentSweepStep.Calculated_Parameters.SA_Ref_Level;
   // Retrieve the saved signal configuration for this waveform based on the waveform's name
   // .NET call: NationalInstruments.RFmx.InstrMX.RFmxWlanMXExtension.GetWlanSignalConfiguration
   //   Return Value <- FileGlobals.Device_Handles.RFmx_WLAN_Signal_Session
@@ -412,7 +401,7 @@ Future<void> configure() async {
   // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
   currentSweepStep.Input_and_Output.PARAMS.Duty_Cycle =
       configurations.Generator.Waveform_Timing.DutyCycle_Percent; // Map Results
-  currentSweepStep.Input_and_Output.PARAMS.WaveformName = currentSweepStep.Loaded_Waveform.Name; // Map Results (cont.)
+  currentSweepStep.Input_and_Output.PARAMS.WaveformName = currentSweepStep.Loaded_Waveform.Name;
   // .NET call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Use Existing Object
   //   Existing Object <- FileGlobals.Device_Handles.RFSG_Session
   // .NET call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Initiate
@@ -520,7 +509,7 @@ Future<void> measure() async {
           currentSweepStep.Input_and_Output.MEAS.AMPM_Mean_LinerGain_dB =
               currentSweepStep.Results.RFmxSpecAn_AMPM_Results.MeanLinearGain_dB; // Map Results
           currentSweepStep.Input_and_Output.MEAS.AMPM_Mean_RMS_EVM =
-              currentSweepStep.Results.RFmxSpecAn_AMPM_Results.MeanRmsEvm_percent; // Map Results (cont.)
+              currentSweepStep.Results.RFmxSpecAn_AMPM_Results.MeanRmsEvm_percent;
         }
         // Spectral Emission Mask Measurement
         if (!matched1 && select1 == 'SEM') {
@@ -546,7 +535,7 @@ Future<void> measure() async {
           currentSweepStep.Input_and_Output.MEAS.SEMMeasurementStatus =
               currentSweepStep.Results.RFmxWLAN_SEM_Results.measurementStatus; // Map Results
           currentSweepStep.Input_and_Output.MEAS.SEM_Absolute_Power_dBm =
-              currentSweepStep.Results.RFmxWLAN_SEM_Results.AbsolutePower_dBm; // Map Results (cont.)
+              currentSweepStep.Results.RFmxWLAN_SEM_Results.AbsolutePower_dBm;
         }
         // EVM Measurement
         if (!matched1 && select1 == 'EVM') {
@@ -572,7 +561,7 @@ Future<void> measure() async {
           currentSweepStep.Input_and_Output.MEAS.RMS_EVM_Average_dB =
               currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositeRMSEVMMean_dB; // Map Results
           currentSweepStep.Input_and_Output.MEAS.Data_RMS_EVM_dB =
-              currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositeDataRMSEVMMean_dB; // Map Results (cont.)
+              currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositeDataRMSEVMMean_dB;
         }
       }
     }

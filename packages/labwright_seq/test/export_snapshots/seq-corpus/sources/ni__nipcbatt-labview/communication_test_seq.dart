@@ -30,7 +30,7 @@ Future<void> i2CCommTest() async {
   // Example demonstrates simple read and write data operations through I2C protocol communication using NI 845x Device
   // Note to run with Hardware: Update Device ID of the connected I2C Interface Device (Ex: NI USB-8452 Device)
   locals.deviceId.DeviceName = 'DeviceA'; // Update I2C Interface Device ID
-  locals.deviceId.SessionNumber = 0; // Update I2C Interface Device ID (cont.)
+  locals.deviceId.SessionNumber = 0;
 
   // Note to run with Hardware: Update Read data settings for I2C communication
   //   Use Internal I2C Pullup Resistor <- False
@@ -73,7 +73,7 @@ Future<void> spiCommTest() async {
   // Example demonstrates simple read and write data operations through SPI protocol communication using NI 845x Device
   // Note to run with Hardware: Update Device ID of the connected SPI Interface Device (Ex: NI USB-8452 Device)
   locals.deviceId.DeviceName = 'DeviceA'; // Update SPI Interface Device ID
-  locals.deviceId.SessionNumber = 0; // Update SPI Interface Device ID (cont.)
+  locals.deviceId.SessionNumber = 0;
 
   // Note to run with Hardware: Update Read data settings for SPI communication
   //   Command <- "*IDN?\\n"
@@ -107,7 +107,7 @@ Future<void> serialCommTest() async {
   // Example demonstrates simple read and write data operations through Serial COM port
   // Note to run with Hardware: Update Serial VISA for the COM port
   locals.serialVisa.DeviceName = 'DeviceB'; // Update Serial VISA
-  locals.serialVisa.SessionNumber = 0; // Update Serial VISA (cont.)
+  locals.serialVisa.SessionNumber = 0;
 
   // Note to run with Hardware: Update Serial comm settings for write-read operation
   // Update the Serial Write Command based on the usecase
