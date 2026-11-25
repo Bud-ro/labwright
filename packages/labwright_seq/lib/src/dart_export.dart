@@ -3122,10 +3122,9 @@ class _DartExporter {
       case _:
         final args = [
           "'${_escape(step.type!)}'",
-          if (step.raw.subProps.any((p) => p.name != 'TS' && p.name != 'Result') || result != null)
+          if (step.typeProperties.isNotEmpty || result != null)
             '{${[
-              for (final p in step.raw.subProps)
-                if (p.name != 'TS' && p.name != 'Result') "'${_escape(p.name)}': ${_literalValue(p)}",
+              for (final p in step.typeProperties) "'${_escape(p.name)}': ${_literalValue(p)}",
             ].join(', ')}}',
           ?result,
         ];

@@ -322,6 +322,14 @@ class CallParameter {
 
   int? get connectorNumber => _int('ConnectorNumber');
 
+  /// The members of a cluster or struct parameter, each bound on its own.
+  List<CallParameter> get members => [
+    for (final e in [raw.prop('ArrayClusterEls'), raw.prop('MultiElement')].nonNulls.expand(
+      (list) => list.array ?? list.subProps,
+    ))
+      CallParameter(e),
+  ];
+
   String? get boundExpression => nonEmpty(raw.prop('ArgVal')?.scalar) ?? nonEmpty(raw.prop('ArgumentValue')?.scalar);
 
   String? get displayType => nonEmpty(raw.prop('DisplayType')?.scalar);

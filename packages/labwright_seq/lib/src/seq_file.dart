@@ -46,6 +46,9 @@ class SeqFile {
 
   final SeqProperty data;
 
+  /// The attributes attached to the file's data root, such as an add-on's file-wide configuration.
+  SeqProperty? get attributes => data.attributeBlock ?? data.prop(BinAttr.attributeBlock);
+
   String? _str(String key) => nonEmpty(data.prop(key)?.scalar);
   int? _int(String key) => int.tryParse(data.prop(key)?.scalar ?? '');
 
