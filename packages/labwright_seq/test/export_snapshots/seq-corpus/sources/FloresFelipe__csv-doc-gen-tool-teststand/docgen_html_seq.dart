@@ -238,7 +238,6 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
 
 class _SequenceDocLocals {
   String tableHtml = '<TABLE FRAME=BOX RULES=ALL WIDTH=90% CELLPADDING=1 CELLSPACING=1>';
-  String titleColHtml = '<TD COLSPAN=2 ALIGN=LEFT WIDTH=100% BGCOLOR=BLUE>';
   String rowHtml = '<TR>';
   String propColHtml = '<TD WIDTH=30% NOWRAP=NOWRAP BGCOLOR=LIGHTBLUE>';
   String valColHtml = '<TD WIDTH=70% BGCOLOR=LIGHTGREEN>';
@@ -491,8 +490,6 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
 
 class _StepDocLocals {
   String stepTypeName = '';
-  String tableHtml = '<TABLE FRAME=BOX RULES=ALL WIDTH=80% CELLPADDING=1 CELLSPACING=1>';
-  String titleColHtml = '<TD COLSPAN=2 ALIGN=LEFT WIDTH=100% BGCOLOR=TEAL>';
   String rowHtml = '<TR>';
   String propColHtml = '<TD WIDTH=30% NOWRAP=NOWRAP BGCOLOR=LIGHTBLUE>';
   String valColHtml = '<TD WIDTH=70% BGCOLOR=LIGHTGREEN>';
@@ -782,7 +779,6 @@ class _WritePropertyDetailsLocals {
   String propColHtml = '<TD WIDTH=33% NOWRAP=NOWRAP BGCOLOR=LIGHTBLUE>';
   String typeColHtml = '<TD WIDTH=33% BGCOLOR=GOLDENROD>';
   String valColHtml = '<TD WIDTH=33% BGCOLOR=LIGHTGREEN>';
-  String unused = '';
 }
 
 /// Sequence `Write Property Details`.

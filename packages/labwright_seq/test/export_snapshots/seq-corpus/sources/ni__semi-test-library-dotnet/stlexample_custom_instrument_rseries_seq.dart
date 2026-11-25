@@ -34,8 +34,6 @@ Future<void> processSetup() async {
 }
 
 class _MainSequenceLocals {
-  int tolerance = 1;
-  List<dynamic> expectedDigtalData = <dynamic>['127', '255'];
   List<dynamic> dutDigitalOutputPorts = <dynamic>['DigitalOutput_A', 'DigitalOutput_B'];
   List<dynamic> dutDigitalInputPorts = <dynamic>['DigitalInput_A', 'DigitalInput_B'];
   List<dynamic> portData = <dynamic>['127', '255'];

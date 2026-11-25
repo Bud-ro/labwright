@@ -6,8 +6,6 @@ dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 class _MainSequenceLocals {
   int rxImFreqSwpOip3Mean = 0;
   List<dynamic> rxImFreqSwpToi = <dynamic>[];
-  int rxImPwrSwpOip3Mean = 0;
-  List<dynamic> rxImPwrSwpToi = <dynamic>[];
 }
 
 /// Sequence `MainSequence`.

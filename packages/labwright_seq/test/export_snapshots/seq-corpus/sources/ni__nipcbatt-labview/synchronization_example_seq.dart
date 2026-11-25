@@ -42,7 +42,6 @@ Future<void> examples() async {
 class _SignalVoltageGenerationAndTimeDomainMeasurementLocals {
   dynamic signalGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
   dynamic timeDomainMeasTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
-  List<dynamic> routingPaths = <dynamic>[];
   dynamic measurementData = ts.PropObj({
     'Voltage_Waveform': <dynamic>[],
     'Mean_Voltage': <dynamic>[],
@@ -257,7 +256,6 @@ Future<void> dynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurement(
 class _DigitalClockGenerationAndDigitalPwmMeasurementLocals {
   dynamic digitalPwmGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
   dynamic digitalPwmMeasTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
-  List<dynamic> routingPaths = <dynamic>[];
   dynamic measurementData = ts.PropObj({
     'High_Time__s_': 0,
     'Low_Time__s_': 0,
@@ -375,9 +373,7 @@ Future<void> turnOffAllAoChannels() async {
 class _TurnOffAllDoChannelsLocals {
   int i = 0;
   List<dynamic> channelNames = <dynamic>['Simulated_DAQ/port0/line0:31', 'Simulated_DAQ1/port0/line0:31'];
-  String currentChannel = '';
   List<dynamic> numDigLinesPerChannel = <dynamic>['32', '32'];
-  int currentNumberOfChannels = 0;
 }
 
 /// Sequence `Turn Off all DO Channels`.

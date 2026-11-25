@@ -1329,6 +1329,7 @@ class _DartExporter {
       case 'Locals' || 'Parameters':
         final id = _idIn(root == 'Locals' ? _localIds : _paramIds, name);
         if (id == null) return null;
+        if (root == 'Locals' && _loopLocals.contains(name.toLowerCase())) return typed(id, _idTypes[id]);
         if (root == 'Locals') return typed('locals.$id', _idTypes[id]);
         final box = _boxedParams[id];
         return box != null ? typed('$box.value', _idTypes[id]) : typed(id, _idTypes[id]);
@@ -1851,7 +1852,11 @@ class _DartExporter {
       _out
         ..writeln('class $localsClass {')
         ..writeln(
-          [for (final local in scope.emittedLocals) '  ${_localField(local, _localIds[local.name]!)}'].join('\n'),
+          [
+            for (final local in scope.emittedLocals)
+              if (_mentions(body, 'locals.${_localIds[local.name]!}'))
+                '  ${_localField(local, _localIds[local.name]!)}',
+          ].join('\n'),
         )
         ..writeln('}')
         ..writeln();
@@ -2193,15 +2198,29 @@ class _DartExporter {
           open.add(_openBlock(flow.kind, condition: flow.condition ?? 'true'));
         case FlowKind.forLoop:
           final init = flow.initialization;
+          final counter = _loopCounter(flow);
+          if (counter != null) _loopLocals.add(counter);
           final initDart = init != null ? _exprStatement(init) : null;
           final incrDart = flow.increment != null ? _exprStatement(flow.increment!) : null;
+          final condDart = _cond(flow.condition ?? 'true');
+          if (counter != null) _loopLocals.remove(counter);
           final canFor =
               (initDart == null || !initDart.startsWith('ts.eval(')) &&
               (incrDart == null || !incrDart.startsWith('ts.eval('));
-          if (canFor) {
+          final counterId = counter == null ? null : _idIn(_localIds, counter);
+          if (canFor && counterId != null && initDart!.startsWith('$counterId = ')) {
+            _line('for (${_idTypes[counterId]!.source} $initDart; $condDart; ${incrDart ?? ''}) {$nameNote');
+            _indent++;
+            open.add(_openBlock(flow.kind));
+          } else if (counter != null) {
+            _line("ts.notExported('${_escape('For loop over ${flow.initialization}')}');");
+            _line('{');
+            _indent++;
+            open.add(_openBlock(flow.kind));
+          } else if (canFor) {
             _line(
               'for (${initDart ?? ''}; '
-              '${_cond(flow.condition ?? 'true')}; ${incrDart ?? ''}) '
+              '$condDart; ${incrDart ?? ''}) '
               '{$nameNote',
             );
             _indent++;
@@ -3011,6 +3030,30 @@ class _DartExporter {
           _throwLine(step, 'step type ${step.type}', 'action not exported yet');
         }
     }
+  }
+
+  final Set<String> _loopLocals = {};
+  static final _counterInit = RegExp(r'^\s*Locals\.(\w+)\s*=(?!=)', caseSensitive: false);
+
+  /// The local a For step counts with, lower-cased, when nothing else in the sequence refers to it.
+  String? _loopCounter(FlowControl flow) {
+    final name = _counterInit.firstMatch(flow.initialization ?? '')?.group(1);
+    if (name == null || _sequence == null) return null;
+    final reference = RegExp('(?<![\\w.])Locals\\.${RegExp.escape(name)}(?!\\w)', caseSensitive: false);
+    int count(String? text) => text == null ? 0 : reference.allMatches(text).length;
+    final own = count(flow.initialization) + count(flow.condition) + count(flow.increment);
+    final audited = seqScalarReads;
+    seqScalarReads = null;
+    var total = 0;
+    void walk(SeqProperty p) {
+      total += count(p.scalar);
+      p.subProps.forEach(walk);
+      p.array?.forEach(walk);
+    }
+
+    walk(_sequence!.raw);
+    seqScalarReads = audited;
+    return total == own ? name.toLowerCase() : null;
   }
 
   String? _statusExpression(Step step) {

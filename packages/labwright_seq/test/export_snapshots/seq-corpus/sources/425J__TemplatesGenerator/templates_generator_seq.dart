@@ -3,7 +3,6 @@ import 'package:labwright/shims.dart' as ts;
 
 class _CreateTemplatesLocals {
   dynamic templatesFile;
-  List<dynamic> folderPlaceholder = <dynamic>[]; // NI_TEMPLATE_CATEGORY
   String toolFolderName = '';
 }
 
@@ -43,7 +42,6 @@ Future<ts.Status> createTemplates({bool createViTemplates = true}) async {
 }
 
 class _CreateSfTemplatesLocals {
-  String sfRelativePath = '';
   dynamic sf;
   dynamic tmpStep;
   double numberOfSequences = 0;

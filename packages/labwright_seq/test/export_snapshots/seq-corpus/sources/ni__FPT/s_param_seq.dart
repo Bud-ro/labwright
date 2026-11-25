@@ -9,10 +9,6 @@ class _MainSequenceLocals {
   List<dynamic> rxSParamPhaseFull = <dynamic>[];
   int rxSParamS12Mean = 0;
   int rxSParamS21Mean = 0;
-  List<dynamic> rxSParamVstMagFull = <dynamic>[];
-  List<dynamic> rxSParamVstPhaseFull = <dynamic>[];
-  int rxSParamVstS12Mean = 0;
-  int rxSParamVstS21Mean = 0;
 }
 
 /// Sequence `MainSequence`.

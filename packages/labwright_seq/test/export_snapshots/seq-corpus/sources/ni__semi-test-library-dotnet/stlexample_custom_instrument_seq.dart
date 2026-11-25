@@ -34,11 +34,7 @@ Future<void> processSetup() async {
 }
 
 class _MainSequenceLocals {
-  int vcc = 5;
-  int offsetVoltage = 0;
-  double tolerance = 0.1;
   String publishedDataId = 'Analog Output';
-  List<dynamic> expectedAnalogOutput = <dynamic>['1.66', '3.33'];
   List<dynamic> analogOutputPins = <dynamic>['E', 'F'];
   List<dynamic> digitalInputPins = <dynamic>['A', 'B', 'C', 'D'];
   List<dynamic> pinData = <dynamic>['1', '0', '0', '1'];

@@ -32,7 +32,6 @@ Future<void> sequenceFileLoad() async {
 
 class _InstallLocals {
   String testStandPublic = '';
-  String currentDir = '';
   String toolsDir = '';
   String toolSetupDir = '';
   String toolMenusToInstallDir = '';

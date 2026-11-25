@@ -4,9 +4,7 @@ import 'package:labwright/shims.dart' as ts;
 String category = 'Test Status';
 
 class _StationPostResultsLocals {
-  String name = '';
   String status = '';
-  double color = 0;
   String icon = '';
 }
 
@@ -70,7 +68,6 @@ Future<ts.Status> stationPostResults({
 class _StationPostResultListEntryLocals {
   String name = '';
   String status = '';
-  double color = 0;
   String icon = '';
 }
 
@@ -98,7 +95,6 @@ Future<void> stationPostResultListEntry({dynamic step, dynamic result, bool disc
 class _StationPreStepLocals {
   String name = '';
   String status = '';
-  double color = 0;
   String icon = '';
 }
 

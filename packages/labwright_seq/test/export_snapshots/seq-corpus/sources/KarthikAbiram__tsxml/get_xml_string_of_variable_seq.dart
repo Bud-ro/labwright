@@ -4,17 +4,6 @@ import 'package:labwright/shims.dart' as ts;
 class _MainSequenceLocals {
   String xmlString = '';
   dynamic mySimpleContainer = ts.PropObj({'MyNum1': 0, 'MyStr1': '', 'EmptyNumArray': <dynamic>[]});
-  dynamic myContainerWithArray = ts.PropObj({
-    'MyNum1': 0,
-    'MyStr1': '',
-    'MyNumArray1': <dynamic>['0', '0', '0', '0', '0', '0'],
-    'MyStrArray1': List<dynamic>.filled(10, '', growable: true),
-  });
-  int myNumber = 0;
-  String myString = 'xTLDR';
-  bool myBoolean = false;
-  List<dynamic> myNumArray = List<dynamic>.filled(10, '0', growable: true);
-  List<dynamic> myStrArray = List<dynamic>.filled(10, '', growable: true);
 }
 
 /// Sequence `MainSequence`.

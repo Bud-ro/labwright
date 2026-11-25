@@ -7,7 +7,6 @@ String separator = '	';
 List<dynamic> seqGroup = <dynamic>['Setup', 'Main', 'Cleanup'];
 
 class _SequenceFileDocLocals {
-  int tmpNum = 0;
   String docResult = '';
   dynamic currentSequence;
 }
@@ -57,7 +56,6 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
 }
 
 class _ParseSequenceLocals {
-  int tmpNum = 0;
   String currentGroup = '';
   dynamic currentStep;
 }
@@ -115,7 +113,6 @@ class _ParseStepLocals {
   int numberOfParameters = 0;
   String currentRow = '';
   String parametersList = '';
-  String blockLvlPadding = '';
 }
 
 /// Sequence `Parse Step` — This string can extract properties of a step and return them as a tab-demilited string.

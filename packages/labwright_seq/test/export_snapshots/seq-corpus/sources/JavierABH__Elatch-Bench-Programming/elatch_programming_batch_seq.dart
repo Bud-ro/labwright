@@ -681,7 +681,6 @@ class _LoadVariablesLocals {
   String tempName = '';
   String tempStr = '';
   int arrayIndex = 0;
-  int tempNum = 0;
   int tempLoop = 0;
 }
 

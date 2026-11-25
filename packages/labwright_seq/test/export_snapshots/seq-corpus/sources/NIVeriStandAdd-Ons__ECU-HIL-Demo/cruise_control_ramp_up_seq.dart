@@ -18,8 +18,6 @@ dynamic veristand = ts.PropObj({
 
 class _MainSequenceLocals {
   List<dynamic> tdmsFile = <dynamic>[''];
-  dynamic diAdemRef = ts.PropObj({'CommandReference': null, 'DataSheetReference': null});
-  dynamic veristand2 = ts.PropObj({'VSDialogs': null, 'ProjectReference': null, 'gatewayIP': 'localhost'});
 }
 
 /// Sequence `MainSequence`.

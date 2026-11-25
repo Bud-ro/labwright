@@ -226,24 +226,6 @@ Future<void> modelPluginOnTheFlyStepResults({
 class _ModelPluginUutDoneLocals {
   bool inNewThread = false;
   dynamic controllerAndSocketSynchronizationManager;
-  dynamic currentResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': 'Done',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'TS': ts.PropObj({
-      'StartTime': 2198.5588198,
-      'TotalTime': 0.8949353,
-      'ModuleTime': 0.8947088,
-      'Index': 0,
-      'StepName': 'Simulation Dialog',
-      'StepGroup': 'Setup',
-      'StepId': 'ID#:fcZLdWPO6BG1UABQVsAACA',
-      'Id': 87,
-      'StepType': 'Action',
-      'BlockLevel': 0,
-    }),
-  });
   String reportName = '';
 }
 

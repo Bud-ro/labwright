@@ -30,7 +30,6 @@ class _InstallLocals {
   String testStandPublic = '';
   String testStandCfg = '';
   String testStandGlobalCfg = '';
-  String currentDir = '';
   dynamic source = ts.PropObj({'SeqEdit': '', 'Users': '', 'FrontEndCallback': ''});
   dynamic target = ts.PropObj({'SeqEditDir': '', 'UsersDir': '', 'FrontEndCallbackDir': ''});
 }

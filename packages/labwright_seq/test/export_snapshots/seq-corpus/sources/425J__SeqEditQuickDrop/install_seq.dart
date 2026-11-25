@@ -28,7 +28,6 @@ Future<void> sequenceFileLoad() async {
 
 class _InstallLocals {
   String testStandPublic = '';
-  String currentDir = '';
   String iconsDir = '';
   dynamic source = ts.PropObj({'Tool': '', 'Icon': '', 'FrontEndCallback': ''});
   dynamic target = ts.PropObj({'ToolsDir': '', 'IconsDir': '', 'FrontEndCallbackDir': ''});

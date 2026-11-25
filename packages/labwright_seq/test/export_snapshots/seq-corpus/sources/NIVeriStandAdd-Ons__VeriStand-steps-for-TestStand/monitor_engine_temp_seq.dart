@@ -19,7 +19,6 @@ String thermalNotification = 'ThermalNotification';
 
 class _MainSequenceLocals {
   int i = 0;
-  dynamic veristand2 = ts.PropObj({'VSDialogs': null});
   dynamic thermalMonitorThread;
   List<dynamic> rpmSetpoints = <dynamic>['1000', '1500', '2000', '2500', '3000'];
 }

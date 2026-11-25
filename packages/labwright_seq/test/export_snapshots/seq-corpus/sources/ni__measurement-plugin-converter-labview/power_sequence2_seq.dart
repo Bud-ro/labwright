@@ -7,7 +7,6 @@ class _MainSequenceLocals {
   dynamic channelSettings = ts.PropObj({'CurrentSetpoint': 3, 'VoltageSetpoint': 6});
   dynamic timingSettings = ts.PropObj({'Source': '/TS1/20MHzTimebase', 'SampleRate': 1000, 'NumberOfSamples': 100});
   dynamic triggerSettings = ts.PropObj({'StartTrigger': true, 'Source': '/AImodule/PFI0', 'Edge': 'Rising'});
-  dynamic local = ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false});
   bool analyze = true;
   List<dynamic> voltage = <dynamic>[];
   List<dynamic> current = <dynamic>[];

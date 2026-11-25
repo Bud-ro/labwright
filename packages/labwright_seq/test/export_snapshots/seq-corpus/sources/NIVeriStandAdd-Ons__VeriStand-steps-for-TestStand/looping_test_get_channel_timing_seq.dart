@@ -17,9 +17,7 @@ dynamic veristand = ts.PropObj({
 });
 
 class _MainSequenceLocals {
-  int counter = 0;
   int timesToRun = 500;
-  dynamic veristand2 = ts.PropObj({'VSDialogs': null});
 }
 
 /// Sequence `MainSequence`.
@@ -28,7 +26,7 @@ Future<void> mainSequence() async {
 
   await ts.stepType('InitializeVeriStand');
 
-  for (locals.counter = 0; locals.counter < locals.timesToRun; locals.counter += 1) {
+  for (int counter = 0; counter < locals.timesToRun; counter += 1) {
     await ts.stepType('GetChannelValue', {
       'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/ActualRPM"'},
     });

@@ -236,7 +236,6 @@ class _SequenceDocLocals {
   String tmpString = '';
   int tmpNum = 0;
   double totalNumSteps = 0;
-  int stepsSoFar = 0;
 }
 
 /// Sequence `Sequence Doc`.
@@ -800,7 +799,6 @@ class _WritePropertyDetailsLocals {
   int maxWwLineLength = 80;
   int wwIndentNum = 10;
   int tmpNum = 0;
-  String unused = '';
 }
 
 /// Sequence `Write Property Details`.

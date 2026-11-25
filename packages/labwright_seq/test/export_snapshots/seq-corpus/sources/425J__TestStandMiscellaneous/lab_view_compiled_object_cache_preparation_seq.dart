@@ -2,7 +2,6 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _CreateCompiledObjectCacheLocals {
-  double startTime = 0;
   String cliErrorText = '';
 }
 
@@ -113,7 +112,6 @@ Future<void> enableLabViewTcpServer({
 }
 
 class _SequenceFileLoadLocals {
-  List<dynamic> tmpPaths = <dynamic>[];
   bool success = false;
   String labviewProjectPath = '';
   String labviewDirectory = 'C:\\Program Files (x86)\\National Instruments\\LabVIEW 2018';

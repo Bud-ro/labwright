@@ -115,7 +115,6 @@ class _ModelPluginBeginLocals {
   dynamic performanceMeasurementUtility;
   String dateString = '';
   String timeString = '';
-  String logFileBaseDirectory = '';
 }
 
 /// Sequence `Model Plugin - Begin`.

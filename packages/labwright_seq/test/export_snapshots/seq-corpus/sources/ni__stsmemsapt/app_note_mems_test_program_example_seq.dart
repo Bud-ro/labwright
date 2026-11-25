@@ -1376,11 +1376,6 @@ class _ProcessSetupLocals {
       'Sense': 'Local',
     }),
   ];
-  dynamic temporaryObjectReference = ts.PropObj({
-    'IS_ZRef_Real': null,
-    'IS_ZRef_Im': null,
-    'IS_ZRef_Frequencies': null,
-  });
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..

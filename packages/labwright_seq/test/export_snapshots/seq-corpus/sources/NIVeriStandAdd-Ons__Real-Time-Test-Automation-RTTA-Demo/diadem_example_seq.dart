@@ -2,10 +2,7 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _MainSequenceLocals {
-  dynamic diAdemReference;
-  List<dynamic> dataToCopy = List<dynamic>.filled(16, 0, growable: true);
   List<dynamic> dataReturned = <dynamic>[];
-  String diAdemPath = 'C:\\Program Files\\National Instruments\\DIAdem 9.1';
 }
 
 /// Sequence `MainSequence`.

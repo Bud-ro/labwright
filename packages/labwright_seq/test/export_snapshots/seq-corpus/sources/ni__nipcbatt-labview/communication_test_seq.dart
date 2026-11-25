@@ -54,7 +54,6 @@ Future<void> i2CCommTest() async {
 
 class _SpiCommTestLocals {
   dynamic deviceId = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
-  dynamic data = ts.PropObj({'SPIReadData': <dynamic>[]});
 }
 
 /// Sequence `SPI Comm Test`.

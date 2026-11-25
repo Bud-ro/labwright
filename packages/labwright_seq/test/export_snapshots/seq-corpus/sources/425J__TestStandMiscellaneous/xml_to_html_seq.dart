@@ -2,8 +2,6 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _ConvertLocals {
-  List<dynamic> tmpPaths = <dynamic>[];
-  dynamic tags = ts.PropObj({'Front': '<?xml-stylesheet type="text/xsl" href="', 'Back': '"?>'});
   String xmlFilePath = '';
   String xslFilePath = '';
   String htmlFilePath = '';

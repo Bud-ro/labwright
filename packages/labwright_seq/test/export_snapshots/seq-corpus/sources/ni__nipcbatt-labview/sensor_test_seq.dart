@@ -41,7 +41,6 @@ Future<void> examples() async {
 }
 
 class _ThermistorTestCDaqLocals {
-  dynamic settings = ts.PropObj();
   dynamic thermistorTempMeas = ts.PropObj({
     'AcqTime': 0,
     'MeasurementResults': ts.PropObj({
@@ -311,7 +310,6 @@ Future<void> thermistorTestCDaq() async {
 }
 
 class _ThermistorTestDaqLocals {
-  dynamic settings = ts.PropObj();
   dynamic thermistorTempMeas = ts.PropObj({
     'AcqTime': 0,
     'MeasurementResults': ts.PropObj({
@@ -515,8 +513,6 @@ class _ThermistorTestDaqLocals {
     'Task': ts.PropObj({'DeviceName': '', 'SessionNumber': 0}),
   });
   dynamic psTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
-  String psPhysicalChannel = ''; // //Physical Channel for Thermistor Voltage Excitation
-  String psGlobalChannel = ''; // //Virtual Global Channel for Thermistor Voltage Excitation
   dynamic psMeasData = ts.PropObj({
     'Voltage_Waveform': ts.PropObj({
       't0': '',
@@ -647,7 +643,6 @@ Future<void> rtdTest() async {
 }
 
 class _ThermocoupleTestLocals {
-  dynamic settings = ts.PropObj();
   dynamic thermocoupleTempMeas = ts.PropObj({
     'AcqTime': 0,
     'MeasurementResults': ts.PropObj({

@@ -8,13 +8,9 @@ class _MainSequenceLocals {
   dynamic niVsModelManager;
   dynamic niVsProject;
   int stimState = 0;
-  int enginestate = 0;
   bool testResult = true;
   bool notReady = true;
   List<dynamic> logs = <dynamic>[''];
-  dynamic diAdemReference = ts.PropObj({'CommandReference': null, 'DataSheetReference': null});
-  String diAdemPath = 'C:\\Program Files\\National Instruments\\DIAdem 11.1';
-  List<dynamic> workDir = <dynamic>['C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\Working Directory'];
   List<dynamic> analysisResult = <dynamic>['0'];
 }
 

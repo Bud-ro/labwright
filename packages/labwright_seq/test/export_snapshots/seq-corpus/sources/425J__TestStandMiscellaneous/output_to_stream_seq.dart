@@ -2,19 +2,6 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _OutputToStreamLocals {
-  String streamFilePath = '';
-  dynamic stream;
-  List<dynamic> fields = <dynamic>[
-    'Message',
-    'Time Stamp',
-    'Category',
-    'Severity',
-    'Step',
-    'Sequence',
-    'SequeneFile',
-    'Execution',
-    'Thread ID',
-  ];
   dynamic values = ts.PropObj({
     'Message': '',
     'TimeStamp': '',

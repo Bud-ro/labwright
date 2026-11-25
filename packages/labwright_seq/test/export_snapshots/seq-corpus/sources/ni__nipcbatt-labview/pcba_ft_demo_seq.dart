@@ -308,11 +308,6 @@ class _BatteryChargerVoltageAndCurrentSleepModeLocals {
     ts.PropObj({'Channel': '', '_Value': 0, 'Unit': '', 'Out_of_Range': false}),
     ts.PropObj({'Channel': '', '_Value': 0, 'Unit': '', 'Out_of_Range': false}),
   ];
-  dynamic scanResourcesNames = ts.PropObj({
-    'DMM_Resource_Name': ts.PropObj({'DeviceName': 'DMM_4080', 'SessionNumber': 0}),
-    'MUX_Resource_Name': ts.PropObj({'DeviceName': 'MUX_2527', 'SessionNumber': 0}),
-    'Shunt_Resource_Name': ts.PropObj({'DeviceName': 'Shunt_2568', 'SessionNumber': 0}),
-  });
 }
 
 /// Sequence `Battery/Charger Voltage and Current Sleep Mode`.

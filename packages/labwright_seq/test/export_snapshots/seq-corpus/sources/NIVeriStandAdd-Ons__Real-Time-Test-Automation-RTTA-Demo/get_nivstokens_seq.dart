@@ -3,7 +3,6 @@ import 'package:labwright/shims.dart' as ts;
 
 class _MainSequenceLocals {
   dynamic temp;
-  double token = 0;
 }
 
 /// Sequence `MainSequence`.

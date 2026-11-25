@@ -2,7 +2,6 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _MainSequenceLocals {
-  int sequenceCounter = 0;
   int sequencesToRun = 500;
 }
 
@@ -27,7 +26,7 @@ Future<ts.Status> mainSequence() async {
     'Common': ts.PropObj(),
   });
 
-  for (locals.sequenceCounter = 0; locals.sequenceCounter < locals.sequencesToRun; locals.sequenceCounter += 1) {
+  for (int sequenceCounter = 0; sequenceCounter < locals.sequencesToRun; sequenceCounter += 1) {
     await ts.stepType('RunRTSequenceAction', {
       'Veristand': {
         'SeqTimeout': -1,

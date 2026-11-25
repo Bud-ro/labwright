@@ -5,11 +5,7 @@ double fakeSerialNumber = 28;
 
 class _MainSequenceLocals {
   int cycle = 0;
-  dynamic assets;
   int capacity = 2000;
-  int voltage = 0;
-  String emailAddress = '';
-  String amplitude = '10';
   String filePath = '';
 }
 

@@ -10,9 +10,6 @@ Future<void> arrayManipulations() async {
 }
 
 class _ContainerManipulationLocals {
-  String userName = 'Arthur Philip Dent';
-  dynamic spaceShip = ts.PropObj({'Id': 'Heart of Gold', 'ActualValue': 42, 'IsActive': true});
-  int answer = 42;
   String thisString = '';
   double thisNumber = 0;
 }
@@ -28,8 +25,6 @@ Future<void> containerManipulation() async {
 }
 
 class _ValueTypeLocals {
-  String columbia = '';
-  int endevour = 0;
   double valueType2 = 0;
 }
 
