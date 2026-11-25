@@ -75,13 +75,16 @@ enum SeqValueClass {
   static SeqValueClass? of(String? token) => token == null ? null : from(token);
 }
 
+/// While set, collects every [SeqProperty] whose [SeqProperty.scalar] is read.
+Set<SeqProperty>? seqScalarReads;
+
 class SeqProperty {
   SeqProperty({
     required this.name,
     this.className,
     this.typeName,
     this.attributes = const {},
-    this.scalar,
+    String? scalar,
     this.array,
     this.subProps = const [],
     this.xmlTag,
@@ -91,7 +94,7 @@ class SeqProperty {
     this.numericFormat,
     this.xmlComment,
     this.attributeBlock,
-  });
+  }) : _scalar = scalar;
 
   final String name;
 
@@ -105,7 +108,13 @@ class SeqProperty {
 
   final Map<String, String> attributes;
 
-  final String? scalar;
+  /// The property's value; reading it adds the property to [seqScalarReads] while that is set.
+  String? get scalar {
+    seqScalarReads?.add(this);
+    return _scalar;
+  }
+
+  final String? _scalar;
 
   final List<SeqProperty>? array;
 
