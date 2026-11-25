@@ -2704,6 +2704,12 @@ class _DartExporter {
       _line('if (${_cond(precondition)}) {');
       _indent++;
     }
+    final lock = settings.usesMutex == true ? _claimId('lock') : null;
+    if (lock != null) {
+      _line('final $lock = await ts.acquireLock(${_expr(settings.mutexName ?? '""')});');
+      _line('try {');
+      _indent++;
+    }
     final ignoresErrors = settings.ignoresRunTimeErrors == true;
     if (ignoresErrors) {
       _line('try {');
@@ -2767,6 +2773,12 @@ class _DartExporter {
     if (ignoresErrors) {
       _indent--;
       _line('} on ts.RunTimeError catch (_) {}');
+    }
+    if (lock != null) {
+      _indent--;
+      _line('} finally {');
+      _line('  $lock.release();');
+      _line('}');
     }
     _emitPostAction(step, result);
 

@@ -385,6 +385,16 @@ Future<Map<String, Object?>> measurement(String service, [Map<String, Object?> i
 /// `NI_UpdatePinMap` translation.
 Future<void> updatePinMap(String path) => throw UnimplementedError('update pin map $path');
 
+/// A lock a thread holds until it calls [release].
+abstract interface class LockHold {
+  void release();
+}
+
+/// Waits until no other thread holds the lock [nameOrReference] names, then takes it.
+///
+/// Translation of a step's setting to use a lock so that only one thread at a time executes it.
+Future<LockHold> acquireLock(Object? nameOrReference) => throw UnimplementedError('lock $nameOrReference');
+
 /// What a code module answers: its outputs by parameter name, with a cluster or struct member as `parameter.member`.
 typedef ModuleOutputs = Map<String, Object?>;
 

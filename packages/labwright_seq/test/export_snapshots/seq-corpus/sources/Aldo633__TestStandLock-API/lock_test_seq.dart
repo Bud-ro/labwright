@@ -17,6 +17,10 @@ Future<void> mainSequence() async {
     inputs: {'milliseconds to wait': 500, 'Instrument Names': instrumentListDmm},
     passesContext: true,
   ); // DMM Test
+  final lock = await ts.acquireLock('*DAQ');
+  try {} finally {
+    lock.release();
+  }
   await ts.callVi(
     'SubStep\\Lock Test VI.vi',
     inputs: {'milliseconds to wait': 100, 'Instrument Names': instrumentListDaq},
