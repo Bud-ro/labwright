@@ -2,105 +2,43 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final run = ts.SequenceRun();
-  final dynamic openVeriStandProjectResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Open VeriStand Project
-  final dynamic connectResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Connect
-  final dynamic disconnectResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Disconnect
-  final dynamic closeVeriStandResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Close VeriStand
-
+Future<void> mainSequence() async {
   try {
-    // ── setup ──
-    // Open VeriStand Project [NI_VeriStand_OpenProject]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'NI_VeriStand_OpenProject',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'NI_StepTypeName': 'NI_VeriStand_OpenProject',
-        'VeriStand': ts.PropObj({
-          'ProjectPath': 'engine-demo.nivsprj',
-          'ProjectPathExpression': '',
-          'SpecifyProjectPathByExpression': false,
-          'LaunchVeriStand': 'True',
-          'ShowWorkspace': false,
-          'Screens': <dynamic>[],
-        }),
-      }),
-      openVeriStandProjectResult,
-    );
-    openVeriStandProjectResult.Status = 'Done';
-    run.record(openVeriStandProjectResult.Status);
-    // Connect [NI_VeriStand_Connect]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'NI_VeriStand_Connect',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'NI_StepTypeName': 'NI_VeriStand_Connect',
-        'VeriStand': ts.PropObj({
-          'StepReferenceOutput': '',
-          'SystemDefinitionFilePathExpression': '',
-          'SystemDefinitionFilePath': 'Engine Demo.nivssdf',
-          'CalibrationFilePathExpression': '',
-          'CalibrationFilePath': 'Engine Demo.nivscf',
-          'SpecifyByExpression': false,
-          'GatewayAddress': '"localhost"',
-          'DeploySystemDefinition': 'True',
-          'Timeout': '120000',
-        }),
-      }),
-      connectResult,
-    );
-    connectResult.Status = 'Done';
-    run.record(connectResult.Status);
+    await ts.stepType('NI_VeriStand_OpenProject', {
+      'NI_StepTypeName': 'NI_VeriStand_OpenProject',
+      'VeriStand': {
+        'ProjectPath': 'engine-demo.nivsprj',
+        'ProjectPathExpression': '',
+        'SpecifyProjectPathByExpression': false,
+        'LaunchVeriStand': 'True',
+        'ShowWorkspace': false,
+        'Screens': <dynamic>[],
+      },
+    });
+    await ts.stepType('NI_VeriStand_Connect', {
+      'NI_StepTypeName': 'NI_VeriStand_Connect',
+      'VeriStand': {
+        'StepReferenceOutput': '',
+        'SystemDefinitionFilePathExpression': '',
+        'SystemDefinitionFilePath': 'Engine Demo.nivssdf',
+        'CalibrationFilePathExpression': '',
+        'CalibrationFilePath': 'Engine Demo.nivscf',
+        'SpecifyByExpression': false,
+        'GatewayAddress': '"localhost"',
+        'DeploySystemDefinition': 'True',
+        'Timeout': '120000',
+      },
+    });
   } finally {
-    // ── cleanup ──
-    // Disconnect [NI_VeriStand_Disconnect]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'NI_VeriStand_Disconnect',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'NI_StepTypeName': 'NI_VeriStand_Disconnect',
-        'VeriStand': ts.PropObj({
-          'SpecifyDeploymentByExpression': false,
-          'DeploymentReference': '',
-          'ConnectStepId': 'ID#:yO/ZgRlL8RGf1Wz22jzkfC',
-          'UndeploySystemDefinition': 'True',
-        }),
-      }),
-      disconnectResult,
-    );
-    disconnectResult.Status = 'Done';
-    run.record(disconnectResult.Status);
-    // Close VeriStand [NI_VeriStand_Close]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'NI_VeriStand_Close',
-      ts.StepPhase.post,
-      ts.PropObj({'NI_StepTypeName': 'NI_VeriStand_Close'}),
-      closeVeriStandResult,
-    );
-    closeVeriStandResult.Status = 'Done';
-    run.record(closeVeriStandResult.Status);
+    await ts.stepType('NI_VeriStand_Disconnect', {
+      'NI_StepTypeName': 'NI_VeriStand_Disconnect',
+      'VeriStand': {
+        'SpecifyDeploymentByExpression': false,
+        'DeploymentReference': '',
+        'ConnectStepId': 'ID#:yO/ZgRlL8RGf1Wz22jzkfC',
+        'UndeploySystemDefinition': 'True',
+      },
+    });
+    await ts.stepType('NI_VeriStand_Close', {'NI_StepTypeName': 'NI_VeriStand_Close'});
   }
-
-  return run.status;
 }

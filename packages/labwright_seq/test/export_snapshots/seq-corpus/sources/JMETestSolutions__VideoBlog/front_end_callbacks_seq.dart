@@ -2,31 +2,17 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _LoginLogoutLocals {
-  bool loggedIn = false; // Bool — default: false
-  String operatorName = ''; // Str
-  List<dynamic> groups = <dynamic>[]; // Strs
-  dynamic user; // Ref
+  bool loggedIn = false;
+  String operatorName = '';
+  List<dynamic> groups = <dynamic>[];
+  dynamic user;
 }
 
 /// Sequence `LoginLogout`.
-Future<String> loginLogout({bool logout = false, bool isInitialLogin = false}) async {
+Future<void> loginLogout({bool logout = false, bool isInitialLogin = false}) async {
   final locals = _LoginLogoutLocals();
-  final run = ts.SequenceRun();
-  final dynamic createUserResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Create User
-  final dynamic updateGroupMembershipResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Update Group Membership
 
   try {
-    // ── main ──
     if (logout == false) {
       //   Company Name <- "JME Test Solutions"
       //   contextType <- 0
@@ -37,60 +23,35 @@ Future<String> loginLogout({bool logout = false, bool isInitialLogin = false}) a
       await callOperatorLoginDialog(); // Show Login Dialog [Action]
       if (locals.loggedIn) {
         if (ts.cond('RunState.Engine.UserNameExists(Locals.operatorName) == False')) {
-          // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-          createUserResult.Status = await createUser(user: locals.user, username: locals.operatorName); // Create User
-          createUserResult.Status = createUserResult.Status == 'Done'
-              ? 'Passed'
-              : createUserResult.Status; // status expression
-          run.record(createUserResult.Status);
+          await createUser(user: locals.user, username: locals.operatorName); // Create User
         } else {
           ts.eval('Locals.User = RunState.Engine.GetUser(Locals.operatorName)');
         }
-        // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-        updateGroupMembershipResult.Status = await groupMembership(
-          groups: locals.groups,
-          user: locals.user,
-        ); // Update Group Membership
-        updateGroupMembershipResult.Status = updateGroupMembershipResult.Status == 'Done'
-            ? 'Passed'
-            : updateGroupMembershipResult.Status; // status expression
-        run.record(updateGroupMembershipResult.Status);
+        await groupMembership(groups: locals.groups, user: locals.user); // Update Group Membership
         ts.eval('RunState.Engine.CurrentUser = Locals.User'); // Login User
       } else {}
     } else {
       ts.eval('RunState.Engine.CurrentUser = Nothing'); // Logout User
     }
   } finally {
-    // ── cleanup ──
     ts.eval('RunState.Engine.UsersFile.AsPropertyObjectFile.SaveFileIfModified(False)'); // Save Users File
   }
-
-  return run.status;
 }
 
 class _GroupMembershipLocals {
-  String currentGroup = ''; // Str
-  int loopingIndex = 0; // Num — default: 0
-  List<dynamic> teststandGroups = List<dynamic>.filled(10, '', growable: true); // Strs
+  String currentGroup = '';
+  int loopingIndex = 0;
+  List<dynamic> teststandGroups = List<dynamic>.filled(10, '', growable: true);
 }
 
 /// Sequence `GroupMembership`.
-Future<String> groupMembership({List<dynamic>? groups, dynamic user}) async {
-  groups ??= <dynamic>[]; // Strs
+Future<void> groupMembership({List<dynamic>? groups, dynamic user}) async {
+  groups ??= <dynamic>[];
 
   final locals = _GroupMembershipLocals();
-  final run = ts.SequenceRun();
-  dynamic updateGroupMembershipResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Update Group Membership
 
-  // ── setup ──
   locals.teststandGroups = <dynamic>['Operator', 'Technician', 'Developer', 'Administrator']; // Setup Supported Groups
 
-  // ── main ──
   // Reformat Windows Group Names to match Teststand Group Names
   for (locals.loopingIndex = 0; locals.loopingIndex < ts.getNumElements(groups); locals.loopingIndex += 1) {
     locals.currentGroup = groups[locals.loopingIndex] as String;
@@ -109,49 +70,33 @@ Future<String> groupMembership({List<dynamic>? groups, dynamic user}) async {
   }
   for (final element in ts.iterate(locals.teststandGroups)) {
     locals.currentGroup = element as String;
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    updateGroupMembershipResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
-    updateGroupMembershipResult.Status = await updateGroupMembership(
+    await updateGroupMembership(
       groupName: locals.currentGroup,
       user: user,
       userGroups: groups,
     ); // Update Group Membership
-    updateGroupMembershipResult.Status = updateGroupMembershipResult.Status == 'Done'
-        ? 'Passed'
-        : updateGroupMembershipResult.Status; // status expression
-    run.record(updateGroupMembershipResult.Status);
   }
-
-  return run.status;
 }
 
 class _UpdateGroupMembershipLocals {
-  dynamic members; // Ref
-  int idx = 0; // Num — default: 0
-  bool alreadyInGroup = false; // Bool — default: false
-  bool fileChanged = false; // Bool — default: false
+  dynamic members;
+  int idx = 0;
+  bool alreadyInGroup = false;
+  bool fileChanged = false;
 }
 
 /// Sequence `UpdateGroupMembership`.
-Future<String> updateGroupMembership({String groupName = '', dynamic user, List<dynamic>? userGroups}) async {
-  userGroups ??= List<dynamic>.filled(10, '', growable: true); // Strs
+Future<void> updateGroupMembership({String groupName = '', dynamic user, List<dynamic>? userGroups}) async {
+  userGroups ??= List<dynamic>.filled(10, '', growable: true);
 
   final locals = _UpdateGroupMembershipLocals();
-  final run = ts.SequenceRun();
 
   try {
-    // ── setup ──
     locals.fileChanged = false;
 
-    // ── main ──
     if (ts.cond('RunState.Engine.GetUserGroup(Parameters.GroupName) == Nothing')) {
-      // description: Do Nothing. The Windows group does not exist in Teststand
-      // label: Note
+      // Do Nothing. The Windows group does not exist in Teststand
+      // Note
     } else {
       ts.eval('Locals.Members = RunState.Engine.GetUserGroup(Parameters.GroupName).Members');
       // Verify User is in the group. Add if necessary
@@ -191,30 +136,21 @@ Future<String> updateGroupMembership({String groupName = '', dynamic user, List<
       }
     }
   } finally {
-    // ── cleanup ──
     if (locals.fileChanged) {
-      // Save Users File: Statement with no expression
+      // Save Users File
     }
   }
-
-  return run.status;
 }
 
 /// Sequence `Create User`.
-Future<String> createUser({dynamic user, String username = ''}) async {
-  final run = ts.SequenceRun();
-
+Future<void> createUser({dynamic user, String username = ''}) async {
   ts.eval('Parameters.User = RunState.Engine.NewUser(Nothing)'); // Create New User
   user.AsUser.LoginName = username; // Set Login Name
   user.AsUser.Password = ''; // Set Password
   ts.eval('RunState.Engine.UsersFile.UserList.SetPropertyObjectByOffset(0, 0x1, Parameters.User)'); // Insert New User
   ts.eval('RunState.Engine.UsersFile.AsPropertyObjectFile.IncChangeCount()'); // Increment Changecount of User File
-
-  return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// Stub for the labView module call `Login Library.lvlibp\Operator Login Dialog.vi`
-/// (from step `Show Login Dialog`). TODO: implement against the real module.
+/// The labView module `Login Library.lvlibp\Operator Login Dialog.vi`.
 Future<Object?> callOperatorLoginDialog() async =>
     throw UnimplementedError('labView call: Login Library.lvlibp\\Operator Login Dialog.vi');

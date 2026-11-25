@@ -263,13 +263,29 @@ enum StringComparison {
   static final Map<String, StringComparison> byCode = {for (final c in values) c.code: c};
 }
 
-/// The step status a passing judgement sets.
-const statusPassed = 'Passed';
+/// A step status: the text TestStand records in `Step.Result.Status`. The constants are the values TestStand and its
+/// built-in step types set; a code module may set any other text.
+extension type const Status(String text) implements String {
+  /// The step judged its measurement and it passed, or its run mode is Force Pass.
+  static const passed = Status('Passed');
 
-/// The step status a failing judgement sets.
-const statusFailed = 'Failed';
+  /// The step judged its measurement and it failed, or its run mode is Force Fail.
+  static const failed = Status('Failed');
 
-String checkLimits(
+  /// The step finished without judging anything.
+  static const done = Status('Done');
+
+  /// A run-time error occurred in the step.
+  static const error = Status('Error');
+
+  /// The step did not run: its run mode is Skip or its precondition was false.
+  static const skipped = Status('Skipped');
+
+  /// The execution was terminated while the step ran.
+  static const terminated = Status('Terminated');
+}
+
+Status checkLimits(
   Object? value,
   Object? high,
   Object? low,
@@ -280,24 +296,24 @@ String checkLimits(
 ]) {
   final judged = LimitComparison.byCode[comparison];
   if (judged == null) throw UnimplementedError('CheckLimits comparison $comparison');
-  if (judged == LimitComparison.log) return statusPassed;
+  if (judged == LimitComparison.log) return Status.passed;
   if (value is! num || low is! num || high is! num) {
     throw UnimplementedError('CheckLimits of ${value.runtimeType} against ${low.runtimeType}..${high.runtimeType}');
   }
-  return judged.passes(value, low, high) ? statusPassed : statusFailed;
+  return judged.passes(value, low, high) ? Status.passed : Status.failed;
 }
 
-String checkStrLimit(Object? value, Object? limit, Object? comparison, [Object? maxChars]) {
+Status checkStrLimit(Object? value, Object? limit, Object? comparison, [Object? maxChars]) {
   final judged = StringComparison.byCode[comparison];
   if (judged == null || (maxChars != null && maxChars != -1)) {
     throw UnimplementedError('CheckStrLimit comparison $comparison${maxChars == null ? '' : ' over $maxChars chars'}');
   }
-  if (judged == StringComparison.log) return statusPassed;
+  if (judged == StringComparison.log) return Status.passed;
   if (value is! String || limit is! String) {
     throw UnimplementedError('CheckStrLimit of ${value.runtimeType} against ${limit.runtimeType}');
   }
   final equal = judged == StringComparison.ignoreCase ? value.toLowerCase() == limit.toLowerCase() : value == limit;
-  return equal ? statusPassed : statusFailed;
+  return equal ? Status.passed : Status.failed;
 }
 
 /// Raised by a Terminate post action: the execution stops after each sequence on the way out runs its cleanup.
@@ -309,62 +325,73 @@ final class SequenceTermination implements Exception {
 
 Never terminate() => throw const SequenceTermination();
 
-/// What the host answers for a message popup step: the 1-based button pressed and the text entered.
-typedef PopupResponse = ({double buttonHit, String response});
+/// What the operator answered a [messagePopup] with: the 1-based index of the button pressed and the text entered.
+typedef PopupResponse = ({int buttonHit, String response});
 
-/// The operations an exported sequence can only perform through its host: dialogs, localized resource strings,
-/// and the step types whose substeps the engine or a vendor implements. The default, [UnavailableStepHost], raises [StepHostUnavailable] naming the
-/// operation; a host installs its own by assigning [stepHost].
-abstract class StepHost {
-  const StepHost();
-  Future<PopupResponse> messagePopup({
-    required Object? title,
-    required Object? message,
-    required List<Object?> buttons,
-    bool showResponse = false,
-    Object? defaultResponse,
-  });
-  Future<void> runStepType(String stepType, StepPhase phase, Object? step, Object? result);
-  String resourceString(Object? category, Object? tag);
-}
+/// Shows [message] in a dialog titled [title] and waits for the operator to press one of [buttons].
+///
+/// `MessagePopup` translation. With [showResponse] the dialog also has a text box, starting as [defaultResponse],
+/// whose text the answer carries. With a [timeout] the dialog presses button [timeoutButton] itself once it elapses.
+Future<PopupResponse> messagePopup(
+  String title,
+  String message, {
+  List<String> buttons = const ['OK'],
+  bool showResponse = false,
+  String defaultResponse = '',
+  Duration? timeout,
+  int timeoutButton = 1,
+}) => throw UnimplementedError('MessagePopup "$title"');
 
-/// When a step type acts: its Pre substeps run before the step's code module, its Post substeps after it.
-enum StepPhase { pre, post }
+/// Starts the program at [path] with the command line [arguments] and, with [waitForExit], waits for it to exit.
+///
+/// `CallExecutable` translation. The answer carries the program's exit code, which is 0 when it was not waited for,
+/// and the text it wrote to standard error.
+Future<({int exitCode, String standardError})> callExecutable(
+  String path, {
+  String arguments = '',
+  bool waitForExit = false,
+}) => throw UnimplementedError('CallExecutable $path');
 
-/// Raised by [UnavailableStepHost]: the program needs a host for [operation].
-final class StepHostUnavailable extends Error {
-  StepHostUnavailable(this.operation);
-  final String operation;
-  @override
-  String toString() => 'step operation "$operation" needs a StepHost, and none is installed';
-}
+/// A measurement a [multipleNumericLimitTest] judges: [value] compared by [comparison] against [low] and [high].
+typedef LimitMeasurement = ({Object? value, String comparison, Object? low, Object? high});
 
-/// The host a program runs with until one is installed: every operation raises.
-final class UnavailableStepHost extends StepHost {
-  const UnavailableStepHost();
-  @override
-  Future<PopupResponse> messagePopup({
-    required Object? title,
-    required Object? message,
-    required List<Object?> buttons,
-    bool showResponse = false,
-    Object? defaultResponse,
-  }) => throw StepHostUnavailable('MessagePopup');
-  @override
-  String resourceString(Object? category, Object? tag) => throw StepHostUnavailable('resource string $category/$tag');
-  @override
-  Future<void> runStepType(String stepType, StepPhase phase, Object? step, Object? result) =>
-      throw StepHostUnavailable('$stepType ${phase.name}');
-}
+/// Judges each of [measurements] against its own limits, as [checkLimits] does: passes when every one passes.
+///
+/// `NI_MultipleNumericLimitTest` translation.
+Status multipleNumericLimitTest(List<LimitMeasurement> measurements) =>
+    measurements.every((m) => checkLimits(m.value, m.high, m.low, m.comparison) == Status.passed)
+    ? Status.passed
+    : Status.failed;
 
-StepHost stepHost = const UnavailableStepHost();
+/// Runs the measurement plug-in service [service] with [inputs], by parameter name, and answers its outputs by
+/// parameter name.
+///
+/// `NI_Measurement` translation.
+Future<Map<String, Object?>> measurement(String service, [Map<String, Object?> inputs = const {}]) =>
+    throw UnimplementedError('measurement $service');
 
-/// The status a sequence reports: failed once a step whose failure fails the sequence records a failed status.
+/// Makes the pin map at [path] the one measurement plug-in services resolve pin names with.
+///
+/// `NI_UpdatePinMap` translation.
+Future<void> updatePinMap(String path) => throw UnimplementedError('update pin map $path');
+
+/// The text of [tag] in [category] of the station's localized resource strings.
+///
+/// `ResStr` and `GetResourceString` translation.
+String resourceString(Object? category, Object? tag) => throw UnimplementedError('resource string $category/$tag');
+
+/// Runs a step of [type], a step type this export does not translate, configured with [properties]: the values the
+/// step sets that differ from the type's defaults. A [result] receives what the step type records.
+Future<void> stepType(String type, [Map<String, Object?> properties = const {}, Object? result]) =>
+    throw UnimplementedError('step type $type');
+
+/// The status of a sequence whose steps can fail: failed once a step whose failure fails the sequence records
+/// [Status.failed].
 class SequenceRun {
   bool failed = false;
-  String get status => failed ? statusFailed : statusPassed;
+  Status get status => failed ? Status.failed : Status.passed;
   void record(Object? stepStatus) {
-    if (stepStatus == statusFailed) failed = true;
+    if (stepStatus == Status.failed) failed = true;
   }
 }
 
@@ -376,8 +403,8 @@ class StepLoop {
   double numFailed = 0;
   void count(Object? status) {
     numIterations++;
-    if (status == statusPassed) numPassed++;
-    if (status == statusFailed) numFailed++;
+    if (status == Status.passed) numPassed++;
+    if (status == Status.failed) numFailed++;
   }
 }
 

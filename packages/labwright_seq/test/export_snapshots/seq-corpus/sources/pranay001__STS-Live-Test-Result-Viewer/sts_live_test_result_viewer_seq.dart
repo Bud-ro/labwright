@@ -64,39 +64,31 @@ dynamic modelPluginComponentDescription = ts.PropObj({
   'ConfigurationOrder': 2,
   'InitializationExpression': '',
   'DisplayNameExpression': '"STS Live Test Result Viewer"',
-}); // NI_ModelPluginComponentDescription
-String simpleTextReportLocalizedStringSection = 'STS_LiveTestResultViewer'; // Str
+});
+String simpleTextReportLocalizedStringSection = 'STS_LiveTestResultViewer';
 
 /// Sequence `Model Plugin - Configure Standard Options`.
-Future<String> modelPluginConfigureStandardOptions({
+Future<void> modelPluginConfigureStandardOptions({
   bool changed = false,
   dynamic processModel,
   String modelType = '',
   dynamic modelPlugin,
 }) async {
-  final run = ts.SequenceRun();
-
   // The Result Processing dialog invokes the "Model Plugin - Configure Standard Options" callback when the user presses the Options button for this plug-in.  "Model Plugin - Configure Standard Options" is not called during a UUT run.  This implementation simply passes the entire Parameters.ModelPlugin container to the configuration dialog.  Most "Model Plugin - Configure Standard Options" callbacks (as well as "Configure Additional Options" when present) should be implemented similarly.
   //   Engine <- RunState.Engine
   //   Sequence Context In <- ThisContext
   //   Changed <- Parameters.Changed
   //   error out <- Step.Result.Error
   await callConfigurationUi(); // Launch Options Dialog [Action]
-
-  return run.status;
 }
 
 /// Sequence `Model Plugin - Initialize`.
-Future<String> modelPluginInitialize({dynamic modelPlugin, dynamic modelPluginConfiguration}) async {
-  final run = ts.SequenceRun();
-
+Future<void> modelPluginInitialize({dynamic modelPlugin, dynamic modelPluginConfiguration}) async {
   // (no steps in the source sequence)
-
-  return run.status;
 }
 
 /// Sequence `Model Plugin - Begin`.
-Future<String> modelPluginBegin({
+Future<void> modelPluginBegin({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -107,8 +99,6 @@ Future<String> modelPluginBegin({
   dynamic parentThread,
 }) async {
   parentThread = ts.copy(parentThread);
-
-  final run = ts.SequenceRun();
 
   if (ts.truthy(modelThreadType.IsController)) {
     // File names should contain the batch serial number if and only if the "Batch" process model is used.
@@ -122,7 +112,6 @@ Future<String> modelPluginBegin({
   if (ts.truthy(modelThreadType.IsTestSocket)) {
     // The Simple Text Report plug-in uses the Context parameter passed to the "Model Plugin - OnTheFly Step Results" callback.  Setting these flags in Execution.PostResultsCallbackOptions ensures that all results passed in a single callback are from the same context.
     if (ts.truthy(modelPlugin.Base.ProcessOnTheFly)) {
-      // precondition of Set OTF Callback Requirements
       ts.eval(
         'RunState.Execution.PostResultsCallbackMask |= PostResultsCallbackMaskOption_SequenceCall | PostResultsCallbackMaskOption_PostAction',
       ); // Set OTF Callback Requirements
@@ -137,7 +126,6 @@ Future<String> modelPluginBegin({
     //
     // Note:  A "report plug-in" is one whose Parameters.Category Specific.Settings.ReportGroup property is set to "Report".  All report plug-ins must cooperate, using the active report instance based on their Parameters.ModelPlugin.CategorySpecific.Settings.DisplayReport setting.  If they do not, different report plug-ins will fight over the active report instance when multiple plug-ins are present.
     if (ts.truthy(modelPlugin.CategorySpecific.Settings.DisplayReport)) {
-      // precondition of Get Active Report if Needed
       ts.eval(
         'Parameters.ModelPlugin.PluginSpecific.RuntimeVariables.PerSocket[RunState.TestSockets.MyIndex].Report = RunState.Execution.Reports.ActiveReport ',
       ); // Get Active Report if Needed
@@ -148,29 +136,23 @@ Future<String> modelPluginBegin({
     //   error out <- Step.Result.Error
     await callViewLauncher(); // Action [Action]
   }
-
-  return run.status;
 }
 
 /// Sequence `Model Plugin - End` — This plug-in does nothing in the "Model Plugin - End" callback.  It could be deleted..
-Future<String> modelPluginEnd({
+Future<void> modelPluginEnd({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
   dynamic modelData,
 }) async {
-  final run = ts.SequenceRun();
-
   if (ts.truthy(modelThreadType.IsController)) {
     //   error out <- Step.Result.Error
     await callViewShutdown(); // Action [Action]
   }
-
-  return run.status;
 }
 
 /// Sequence `Model Plugin - UUT Start`.
-Future<String> modelPluginUutStart({
+Future<void> modelPluginUutStart({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -180,15 +162,11 @@ Future<String> modelPluginUutStart({
   dynamic startTime,
   dynamic uut,
 }) async {
-  final run = ts.SequenceRun();
-
   // (no steps in the source sequence)
-
-  return run.status;
 }
 
 /// Sequence `Model Plugin - UUT Done`.
-Future<String> modelPluginUutDone({
+Future<void> modelPluginUutDone({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -208,15 +186,11 @@ Future<String> modelPluginUutDone({
   notificationToUnblockCallingThread = ts.copy(notificationToUnblockCallingThread);
   postProcessingThreadForPriorUut = ts.copy(postProcessingThreadForPriorUut);
 
-  final run = ts.SequenceRun();
-
   // (no steps in the source sequence)
-
-  return run.status;
 }
 
 /// Sequence `Model Plugin - OnTheFly Step Results`.
-Future<String> modelPluginOnTheFlyStepResults({
+Future<void> modelPluginOnTheFlyStepResults({
   dynamic modelPlugin,
   dynamic modelData,
   dynamic startTime,
@@ -228,24 +202,20 @@ Future<String> modelPluginOnTheFlyStepResults({
   List<dynamic>? callbackNames,
   List<dynamic>? parentIds,
 }) async {
-  steps ??= <dynamic>[]; // Refs
-  results ??= <dynamic>[]; // Objs
-  callbackNames ??= <dynamic>[]; // Strs
-  parentIds ??= <dynamic>[]; // Nums
-
-  final run = ts.SequenceRun();
+  steps ??= <dynamic>[];
+  results ??= <dynamic>[];
+  callbackNames ??= <dynamic>[];
+  parentIds ??= <dynamic>[];
 
   //   Result List In <- Parameters.Steps
   //   UUT.SerialNumber <- Parameters.UUT.SerialNumber
   //   Site <- Parameters.UUT.TestSocketIndex
   //   error out <- Step.Result.Error
   await callResultPublisher(); // Action [Action]
-
-  return run.status;
 }
 
 /// Sequence `Create Header` — Create the report header, appending to Parameters.ReportSection..
-Future<String> createHeader({
+Future<void> createHeader({
   String partNumber = '',
   String stationId = '',
   String operator = '',
@@ -257,39 +227,27 @@ Future<String> createHeader({
   dynamic offlineProcessingResultLog,
   dynamic reportSection,
 }) async {
-  final run = ts.SequenceRun();
-
   // (no steps in the source sequence)
-
-  return run.status;
 }
 
 /// Sequence `Create Column Headers` — Create the column headings for the report body, appending to Parameters.ReportSection..
-Future<String> createColumnHeaders({dynamic options, dynamic reportSection}) async {
-  final run = ts.SequenceRun();
-
+Future<void> createColumnHeaders({dynamic options, dynamic reportSection}) async {
   // (no steps in the source sequence)
-
-  return run.status;
 }
 
 /// Sequence `Create Footer` — Create the report footer, appending to Parameters.ReportSection..
-Future<String> createFooter({
+Future<void> createFooter({
   String status = '',
   String errorMessage = '',
   bool errorOccurred = false,
   dynamic options,
   dynamic reportSection,
 }) async {
-  final run = ts.SequenceRun();
-
   // (no steps in the source sequence)
-
-  return run.status;
 }
 
 /// Sequence `Generate Report Path` — Create the full report path, constructing the file name of the form "[Station ID][Sequence File][Date][Time][Batch Serial Number (if needed)][UUT Serial Number][Test Socket Index (if needed)].log", and combining with Parameters.Options.ResultDirectory..
-Future<String> generateReportPath({
+Future<void> generateReportPath({
   String stationId = '',
   String sequenceFilePath = '',
   String batchSerialNumber = '',
@@ -304,32 +262,23 @@ Future<String> generateReportPath({
   startTime = ts.copy(startTime);
   startDate = ts.copy(startDate);
 
-  final run = ts.SequenceRun();
-
   // (no steps in the source sequence)
-
-  return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// Stub for the labView module call `My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\Views\Configuration UI.vi`
-/// (from step `Launch Options Dialog`). TODO: implement against the real module.
+/// The labView module `My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\Views\Configuration UI.vi`.
 Future<Object?> callConfigurationUi() async => throw UnimplementedError(
   'labView call: My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\Views\\Configuration UI.vi',
 );
 
-/// Stub for the labView module call `My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\View Launcher.vi`
-/// (from step `Action`). TODO: implement against the real module.
+/// The labView module `My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\View Launcher.vi`.
 Future<Object?> callViewLauncher() async =>
     throw UnimplementedError('labView call: My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\View Launcher.vi');
 
-/// Stub for the labView module call `My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\View Shutdown.vi`
-/// (from step `Action`). TODO: implement against the real module.
+/// The labView module `My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\View Shutdown.vi`.
 Future<Object?> callViewShutdown() async =>
     throw UnimplementedError('labView call: My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\View Shutdown.vi');
 
-/// Stub for the labView module call `My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\Utilities\TestStand APIs\SubVIs\Result Publisher.vi`
-/// (from step `Action`). TODO: implement against the real module.
+/// The labView module `My Computer\Source Code\STS_LTRV\STS_LTRV.lvlib\Utilities\TestStand APIs\SubVIs\Result Publisher.vi`.
 Future<Object?> callResultPublisher() async => throw UnimplementedError(
   'labView call: My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\Utilities\\TestStand APIs\\SubVIs\\Result Publisher.vi',
 );

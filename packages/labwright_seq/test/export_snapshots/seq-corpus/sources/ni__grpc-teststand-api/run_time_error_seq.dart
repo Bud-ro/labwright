@@ -2,7 +2,7 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic numericLimitTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -11,11 +11,8 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': '',
-  }); // result of Numeric Limit Test
+  });
 
-  // checks: 10 GELE [low 9, high 11, nominal 100] (PERCENTAGE)
-  // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-  // Numeric Limit Test [NumericLimitTest]: judged by its status expression
   numericLimitTestResult.Status = ts.checkLimits(
     numericLimitTestResult.Numeric = 10,
     11,
@@ -24,7 +21,7 @@ Future<String> mainSequence() async {
     true,
     100,
     'PERCENTAGE',
-  ); // status expression
+  );
   run.record(numericLimitTestResult.Status);
   ts.notExported('cModule call: Generates Run-Time Error'); // Generates Run-Time Error [Action]
 

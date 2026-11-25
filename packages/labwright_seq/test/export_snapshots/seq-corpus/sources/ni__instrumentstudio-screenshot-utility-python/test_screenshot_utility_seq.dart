@@ -2,19 +2,15 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _MainSequenceLocals {
-  int voltage = 0; // Num — default: 0
+  int voltage = 0;
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
-  final run = ts.SequenceRun();
 
-  // ── setup ──
   // Note: This sequence is an example for programmatically saving the the screenshot of Instrument Studio windows in the specified location.
-  // label:
 
-  // ── main ──
   // Voltage Loop from 1V to 5V
   for (locals.voltage = 1; locals.voltage <= 5; locals.voltage += 1) {
     //   output_dir <- "C:\\Temp"
@@ -25,6 +21,4 @@ Future<String> mainSequence() async {
     ); // Instrument Studio Screenshot [Action]
     await Future<void>.delayed(const Duration(seconds: 1));
   }
-
-  return run.status;
 }

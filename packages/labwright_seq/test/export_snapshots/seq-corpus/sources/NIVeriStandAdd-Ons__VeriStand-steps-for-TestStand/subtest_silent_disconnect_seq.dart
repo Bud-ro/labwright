@@ -14,82 +14,20 @@ dynamic veristand = ts.PropObj({
   'SystemDefinitionPath':
       'C:\\Users\\Public\\Documents\\National Instruments\\NI VeriStand 2015\\Examples\\Stimulus Profile\\Engine Demo\\Engine Demo.nivssdf',
   'GatewayIP': '"localhost"',
-}); // Obj
+});
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final run = ts.SequenceRun();
-  final dynamic initializeVeriStandResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'VeristandError': null,
-    'Veristand': ts.PropObj({'Project': ''}),
-  }); // result of Initialize VeriStand
-  final dynamic silentDisconnectResult = ts.PropObj({
-    'TempErrorOccured': false,
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Silent Disconnect
-  final dynamic connectProjectResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Connect Project
-  final dynamic getChannelValueResult = ts.PropObj({
-    'Units': '',
-    'Numeric': 0,
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'ChannelUnit': '', 'ChannelName': '', 'ChannelInfo': null, 'Description': ''}),
-  }); // result of Get Channel Value
+Future<void> mainSequence() async {
+  await ts.stepType('InitializeVeriStand');
 
-  // ── setup ──
-  await ts.stepHost.runStepType('InitializeVeriStand', ts.StepPhase.pre, ts.PropObj(), initializeVeriStandResult);
-  // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
-  await ts.stepHost.runStepType('InitializeVeriStand', ts.StepPhase.post, ts.PropObj(), initializeVeriStandResult);
-  initializeVeriStandResult.Status = 'Done';
-  run.record(initializeVeriStandResult.Status);
-
-  // ── main ──
   await Future<void>.delayed(const Duration(seconds: 10));
-  // Silent Disconnect [SilentDisconnect]: acts through ts.stepHost
-  await ts.stepHost.runStepType('SilentDisconnect', ts.StepPhase.post, ts.PropObj(), silentDisconnectResult);
-  silentDisconnectResult.Status = 'Done';
-  run.record(silentDisconnectResult.Status);
+  await ts.stepType('SilentDisconnect');
   await Future<void>.delayed(const Duration(seconds: 10));
-  // Connect Project [ConnectProject]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'ConnectProject',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({'ShowProgress': false}),
-    }),
-    connectProjectResult,
-  );
-  connectProjectResult.Status = 'Done';
-  run.record(connectProjectResult.Status);
+  await ts.stepType('ConnectProject', {
+    'Veristand': {'ShowProgress': false},
+  });
   await Future<void>.delayed(const Duration(seconds: 10));
-  // Get Channel Value [GetChannelValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'GetChannelValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EngineTemp"'}),
-    }),
-    getChannelValueResult,
-  );
-  getChannelValueResult.Status = 'Done';
-  run.record(getChannelValueResult.Status);
-
-  return run.status;
+  await ts.stepType('GetChannelValue', {
+    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EngineTemp"'},
+  });
 }

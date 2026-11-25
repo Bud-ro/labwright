@@ -2,35 +2,8 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final run = ts.SequenceRun();
-  final dynamic powerSupplyAndMeasureWithTriggerResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Power Supply and Measure (with Trigger)
-  final dynamic powerSupplyAndMeasureWithoutTriggerResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Power Supply and Measure (without Trigger)
-  final dynamic dmmDcRmsVoltageMeasurementResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of DMM DC-RMS Voltage Measurement
-  final dynamic powerDownAllPowerSuppliesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Power down all Power Supplies
-
+Future<void> mainSequence() async {
   try {
-    // ── setup ──
     ts.eval(
       'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
     ); // Frame Hardware Config ini file path
@@ -40,63 +13,27 @@ Future<String> mainSequence() async {
     //   error out <- Step.Result.Error
     await callImportHardwareConfig(); // Import Hardware Config [Action]
 
-    // ── main ──
-    // label: Example 1 - Demonstrates Time domain measurements using Hardware Trigger  from Power supply to Analog Input module
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    powerSupplyAndMeasureWithTriggerResult.Status =
-        await powerSupplyAndMeasureWithTrigger(); // Power Supply and Measure (with Trigger)
-    powerSupplyAndMeasureWithTriggerResult.Status = powerSupplyAndMeasureWithTriggerResult.Status == 'Done'
-        ? 'Passed'
-        : powerSupplyAndMeasureWithTriggerResult.Status; // status expression
-    run.record(powerSupplyAndMeasureWithTriggerResult.Status);
-    // label:
-    // label: Example 2 - Demonstrates Power supply source and DC-RMS Voltage Measurement without triggers
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    powerSupplyAndMeasureWithoutTriggerResult.Status =
-        await powerSupplyAndMeasureWithoutTrigger(); // Power Supply and Measure (without Trigger)
-    powerSupplyAndMeasureWithoutTriggerResult.Status = powerSupplyAndMeasureWithoutTriggerResult.Status == 'Done'
-        ? 'Passed'
-        : powerSupplyAndMeasureWithoutTriggerResult.Status; // status expression
-    run.record(powerSupplyAndMeasureWithoutTriggerResult.Status);
-    // label:
-    // label: Example 3 - Use DMM to measure DC-RMS Voltage from DUT
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    dmmDcRmsVoltageMeasurementResult.Status = await dmmDcRmsVoltageMeasurement(); // DMM DC-RMS Voltage Measurement
-    dmmDcRmsVoltageMeasurementResult.Status = dmmDcRmsVoltageMeasurementResult.Status == 'Done'
-        ? 'Passed'
-        : dmmDcRmsVoltageMeasurementResult.Status; // status expression
-    run.record(dmmDcRmsVoltageMeasurementResult.Status);
+    // Example 1 - Demonstrates Time domain measurements using Hardware Trigger  from Power supply to Analog Input module
+    await powerSupplyAndMeasureWithTrigger(); // Power Supply and Measure (with Trigger)
+    // Example 2 - Demonstrates Power supply source and DC-RMS Voltage Measurement without triggers
+    await powerSupplyAndMeasureWithoutTrigger(); // Power Supply and Measure (without Trigger)
+    // Example 3 - Use DMM to measure DC-RMS Voltage from DUT
+    await dmmDcRmsVoltageMeasurement(); // DMM DC-RMS Voltage Measurement
   } finally {
-    // ── cleanup ──
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    powerDownAllPowerSuppliesResult.Status = await powerDownAllPowerSupplies(); // Power down all Power Supplies
-    powerDownAllPowerSuppliesResult.Status = powerDownAllPowerSuppliesResult.Status == 'Done'
-        ? 'Passed'
-        : powerDownAllPowerSuppliesResult.Status; // status expression
-    run.record(powerDownAllPowerSuppliesResult.Status);
+    await powerDownAllPowerSupplies(); // Power down all Power Supplies
   }
-
-  return run.status;
 }
 
 /// Sequence `-------Examples------`.
-Future<String> examples() async {
-  final run = ts.SequenceRun();
-
+Future<void> examples() async {
   // (no steps in the source sequence)
-
-  return run.status;
 }
 
 /// Sequence `Power Supply and Measure (with Trigger)`.
-Future<String> powerSupplyAndMeasureWithTrigger() async {
-  final run = ts.SequenceRun();
-
+Future<void> powerSupplyAndMeasureWithTrigger() async {
   try {
-    // ── setup ──
-    // label: This example demostrates Power Supply Source(VDD) and Time Domain Analysis of Measured Analog input voltage in TestPoints. Data capture in Analog Input(TP) starts when the Trigger is sent from Power Supply after starting the source.
-    // label:
-    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // This example demostrates Power Supply Source(VDD) and Time Domain Analysis of Measured Analog input voltage in TestPoints. Data capture in Analog Input(TP) starts when the Trigger is sent from Power Supply after starting the source.
+    // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     //   Physical channels <- "Simulated_Power/power" //Physical channel for Power Supply Source and Measure (Power)
     //   DAQmx Task Out <- Locals.PS_Task
     //   error out <- Step.Result.Error
@@ -106,8 +43,7 @@ Future<String> powerSupplyAndMeasureWithTrigger() async {
     //   error out <- Step.Result.Error
     await callDaqTdvMeasInitialize(); // Time Domain Measurement - Initialize TP [Action]
 
-    // ── main ──
-    // label: Note to run with Hardware: Review the configurations & update the Digital Start Trigger Settings based on NI MAX
+    // Note to run with Hardware: Review the configurations & update the Digital Start Trigger Settings based on NI MAX
     // Configure Time Domain Measurement settings to wait for Hardware Trigger from Power
     //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
     //   Periodic Waveform  | Measurements? <- True
@@ -124,7 +60,7 @@ Future<String> powerSupplyAndMeasureWithTrigger() async {
     await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Configure and Measure VDD [Action]
     //
     //
-    // label: Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
+    // Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
     // Fetches the measured DC Voltage (measured when Power Supply sends Trigger after source) and returns Time Domain Analysis
     //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
     //   Periodic Waveform  | Measurements? <- False
@@ -133,8 +69,7 @@ Future<String> powerSupplyAndMeasureWithTrigger() async {
     //   error out <- Step.Result.Error
     await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Fetch TP [Action]
   } finally {
-    // ── cleanup ──
-    // label: Close all Tasks
+    // Close all Tasks
     //   DAQmx Task In <- Locals.PS_Task
     //   error out <- Step.Result.Error
     await callDaqPsClose(); // Power Supply Source and Measure - Close VDD [Action]
@@ -142,19 +77,13 @@ Future<String> powerSupplyAndMeasureWithTrigger() async {
     //   error out <- Step.Result.Error
     await callDaqTdvMeasClose(); // Time Domain Measurement - Close TP [Action]
   }
-
-  return run.status;
 }
 
 /// Sequence `Power Supply and Measure (without Trigger)`.
-Future<String> powerSupplyAndMeasureWithoutTrigger() async {
-  final run = ts.SequenceRun();
-
+Future<void> powerSupplyAndMeasureWithoutTrigger() async {
   try {
-    // ── setup ──
-    // label: This example demonstrates Power Supply source and Voltage Measurement without trigger
-    // label:
-    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // This example demonstrates Power Supply source and Voltage Measurement without trigger
+    // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     //   Physical channels <- "Simulated_Power/power" //Physical channel for Power Supply Source and Measure (Power)
     //   DAQmx Task Out <- Locals.PS_Task
     //   error out <- Step.Result.Error
@@ -164,8 +93,7 @@ Future<String> powerSupplyAndMeasureWithoutTrigger() async {
     //   error out <- Step.Result.Error
     await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize TP [Action]
 
-    // ── main ──
-    // label: Note to run with Hardware: Review the Configurations for the intended use case
+    // Note to run with Hardware: Review the Configurations for the intended use case
     //   DAQmx Task In <- Locals.PS_Task
     //   DAQmx Task Out <- Locals.PS_Task
     //   Voltage Waveforms <- Locals.PS_Measurement_Data.Voltage_Waveform
@@ -178,7 +106,6 @@ Future<String> powerSupplyAndMeasureWithoutTrigger() async {
     //   error out <- Step.Result.Error
     await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure DC Voltage in TP [Action]
   } finally {
-    // ── cleanup ──
     //   DAQmx Task In <- Locals.PS_Task
     //   error out <- Step.Result.Error
     await callDaqPsClose(); // Power Supply Source and Measure - Close VDD [Action]
@@ -186,173 +113,116 @@ Future<String> powerSupplyAndMeasureWithoutTrigger() async {
     //   error out <- Step.Result.Error
     await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close TP [Action]
   }
-
-  return run.status;
 }
 
 /// Sequence `DMM DC-RMS Voltage Measurement`.
-Future<String> dmmDcRmsVoltageMeasurement() async {
-  final run = ts.SequenceRun();
-
+Future<void> dmmDcRmsVoltageMeasurement() async {
   try {
-    // ── setup ──
-    // label: This example demonstrates how to configure and use a DMM to make a DC-RMS Voltage measurement
-    // label:
-    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // This example demonstrates how to configure and use a DMM to make a DC-RMS Voltage measurement
+    // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     //   Powerline Frequency <- 1
     //   DMM Handle Out <- Locals.DMM_Resource
     //   error out <- Step.Result.Error
     await callDmmDcRmsVoltageMeasInitialize(); // Initialize DMM for DC-RMS Voltage Measurement [Action]
 
-    // ── main ──
-    // label: Note to run with Hardware: Review the Configurations for the intended use case
+    // Note to run with Hardware: Review the Configurations for the intended use case
     //   Execution Option <- 0
     //   DMM Handle In <- Locals.DMM_Resource
     //   DMM Handle Out <- Locals.DMM_Resource
     //   error out <- Step.Result.Error
     await callDmmDcRmsVoltageMeasConfigureAndMeasure(); // Measure DC-RMS Voltage with DMM - Using range DC 100 mV at 6 1/2 digits of resolution [Action]
   } finally {
-    // ── cleanup ──
-    // label: Release DMM hardware resource
+    // Release DMM hardware resource
     //   DMM Handle In <- Locals.DMM_Resource
     //   error out <- Step.Result.Error
     await callDmmDcRmsVoltageMeasClose(); // Close DMM reference [Action]
   }
-
-  return run.status;
 }
 
 /// Sequence `-------Reusable Sequences------`.
-Future<String> reusableSequences() async {
-  final run = ts.SequenceRun();
-
+Future<void> reusableSequences() async {
   // (no steps in the source sequence)
-
-  return run.status;
 }
 
 /// Sequence `Power down all Power Supplies`.
-Future<String> powerDownAllPowerSupplies() async {
-  final run = ts.SequenceRun();
-
+Future<void> powerDownAllPowerSupplies() async {
   try {
-    // ── setup ──
-    // label: Note to run with Hardware: Update Physical Channels Info based on NI MAX in the below Initialize Step
+    // Note to run with Hardware: Update Physical Channels Info based on NI MAX in the below Initialize Step
     //   Physical channels <- "Simulated_Power/power" //Physical channel of Power Supply  (Power Module)
     //   DAQmx Task Out <- Locals.PS_Task
     //   error out <- Step.Result.Error
     await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize [Action]
 
-    // ── main ──
     // Configures the power supply source to disable output after close to make it to "Idle" state
     //   DAQmx Task In <- Locals.PS_Task
     //   DAQmx Task Out <- Locals.PS_Task
     //   error out <- Step.Result.Error
     await callDaqPsConfigureAndMeasure(); // Power Supply - Set to 0V [Action]
   } finally {
-    // ── cleanup ──
     //   DAQmx Task In <- Locals.PS_Task
     //   error out <- Step.Result.Error
     await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
   }
-
-  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<String> sequenceFileLoad() async {
-  final run = ts.SequenceRun();
-  final dynamic explanationResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Explanation
-
-  // popup title: "About This Example"
-  // popup message: "These automation test sequences utilize PCBA libraries to conduct basic electrical functional tests, | which can be adapted or modified to fit your specific procedures. The sequences employ simulated DAQ  | hardware and do not include limit testing.  |   | Make sure all prerequisite software and configurations outlined in the user manual are installed. |   | For detailed help on how to use the test sequences, please refer to the online manual provided in the link below. | https://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html"
-  // popup buttons: "OK"
-  // Explanation [MessagePopup]: acts through ts.stepHost
-  final popup = await ts.stepHost.messagePopup(
-    title: 'About This Example',
-    message:
-        'These automation test sequences utilize PCBA libraries to conduct basic electrical functional tests,\nwhich can be adapted or modified to fit your specific procedures. The sequences employ simulated DAQ \nhardware and do not include limit testing. \n \nMake sure all prerequisite software and configurations outlined in the user manual are installed.\n \nFor detailed help on how to use the test sequences, please refer to the online manual provided in the link below.\nhttps://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html',
-    buttons: ['OK', '', '', '', '', ''],
+Future<void> sequenceFileLoad() async {
+  await ts.messagePopup(
+    'About This Example',
+    'These automation test sequences utilize PCBA libraries to conduct basic electrical functional tests,\nwhich can be adapted or modified to fit your specific procedures. The sequences employ simulated DAQ \nhardware and do not include limit testing. \n \nMake sure all prerequisite software and configurations outlined in the user manual are installed.\n \nFor detailed help on how to use the test sequences, please refer to the online manual provided in the link below.\nhttps://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/test-sequence-list.html',
   );
-  explanationResult.ButtonHit = popup.buttonHit;
-  explanationResult.Response = popup.response;
-  explanationResult.Status = 'Done';
-  run.record(explanationResult.Status);
-
-  return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// Stub for the labView module call `Common\Import Hardware Config.vi`
-/// (from step `Import Hardware Config`). TODO: implement against the real module.
+/// The labView module `Common\Import Hardware Config.vi`.
 Future<Object?> callImportHardwareConfig() async =>
     throw UnimplementedError('labView call: Common\\Import Hardware Config.vi');
 
-/// Stub for the labView module call `Power Supply Source and Measure\DAQ_PS Initialize.vi`
-/// (from step `Power Supply Source and Measure - Initialize VDD`). TODO: implement against the real module.
+/// The labView module `Power Supply Source and Measure\DAQ_PS Initialize.vi`.
 Future<Object?> callDaqPsInitialize() async =>
     throw UnimplementedError('labView call: Power Supply Source and Measure\\DAQ_PS Initialize.vi');
 
-/// Stub for the labView module call `Time Domain Measurement\DAQ_TDV Meas Initialize.vi`
-/// (from step `Time Domain Measurement - Initialize TP`). TODO: implement against the real module.
+/// The labView module `Time Domain Measurement\DAQ_TDV Meas Initialize.vi`.
 Future<Object?> callDaqTdvMeasInitialize() async =>
     throw UnimplementedError('labView call: Time Domain Measurement\\DAQ_TDV Meas Initialize.vi');
 
-/// Stub for the labView module call `Time Domain Measurement\DAQ_TDV Meas Configure and Measure.vi`
-/// (from step `Time Domain Measurement - Configure TP`). TODO: implement against the real module.
+/// The labView module `Time Domain Measurement\DAQ_TDV Meas Configure and Measure.vi`.
 Future<Object?> callDaqTdvMeasConfigureAndMeasure() async =>
     throw UnimplementedError('labView call: Time Domain Measurement\\DAQ_TDV Meas Configure and Measure.vi');
 
-/// Stub for the labView module call `Power Supply Source and Measure\DAQ_PS Configure and Measure.vi`
-/// (from step `Power Supply Source and Measure - Configure and Measure VDD`). TODO: implement against the real module.
+/// The labView module `Power Supply Source and Measure\DAQ_PS Configure and Measure.vi`.
 Future<Object?> callDaqPsConfigureAndMeasure() async =>
     throw UnimplementedError('labView call: Power Supply Source and Measure\\DAQ_PS Configure and Measure.vi');
 
-/// Stub for the labView module call `Power Supply Source and Measure\DAQ_PS Close.vi`
-/// (from step `Power Supply Source and Measure - Close VDD`). TODO: implement against the real module.
+/// The labView module `Power Supply Source and Measure\DAQ_PS Close.vi`.
 Future<Object?> callDaqPsClose() async =>
     throw UnimplementedError('labView call: Power Supply Source and Measure\\DAQ_PS Close.vi');
 
-/// Stub for the labView module call `Time Domain Measurement\DAQ_TDV Meas Close.vi`
-/// (from step `Time Domain Measurement - Close TP`). TODO: implement against the real module.
+/// The labView module `Time Domain Measurement\DAQ_TDV Meas Close.vi`.
 Future<Object?> callDaqTdvMeasClose() async =>
     throw UnimplementedError('labView call: Time Domain Measurement\\DAQ_TDV Meas Close.vi');
 
-/// Stub for the labView module call `DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Initialize.vi`
-/// (from step `DC-RMS Voltage Measurement - Initialize TP`). TODO: implement against the real module.
+/// The labView module `DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Initialize.vi`.
 Future<Object?> callDaqDcRmsVoltageMeasInitialize() async =>
     throw UnimplementedError('labView call: DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Initialize.vi');
 
-/// Stub for the labView module call `DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Configure and Measure.vi`
-/// (from step `DC-RMS Voltage Measurement - Measure DC Voltage in TP`). TODO: implement against the real module.
+/// The labView module `DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Configure and Measure.vi`.
 Future<Object?> callDaqDcRmsVoltageMeasConfigureAndMeasure() async => throw UnimplementedError(
   'labView call: DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Configure and Measure.vi',
 );
 
-/// Stub for the labView module call `DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Close.vi`
-/// (from step `DC-RMS Voltage Measurement - Close TP`). TODO: implement against the real module.
+/// The labView module `DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Close.vi`.
 Future<Object?> callDaqDcRmsVoltageMeasClose() async =>
     throw UnimplementedError('labView call: DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Close.vi');
 
-/// Stub for the labView module call `DMM_DC-RMS Voltage Measurement\DMM_DC-RMS Voltage Meas Initialize.vi`
-/// (from step `Initialize DMM for DC-RMS Voltage Measurement`). TODO: implement against the real module.
+/// The labView module `DMM_DC-RMS Voltage Measurement\DMM_DC-RMS Voltage Meas Initialize.vi`.
 Future<Object?> callDmmDcRmsVoltageMeasInitialize() async =>
     throw UnimplementedError('labView call: DMM_DC-RMS Voltage Measurement\\DMM_DC-RMS Voltage Meas Initialize.vi');
 
-/// Stub for the labView module call `DMM_DC-RMS Voltage Measurement\DMM_DC-RMS Voltage Meas Configure and Measure.vi`
-/// (from step `Measure DC-RMS Voltage with DMM - Using range DC 100 mV at 6 1/2 digits of resolution`). TODO: implement against the real module.
+/// The labView module `DMM_DC-RMS Voltage Measurement\DMM_DC-RMS Voltage Meas Configure and Measure.vi`.
 Future<Object?> callDmmDcRmsVoltageMeasConfigureAndMeasure() async => throw UnimplementedError(
   'labView call: DMM_DC-RMS Voltage Measurement\\DMM_DC-RMS Voltage Meas Configure and Measure.vi',
 );
 
-/// Stub for the labView module call `DMM_DC-RMS Voltage Measurement\DMM_DC-RMS Voltage Meas Close.vi`
-/// (from step `Close DMM reference`). TODO: implement against the real module.
+/// The labView module `DMM_DC-RMS Voltage Measurement\DMM_DC-RMS Voltage Meas Close.vi`.
 Future<Object?> callDmmDcRmsVoltageMeasClose() async =>
     throw UnimplementedError('labView call: DMM_DC-RMS Voltage Measurement\\DMM_DC-RMS Voltage Meas Close.vi');

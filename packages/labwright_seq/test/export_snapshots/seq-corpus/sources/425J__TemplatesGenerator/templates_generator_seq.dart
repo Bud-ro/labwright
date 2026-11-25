@@ -2,24 +2,17 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _CreateTemplatesLocals {
-  dynamic templatesFile; // Ref
-  List<dynamic> folderPlaceholder = <dynamic>[]; // Objs — NI_TEMPLATE_CATEGORY
-  String toolFolderName = ''; // Str
+  dynamic templatesFile;
+  List<dynamic> folderPlaceholder = <dynamic>[]; // NI_TEMPLATE_CATEGORY
+  String toolFolderName = '';
 }
 
 /// Sequence `CreateTemplates`.
-Future<String> createTemplates({bool createViTemplates = true}) async {
+Future<ts.Status> createTemplates({bool createViTemplates = true}) async {
   final locals = _CreateTemplatesLocals();
   final run = ts.SequenceRun();
-  final dynamic createSequenceFileTemplatesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Create Sequence File Templates
 
   try {
-    // ── main ──
     ts.eval(
       'Locals.ToolFolderName = SearchPatternAndReplace(Right(RunState.InitialSelection.SelectedFile.Path, Len(RunState.InitialSelection.SelectedFile.Path) - Find(RunState.InitialSelection.SelectedFile.Path, "\\\\", 0, True, True) - 1), ".seq", "")',
     ); // Get Sequence File Name
@@ -32,22 +25,18 @@ Future<String> createTemplates({bool createViTemplates = true}) async {
     ); // Create Templates Folder (cont.)
     locals.templatesFile.AsPropertyObjectFile.Data.Root['FolderPlaceholder'].Name =
         locals.toolFolderName; // Create Templates Folder (cont.)
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    createSequenceFileTemplatesResult.Status = await createSfTemplates(
-      sequenceFilePath: ts.eval('RunState.InitialSelection.SelectedFile.Path') as String,
-      templatesFile: locals.templatesFile,
-      templatesFolder: ts.eval(
-        '#NoValidation,\n&Locals.TemplatesFile.AsPropertyObjectFile.Data.Root[Locals.ToolFolderName]',
+    run.record(
+      await createSfTemplates(
+        sequenceFilePath: ts.eval('RunState.InitialSelection.SelectedFile.Path') as String,
+        templatesFile: locals.templatesFile,
+        templatesFolder: ts.eval(
+          '#NoValidation,\n&Locals.TemplatesFile.AsPropertyObjectFile.Data.Root[Locals.ToolFolderName]',
+        ),
       ),
     ); // Create Sequence File Templates
-    createSequenceFileTemplatesResult.Status = createSequenceFileTemplatesResult.Status == 'Done'
-        ? 'Passed'
-        : createSequenceFileTemplatesResult.Status; // status expression
-    run.record(createSequenceFileTemplatesResult.Status);
     locals.templatesFile.AsPropertyObjectFile.IncChangeCount(); // Increment the Change Count of the Templates File
     ts.eval('RunState.Thread.PostUIMessageEx(UIMsg_RefreshWindows, 0, "", Nothing, True)'); // Refresh Window
   } finally {
-    // ── cleanup ──
     locals.templatesFile = null; // Release Templates File
   }
 
@@ -55,15 +44,19 @@ Future<String> createTemplates({bool createViTemplates = true}) async {
 }
 
 class _CreateSfTemplatesLocals {
-  String sfRelativePath = ''; // Path
-  dynamic sf; // Ref
-  dynamic tmpStep; // Ref
-  double numberOfSequences = 0; // Num — default: 0
-  int index = 0; // Num — default: 0
+  String sfRelativePath = '';
+  dynamic sf;
+  dynamic tmpStep;
+  double numberOfSequences = 0;
+  int index = 0;
 }
 
 /// Sequence `CreateSFTemplates`.
-Future<String> createSfTemplates({String sequenceFilePath = '', dynamic templatesFile, dynamic templatesFolder}) async {
+Future<ts.Status> createSfTemplates({
+  String sequenceFilePath = '',
+  dynamic templatesFile,
+  dynamic templatesFolder,
+}) async {
   templatesFile = ts.copy(templatesFile);
   templatesFolder = ts.copy(templatesFolder);
 
@@ -74,10 +67,9 @@ Future<String> createSfTemplates({String sequenceFilePath = '', dynamic template
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Set Default Parameters
+  });
 
   try {
-    // ── main ──
     ts.eval(
       'RunState.Engine.GetRelativePathFromAbsolutePath(Parameters.SequenceFilePath, *ThisContext.SequenceFile, Locals.SFRelativePath, "")',
     ); // Get Sequence File Relative Path
@@ -104,12 +96,10 @@ Future<String> createSfTemplates({String sequenceFilePath = '', dynamic template
       ts.eval(
         '\n\n\'Set parameters/prototype\nLocals.TmpStep.AsStep.Module.AsSequenceCallModule.UseSequenceParameterPrototype = False,\nLocals.TmpStep.AsStep.Module.AsSequenceCallModule.LoadPrototypeFromSequence(Locals.SF.AsSequenceFile.GetSequence(Locals.Index) ,LoadPrototypeOption_NoOptions),\nLocals.TmpStep.AsStep.Module.AsSequenceCallModule.UseSequenceParameterPrototype = True',
       ); // Set Temporary Step Properties (cont.)
-      // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < #NoValidation(Locals.TmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject.GetNumSubProperties("")); increment RunState.LoopIndex += 1; status "Done"
       final loop = ts.StepLoop();
-      loop.index = 0; // loop initialize
+      loop.index = 0;
       while (loop.index <
           (locals.tmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject.GetNumSubProperties('') as num)) {
-        // loop while
         setDefaultParametersResult = ts.PropObj({
           'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
           'Status': '',
@@ -120,11 +110,11 @@ Future<String> createSfTemplates({String sequenceFilePath = '', dynamic template
         ts.eval(
           '\n\'Set default flag for parameters\nLocals.TmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject.GetNthSubProperty("", RunState.LoopIndex, PropOption_NoOptions).UseDef = True',
         ); // Set Default Parameters (cont.)
-        setDefaultParametersResult.Status = 'Done';
+        setDefaultParametersResult.Status = ts.Status.done;
         loop.count(setDefaultParametersResult.Status);
-        loop.index += 1; // loop increment
+        loop.index += 1;
       }
-      setDefaultParametersResult.Status = 'Done'; // loop status
+      setDefaultParametersResult.Status = 'Done';
       run.record(setDefaultParametersResult.Status);
       ts.eval('#NoValidation'); // Add a Sequence to the Templates
       ts.eval(
@@ -133,7 +123,6 @@ Future<String> createSfTemplates({String sequenceFilePath = '', dynamic template
       locals.tmpStep = null; // Release Temporary Step
     }
   } finally {
-    // ── cleanup ──
     ts.eval('RunState.Engine.ReleaseSequenceFileEx(Locals.SF, ReleaseSeqFile_DoNotRunUnloadCallback)'); // Release
     locals.sf = null; // Release (cont.)
     locals.tmpStep = null; // Release (cont.)

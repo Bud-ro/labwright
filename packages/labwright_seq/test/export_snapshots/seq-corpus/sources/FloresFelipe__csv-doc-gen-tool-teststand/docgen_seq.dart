@@ -2,12 +2,8 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final run = ts.SequenceRun();
-
+Future<void> mainSequence() async {
   ts.notExported('cModule call: ReadDocOptions'); // ReadDocOptions [Action]
   ts.notExported('cModule call: DisplayDocDlg'); // DisplayDocDlg [Action]
   ts.notExported('cModule call: WriteDocOptions'); // WriteDocOptions [Action]
-
-  return run.status;
 }

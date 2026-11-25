@@ -2,11 +2,7 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final run = ts.SequenceRun();
-
+Future<void> mainSequence() async {
   ts.notExported('dotNet call: Action'); // Action [Action]
   ts.notExported('dotNet call: Action'); // Action [Action]
-
-  return run.status;
 }

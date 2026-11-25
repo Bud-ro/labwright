@@ -2,7 +2,7 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic numericLimitTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -11,7 +11,7 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': '',
-  }); // result of Numeric Limit Test
+  });
   final dynamic numericLimitTestResult2 = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -19,19 +19,8 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': '',
-  }); // result of Numeric Limit Test
-  final dynamic messagePopupResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Message Popup
+  });
 
-  // checks: 15 GELE [low 1, high 20, nominal 100] (PERCENTAGE)
-  // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-  // Numeric Limit Test [NumericLimitTest]: judged by its status expression
   numericLimitTestResult.Status = ts.checkLimits(
     numericLimitTestResult.Numeric = 15,
     20,
@@ -40,11 +29,8 @@ Future<String> mainSequence() async {
     true,
     100,
     'PERCENTAGE',
-  ); // status expression
+  );
   run.record(numericLimitTestResult.Status);
-  // checks: 9 GELE [low 9, high 11, nominal 100] (PERCENTAGE)
-  // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-  // Numeric Limit Test [NumericLimitTest]: judged by its status expression
   numericLimitTestResult2.Status = ts.checkLimits(
     numericLimitTestResult2.Numeric = 9,
     11,
@@ -53,22 +39,13 @@ Future<String> mainSequence() async {
     true,
     100,
     'PERCENTAGE',
-  ); // status expression
-  run.record(numericLimitTestResult2.Status);
-  // popup title: NameOf(Step)
-  // popup message: "Test sequence for Example TestStand API server.  | This sequence has only three steps,one of which that fails. It completes after five seconds."
-  // popup buttons: "OK"
-  // Message Popup [MessagePopup]: acts through ts.stepHost
-  final popup = await ts.stepHost.messagePopup(
-    title: 'Message Popup',
-    message:
-        'Test sequence for Example TestStand API server. \r\n\r\nThis sequence has only three steps,one of which that fails. It completes after five seconds.',
-    buttons: ['OK', '', '', '', '', ''],
   );
-  messagePopupResult.ButtonHit = popup.buttonHit;
-  messagePopupResult.Response = popup.response;
-  messagePopupResult.Status = 'Done';
-  run.record(messagePopupResult.Status);
+  run.record(numericLimitTestResult2.Status);
+  await ts.messagePopup(
+    'Message Popup',
+    'Test sequence for Example TestStand API server. \r\n\r\nThis sequence has only three steps,one of which that fails. It completes after five seconds.',
+    timeout: const Duration(seconds: 2),
+  );
 
   return run.status;
 }

@@ -12,58 +12,23 @@ dynamic veristand = ts.PropObj({
   'ProjectPath': '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Engine Demo.nivsproj"',
   'SystemDefinitionPath': 'C:\\Tests\\veristand_steps\\Engine Demo\\Engine Demo.nivssdf',
   'GatewayIP': '"localhost"',
-}); // Obj
+});
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence({String gatewayIp = ''}) async {
-  final run = ts.SequenceRun();
-  final dynamic openReferencesResult = ts.PropObj({
-    'GatewayIP': '',
-    'ProjectPath': '',
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Open References
-  final dynamic rtSequenceActionResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Path': '', 'Returnval': 0}),
-  }); // result of RT Sequence Action
-
-  // ── setup ──
+Future<void> mainSequence({String gatewayIp = ''}) async {
   veristand.GatewayIP = gatewayIp; // Assign GatewayIP from Calling Sequence
-  await ts.stepHost.runStepType('OpenReferences', ts.StepPhase.pre, ts.PropObj(), openReferencesResult);
-  // Open References [OpenReferences]: acts through ts.stepHost
-  await ts.stepHost.runStepType('OpenReferences', ts.StepPhase.post, ts.PropObj(), openReferencesResult);
-  openReferencesResult.Status = 'Done';
-  run.record(openReferencesResult.Status);
+  await ts.stepType('OpenReferences');
 
-  // ── main ──
-  // RT Sequence Action [RunRTSequenceAction]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'RunRTSequenceAction',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
-        'SeqTimeout': -1,
-        'Target': '',
-        'Timeout': 10000,
-        'SequenceFilePath':
-            '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\Engine Demo Basic with Numeric Return Value.nivsseq"',
-        'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
-        'ParamTypesArray': '{"Path","Path"}',
-        'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
-      }),
-    }),
-    rtSequenceActionResult,
-  );
-  rtSequenceActionResult.Status = 'Done';
-  run.record(rtSequenceActionResult.Status);
-
-  return run.status;
+  await ts.stepType('RunRTSequenceAction', {
+    'Veristand': {
+      'SeqTimeout': -1,
+      'Target': '',
+      'Timeout': 10000,
+      'SequenceFilePath':
+          '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\Engine Demo Basic with Numeric Return Value.nivsseq"',
+      'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+      'ParamTypesArray': '{"Path","Path"}',
+      'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+    },
+  });
 }

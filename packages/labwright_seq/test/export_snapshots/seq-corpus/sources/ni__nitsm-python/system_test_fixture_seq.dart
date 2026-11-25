@@ -2,33 +2,25 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _MainSequenceLocals {
-  dynamic pythonAdapterRef; // Ref
-  String cachedPythonVersion = ''; // Str
-  String cachedPythonEnvironmentPath = ''; // Str
-  dynamic appManagerRef; // Ref
-  dynamic commandLineArgsRef; // Ref
-  int commandLineArgsCount = 0; // Num — default: 0
-  int i = 0; // Num — default: 0
-  String commandLineArg = ''; // Str
-  String commandLineEntryPoint = ''; // Str
-  String commandLineSequenceFilePath = ''; // Str
-  String commandLinePythonVersion = ''; // Str
-  String commandLinePythonEnvironmentPath = ''; // Str
+  dynamic pythonAdapterRef;
+  String cachedPythonVersion = '';
+  String cachedPythonEnvironmentPath = '';
+  dynamic appManagerRef;
+  dynamic commandLineArgsRef;
+  int commandLineArgsCount = 0;
+  int i = 0;
+  String commandLineArg = '';
+  String commandLineEntryPoint = '';
+  String commandLineSequenceFilePath = '';
+  String commandLinePythonVersion = '';
+  String commandLinePythonEnvironmentPath = '';
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
-  final run = ts.SequenceRun();
-  final dynamic callSequenceFileResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Call Sequence File
 
   try {
-    // ── setup ──
     ts.eval(
       'Locals.PythonAdapterRef = RunState.Engine.GetAdapterByKeyName(PythonAdapterKeyName)',
     ); // Get Python Adapter Reference
@@ -81,26 +73,15 @@ Future<String> mainSequence() async {
     locals.pythonAdapterRef.AsPythonAdapter.PythonVirtualEnvironmentPath =
         locals.commandLinePythonEnvironmentPath; // Set Python Environment Path
 
-    // ── main ──
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     // sequence call spawns a new execution in the engine — exported as a plain awaited call
     await localsCommandLineEntryPoint(); // Call Sequence File: external sequence call
-    callSequenceFileResult.Status = callSequenceFileResult.Status; // status expression
-    run.record(callSequenceFileResult.Status);
   } finally {
-    // ── cleanup ──
     locals.pythonAdapterRef.AsPythonAdapter.PythonVersion = locals.cachedPythonVersion; // Restore Python Version
     locals.pythonAdapterRef.AsPythonAdapter.PythonVirtualEnvironmentPath =
         locals.cachedPythonEnvironmentPath; // Restore Python Environment Path
   }
-
-  return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// External sequence `Locals.CommandLineEntryPoint`
-/// (called from step `Call Sequence File`) — lives in another
-/// sequence file. TODO: implement, or delegate to that file's
-/// exported function.
+/// Sequence `Locals.CommandLineEntryPoint` in a file outside this export.
 Future<Object?> localsCommandLineEntryPoint() async =>
     throw UnimplementedError('external sequence: Locals.CommandLineEntryPoint');

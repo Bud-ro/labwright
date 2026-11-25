@@ -12,19 +12,11 @@ dynamic veristand = ts.PropObj({
   'ProjectPath': '""',
   'SystemDefinitionPath': '',
   'GatewayIP': '"localhost"',
-}); // Obj
+});
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic rtSequenceActionResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Path': '', 'Returnval': 0}),
-  }); // result of RT Sequence Action
   final dynamic rtSequenceNumericLimitTestResult = ts.PropObj({
     'VeriStand': ts.PropObj({'Path': ''}),
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -33,101 +25,73 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
     'Numeric': 0,
     'Units': '',
-  }); // result of RT Sequence Numeric Limit Test
+  });
   final dynamic rtSequencePassFailTestResult = ts.PropObj({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': 0}),
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of RT Sequence Pass/Fail Test
+  });
 
-  // RT Sequence Action [RunRTSequenceAction_2]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'RunRTSequenceAction_2',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
-        'Target': '',
-        'Timeout': 10000,
-        'SequenceFilePath':
-            '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
-        'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
-        'ParamTypesArray': '{"Path","Path"}',
-        'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
-      }),
-    }),
-    rtSequenceActionResult,
-  );
-  rtSequenceActionResult.Status = 'Done';
-  run.record(rtSequenceActionResult.Status);
-  // checks: Step.Result.Numeric GELE [low 9, high 11, nominal 100] (PERCENTAGE)
-  // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-  // RT Sequence Numeric Limit Test [RunRTSequenceNumericLimit_2]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'RunRTSequenceNumericLimit_2',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'VeriStand': ts.PropObj({
-        'Target': '',
-        'Timeout': 10000,
-        'SequenceFilePath':
-            '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
-        'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
-        'ParamTypesArray': '{"Path","Path"}',
-        'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
-        'NumericDataType': '"Void"',
-      }),
-      'Limits': ts.PropObj({
-        'UseNominalExpr': false,
-        'UseThresholdTypeExpr': false,
-        'Nominal': 100,
-        'NominalExpr': '',
-        'ThresholdTypeExpr': '',
-        'ThresholdType': 'PERCENTAGE',
-        'Low': 9,
-        'High': 11,
-        'LowExpr': '',
-        'HighExpr': '',
-        'UseLowExpr': false,
-        'UseHighExpr': false,
-      }),
-      'Comp': 'GELE',
-      'CompExpr': '',
-      'UseCompExpr': false,
-      'InBuf': '',
-      'DataSource': 'Step.Result.Numeric',
-    }),
-    rtSequenceNumericLimitTestResult,
-  );
-  rtSequenceNumericLimitTestResult.Status = ts.checkLimits(
-    rtSequenceNumericLimitTestResult.Numeric,
-    11,
-    9,
-    'GELE',
-  ); // status expression
+  await ts.stepType('RunRTSequenceAction_2', {
+    'Veristand': {
+      'Target': '',
+      'Timeout': 10000,
+      'SequenceFilePath':
+          '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
+      'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+      'ParamTypesArray': '{"Path","Path"}',
+      'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+    },
+  });
+  await ts.stepType('RunRTSequenceNumericLimit_2', {
+    'VeriStand': {
+      'Target': '',
+      'Timeout': 10000,
+      'SequenceFilePath':
+          '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
+      'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+      'ParamTypesArray': '{"Path","Path"}',
+      'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+      'NumericDataType': '"Void"',
+    },
+    'Limits': {
+      'UseNominalExpr': false,
+      'UseThresholdTypeExpr': false,
+      'Nominal': 100,
+      'NominalExpr': '',
+      'ThresholdTypeExpr': '',
+      'ThresholdType': 'PERCENTAGE',
+      'Low': 9,
+      'High': 11,
+      'LowExpr': '',
+      'HighExpr': '',
+      'UseLowExpr': false,
+      'UseHighExpr': false,
+    },
+    'Comp': 'GELE',
+    'CompExpr': '',
+    'UseCompExpr': false,
+    'InBuf': '',
+    'DataSource': 'Step.Result.Numeric',
+  }, rtSequenceNumericLimitTestResult);
+  rtSequenceNumericLimitTestResult.Status = ts.checkLimits(rtSequenceNumericLimitTestResult.Numeric, 11, 9, 'GELE');
   run.record(rtSequenceNumericLimitTestResult.Status);
-  // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  // RT Sequence Pass/Fail Test [RunRTSequencePassFail_2]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'RunRTSequencePassFail_2',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'VeriStand': ts.PropObj({
-        'Target': '',
-        'Timeout': 10000,
-        'SequenceFilePath':
-            '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
-        'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
-        'ParamTypesArray': '{"Path","Path"}',
-        'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
-      }),
-    }),
-    rtSequencePassFailTestResult,
-  );
+  await ts.stepType('RunRTSequencePassFail_2', {
+    'VeriStand': {
+      'Target': '',
+      'Timeout': 10000,
+      'SequenceFilePath':
+          '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
+      'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+      'ParamTypesArray': '{"Path","Path"}',
+      'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+    },
+  }, rtSequencePassFailTestResult);
   rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
       ? 'Passed'
-      : 'Failed'; // status expression
+      : 'Failed';
   run.record(rtSequencePassFailTestResult.Status);
 
   return run.status;

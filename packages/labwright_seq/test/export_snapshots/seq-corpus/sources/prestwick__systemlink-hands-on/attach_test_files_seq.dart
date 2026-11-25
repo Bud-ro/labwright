@@ -2,7 +2,7 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic tdmsGeneratingTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -10,23 +10,17 @@ Future<String> mainSequence() async {
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of TDMS Generating Test
+  });
 
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callWaveformTest(); // TDMS Generating Test [PassFailTest]
-  tdmsGeneratingTestResult.Status = ts.truthy(tdmsGeneratingTestResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
+  tdmsGeneratingTestResult.Status = ts.truthy(tdmsGeneratingTestResult.PassFail) ? 'Passed' : 'Failed';
   run.record(tdmsGeneratingTestResult.Status);
 
   return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// Stub for the labView module call `LabVIEW\Attach Test Files.lvlibp\Waveform Test.vi`
-/// (from step `TDMS Generating Test`). TODO: implement against the real module.
+/// The labView module `LabVIEW\Attach Test Files.lvlibp\Waveform Test.vi`.
 Future<Object?> callWaveformTest() async =>
     throw UnimplementedError('labView call: LabVIEW\\Attach Test Files.lvlibp\\Waveform Test.vi');

@@ -2,7 +2,7 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic numericLimitTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -11,7 +11,7 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': '',
-  }); // result of Numeric Limit Test
+  });
   final dynamic stringValueTestResult = ts.PropObj({
     'TestData': ts.PropObj({
       'TestNumber': 0,
@@ -27,7 +27,7 @@ Future<String> mainSequence() async {
     'String': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of String Value Test
+  });
   final dynamic numericLimitTestResult2 = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -44,11 +44,8 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': 'V',
-  }); // result of Numeric Limit Test
+  });
 
-  // checks: Step.Result.Numeric GELE [low 9, high 11, nominal 100] (PERCENTAGE)
-  // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-  // Numeric Limit Test [NumericLimitTest]: judged by its status expression
   numericLimitTestResult.Status = ts.checkLimits(
     numericLimitTestResult.Numeric,
     11,
@@ -57,20 +54,10 @@ Future<String> mainSequence() async {
     true,
     100,
     'PERCENTAGE',
-  ); // status expression
+  );
   run.record(numericLimitTestResult.Status);
-  // checks: Step.Result.String IgnoreCase
-  // status expression: Step.DataSource != "Step.Result.String" ? Step.Result.String = Evaluate(Step.DataSource) : False,CheckStrLimit(Step.Result.String,Step.Limits.String,Step.Comp)
-  // String Value Test [DanfossStringValueTest]: judged by its status expression
-  stringValueTestResult.Status = ts.checkStrLimit(
-    stringValueTestResult.String,
-    'String Limit',
-    'IgnoreCase',
-  ); // status expression
+  stringValueTestResult.Status = ts.checkStrLimit(stringValueTestResult.String, 'String Limit', 'IgnoreCase');
   run.record(stringValueTestResult.Status);
-  // checks: 10 GELE [low 9, high 11, nominal 100] (PERCENTAGE) V
-  // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-  // Numeric Limit Test [DanfossNumericLimitTest]: judged by its status expression
   numericLimitTestResult2.Status = ts.checkLimits(
     numericLimitTestResult2.Numeric = 10,
     11,
@@ -79,14 +66,14 @@ Future<String> mainSequence() async {
     true,
     100,
     'PERCENTAGE',
-  ); // status expression
+  );
   run.record(numericLimitTestResult2.Status);
 
   return run.status;
 }
 
 /// Sequence `Sequence`.
-Future<String> sequence() async {
+Future<ts.Status> sequence() async {
   final run = ts.SequenceRun();
   final dynamic subseqResult = ts.PropObj({
     'TestData': ts.PropObj({
@@ -103,12 +90,9 @@ Future<String> sequence() async {
     'String': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Subseq
+  });
 
-  // checks: Step.Result.String IgnoreCase
-  // status expression: Step.DataSource != "Step.Result.String" ? Step.Result.String = Evaluate(Step.DataSource) : False,CheckStrLimit(Step.Result.String,Step.Limits.String,Step.Comp)
-  // Subseq [DanfossStringValueTest]: judged by its status expression
-  subseqResult.Status = ts.checkStrLimit(subseqResult.String, 'String Limit', 'IgnoreCase'); // status expression
+  subseqResult.Status = ts.checkStrLimit(subseqResult.String, 'String Limit', 'IgnoreCase');
   run.record(subseqResult.Status);
 
   return run.status;

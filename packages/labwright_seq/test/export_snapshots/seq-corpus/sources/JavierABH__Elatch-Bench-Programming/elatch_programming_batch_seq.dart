@@ -2,120 +2,36 @@
 import 'package:labwright/shims.dart' as ts;
 import 'station_globals.dart' as station;
 
-dynamic programmer; // Ref
-String partNumber = ''; // Str
+dynamic programmer;
+String partNumber = '';
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
-Future<String> processSetup() async {
-  final run = ts.SequenceRun();
-  final dynamic loadVarInitResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Load var init
-
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  loadVarInitResult.Status = await loadVariables(variableList: 'FirstRun'); // Load var init
-  loadVarInitResult.Status = loadVarInitResult.Status == 'Done'
-      ? 'Passed'
-      : loadVarInitResult.Status; // status expression
-  run.record(loadVarInitResult.Status);
+Future<void> processSetup() async {
+  await loadVariables(variableList: 'FirstRun'); // Load var init
   ts.eval('StationGlobals.isTraceEnable = FileGlobals.isTraceEnable'); // Assign TraceabilityEnabled Var
   ts.eval('\nStationGlobals.isRecordFail = FileGlobals.isRecordFail'); // Assign TraceabilityEnabled Var (cont.)
   ts.eval('\nStationGlobals.StationName = FileGlobals.StationName'); // Assign TraceabilityEnabled Var (cont.)
   ts.eval('\nStationGlobals.ProcessName = FileGlobals.ProcessName'); // Assign TraceabilityEnabled Var (cont.)
   station.initPnWithsequence == ''; // Assign TraceabilityEnabled Var (cont.)
   station.initPnWithsequence == ''; // Assign TraceabilityEnabled Var (cont.)
-
-  return run.status;
 }
 
 class _PreBatchLocals {
-  int backCheck = 0; // Num — default: 0
-  String replyBackCheck = ''; // Str
+  int backCheck = 0;
+  String replyBackCheck = '';
 }
 
 /// Sequence `PreBatch` — Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action..
-Future<String> preBatch({bool continueTesting = true, dynamic modelData, dynamic modelPluginConfiguration}) async {
+Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dynamic modelPluginConfiguration}) async {
   final locals = _PreBatchLocals();
   final run = ts.SequenceRun();
-  final dynamic waitForDialogResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Wait For Dialog
   final dynamic getPartNumberResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Get_PartNumber
-  final dynamic getFwPathsForPnResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Get FW paths for PN
-  final dynamic msgBachcheckFailResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Msg Bachcheck fail
-  final dynamic msgBachcheckFailResult2 = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Msg Bachcheck fail
-  final dynamic msgBachcheckFailResult3 = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Msg Bachcheck fail
-  final dynamic msgBachcheckFailResult4 = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Msg Bachcheck fail
-  final dynamic msgBachcheckFailResult5 = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Msg Bachcheck fail
-  final dynamic msgBachcheckFailResult6 = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Msg Bachcheck fail
-  final dynamic msgTraceDisableResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Msg Trace disable
+  });
 
-  // ── setup ──
   locals.backCheck = 0; // Reset Traceability Variables
   locals.replyBackCheck = ''; // Reset Traceability Variables (cont.)
   modelData.BatchUUT.BatchSerialNumber = ''; // Reset Traceability Variables (cont.)
@@ -159,32 +75,19 @@ Future<String> preBatch({bool continueTesting = true, dynamic modelData, dynamic
   station.isUutPanelFailed = false; // UUT_Panel_Failed
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(modelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.BatchModelGetNextUUTs)) {
-    // precondition of Tell Dialog To Get Next UUTs
     ts.notExported('cModule call: Tell Dialog To Get Next UUTs'); // Tell Dialog To Get Next UUTs [Action]
   }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(modelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.BatchModelGetNextUUTs)) {
-    // precondition of Wait For Dialog
     await processDialogRequests(); // Wait For Dialog: external sequence call
-    waitForDialogResult.Status = waitForDialogResult.Status == 'Done'
-        ? 'Passed'
-        : waitForDialogResult.Status; // status expression
-    run.record(waitForDialogResult.Status);
-  } else {
-    waitForDialogResult.Status = 'Skipped';
   }
 
-  // ── main ──
   skipToEndOfTraceabilitySection:
   {
-    // custom flow: if (True) Terminate else Next
     if (modelData.BatchUUT.BatchSerialNumber == '') {
-      // precondition of Close the sequence if the operator press cancel button
-      // Close the sequence if the operator press cancel button [Action]: no code module
-      ts.terminate(); // post action
+      ts.terminate();
     }
-    station.panelSerial = ts.mid(modelData.BatchUUT.BatchSerialNumber, 1); // pre-expression
+    station.panelSerial = ts.mid(modelData.BatchUUT.BatchSerialNumber, 1);
     // .NET assembly: ..\WSConnector\WSConnector.dll
     // .NET call: WSConnector.Connector.Connector
     // .NET call: WSConnector.Connector.CIMP_PanelBoardRef
@@ -197,31 +100,21 @@ Future<String> preBatch({bool continueTesting = true, dynamic modelData, dynamic
     modelData.TestSockets[3].UUT.SerialNumber = station.individualSerials[3]; // Set Serial to UUT 4
     modelData.TestSockets[4].UUT.SerialNumber = station.individualSerials[4]; // Set Serial to UUT 5
     modelData.TestSockets[5].UUT.SerialNumber = station.individualSerials[5]; // Set Serial to UUT 6
-    // status expression: StationGlobals.PartNumber
     //   SerialNumber <- StationGlobals.IndividualSerials[0]
     //   AssemblyPartNumber <- Parameters.ModelData.BatchUUT.PartNumber
     //   error out <- Step.Result.Error
     await callWsp2PartNumberRef(); // Get_PartNumber [Action]
-    getPartNumberResult.Status = station.partNumber; // status expression
+    getPartNumberResult.Status = station.partNumber;
     run.record(getPartNumberResult.Status);
     // [skipped in source] Activar para mostrar PN
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    getFwPathsForPnResult.Status = await loadVariables(
-      variableList: modelData.BatchUUT.PartNumber as String,
-    ); // Get FW paths for PN
-    getFwPathsForPnResult.Status = getFwPathsForPnResult.Status == 'Done'
-        ? 'Passed'
-        : getFwPathsForPnResult.Status; // status expression
-    run.record(getFwPathsForPnResult.Status);
+    await loadVariables(variableList: modelData.BatchUUT.PartNumber as String); // Get FW paths for PN
     ts.eval('StationGlobals.ModelID = FileGlobals.Model_ID'); // Set FW Paths
     ts.eval('\nStationGlobals.Path_flex_provision = FileGlobals.Path_flex_provision'); // Set FW Paths (cont.)
     ts.eval(
       '\nStationGlobals.Path_reset_flex_provision = FileGlobals.Path_reset_flex_provision',
     ); // Set FW Paths (cont.)
     ts.eval('\nStationGlobals.Path_program_combined = FileGlobals.Path_program_combined'); // Set FW Paths (cont.)
-    // status expression: ""
-    // description: This part is for future update
-    // label:
+    // This part is for future update
     // [skipped in source] Save PN for check for PN at other panel
     if (ts.cond(
       'StationGlobals.PartNumber <> StationGlobals.Init_PN_withsequence && StationGlobals.Init_PN_withsequence <> ""',
@@ -229,22 +122,13 @@ Future<String> preBatch({bool continueTesting = true, dynamic modelData, dynamic
       // [Skip in source]
       // [skipped in source] Msg for pn diferent
       // [skipped in source] Close the sequence ifdetect other pn
-      // status expression: ""
-      // description: This part is for future update
-      // label:
+      // This part is for future update
     } // [Skip in source]
-    // status expression: ""
-    // description: This part is for future update
-    // label:
-    // goto -> step "End Of Traceability Section"
+    // This part is for future update
     if (station.isTraceEnable == 'False') {
-      // precondition of Jump if Traceability is Disabled
-      // Jump if Traceability is Disabled [Goto]: no code module
-      break skipToEndOfTraceabilitySection; // post action
+      break skipToEndOfTraceabilitySection;
     }
-    // label: Start Traceability Section
-    // status expression: ""
-    // label:
+    // Start Traceability Section
     //   serialNumber <- Parameters.ModelData.TestSockets[0].UUT.SerialNumber
     //   stationName <- StationGlobals.StationName
     //   Status <- Locals.BackCheck
@@ -255,22 +139,8 @@ Future<String> preBatch({bool continueTesting = true, dynamic modelData, dynamic
       station.isBackcheckOk[0] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[0] = false; // Set Backcheck NOG
-      // popup title: NameOf(Step)
-      // popup message: "UUT  0  reporta: " + Locals.Reply_BackCheck
-      // popup buttons: "OK"
-      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
-      final popup = await ts.stepHost.messagePopup(
-        title: 'Msg Bachcheck fail',
-        message: 'UUT  0  reporta: ${locals.replyBackCheck}',
-        buttons: ['OK', '', '', '', '', ''],
-      );
-      msgBachcheckFailResult.ButtonHit = popup.buttonHit;
-      msgBachcheckFailResult.Response = popup.response;
-      msgBachcheckFailResult.Status = 'Done';
-      run.record(msgBachcheckFailResult.Status);
+      await ts.messagePopup('Msg Bachcheck fail', 'UUT  0  reporta: ${locals.replyBackCheck}');
     }
-    // status expression: ""
-    // label:
     //   serialNumber <- Parameters.ModelData.TestSockets[1].UUT.SerialNumber
     //   stationName <- StationGlobals.StationName
     //   Status <- Locals.BackCheck
@@ -281,22 +151,8 @@ Future<String> preBatch({bool continueTesting = true, dynamic modelData, dynamic
       station.isBackcheckOk[1] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[1] = false; // Set Backcheck NOG
-      // popup title: NameOf(Step)
-      // popup message: "UUT 1  reporta: " + Locals.Reply_BackCheck
-      // popup buttons: "OK"
-      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
-      final popup2 = await ts.stepHost.messagePopup(
-        title: 'Msg Bachcheck fail',
-        message: 'UUT 1  reporta: ${locals.replyBackCheck}',
-        buttons: ['OK', '', '', '', '', ''],
-      );
-      msgBachcheckFailResult2.ButtonHit = popup2.buttonHit;
-      msgBachcheckFailResult2.Response = popup2.response;
-      msgBachcheckFailResult2.Status = 'Done';
-      run.record(msgBachcheckFailResult2.Status);
+      await ts.messagePopup('Msg Bachcheck fail', 'UUT 1  reporta: ${locals.replyBackCheck}');
     }
-    // status expression: ""
-    // label:
     //   serialNumber <- Parameters.ModelData.TestSockets[2].UUT.SerialNumber
     //   stationName <- StationGlobals.StationName
     //   Status <- Locals.BackCheck
@@ -307,22 +163,8 @@ Future<String> preBatch({bool continueTesting = true, dynamic modelData, dynamic
       station.isBackcheckOk[2] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[2] = false; // Set Backcheck NOG
-      // popup title: NameOf(Step)
-      // popup message: "UUT  2  reporta: " + Locals.Reply_BackCheck
-      // popup buttons: "OK"
-      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
-      final popup3 = await ts.stepHost.messagePopup(
-        title: 'Msg Bachcheck fail',
-        message: 'UUT  2  reporta: ${locals.replyBackCheck}',
-        buttons: ['OK', '', '', '', '', ''],
-      );
-      msgBachcheckFailResult3.ButtonHit = popup3.buttonHit;
-      msgBachcheckFailResult3.Response = popup3.response;
-      msgBachcheckFailResult3.Status = 'Done';
-      run.record(msgBachcheckFailResult3.Status);
+      await ts.messagePopup('Msg Bachcheck fail', 'UUT  2  reporta: ${locals.replyBackCheck}');
     }
-    // status expression: ""
-    // label:
     //   serialNumber <- Parameters.ModelData.TestSockets[3].UUT.SerialNumber
     //   stationName <- StationGlobals.StationName
     //   Status <- Locals.BackCheck
@@ -333,22 +175,8 @@ Future<String> preBatch({bool continueTesting = true, dynamic modelData, dynamic
       station.isBackcheckOk[3] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[3] = false; // Set Backcheck NOG
-      // popup title: NameOf(Step)
-      // popup message: "UUT 3  reporta: " + Locals.Reply_BackCheck
-      // popup buttons: "OK"
-      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
-      final popup4 = await ts.stepHost.messagePopup(
-        title: 'Msg Bachcheck fail',
-        message: 'UUT 3  reporta: ${locals.replyBackCheck}',
-        buttons: ['OK', '', '', '', '', ''],
-      );
-      msgBachcheckFailResult4.ButtonHit = popup4.buttonHit;
-      msgBachcheckFailResult4.Response = popup4.response;
-      msgBachcheckFailResult4.Status = 'Done';
-      run.record(msgBachcheckFailResult4.Status);
+      await ts.messagePopup('Msg Bachcheck fail', 'UUT 3  reporta: ${locals.replyBackCheck}');
     }
-    // status expression: ""
-    // label:
     //   serialNumber <- Parameters.ModelData.TestSockets[4].UUT.SerialNumber
     //   stationName <- StationGlobals.StationName
     //   Status <- Locals.BackCheck
@@ -359,22 +187,8 @@ Future<String> preBatch({bool continueTesting = true, dynamic modelData, dynamic
       station.isBackcheckOk[4] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[4] = false; // Set Backcheck NOG
-      // popup title: NameOf(Step)
-      // popup message: "UUT 4  reporta: " + Locals.Reply_BackCheck
-      // popup buttons: "OK"
-      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
-      final popup5 = await ts.stepHost.messagePopup(
-        title: 'Msg Bachcheck fail',
-        message: 'UUT 4  reporta: ${locals.replyBackCheck}',
-        buttons: ['OK', '', '', '', '', ''],
-      );
-      msgBachcheckFailResult5.ButtonHit = popup5.buttonHit;
-      msgBachcheckFailResult5.Response = popup5.response;
-      msgBachcheckFailResult5.Status = 'Done';
-      run.record(msgBachcheckFailResult5.Status);
+      await ts.messagePopup('Msg Bachcheck fail', 'UUT 4  reporta: ${locals.replyBackCheck}');
     }
-    // status expression: ""
-    // label:
     //   serialNumber <- Parameters.ModelData.TestSockets[5].UUT.SerialNumber
     //   stationName <- StationGlobals.StationName
     //   Status <- Locals.BackCheck
@@ -385,41 +199,12 @@ Future<String> preBatch({bool continueTesting = true, dynamic modelData, dynamic
       station.isBackcheckOk[5] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[5] = false; // Set Backcheck NOG
-      // popup title: NameOf(Step)
-      // popup message: "UUT  5  reporta: " + Locals.Reply_BackCheck
-      // popup buttons: "OK"
-      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
-      final popup6 = await ts.stepHost.messagePopup(
-        title: 'Msg Bachcheck fail',
-        message: 'UUT  5  reporta: ${locals.replyBackCheck}',
-        buttons: ['OK', '', '', '', '', ''],
-      );
-      msgBachcheckFailResult6.ButtonHit = popup6.buttonHit;
-      msgBachcheckFailResult6.Response = popup6.response;
-      msgBachcheckFailResult6.Status = 'Done';
-      run.record(msgBachcheckFailResult6.Status);
+      await ts.messagePopup('Msg Bachcheck fail', 'UUT  5  reporta: ${locals.replyBackCheck}');
     }
   }
-  // label: End Of Traceability Section
-  // status expression: ""
-  // label:
-  // popup title: NameOf(Step)
-  // popup message: "Trazabilidad esta desactivada"
-  // popup buttons: "OK"
+  // End Of Traceability Section
   if (station.isTraceEnable == 'False') {
-    // precondition of Msg Trace disable
-    // Msg Trace disable [MessagePopup]: acts through ts.stepHost
-    final popup7 = await ts.stepHost.messagePopup(
-      title: 'Msg Trace disable',
-      message: 'Trazabilidad esta desactivada',
-      buttons: ['OK', '', '', '', '', ''],
-    );
-    msgTraceDisableResult.ButtonHit = popup7.buttonHit;
-    msgTraceDisableResult.Response = popup7.response;
-    msgTraceDisableResult.Status = 'Done';
-    run.record(msgTraceDisableResult.Status);
-  } else {
-    msgTraceDisableResult.Status = 'Skipped';
+    await ts.messagePopup('Msg Trace disable', 'Trazabilidad esta desactivada');
   }
   //   error out <- Step.Result.Error
   await callAllOffRelays(); // Set relays to init state [Action]
@@ -428,95 +213,25 @@ Future<String> preBatch({bool continueTesting = true, dynamic modelData, dynamic
 }
 
 /// Sequence `PreUUTLoop` — Test UUTs calls this before looping on UUTs.  Is empty in model file.  Override this in the client file to perform an action before any UUTs are tested..
-Future<String> preUutLoop({dynamic modelPluginConfiguration}) async {
-  final run = ts.SequenceRun();
-  final dynamic loadVarUut1Result = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Load_Var_UUT 1
-  final dynamic loadVarUut2Result = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Load_Var_UUT 2
-  final dynamic loadVarUut3Result = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Load_Var_UUT 3
-  final dynamic loadVarUut4Result = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Load_Var_UUT 4
-  final dynamic loadVarUut5Result = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Load_Var_UUT 5
-  final dynamic loadVarUut6Result = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Load_Var_UUT 6
-
+Future<void> preUutLoop({dynamic modelPluginConfiguration}) async {
   if (ts.cond('RunState.TestSockets.MyIndex == 0')) {
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    loadVarUut1Result.Status = await loadVariables(variableList: 'UUT_1'); // Load_Var_UUT 1
-    loadVarUut1Result.Status = loadVarUut1Result.Status == 'Done'
-        ? 'Passed'
-        : loadVarUut1Result.Status; // status expression
-    run.record(loadVarUut1Result.Status);
+    await loadVariables(variableList: 'UUT_1'); // Load_Var_UUT 1
   } else if (ts.cond('RunState.TestSockets.MyIndex == 1')) {
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    loadVarUut2Result.Status = await loadVariables(variableList: 'UUT_2'); // Load_Var_UUT 2
-    loadVarUut2Result.Status = loadVarUut2Result.Status == 'Done'
-        ? 'Passed'
-        : loadVarUut2Result.Status; // status expression
-    run.record(loadVarUut2Result.Status);
+    await loadVariables(variableList: 'UUT_2'); // Load_Var_UUT 2
   } else if (ts.cond('RunState.TestSockets.MyIndex == 2')) {
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    loadVarUut3Result.Status = await loadVariables(variableList: 'UUT_3'); // Load_Var_UUT 3
-    loadVarUut3Result.Status = loadVarUut3Result.Status == 'Done'
-        ? 'Passed'
-        : loadVarUut3Result.Status; // status expression
-    run.record(loadVarUut3Result.Status);
+    await loadVariables(variableList: 'UUT_3'); // Load_Var_UUT 3
   } else if (ts.cond('RunState.TestSockets.MyIndex == 3')) {
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    loadVarUut4Result.Status = await loadVariables(variableList: 'UUT_4'); // Load_Var_UUT 4
-    loadVarUut4Result.Status = loadVarUut4Result.Status == 'Done'
-        ? 'Passed'
-        : loadVarUut4Result.Status; // status expression
-    run.record(loadVarUut4Result.Status);
+    await loadVariables(variableList: 'UUT_4'); // Load_Var_UUT 4
   } else if (ts.cond('RunState.TestSockets.MyIndex == 4')) {
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    loadVarUut5Result.Status = await loadVariables(variableList: 'UUT_5'); // Load_Var_UUT 5
-    loadVarUut5Result.Status = loadVarUut5Result.Status == 'Done'
-        ? 'Passed'
-        : loadVarUut5Result.Status; // status expression
-    run.record(loadVarUut5Result.Status);
+    await loadVariables(variableList: 'UUT_5'); // Load_Var_UUT 5
   } else if (ts.cond('RunState.TestSockets.MyIndex == 5')) {
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    loadVarUut6Result.Status = await loadVariables(variableList: 'UUT_6'); // Load_Var_UUT 6
-    loadVarUut6Result.Status = loadVarUut6Result.Status == 'Done'
-        ? 'Passed'
-        : loadVarUut6Result.Status; // status expression
-    run.record(loadVarUut6Result.Status);
+    await loadVariables(variableList: 'UUT_6'); // Load_Var_UUT 6
   }
   // [skipped in source] Save PN for check for PN at other panel
-
-  return run.status;
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic uutNotForThisProcessResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -524,126 +239,78 @@ Future<String> mainSequence() async {
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of UUT Not For This Process
+  });
   dynamic jLinkConnectionTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink Connection Test
+  });
   dynamic targetConnectionTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Target Connection Test
+  });
   final dynamic jLinkResetResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink_reset
-  final dynamic flashFlexProvisionResetResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Flash Flex Provision Reset
-  final dynamic flashFlexProvisionResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Flash Flex Provision
-  final dynamic flashProgramCombinedResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Flash program combined
+  });
   final dynamic jLinkCloseTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink_close Test
-  final dynamic msgFailedResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Msg Failed
+  });
 
   var cleanupFrom = 0;
   body:
   try {
-    // ── setup ──
     // [skipped in source] Go to cleanup on failure
     if (ts.cond(
       'StationGlobals.isBackCheckOK[RunState.TestSockets.MyIndex] == False && StationGlobals.isTraceEnable == "True"',
     )) {
-      // checks: False
-      // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-      // UUT Not For This Process [PassFailTest]: judged by its status expression
-      uutNotForThisProcessResult.PassFail = false; // status expression
-      uutNotForThisProcessResult.Status = ts.truthy(uutNotForThisProcessResult.PassFail)
-          ? 'Passed'
-          : 'Failed'; // status expression
+      uutNotForThisProcessResult.PassFail = false;
+      uutNotForThisProcessResult.Status = ts.truthy(uutNotForThisProcessResult.PassFail) ? 'Passed' : 'Failed';
       run.record(uutNotForThisProcessResult.Status);
-      // goto -> step "BackCheck Point"
-      // Goto [Goto]: no code module
       cleanupFrom = 3;
-      break body; // post action
+      break body;
     }
-    // status expression: ""
-    // label:
     backToWaitForUutOfReleNo:
     while (true) {
-      // label: Wait for UUT of Rele NO
+      // Wait for UUT of Rele NO
       if (ts.cond('RunState.TestSockets.MyIndex == 1')) {
         if (!ts.truthy(station.releProgrammer[0])) {
           await Future<void>.delayed(const Duration(seconds: 3));
-          // goto -> step "Wait for UUT of Rele NO"
-          // Goto [Goto]: no code module
-          continue backToWaitForUutOfReleNo; // post action
+          continue backToWaitForUutOfReleNo;
         }
       } else if (ts.cond('RunState.TestSockets.MyIndex == 3')) {
         if (!ts.truthy(station.releProgrammer[1])) {
           await Future<void>.delayed(const Duration(seconds: 3));
-          // goto -> step "Wait for UUT of Rele NO"
-          // Goto [Goto]: no code module
-          continue backToWaitForUutOfReleNo; // post action
+          continue backToWaitForUutOfReleNo;
         }
       } else if (ts.cond('RunState.TestSockets.MyIndex == 5')) {
         if (!ts.truthy(station.releProgrammer[2])) {
           await Future<void>.delayed(const Duration(seconds: 3));
-          // goto -> step "Wait for UUT of Rele NO"
-          // Goto [Goto]: no code module
-          continue backToWaitForUutOfReleNo; // post action
+          continue backToWaitForUutOfReleNo;
         }
       }
       break backToWaitForUutOfReleNo;
     }
 
-    // ── main ──
-    // label: Start programming
+    // Start programming
     //   Return Value <- FileGlobals.Programmer
     //   serial_number <- #NoValidation(FileGlobals.Serial_segger)
     ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // Create JLink instance [Action]
-    // checks: Step.Result.PassFail
-    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-    // step loop (PassFailCount): init RunState.LoopIndex = 0; while RunState.LoopIndex < 3 && RunState.LoopNumPassed < 1; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed >= 1 ? "Passed" : "Failed"
-    // custom flow: if (RunState.SequenceFailed) Goto -> step "BackCheck Point" else Next
     final loop = ts.StepLoop();
-    loop.index = 0; // loop initialize
+    loop.index = 0;
     while (loop.index < 3 && loop.numPassed < 1) {
-      // loop while
       jLinkConnectionTestResult = ts.PropObj({
         'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
         'Status': '',
@@ -653,27 +320,19 @@ Future<String> mainSequence() async {
       });
       //   Return Value <- Step.Result.PassFail
       ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink Connection Test [PassFailTest]
-      jLinkConnectionTestResult.Status = ts.truthy(jLinkConnectionTestResult.PassFail)
-          ? 'Passed'
-          : 'Failed'; // status expression
+      jLinkConnectionTestResult.Status = ts.truthy(jLinkConnectionTestResult.PassFail) ? 'Passed' : 'Failed';
       loop.count(jLinkConnectionTestResult.Status);
-      loop.index += 1; // loop increment
+      loop.index += 1;
     }
-    jLinkConnectionTestResult.Status = loop.numPassed >= 1 ? 'Passed' : 'Failed'; // loop status
+    jLinkConnectionTestResult.Status = loop.numPassed >= 1 ? 'Passed' : 'Failed';
     run.record(jLinkConnectionTestResult.Status);
     if (run.failed) {
-      // post action
       cleanupFrom = 3;
       break body;
     }
-    // checks: Step.Result.PassFail
-    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-    // step loop (PassFailCount): init RunState.LoopIndex = 0; while RunState.LoopIndex < 3 && RunState.LoopNumPassed < 1; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed >= 1 ? "Passed" : "Failed"
-    // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
     final loop2 = ts.StepLoop();
-    loop2.index = 0; // loop initialize
+    loop2.index = 0;
     while (loop2.index < 3 && loop2.numPassed < 1) {
-      // loop while
       targetConnectionTestResult = ts.PropObj({
         'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
         'Status': '',
@@ -684,94 +343,51 @@ Future<String> mainSequence() async {
       //   Return Value <- Step.Result.PassFail
       //   chip_name <- #NoValidation(FileGlobals.Chip_name)
       ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // Target Connection Test [PassFailTest]
-      targetConnectionTestResult.Status = ts.truthy(targetConnectionTestResult.PassFail)
-          ? 'Passed'
-          : 'Failed'; // status expression
+      targetConnectionTestResult.Status = ts.truthy(targetConnectionTestResult.PassFail) ? 'Passed' : 'Failed';
       loop2.count(targetConnectionTestResult.Status);
-      loop2.index += 1; // loop increment
+      loop2.index += 1;
     }
-    targetConnectionTestResult.Status = loop2.numPassed >= 1 ? 'Passed' : 'Failed'; // loop status
+    targetConnectionTestResult.Status = loop2.numPassed >= 1 ? 'Passed' : 'Failed';
     run.record(targetConnectionTestResult.Status);
     if (run.failed) {
-      // post action
       break body;
     }
-    // checks: Step.Result.PassFail
-    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-    // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
     //   Return Value <- Step.Result.PassFail
     ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_reset [PassFailTest]
-    jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+    jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
     run.record(jLinkResetResult.Status);
     if (run.failed) {
-      // post action
       break body;
     }
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
-    flashFlexProvisionResetResult.Status = await writeResetFlexProvision(); // Flash Flex Provision Reset
-    flashFlexProvisionResetResult.Status = flashFlexProvisionResetResult.Status == 'Done'
-        ? 'Passed'
-        : flashFlexProvisionResetResult.Status; // status expression
-    run.record(flashFlexProvisionResetResult.Status);
+    run.record(await writeResetFlexProvision()); // Flash Flex Provision Reset
     if (run.failed) {
-      // post action
       break body;
     }
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
-    flashFlexProvisionResult.Status = await writeFlexProvision(); // Flash Flex Provision
-    flashFlexProvisionResult.Status = flashFlexProvisionResult.Status == 'Done'
-        ? 'Passed'
-        : flashFlexProvisionResult.Status; // status expression
-    run.record(flashFlexProvisionResult.Status);
+    run.record(await writeFlexProvision()); // Flash Flex Provision
     if (run.failed) {
-      // post action
       break body;
     }
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
-    flashProgramCombinedResult.Status = await writeProgramCombined(); // Flash program combined
-    flashProgramCombinedResult.Status = flashProgramCombinedResult.Status == 'Done'
-        ? 'Passed'
-        : flashProgramCombinedResult.Status; // status expression
-    run.record(flashProgramCombinedResult.Status);
+    run.record(await writeProgramCombined()); // Flash program combined
     if (run.failed) {
-      // post action
       break body;
     }
     ts.eval('StationGlobals.isSequenceComplete[RunState.TestSockets.MyIndex] = True'); // Set Sequence complete to True
     ts.eval('StationGlobals.TestResult[RunState.TestSockets.MyIndex] = 1'); // UUT Pass
   } finally {
-    // ── cleanup ──
     if (cleanupFrom < 3) {
-      // label: Failed Point
-      // checks: Step.Result.PassFail
-      // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+      // Failed Point
       //   Return Value <- Step.Result.PassFail
       ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_close Test [PassFailTest]
-      jLinkCloseTestResult.Status = ts.truthy(jLinkCloseTestResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+      jLinkCloseTestResult.Status = ts.truthy(jLinkCloseTestResult.PassFail) ? 'Passed' : 'Failed';
       run.record(jLinkCloseTestResult.Status);
-      // popup title: NameOf(Step)
-      // popup message: "UUT " + Str(RunState.TestSockets.MyIndex) + " Fallo"
-      // popup buttons: "OK"
       if (run.failed) {
-        // precondition of Msg Failed
-        // Msg Failed [MessagePopup]: acts through ts.stepHost
-        final popup = await ts.stepHost.messagePopup(
-          title: 'Msg Failed',
-          message: ts.eval('"UUT " + Str(RunState.TestSockets.MyIndex) + " Fallo" '),
-          buttons: ['OK', '', '', '', '', ''],
+        await ts.messagePopup(
+          'Msg Failed',
+          ts.eval('"UUT " + Str(RunState.TestSockets.MyIndex) + " Fallo" ') as String,
         );
-        msgFailedResult.ButtonHit = popup.buttonHit;
-        msgFailedResult.Response = popup.response;
-        msgFailedResult.Status = 'Done';
-        run.record(msgFailedResult.Status);
-      } else {
-        msgFailedResult.Status = 'Skipped';
       }
     }
-    // label: BackCheck Point
+    // BackCheck Point
     if (ts.cond('RunState.TestSockets.MyIndex == 0')) {
       //   Nest <- 1
       //   error out <- Step.Result.Error
@@ -797,24 +413,16 @@ Future<String> mainSequence() async {
 }
 
 /// Sequence `PostBatch` — Displays a pass, fail, error, or terminated banner for each TestSocket and allows viewing of Batch and UUT reports. Override this in client file to change or replace this action..
-Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) async {
-  final run = ts.SequenceRun();
-
+Future<void> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) async {
   skipToEndOfTraceabilitySection:
   {
-    // goto -> step "End Of Traceability Section"
     if (station.isTraceEnable == 'False') {
-      // precondition of Jump if Traceability is Disabled
-      // Jump if Traceability is Disabled [Goto]: no code module
-      break skipToEndOfTraceabilitySection; // post action
+      break skipToEndOfTraceabilitySection;
     }
-    // label: Start Traceability Section
-    // status expression: ""
-    // description: UUT 0
-    // label:
+    // Start Traceability Section
+    // UUT 0
     if (station.testResult[0] == 1) {
       if (ts.truthy(station.isBackcheckOk[0])) {
-        // precondition of Send Process
         //   FailString <- ""
         //   EntryTime <- StationGlobals.Ent_Time
         //   SerialNumber <- StationGlobals.IndividualSerials[0]
@@ -828,7 +436,6 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
       }
     } else {
       if (station.isRecordFail == 'True' && ts.truthy(station.isBackcheckOk[0])) {
-        // precondition of Send Process
         //   FailString <- StationGlobals.FailString[0]
         //   EntryTime <- StationGlobals.Ent_Time
         //   SerialNumber <- StationGlobals.IndividualSerials[0]
@@ -841,15 +448,12 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
         await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
       }
       if (!ts.truthy(station.isBackcheckOk[0])) {
-        // precondition of Send data in batch result
         ts.eval(
           'Parameters.ModelData.TestSockets[0].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
         ); // Send data in batch result
       }
     }
-    // status expression: ""
-    // description: UUT 1
-    // label:
+    // UUT 1
     if (station.testResult[1] == 1 && ts.truthy(station.isBackcheckOk[1])) {
       //   FailString <- ""
       //   EntryTime <- StationGlobals.Ent_Time
@@ -863,7 +467,6 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     } else {
       if (station.isRecordFail == 'True' && ts.truthy(station.isBackcheckOk[1])) {
-        // precondition of Send Process
         //   FailString <- StationGlobals.FailString[1]
         //   EntryTime <- StationGlobals.Ent_Time
         //   SerialNumber <- StationGlobals.IndividualSerials[1]
@@ -876,15 +479,12 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
         await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
       }
       if (!ts.truthy(station.isBackcheckOk[1])) {
-        // precondition of Send data in batch result
         ts.eval(
           'Parameters.ModelData.TestSockets[1].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
         ); // Send data in batch result
       }
     }
-    // status expression: ""
-    // description: UUT 2
-    // label:
+    // UUT 2
     if (station.testResult[2] == 1 && ts.truthy(station.isBackcheckOk[2])) {
       //   FailString <- ""
       //   EntryTime <- StationGlobals.Ent_Time
@@ -898,7 +498,6 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     } else {
       if (station.isRecordFail == 'True' && ts.truthy(station.isBackcheckOk[2])) {
-        // precondition of Send Process
         //   FailString <- StationGlobals.FailString[2]
         //   EntryTime <- StationGlobals.Ent_Time
         //   SerialNumber <- StationGlobals.IndividualSerials[2]
@@ -911,15 +510,12 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
         await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
       }
       if (!ts.truthy(station.isBackcheckOk[2])) {
-        // precondition of Send data in batch result
         ts.eval(
           'Parameters.ModelData.TestSockets[2].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
         ); // Send data in batch result
       }
     }
-    // status expression: ""
-    // description: UUT 3
-    // label:
+    // UUT 3
     if (station.testResult[3] == 1) {
       //   FailString <- ""
       //   EntryTime <- StationGlobals.Ent_Time
@@ -933,7 +529,6 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     } else {
       if (station.isRecordFail == 'True' && ts.truthy(station.isBackcheckOk[3])) {
-        // precondition of Send Process
         //   FailString <- StationGlobals.FailString[3]
         //   EntryTime <- StationGlobals.Ent_Time
         //   SerialNumber <- StationGlobals.IndividualSerials[3]
@@ -946,15 +541,12 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
         await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
       }
       if (!ts.truthy(station.isBackcheckOk[3])) {
-        // precondition of Send data in batch result
         ts.eval(
           'Parameters.ModelData.TestSockets[3].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
         ); // Send data in batch result
       }
     }
-    // status expression: ""
-    // description: UUT 4
-    // label:
+    // UUT 4
     if (station.testResult[4] == 1) {
       //   FailString <- ""
       //   EntryTime <- StationGlobals.Ent_Time
@@ -968,7 +560,6 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     } else {
       if (station.isRecordFail == 'True' && ts.truthy(station.isBackcheckOk[4])) {
-        // precondition of Send Process
         //   FailString <- StationGlobals.FailString[4]
         //   EntryTime <- StationGlobals.Ent_Time
         //   SerialNumber <- StationGlobals.IndividualSerials[4]
@@ -981,15 +572,12 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
         await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
       }
       if (!ts.truthy(station.isBackcheckOk[4])) {
-        // precondition of Send data in batch result
         ts.eval(
           'Parameters.ModelData.TestSockets[4].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
         ); // Send data in batch result
       }
     }
-    // status expression: ""
-    // description: UUT 5
-    // label:
+    // UUT 5
     if (station.testResult[5] == 1) {
       //   FailString <- ""
       //   EntryTime <- StationGlobals.Ent_Time
@@ -1003,7 +591,6 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     } else {
       if (station.isRecordFail == 'True' && ts.truthy(station.isBackcheckOk[5])) {
-        // precondition of Send Process
         //   FailString <- StationGlobals.FailString[5]
         //   EntryTime <- StationGlobals.Ent_Time
         //   SerialNumber <- StationGlobals.IndividualSerials[5]
@@ -1016,41 +603,34 @@ Future<String> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) 
         await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
       }
       if (!ts.truthy(station.isBackcheckOk[5])) {
-        // precondition of Send data in batch result
         ts.eval(
           'Parameters.ModelData.TestSockets[5].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
         ); // Send data in batch result
       }
     }
   }
-  // label: End Of Traceability Section
-  // status expression: ""
-  // label:
+  // End Of Traceability Section
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(modelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.BatchModelShowStatus)) {
-    // precondition of Tell Dialog To Show Status
     ts.notExported('cModule call: Tell Dialog To Show Status'); // Tell Dialog To Show Status [Action]
   }
-
-  return run.status;
 }
 
 class _LoadVariablesLocals {
-  String filePath = 'C:\\\\Elatch-Bench-Programming\\\\Load_Data\\\\Variables.ini'; // Str
-  List<dynamic> testName = <dynamic>[]; // Strs
-  List<dynamic> numLimits = <dynamic>[]; // Nums
-  List<dynamic> strLimits = <dynamic>[]; // Strs
-  String tempName = ''; // Str
-  String tempStr = ''; // Str
-  int arrayIndex = 0; // Num — default: 0
-  int tempNum = 0; // Num — default: 0
-  int tempLoop = 0; // Num — default: 0
+  String filePath = 'C:\\\\Elatch-Bench-Programming\\\\Load_Data\\\\Variables.ini';
+  List<dynamic> testName = <dynamic>[];
+  List<dynamic> numLimits = <dynamic>[];
+  List<dynamic> strLimits = <dynamic>[];
+  String tempName = '';
+  String tempStr = '';
+  int arrayIndex = 0;
+  int tempNum = 0;
+  int tempLoop = 0;
 }
 
 /// Sequence `Load_Variables`.
-Future<String> loadVariables({String variableList = ''}) async {
+Future<void> loadVariables({String variableList = ''}) async {
   final locals = _LoadVariablesLocals();
-  final run = ts.SequenceRun();
 
   //   FilePath <- Locals.File_Path
   //   OutPutValue <- 1
@@ -1067,12 +647,10 @@ Future<String> loadVariables({String variableList = ''}) async {
     ts.eval('RunState.Main.FileGlobals.SetValString(Locals.Temp_Name,0x1,Locals.Temp_Str)'); // CreateLimits
   }
   // [skipped in source] Message Popup
-
-  return run.status;
 }
 
 /// Sequence `Write_reset_flex_provision`.
-Future<String> writeResetFlexProvision() async {
+Future<ts.Status> writeResetFlexProvision() async {
   final run = ts.SequenceRun();
   final dynamic flashFlexProvisionResetResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -1080,63 +658,53 @@ Future<String> writeResetFlexProvision() async {
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Flash_Flex_Provision_Reset
+  });
   final dynamic jLinkResetResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink_reset
+  });
   final dynamic jLinkRestartResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink_restart
+  });
   final dynamic jLinkResetResult2 = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink_reset
+  });
 
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   //   path_file <- StationGlobals.Path_reset_flex_provision
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // Flash_Flex_Provision_Reset [PassFailTest]
-  flashFlexProvisionResetResult.Status = ts.truthy(flashFlexProvisionResetResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
+  flashFlexProvisionResetResult.Status = ts.truthy(flashFlexProvisionResetResult.PassFail) ? 'Passed' : 'Failed';
   run.record(flashFlexProvisionResetResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_reset [PassFailTest]
-  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_restart [PassFailTest]
-  jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 2));
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_reset [PassFailTest]
-  jLinkResetResult2.Status = ts.truthy(jLinkResetResult2.PassFail) ? 'Passed' : 'Failed'; // status expression
+  jLinkResetResult2.Status = ts.truthy(jLinkResetResult2.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult2.Status);
 
   return run.status;
 }
 
 /// Sequence `Write_flex_provision`.
-Future<String> writeFlexProvision() async {
+Future<ts.Status> writeFlexProvision() async {
   final run = ts.SequenceRun();
   final dynamic fllashFlexProvisionResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -1144,63 +712,53 @@ Future<String> writeFlexProvision() async {
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Fllash_Flex_Provision
+  });
   final dynamic jLinkResetResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink_reset
+  });
   final dynamic jLinkRestartResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink_restart
+  });
   final dynamic jLinkResetResult2 = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink_reset
+  });
 
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   //   path_file <- StationGlobals.Path_flex_provision
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // Fllash_Flex_Provision [PassFailTest]
-  fllashFlexProvisionResult.Status = ts.truthy(fllashFlexProvisionResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
+  fllashFlexProvisionResult.Status = ts.truthy(fllashFlexProvisionResult.PassFail) ? 'Passed' : 'Failed';
   run.record(fllashFlexProvisionResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_reset [PassFailTest]
-  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_restart [PassFailTest]
-  jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 12));
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_reset [PassFailTest]
-  jLinkResetResult2.Status = ts.truthy(jLinkResetResult2.PassFail) ? 'Passed' : 'Failed'; // status expression
+  jLinkResetResult2.Status = ts.truthy(jLinkResetResult2.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult2.Status);
 
   return run.status;
 }
 
 /// Sequence `Write_program_combined`.
-Future<String> writeProgramCombined() async {
+Future<ts.Status> writeProgramCombined() async {
   final run = ts.SequenceRun();
   final dynamic fllashFlexCombinedResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -1208,107 +766,85 @@ Future<String> writeProgramCombined() async {
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Fllash_Flex_Combined
+  });
   final dynamic jLinkHaltResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink_halt
+  });
   final dynamic jLinkRestartResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink_restart
+  });
   final dynamic jLinkResetResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink_reset
+  });
   final dynamic jLinkRestartResult2 = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of JLink_restart
+  });
 
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   //   path_file <- StationGlobals.Path_program_combined
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // Fllash_Flex_Combined [PassFailTest]
-  fllashFlexCombinedResult.Status = ts.truthy(fllashFlexCombinedResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
+  fllashFlexCombinedResult.Status = ts.truthy(fllashFlexCombinedResult.PassFail) ? 'Passed' : 'Failed';
   run.record(fllashFlexCombinedResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_halt [PassFailTest]
-  jLinkHaltResult.Status = ts.truthy(jLinkHaltResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  jLinkHaltResult.Status = ts.truthy(jLinkHaltResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkHaltResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_restart [PassFailTest]
-  jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 12));
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_reset [PassFailTest]
-  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Return Value <- Step.Result.PassFail
   ts.notExported('python call: ..\\Python\\ecu_programmer.py'); // JLink_restart [PassFailTest]
-  jLinkRestartResult2.Status = ts.truthy(jLinkRestartResult2.PassFail) ? 'Passed' : 'Failed'; // status expression
+  jLinkRestartResult2.Status = ts.truthy(jLinkRestartResult2.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkRestartResult2.Status);
 
   return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// External sequence `ProcessDialogRequests`
-/// (called from step `Wait For Dialog`) — lives in another
-/// sequence file. TODO: implement, or delegate to that file's
-/// exported function.
+/// Sequence `ProcessDialogRequests` in a file outside this export.
 Future<Object?> processDialogRequests() async => throw UnimplementedError('external sequence: ProcessDialogRequests');
 
-/// Stub for the labView module call `..\LabVIEW_VIs\Traceability\WSP2_PartNumberRef.vi`
-/// (from step `Get_PartNumber`). TODO: implement against the real module.
+/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_PartNumberRef.vi`.
 Future<Object?> callWsp2PartNumberRef() async =>
     throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_PartNumberRef.vi');
 
-/// Stub for the labView module call `..\LabVIEW_VIs\Traceability\WSP2_BackCheck_Serial.vi`
-/// (from step `BackCheck UUT 0`). TODO: implement against the real module.
+/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_BackCheck_Serial.vi`.
 Future<Object?> callWsp2BackCheckSerial() async =>
     throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi');
 
-/// Stub for the labView module call `..\LabVIEW_VIs\USB-ERB24\All_Off_Relays.vi`
-/// (from step `Set relays to init state`). TODO: implement against the real module.
+/// The labView module `..\LabVIEW_VIs\USB-ERB24\All_Off_Relays.vi`.
 Future<Object?> callAllOffRelays() async =>
     throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\USB-ERB24\\All_Off_Relays.vi');
 
-/// Stub for the labView module call `..\LabVIEW_VIs\USB-ERB24\Choose_nest.vi`
-/// (from step `Change NO staterele 1 to 6`). TODO: implement against the real module.
+/// The labView module `..\LabVIEW_VIs\USB-ERB24\Choose_nest.vi`.
 Future<Object?> callChooseNest() async =>
     throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\USB-ERB24\\Choose_nest.vi');
 
-/// Stub for the labView module call `..\LabVIEW_VIs\Traceability\WSP2_InsertProcessDataWithFails.vi`
-/// (from step `Send Process`). TODO: implement against the real module.
+/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_InsertProcessDataWithFails.vi`.
 Future<Object?> callWsp2InsertProcessDataWithFails() async =>
     throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi');
 
-/// Stub for the labView module call `..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi`
-/// (from step `ReadFileLimit`). TODO: implement against the real module.
+/// The labView module `..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi`.
 Future<Object?> callGetLimitsV3() async =>
     throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Generic_Vi\'s\\Get_Limits_V3.vi');

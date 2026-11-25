@@ -2,53 +2,10 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic powerDiagnosticsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Power Diagnostics
-  final dynamic batteryChargerVoltageAndCurrentSleepModeResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Battery/Charger Voltage and Current Sleep Mode
-  final dynamic resetAndSelfTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Reset and Self-Test
-  final dynamic animationAndSoundUserInputTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Animation and Sound User Input Test
-  final dynamic audioFilterTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Audio Filter Test
-  final dynamic turnOffAllAoChannelsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Turn Off all AO Channels
-  final dynamic powerDownSupplyResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Power Down Supply
 
   try {
-    // ── setup ──
     ts.eval(
       'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= Locals.Hardware_Config_Path + @"\\Hardware Config Demo.ini" , // Returns the Hardware config INI File path kept parallel to this sequence',
     ); // Frame Hardware Config INI file path
@@ -57,70 +14,51 @@ Future<String> mainSequence() async {
     //   error out <- Step.Result.Error
     await callImportHardwareConfig(); // Import Hardware Configuration [Action]
 
-    // ── main ──
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    powerDiagnosticsResult.Status = await powerDiagnostics(); // Power Diagnostics
-    powerDiagnosticsResult.Status = powerDiagnosticsResult.Status == 'Done'
-        ? 'Passed'
-        : powerDiagnosticsResult.Status; // status expression
-    run.record(powerDiagnosticsResult.Status);
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    batteryChargerVoltageAndCurrentSleepModeResult.Status =
-        await batteryChargerVoltageAndCurrentSleepMode(); // Battery/Charger Voltage and Current Sleep Mode
-    batteryChargerVoltageAndCurrentSleepModeResult.Status =
-        batteryChargerVoltageAndCurrentSleepModeResult.Status == 'Done'
-        ? 'Passed'
-        : batteryChargerVoltageAndCurrentSleepModeResult.Status; // status expression
-    run.record(batteryChargerVoltageAndCurrentSleepModeResult.Status);
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    resetAndSelfTestResult.Status = await resetAndSelfTest(); // Reset and Self-Test
-    resetAndSelfTestResult.Status = resetAndSelfTestResult.Status == 'Done'
-        ? 'Passed'
-        : resetAndSelfTestResult.Status; // status expression
-    run.record(resetAndSelfTestResult.Status);
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    animationAndSoundUserInputTestResult.Status =
-        await animationAndSoundUserInputTest(); // Animation and Sound User Input Test
-    animationAndSoundUserInputTestResult.Status = animationAndSoundUserInputTestResult.Status == 'Done'
-        ? 'Passed'
-        : animationAndSoundUserInputTestResult.Status; // status expression
-    run.record(animationAndSoundUserInputTestResult.Status);
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    audioFilterTestResult.Status = await audioFilterTest(); // Audio Filter Test
-    audioFilterTestResult.Status = audioFilterTestResult.Status == 'Done'
-        ? 'Passed'
-        : audioFilterTestResult.Status; // status expression
-    run.record(audioFilterTestResult.Status);
+    run.record(await powerDiagnostics()); // Power Diagnostics
+    run.record(await batteryChargerVoltageAndCurrentSleepMode()); // Battery/Charger Voltage and Current Sleep Mode
+    run.record(await resetAndSelfTest()); // Reset and Self-Test
+    run.record(await animationAndSoundUserInputTest()); // Animation and Sound User Input Test
+    run.record(await audioFilterTest()); // Audio Filter Test
   } finally {
-    // ── cleanup ──
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    turnOffAllAoChannelsResult.Status = await turnOffAllAoChannels(); // Turn Off all AO Channels
-    turnOffAllAoChannelsResult.Status = turnOffAllAoChannelsResult.Status == 'Done'
-        ? 'Passed'
-        : turnOffAllAoChannelsResult.Status; // status expression
-    run.record(turnOffAllAoChannelsResult.Status);
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    await turnOffAllAoChannels(); // Turn Off all AO Channels
     await powerDownSupply2(); // Power Down Supply: external sequence call
-    powerDownSupplyResult.Status = powerDownSupplyResult.Status == 'Done'
-        ? 'Passed'
-        : powerDownSupplyResult.Status; // status expression
-    run.record(powerDownSupplyResult.Status);
   }
 
   return run.status;
 }
 
 /// Sequence `---------------Tests---------------------`.
-Future<String> tests() async {
-  final run = ts.SequenceRun();
-
+Future<void> tests() async {
   // (no steps in the source sequence)
+}
 
-  return run.status;
+class _PowerDiagnosticsLocals {
+  dynamic psTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
+  dynamic psMeasData = ts.PropObj({
+    'Voltage_Waveform': ts.PropObj({
+      't0': '',
+      'dt': 1,
+      'Y': <dynamic>['0'],
+      'attributes': <dynamic>[],
+    }),
+    'Current_Waveform': ts.PropObj({
+      't0': '',
+      'dt': 1,
+      'Y': <dynamic>['0'],
+      'attributes': <dynamic>[],
+    }),
+    'Max_Voltage': 0,
+    'Max_Current': 0,
+    'Max_Power': 0,
+    'Avg_Power': 0,
+  });
+  dynamic dcVoltageMeasTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
+  dynamic dcMeasData = ts.PropObj({'Voltage_Waveform': <dynamic>[], 'Avg_Voltage': <dynamic>[]});
 }
 
 /// Sequence `Power Diagnostics`.
-Future<String> powerDiagnostics() async {
+Future<ts.Status> powerDiagnostics() async {
+  final locals = _PowerDiagnosticsLocals();
   final run = ts.SequenceRun();
   final dynamic powerSupplySourceAndMeasurePowerOnMeasureStartupMaxPicCurrentResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -152,7 +90,7 @@ Future<String> powerDiagnostics() async {
         'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
       }),
     ],
-  }); // result of Power Supply Source and Measure - Power On & Measure startup max pic current
+  });
   final dynamic powerSupplySourceAndMeasureMeasureIdlePowerConsumptionResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -183,7 +121,7 @@ Future<String> powerDiagnostics() async {
         'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
       }),
     ],
-  }); // result of Power Supply Source and Measure - Measure Idle power consumption
+  });
   final dynamic dcRmsVoltageMeasurementMeasureDcRegulatorVoltagesResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -260,13 +198,11 @@ Future<String> powerDiagnostics() async {
         'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
       }),
     ],
-  }); // result of DC-RMS Voltage Measurement - Measure DC Regulator Voltages
+  });
 
   try {
-    // ── setup ──
-    // label: Power Supply test demonstrates Powering up and Validation of Start-up Transition Max pic Current, Idle Power Consumption and DC Regulators
-    // label:
-    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Power Supply test demonstrates Powering up and Validation of Start-up Transition Max pic Current, Idle Power Consumption and DC Regulators
+    // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     //   Physical channels <- "Simulated_Power/power" //Physical channel for Power Supply Source and Measure (Power)
     //   DAQmx Task Out <- Locals.PS_Task
     //   error out <- Step.Result.Error
@@ -276,79 +212,37 @@ Future<String> powerDiagnostics() async {
     //   error out <- Step.Result.Error
     await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize DC Regulator TPs [Action]
 
-    // ── main ──
-    // label: Note to run with Hardware: Review the Configurations for the intended use case
-    // checks: Step.NumericArray
+    // Note to run with Hardware: Review the Configurations for the intended use case
     //   DAQmx Task In <- Locals.PS_Task
     //   DAQmx Task Out <- Locals.PS_Task
     //   Voltage Waveforms <- Locals.PS_Meas_Data.Voltage_Waveform
     //   Current Waveforms <- Locals.PS_Meas_Data.Current_Waveform
     //   error out <- Step.Result.Error
     await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Power On & Measure startup max pic current [NI_MultipleNumericLimitTest]
-    await ts.stepHost.runStepType(
-      'NI_MultipleNumericLimitTest',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'DataSource': 'Step.NumericArray',
-        'NumericArray': <dynamic>['0'],
-        'UseIndividualDataSources': true,
-        'DataSourceArray': <dynamic>['Locals.PS_Meas_Data.Max_Current'],
-        'ExpectedNumMeas': 1,
-        'ExtraDataAction': 'IgnoreExtraData',
-        'MeasToRepeat': 0,
-        'ExtraMeasAction': 'RunTimeError',
-      }),
-      powerSupplySourceAndMeasurePowerOnMeasureStartupMaxPicCurrentResult,
-    );
-    powerSupplySourceAndMeasurePowerOnMeasureStartupMaxPicCurrentResult.Status = 'Done';
+    powerSupplySourceAndMeasurePowerOnMeasureStartupMaxPicCurrentResult.Status = ts.multipleNumericLimitTest([
+      (value: locals.psMeasData.Max_Current, comparison: 'GELE', low: 0, high: 1),
+    ]);
     run.record(powerSupplySourceAndMeasurePowerOnMeasureStartupMaxPicCurrentResult.Status);
-    // checks: Step.NumericArray
     //   DAQmx Task In <- Locals.PS_Task
     //   DAQmx Task Out <- Locals.PS_Task
     //   error out <- Step.Result.Error
     await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Measure Idle power consumption [NI_MultipleNumericLimitTest]
-    await ts.stepHost.runStepType(
-      'NI_MultipleNumericLimitTest',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'DataSource': 'Step.NumericArray',
-        'NumericArray': <dynamic>['0'],
-        'UseIndividualDataSources': true,
-        'DataSourceArray': <dynamic>['Locals.PS_Meas_Data.Avg_Power'],
-        'ExpectedNumMeas': 1,
-        'ExtraDataAction': 'IgnoreExtraData',
-        'MeasToRepeat': 0,
-        'ExtraMeasAction': 'RunTimeError',
-      }),
-      powerSupplySourceAndMeasureMeasureIdlePowerConsumptionResult,
-    );
-    powerSupplySourceAndMeasureMeasureIdlePowerConsumptionResult.Status = 'Done';
+    powerSupplySourceAndMeasureMeasureIdlePowerConsumptionResult.Status = ts.multipleNumericLimitTest([
+      (value: locals.psMeasData.Avg_Power, comparison: 'GELE', low: 4.5, high: 5.5),
+    ]);
     run.record(powerSupplySourceAndMeasureMeasureIdlePowerConsumptionResult.Status);
-    // checks: Locals.DC_Meas_Data.Avg_Voltage
     //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
     //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
     //   Voltage Waveforms <- Locals.DC_Meas_Data.Voltage_Waveform
     //   error out <- Step.Result.Error
     await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure DC Regulator Voltages [NI_MultipleNumericLimitTest]
-    await ts.stepHost.runStepType(
-      'NI_MultipleNumericLimitTest',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'DataSource': 'Locals.DC_Meas_Data.Avg_Voltage',
-        'NumericArray': <dynamic>['0', '0', '0'],
-        'UseIndividualDataSources': false,
-        'DataSourceArray': <dynamic>['', '', ''],
-        'ExpectedNumMeas': 3,
-        'ExtraDataAction': 'IgnoreExtraData',
-        'MeasToRepeat': 0,
-        'ExtraMeasAction': 'RunTimeError',
-      }),
-      dcRmsVoltageMeasurementMeasureDcRegulatorVoltagesResult,
-    );
-    dcRmsVoltageMeasurementMeasureDcRegulatorVoltagesResult.Status = 'Done';
+    dcRmsVoltageMeasurementMeasureDcRegulatorVoltagesResult.Status = ts.multipleNumericLimitTest([
+      (value: locals.dcMeasData.Avg_Voltage[0], comparison: 'GELE', low: 0.9, high: 1.1),
+      (value: locals.dcMeasData.Avg_Voltage[1], comparison: 'GELE', low: 3.1, high: 3.4),
+      (value: locals.dcMeasData.Avg_Voltage[2], comparison: 'GELE', low: 4.8, high: 5.2),
+    ]);
     run.record(dcRmsVoltageMeasurementMeasureDcRegulatorVoltagesResult.Status);
   } finally {
-    // ── cleanup ──
     //   DAQmx Task In <- Locals.PS_Task
     //   error out <- Step.Result.Error
     await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
@@ -360,8 +254,33 @@ Future<String> powerDiagnostics() async {
   return run.status;
 }
 
+class _BatteryChargerVoltageAndCurrentSleepModeLocals {
+  dynamic resourceHandles = ts.PropObj({
+    'DMM_Handle': ts.PropObj({'DeviceName': '', 'SessionNumber': 0}),
+    'MUX_Handle': ts.PropObj({'DeviceName': '', 'SessionNumber': 0}),
+    'Shunt_Handle': ts.PropObj({'DeviceName': '', 'SessionNumber': 0}),
+    'Close_all_Shunts_': false,
+  });
+  List<dynamic> rawMeasurementsActive = <dynamic>[
+    ts.PropObj({'Channel': '', '_Value': 0, 'Unit': '', 'Out_of_Range': false}),
+    ts.PropObj({'Channel': '', '_Value': 0, 'Unit': '', 'Out_of_Range': false}),
+    ts.PropObj({'Channel': '', '_Value': 0, 'Unit': '', 'Out_of_Range': false}),
+    ts.PropObj({'Channel': '', '_Value': 0, 'Unit': '', 'Out_of_Range': false}),
+  ];
+  List<dynamic> rawMeasurementsSleep = <dynamic>[
+    ts.PropObj({'Channel': '', '_Value': 0, 'Unit': '', 'Out_of_Range': false}),
+    ts.PropObj({'Channel': '', '_Value': 0, 'Unit': '', 'Out_of_Range': false}),
+  ];
+  dynamic scanResourcesNames = ts.PropObj({
+    'DMM_Resource_Name': ts.PropObj({'DeviceName': 'DMM_4080', 'SessionNumber': 0}),
+    'MUX_Resource_Name': ts.PropObj({'DeviceName': 'MUX_2527', 'SessionNumber': 0}),
+    'Shunt_Resource_Name': ts.PropObj({'DeviceName': 'Shunt_2568', 'SessionNumber': 0}),
+  });
+}
+
 /// Sequence `Battery/Charger Voltage and Current Sleep Mode`.
-Future<String> batteryChargerVoltageAndCurrentSleepMode() async {
+Future<ts.Status> batteryChargerVoltageAndCurrentSleepMode() async {
+  final locals = _BatteryChargerVoltageAndCurrentSleepModeLocals();
   final run = ts.SequenceRun();
   final dynamic dmmScanActiveModeVoltageCurrentResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -462,7 +381,7 @@ Future<String> batteryChargerVoltageAndCurrentSleepMode() async {
         'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
       }),
     ],
-  }); // result of DMM Scan - Active Mode Voltage & Current
+  });
   final dynamic dmmScanSleepModeVoltageCurrentResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -516,74 +435,39 @@ Future<String> batteryChargerVoltageAndCurrentSleepMode() async {
         'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
       }),
     ],
-  }); // result of DMM Scan - Sleep Mode Voltage & Current
+  });
 
   try {
-    // ── setup ──
     //   Powerline Frequency <- 1
     //   Close all Shunts? <- True
     //   Scan Resource Handles Out <- Locals.Resource_Handles
     //   error out <- Step.Result.Error
     await callDmmScanPmps16V15CInitialize(); // DMM Scan - Initialize Scan TPs [Action]
 
-    // ── main ──
-    // label: Close all current shunts to power DUT, then scan ch0, ch1, ch16, ch17
-    // checks: Step.NumericArray
+    // Close all current shunts to power DUT, then scan ch0, ch1, ch16, ch17
     //   Scan Resources Handles In <- Locals.Resource_Handles
     //   Scan Resources Handles Out <- Locals.Resource_Handles
     //   Raw Measurements <- Locals.Raw_Measurements_Active
     //   error out <- Step.Result.Error
     await callDmmScanPmps16V15CConfigureAndMeasure(); // DMM Scan - Active Mode Voltage & Current [NI_MultipleNumericLimitTest]
-    await ts.stepHost.runStepType(
-      'NI_MultipleNumericLimitTest',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'DataSource': 'Step.NumericArray',
-        'NumericArray': <dynamic>['0', '0', '0', '0'],
-        'UseIndividualDataSources': true,
-        'DataSourceArray': <dynamic>[
-          'Locals.Raw_Measurements_Active[0]._Value',
-          'Locals.Raw_Measurements_Active[1]._Value',
-          'Locals.Raw_Measurements_Active[2]._Value',
-          'Locals.Raw_Measurements_Active[3]._Value',
-        ],
-        'ExpectedNumMeas': 4,
-        'ExtraDataAction': 'IgnoreExtraData',
-        'MeasToRepeat': 0,
-        'ExtraMeasAction': 'RunTimeError',
-      }),
-      dmmScanActiveModeVoltageCurrentResult,
-    );
-    dmmScanActiveModeVoltageCurrentResult.Status = 'Done';
+    dmmScanActiveModeVoltageCurrentResult.Status = ts.multipleNumericLimitTest([
+      (value: locals.rawMeasurementsActive[0]._Value, comparison: 'GELE', low: 4.75, high: 5.25),
+      (value: locals.rawMeasurementsActive[1]._Value, comparison: 'GELE', low: 2.5, high: 4.25),
+      (value: locals.rawMeasurementsActive[2]._Value, comparison: 'GELE', low: 0, high: 0.5),
+      (value: locals.rawMeasurementsActive[3]._Value, comparison: 'GELE', low: 0, high: 0.5),
+    ]);
     run.record(dmmScanActiveModeVoltageCurrentResult.Status);
     await Future<void>.delayed(const Duration(seconds: 2)); // Wait for 2 seconds of inactivity, then scan ch1, ch17
-    // checks: Step.NumericArray
     //   Scan Resources Handles In <- Locals.Resource_Handles
     //   Raw Measurements <- Locals.Raw_Measurements_Sleep
     //   error out <- Step.Result.Error
     await callDmmScanPmps16V15CConfigureAndMeasure(); // DMM Scan - Sleep Mode Voltage & Current [NI_MultipleNumericLimitTest]
-    await ts.stepHost.runStepType(
-      'NI_MultipleNumericLimitTest',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'DataSource': 'Step.NumericArray',
-        'NumericArray': <dynamic>['0', '0'],
-        'UseIndividualDataSources': true,
-        'DataSourceArray': <dynamic>[
-          'Locals.Raw_Measurements_Sleep[0]._Value',
-          'Locals.Raw_Measurements_Sleep[1]._Value',
-        ],
-        'ExpectedNumMeas': 2,
-        'ExtraDataAction': 'IgnoreExtraData',
-        'MeasToRepeat': 0,
-        'ExtraMeasAction': 'RunTimeError',
-      }),
-      dmmScanSleepModeVoltageCurrentResult,
-    );
-    dmmScanSleepModeVoltageCurrentResult.Status = 'Done';
+    dmmScanSleepModeVoltageCurrentResult.Status = ts.multipleNumericLimitTest([
+      (value: locals.rawMeasurementsSleep[0]._Value, comparison: 'GELE', low: 2.5, high: 4.25),
+      (value: locals.rawMeasurementsSleep[1]._Value, comparison: 'GELE', low: 0.000005, high: 0.000015),
+    ]);
     run.record(dmmScanSleepModeVoltageCurrentResult.Status);
   } finally {
-    // ── cleanup ──
     //   Scan Resources Handles In <- Locals.Resource_Handles
     //   error out <- Step.Result.Error
     await callDmmScanPmps16V15CClose(); // DMM Scan - Close TPs [Action]
@@ -592,8 +476,19 @@ Future<String> batteryChargerVoltageAndCurrentSleepMode() async {
   return run.status;
 }
 
+class _ResetAndSelfTestLocals {
+  dynamic digitalStateGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
+  dynamic dcVoltageMeasTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
+  dynamic dcMeasData = ts.PropObj({'Voltage_Waveform': <dynamic>[], 'Avg_Voltage': <dynamic>[]});
+  List<dynamic> doChannelIDs = <dynamic>[
+    ts.PropObj({'DeviceName': '', 'SessionNumber': 0}),
+    ts.PropObj({'DeviceName': '', 'SessionNumber': 0}),
+  ];
+}
+
 /// Sequence `Reset and Self-Test`.
-Future<String> resetAndSelfTest() async {
+Future<ts.Status> resetAndSelfTest() async {
+  final locals = _ResetAndSelfTestLocals();
   final run = ts.SequenceRun();
   final dynamic dcRmsVoltageMeasurementMeasureLedStatesResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -648,13 +543,11 @@ Future<String> resetAndSelfTest() async {
         'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
       }),
     ],
-  }); // result of DC-RMS Voltage Measurement - Measure LED states
+  });
 
   try {
-    // ── setup ──
-    // label: Power On Self Test demonstrates Switching of Push Reset Button and Verifies the LEDs state
-    // label:
-    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Power On Self Test demonstrates Switching of Push Reset Button and Verifies the LEDs state
+    // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     //   Physical Channels <- ""
     //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
     //   error out <- Step.Result.Error
@@ -664,46 +557,31 @@ Future<String> resetAndSelfTest() async {
     //   error out <- Step.Result.Error
     await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize LED TPs [Action]
 
-    // ── main ──
-    // label: Note to run with Hardware: Review the Configurations for the intended use case
+    // Note to run with Hardware: Review the Configurations for the intended use case
     //   DAQmx Task In <- Locals.Digital_State_Gen_Task
     //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
     //   Channel Identifiers <- Locals.DOChannel_IDs
     //   error out <- Step.Result.Error
     await callDaqStaticDigGenConfigureAndGenerate(); // Static Digital State Generation - Turn ON Push Reset Button [Action]
     await Future<void>.delayed(const Duration(milliseconds: 100)); // Wait for 0.1 seconds in Reset enabled state
-    // label: Note to run with Hardware: Review the Configurations for the intended use case
+    // Note to run with Hardware: Review the Configurations for the intended use case
     //   DAQmx Task In <- Locals.Digital_State_Gen_Task
     //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
     //   Channel Identifiers <- Locals.DOChannel_IDs
     //   error out <- Step.Result.Error
     await callDaqStaticDigGenConfigureAndGenerate(); // Static Digital State Generation - Turn OFF Push Reset Button [Action]
     await Future<void>.delayed(const Duration(seconds: 5)); // Wait for 5 seconds in Reset disabled state
-    // checks: Locals.DC_Meas_Data.Avg_Voltage
     //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
     //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
     //   Voltage Waveforms <- Locals.DC_Meas_Data.Voltage_Waveform
     //   error out <- Step.Result.Error
     await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure LED states [NI_MultipleNumericLimitTest]
-    await ts.stepHost.runStepType(
-      'NI_MultipleNumericLimitTest',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'DataSource': 'Locals.DC_Meas_Data.Avg_Voltage',
-        'NumericArray': <dynamic>['0', '0'],
-        'UseIndividualDataSources': false,
-        'DataSourceArray': <dynamic>['', ''],
-        'ExpectedNumMeas': 2,
-        'ExtraDataAction': 'IgnoreExtraData',
-        'MeasToRepeat': 0,
-        'ExtraMeasAction': 'RunTimeError',
-      }),
-      dcRmsVoltageMeasurementMeasureLedStatesResult,
-    );
-    dcRmsVoltageMeasurementMeasureLedStatesResult.Status = 'Done';
+    dcRmsVoltageMeasurementMeasureLedStatesResult.Status = ts.multipleNumericLimitTest([
+      (value: locals.dcMeasData.Avg_Voltage[0], comparison: 'GELE', low: 1.8, high: 2.2),
+      (value: locals.dcMeasData.Avg_Voltage[1], comparison: 'GELE', low: 2.6, high: 3.2),
+    ]);
     run.record(dcRmsVoltageMeasurementMeasureLedStatesResult.Status);
   } finally {
-    // ── cleanup ──
     //   DAQmx Task In <- Locals.Digital_State_Gen_Task
     //   error out <- Step.Result.Error
     await callDaqStaticDigGenClose(); // Static Digital State Generation - Close [Action]
@@ -715,8 +593,22 @@ Future<String> resetAndSelfTest() async {
   return run.status;
 }
 
+class _AnimationAndSoundUserInputTestLocals {
+  dynamic dcVoltageGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
+  dynamic timeDomainMeasTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
+  dynamic measData = ts.PropObj({
+    'Voltage_Waveform': <dynamic>[],
+    'Mean_Voltage': <dynamic>[],
+    'VPP_Amplitude': <dynamic>[],
+    'Frequency': <dynamic>[],
+    'Period': <dynamic>[],
+    'Dutycycle': <dynamic>[],
+  });
+}
+
 /// Sequence `Animation and Sound User Input Test`.
-Future<String> animationAndSoundUserInputTest() async {
+Future<ts.Status> animationAndSoundUserInputTest() async {
+  final locals = _AnimationAndSoundUserInputTestLocals();
   final run = ts.SequenceRun();
   final dynamic timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -771,13 +663,11 @@ Future<String> animationAndSoundUserInputTest() async {
         'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
       }),
     ],
-  }); // result of Time Domain Measurement - Fetch Volume LED Dutycycle and Tweeter Frequency
+  });
 
   try {
-    // ── setup ──
-    // label: Action Button Test demonstrates Button Switch and validates Dutycycle of PWM signal on Volume LED and Frequency on Tweeter
-    // label:
-    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Action Button Test demonstrates Button Switch and validates Dutycycle of PWM signal on Volume LED and Frequency on Tweeter
+    // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     //   Physical Channels <- ""
     //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
     //   error out <- Step.Result.Error
@@ -787,8 +677,7 @@ Future<String> animationAndSoundUserInputTest() async {
     //   error out <- Step.Result.Error
     await callDaqTdvMeasInitialize(); // Time Domain Measurement - Initialize TP [Action]
 
-    // ── main ──
-    // label: Note to run with Hardware: Review the Configurations & update the Digital Start Trigger Settings based on NI MAX
+    // Note to run with Hardware: Review the Configurations & update the Digital Start Trigger Settings based on NI MAX
     // Configure Time Domain Measurement settings to wait for Hardware Trigger from Button action
     //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
     //   Periodic Waveform  | Measurements? <- True
@@ -800,43 +689,28 @@ Future<String> animationAndSoundUserInputTest() async {
     //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
     //   error out <- Step.Result.Error
     await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Action Button ON State [Action]
-    // label: Note to run with Hardware: Review the step settings configurations to handle Run-Time Errors
+    // Note to run with Hardware: Review the step settings configurations to handle Run-Time Errors
     // Fetches the measured DC Voltage (measured when Button action sends Trigger after source) and returns Time Domain Analysis.
     // NOTE: This Step errors outs for non-periodic waveform captures.
-    // checks: Step.NumericArray
-    // ignores run-time errors
     //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
     //   Periodic Waveform  | Measurements? <- True
     //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
     //   Voltage Waveforms <- Locals.Meas_Data.Voltage_Waveform
     //   error out <- Step.Result.Error
     await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Fetch Volume LED Dutycycle and Tweeter Frequency [NI_MultipleNumericLimitTest]
-    await ts.stepHost.runStepType(
-      'NI_MultipleNumericLimitTest',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'DataSource': 'Step.NumericArray',
-        'NumericArray': <dynamic>['0', '0'],
-        'UseIndividualDataSources': true,
-        'DataSourceArray': <dynamic>['Locals.Meas_Data.Dutycycle[0]', 'Locals.Meas_Data.Frequency[1]'],
-        'ExpectedNumMeas': 2,
-        'ExtraDataAction': 'IgnoreExtraData',
-        'MeasToRepeat': 0,
-        'ExtraMeasAction': 'RunTimeError',
-      }),
-      timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult,
-    );
-    timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult.Status = 'Done';
+    timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult.Status = ts.multipleNumericLimitTest([
+      (value: locals.measData.Dutycycle[0], comparison: 'GELE', low: 25, high: 35),
+      (value: locals.measData.Frequency[1], comparison: 'GELE', low: 990, high: 1010),
+    ]);
     run.record(timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult.Status);
-    // label: Note to run with Hardware: Review the Configurations for the intended use case
+    // Note to run with Hardware: Review the Configurations for the intended use case
     // Note: To simulate the push on a volume button to generate a sound and a light animation to the LED
     //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
     //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
     //   error out <- Step.Result.Error
     await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Action Button OFF State [Action]
   } finally {
-    // ── cleanup ──
-    // label: Close all Tasks
+    // Close all Tasks
     //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
     //   error out <- Step.Result.Error
     await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close Action Button [Action]
@@ -848,8 +722,17 @@ Future<String> animationAndSoundUserInputTest() async {
   return run.status;
 }
 
+class _AudioFilterTestLocals {
+  dynamic signalVoltageGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
+  dynamic freqDomainMeasTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
+  dynamic measData = ts.PropObj({'Voltage_Waveform': <dynamic>[], 'Detected_Tones': <dynamic>[]});
+  int freqTolerancePercentage = 10;
+  int ampTolerancePercentage = 10;
+}
+
 /// Sequence `Audio Filter Test`.
-Future<String> audioFilterTest() async {
+Future<ts.Status> audioFilterTest() async {
+  final locals = _AudioFilterTestLocals();
   final run = ts.SequenceRun();
   final dynamic freqDomainMeasurementMeasureToneResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -1042,13 +925,11 @@ Future<String> audioFilterTest() async {
         'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
       }),
     ],
-  }); // result of Freq Domain Measurement - Measure Tone
+  });
 
   try {
-    // ── setup ──
-    // label: Audio Test demonstrates Audio Filter Check, sends multi-tone Audio signal and validates the frequency and Amplitude of measured Tones
-    // label:
-    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Audio Test demonstrates Audio Filter Check, sends multi-tone Audio signal and validates the frequency and Amplitude of measured Tones
+    // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     //   Physical Channels <- ""
     //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
     //   error out <- Step.Result.Error
@@ -1058,8 +939,7 @@ Future<String> audioFilterTest() async {
     //   error out <- Step.Result.Error
     await callDaqFdvMeasInitialize(); // Frequency Domain Measurement - Initialize TP [Action]
 
-    // ── main ──
-    // label: Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
+    // Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
     // Configure Freq Domain Measurement settings to wait for Hardware Trigger from Audio Signal Generation
     //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
     //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
@@ -1073,41 +953,64 @@ Future<String> audioFilterTest() async {
     await callDaqSvGenConfigureAndGenerate(); // Signal Voltage Generation -Send Multi Tone Audio Sine Signal [Action]
     //
     // Fetches the Analog Input voltage waveforms (Started measure when Signal Voltage generation sends Trigger) and returns Freq Domain Analysis
-    // checks: Step.NumericArray
     //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
     //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
     //   Voltage Waveforms <- Locals.Meas_Data.Voltage_Waveform
     //   error out <- Step.Result.Error
     await callDaqFdvMeasConfigureAndMeasure(); // Freq Domain Measurement - Measure Tone [NI_MultipleNumericLimitTest]
-    await ts.stepHost.runStepType(
-      'NI_MultipleNumericLimitTest',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'DataSource': 'Step.NumericArray',
-        'NumericArray': <dynamic>['0', '0', '0', '0', '0', '0', '0', '0'],
-        'UseIndividualDataSources': true,
-        'DataSourceArray': <dynamic>[
-          'Locals.Meas_Data.Detected_Tones[0].Frequencies__Hz_[0]',
-          'Locals.Meas_Data.Detected_Tones[0].Frequencies__Hz_[1]',
-          'Locals.Meas_Data.Detected_Tones[0].Frequencies__Hz_[2]',
-          'Locals.Meas_Data.Detected_Tones[0].Frequencies__Hz_[3]',
-          'Locals.Meas_Data.Detected_Tones[0].Amplitudes__V_[0]',
-          'Locals.Meas_Data.Detected_Tones[0].Amplitudes__V_[1]',
-          'Locals.Meas_Data.Detected_Tones[0].Amplitudes__V_[2]',
-          'Locals.Meas_Data.Detected_Tones[0].Amplitudes__V_[3]',
-        ],
-        'ExpectedNumMeas': 8,
-        'ExtraDataAction': 'IgnoreExtraData',
-        'MeasToRepeat': 0,
-        'ExtraMeasAction': 'RunTimeError',
-      }),
-      freqDomainMeasurementMeasureToneResult,
-    );
-    freqDomainMeasurementMeasureToneResult.Status = 'Done';
+    freqDomainMeasurementMeasureToneResult.Status = ts.multipleNumericLimitTest([
+      (
+        value: locals.measData.Detected_Tones[0].Frequencies__Hz_[0],
+        comparison: 'EQT',
+        low: locals.freqTolerancePercentage,
+        high: locals.freqTolerancePercentage,
+      ),
+      (
+        value: locals.measData.Detected_Tones[0].Frequencies__Hz_[1],
+        comparison: 'EQT',
+        low: locals.freqTolerancePercentage,
+        high: locals.freqTolerancePercentage,
+      ),
+      (
+        value: locals.measData.Detected_Tones[0].Frequencies__Hz_[2],
+        comparison: 'EQT',
+        low: locals.freqTolerancePercentage,
+        high: locals.freqTolerancePercentage,
+      ),
+      (
+        value: locals.measData.Detected_Tones[0].Frequencies__Hz_[3],
+        comparison: 'EQT',
+        low: locals.freqTolerancePercentage,
+        high: locals.freqTolerancePercentage,
+      ),
+      (
+        value: locals.measData.Detected_Tones[0].Amplitudes__V_[0],
+        comparison: 'EQT',
+        low: locals.ampTolerancePercentage,
+        high: locals.ampTolerancePercentage,
+      ),
+      (
+        value: locals.measData.Detected_Tones[0].Amplitudes__V_[1],
+        comparison: 'EQT',
+        low: locals.ampTolerancePercentage,
+        high: locals.ampTolerancePercentage,
+      ),
+      (
+        value: locals.measData.Detected_Tones[0].Amplitudes__V_[2],
+        comparison: 'EQT',
+        low: locals.ampTolerancePercentage,
+        high: locals.ampTolerancePercentage,
+      ),
+      (
+        value: locals.measData.Detected_Tones[0].Amplitudes__V_[3],
+        comparison: 'EQT',
+        low: locals.ampTolerancePercentage,
+        high: locals.ampTolerancePercentage,
+      ),
+    ]);
     run.record(freqDomainMeasurementMeasureToneResult.Status);
   } finally {
-    // ── cleanup ──
-    // label: Close all Tasks
+    // Close all Tasks
     //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
     //   error out <- Step.Result.Error
     await callDaqSvGenClose(); // Signal Voltage Generation - Close Audio Signal Gen [Action]
@@ -1120,29 +1023,22 @@ Future<String> audioFilterTest() async {
 }
 
 /// Sequence `----------Other Sequences--------`.
-Future<String> otherSequences() async {
-  final run = ts.SequenceRun();
-
+Future<void> otherSequences() async {
   // (no steps in the source sequence)
-
-  return run.status;
 }
 
 class _TurnOffAllAoChannelsLocals {
-  dynamic dcVoltageGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0}); // LabVIEWIOControl
-  List<dynamic> outputVoltagesV = <dynamic>[]; // Nums — Update the Array based on AO Channels to Turn OFF
+  dynamic dcVoltageGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
+  List<dynamic> outputVoltagesV = <dynamic>[]; // Update the Array based on AO Channels to Turn OFF
 }
 
 /// Sequence `Turn Off all AO Channels`.
-Future<String> turnOffAllAoChannels() async {
+Future<void> turnOffAllAoChannels() async {
   final locals = _TurnOffAllAoChannelsLocals();
-  final run = ts.SequenceRun();
 
   try {
-    // ── setup ──
-    // label: This example resets all configured Analog output channels voltage to 0 Volts
-    // label:
-    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // This example resets all configured Analog output channels voltage to 0 Volts
+    // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     // Initializes the configured Physical/Virtual channels of Analog Output module
     //   Physical Channels <- "Simulated_DAQ/ao0:3" //Turn OFF all AO Channels
     //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
@@ -1150,7 +1046,6 @@ Future<String> turnOffAllAoChannels() async {
     await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
     locals.outputVoltagesV = <dynamic>[0, 0, 0, 0]; // Assign the Output Voltage for all configured AO Channels
 
-    // ── main ──
     // Sources DC Voltage at 0V to Analog Ouput channels
     //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
     //   Output Voltages (V) <- Locals.Output_Voltages__V_
@@ -1158,205 +1053,143 @@ Future<String> turnOffAllAoChannels() async {
     //   error out <- Step.Result.Error
     await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure, Initiate and Sources DC voltage [Action]
   } finally {
-    // ── cleanup ──
     // Closes the DC Voltage Generation Task for Analog output module
     //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
     //   error out <- Step.Result.Error
     await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
   }
-
-  return run.status;
 }
 
 /// Sequence `Power Down Supply`.
-Future<String> powerDownSupply() async {
-  final run = ts.SequenceRun();
-
+Future<void> powerDownSupply() async {
   try {
-    // ── setup ──
-    // label: Powers down the output of power supply module
-    // label:
-    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Powers down the output of power supply module
+    // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     //   Physical channels <- "Simulated_Power/power" //Physical channel of Power Supply  (Power Module)
     //   DAQmx Task Out <- Locals.PS_Task
     //   error out <- Step.Result.Error
     await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize [Action]
 
-    // ── main ──
     // Configures the power supply source to disable output after close to make it to "Idle" state
     //   DAQmx Task In <- Locals.PS_Task
     //   DAQmx Task Out <- Locals.PS_Task
     //   error out <- Step.Result.Error
     await callDaqPsConfigureAndMeasure(); // Power Supply - Set to 0V [Action]
   } finally {
-    // ── cleanup ──
     //   DAQmx Task In <- Locals.PS_Task
     //   error out <- Step.Result.Error
     await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
   }
-
-  return run.status;
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<String> sequenceFileLoad() async {
-  final run = ts.SequenceRun();
-  final dynamic explanationResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Explanation
-
-  // popup title: "About This Example"
-  // popup message: "This example demonstration sequence uses the real hardware library and simulated values from DAQmx.  | The limit tests will return a FAIL status until we use physical DAQ devices and the unit under test. The  | purpose of this demo is to provide a method for understanding the use of the values returned by the library  | in a real world scenario. | Ensure that all the prerequisite software mentioned in the user manual are installed. | For more information about the FT Demo Sequence, refer to the link mentioned below. | https://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/pcb-assembly-functional-test-seq.html"
-  // popup buttons: "OK"
-  // Explanation [MessagePopup]: acts through ts.stepHost
-  final popup = await ts.stepHost.messagePopup(
-    title: 'About This Example',
-    message:
-        'This example demonstration sequence uses the real hardware library and simulated values from DAQmx. \nThe limit tests will return a FAIL status until we use physical DAQ devices and the unit under test. The \npurpose of this demo is to provide a method for understanding the use of the values returned by the library \nin a real world scenario.\n\nEnsure that all the prerequisite software mentioned in the user manual are installed.\n\nFor more information about the FT Demo Sequence, refer to the link mentioned below.\nhttps://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/pcb-assembly-functional-test-seq.html',
-    buttons: ['OK', '', '', '', '', ''],
+Future<void> sequenceFileLoad() async {
+  await ts.messagePopup(
+    'About This Example',
+    'This example demonstration sequence uses the real hardware library and simulated values from DAQmx. \nThe limit tests will return a FAIL status until we use physical DAQ devices and the unit under test. The \npurpose of this demo is to provide a method for understanding the use of the values returned by the library \nin a real world scenario.\n\nEnsure that all the prerequisite software mentioned in the user manual are installed.\n\nFor more information about the FT Demo Sequence, refer to the link mentioned below.\nhttps://ni.com/docs/en-US/bundle/pcb-assembly-test-toolkit-labview/page/pcb-assembly-functional-test-seq.html',
   );
-  explanationResult.ButtonHit = popup.buttonHit;
-  explanationResult.Response = popup.response;
-  explanationResult.Status = 'Done';
-  run.record(explanationResult.Status);
-
-  return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// Stub for the labView module call `Import Hardware Config.vi`
-/// (from step `Import Hardware Configuration`). TODO: implement against the real module.
+/// The labView module `Import Hardware Config.vi`.
 Future<Object?> callImportHardwareConfig() async => throw UnimplementedError('labView call: Import Hardware Config.vi');
 
-/// External sequence `Power down supply`
-/// (called from step `Power Down Supply`) — lives in another
-/// sequence file. TODO: implement, or delegate to that file's
-/// exported function.
+/// Sequence `Power down supply` in a file outside this export.
 Future<Object?> powerDownSupply2() async => throw UnimplementedError('external sequence: Power down supply');
 
-/// Stub for the labView module call `Power Supply Source and Measure\DAQ_PS Initialize.vi`
-/// (from step `Power Supply Source and Measure - Initialize Power Supply`). TODO: implement against the real module.
+/// The labView module `Power Supply Source and Measure\DAQ_PS Initialize.vi`.
 Future<Object?> callDaqPsInitialize() async =>
     throw UnimplementedError('labView call: Power Supply Source and Measure\\DAQ_PS Initialize.vi');
 
-/// Stub for the labView module call `DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Initialize.vi`
-/// (from step `DC-RMS Voltage Measurement - Initialize DC Regulator TPs`). TODO: implement against the real module.
+/// The labView module `DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Initialize.vi`.
 Future<Object?> callDaqDcRmsVoltageMeasInitialize() async =>
     throw UnimplementedError('labView call: DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Initialize.vi');
 
-/// Stub for the labView module call `Power Supply Source and Measure\DAQ_PS Configure and Measure.vi`
-/// (from step `Power Supply Source and Measure - Power On & Measure startup max pic current`). TODO: implement against the real module.
+/// The labView module `Power Supply Source and Measure\DAQ_PS Configure and Measure.vi`.
 Future<Object?> callDaqPsConfigureAndMeasure() async =>
     throw UnimplementedError('labView call: Power Supply Source and Measure\\DAQ_PS Configure and Measure.vi');
 
-/// Stub for the labView module call `DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Configure and Measure.vi`
-/// (from step `DC-RMS Voltage Measurement - Measure DC Regulator Voltages`). TODO: implement against the real module.
+/// The labView module `DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Configure and Measure.vi`.
 Future<Object?> callDaqDcRmsVoltageMeasConfigureAndMeasure() async => throw UnimplementedError(
   'labView call: DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Configure and Measure.vi',
 );
 
-/// Stub for the labView module call `Power Supply Source and Measure\DAQ_PS Close.vi`
-/// (from step `Power Supply Source and Measure - Close`). TODO: implement against the real module.
+/// The labView module `Power Supply Source and Measure\DAQ_PS Close.vi`.
 Future<Object?> callDaqPsClose() async =>
     throw UnimplementedError('labView call: Power Supply Source and Measure\\DAQ_PS Close.vi');
 
-/// Stub for the labView module call `DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Close.vi`
-/// (from step `DC-RMS Voltage Measurement - Close`). TODO: implement against the real module.
+/// The labView module `DC-RMS Voltage Measurement\DAQ_DC-RMS Voltage Meas Close.vi`.
 Future<Object?> callDaqDcRmsVoltageMeasClose() async =>
     throw UnimplementedError('labView call: DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Close.vi');
 
-/// Stub for the labView module call `DMM SCAN PMPS 16V-15C\DMM_Scan PMPS 16V-15C Initialize.vi`
-/// (from step `DMM Scan - Initialize Scan TPs`). TODO: implement against the real module.
+/// The labView module `DMM SCAN PMPS 16V-15C\DMM_Scan PMPS 16V-15C Initialize.vi`.
 Future<Object?> callDmmScanPmps16V15CInitialize() async =>
     throw UnimplementedError('labView call: DMM SCAN PMPS 16V-15C\\DMM_Scan PMPS 16V-15C Initialize.vi');
 
-/// Stub for the labView module call `DMM SCAN PMPS 16V-15C\DMM_Scan PMPS 16V-15C Configure and Measure.vi`
-/// (from step `DMM Scan - Active Mode Voltage & Current`). TODO: implement against the real module.
+/// The labView module `DMM SCAN PMPS 16V-15C\DMM_Scan PMPS 16V-15C Configure and Measure.vi`.
 Future<Object?> callDmmScanPmps16V15CConfigureAndMeasure() async =>
     throw UnimplementedError('labView call: DMM SCAN PMPS 16V-15C\\DMM_Scan PMPS 16V-15C Configure and Measure.vi');
 
-/// Stub for the labView module call `DMM SCAN PMPS 16V-15C\DMM_Scan PMPS 16V-15C Close.vi`
-/// (from step `DMM Scan - Close TPs`). TODO: implement against the real module.
+/// The labView module `DMM SCAN PMPS 16V-15C\DMM_Scan PMPS 16V-15C Close.vi`.
 Future<Object?> callDmmScanPmps16V15CClose() async =>
     throw UnimplementedError('labView call: DMM SCAN PMPS 16V-15C\\DMM_Scan PMPS 16V-15C Close.vi');
 
-/// Stub for the labView module call `Static Digital State Generation\DAQ_Static Dig Gen Initialize.vi`
-/// (from step `Static Digital State Generation - Initialize`). TODO: implement against the real module.
+/// The labView module `Static Digital State Generation\DAQ_Static Dig Gen Initialize.vi`.
 Future<Object?> callDaqStaticDigGenInitialize() async =>
     throw UnimplementedError('labView call: Static Digital State Generation\\DAQ_Static Dig Gen Initialize.vi');
 
-/// Stub for the labView module call `Static Digital State Generation\DAQ_Static Dig Gen Configure and Generate.vi`
-/// (from step `Static Digital State Generation - Turn ON Push Reset Button`). TODO: implement against the real module.
+/// The labView module `Static Digital State Generation\DAQ_Static Dig Gen Configure and Generate.vi`.
 Future<Object?> callDaqStaticDigGenConfigureAndGenerate() async => throw UnimplementedError(
   'labView call: Static Digital State Generation\\DAQ_Static Dig Gen Configure and Generate.vi',
 );
 
-/// Stub for the labView module call `Static Digital State Generation\DAQ_Static Dig Gen Close.vi`
-/// (from step `Static Digital State Generation - Close`). TODO: implement against the real module.
+/// The labView module `Static Digital State Generation\DAQ_Static Dig Gen Close.vi`.
 Future<Object?> callDaqStaticDigGenClose() async =>
     throw UnimplementedError('labView call: Static Digital State Generation\\DAQ_Static Dig Gen Close.vi');
 
-/// Stub for the labView module call `DC Voltage Generation\DAQ_DC Voltage Gen Initialize.vi`
-/// (from step `DC Voltage Generation - Initialize Push Action Button`). TODO: implement against the real module.
+/// The labView module `DC Voltage Generation\DAQ_DC Voltage Gen Initialize.vi`.
 Future<Object?> callDaqDcVoltageGenInitialize() async =>
     throw UnimplementedError('labView call: DC Voltage Generation\\DAQ_DC Voltage Gen Initialize.vi');
 
-/// Stub for the labView module call `Time Domain Measurement\DAQ_TDV Meas Initialize.vi`
-/// (from step `Time Domain Measurement - Initialize TP`). TODO: implement against the real module.
+/// The labView module `Time Domain Measurement\DAQ_TDV Meas Initialize.vi`.
 Future<Object?> callDaqTdvMeasInitialize() async =>
     throw UnimplementedError('labView call: Time Domain Measurement\\DAQ_TDV Meas Initialize.vi');
 
-/// Stub for the labView module call `Time Domain Measurement\DAQ_TDV Meas Configure and Measure.vi`
-/// (from step `Time Domain Measurement - Configure TP`). TODO: implement against the real module.
+/// The labView module `Time Domain Measurement\DAQ_TDV Meas Configure and Measure.vi`.
 Future<Object?> callDaqTdvMeasConfigureAndMeasure() async =>
     throw UnimplementedError('labView call: Time Domain Measurement\\DAQ_TDV Meas Configure and Measure.vi');
 
-/// Stub for the labView module call `DC Voltage Generation\DAQ_DC Voltage Gen Configure and Generate.vi`
-/// (from step `DC Voltage Generation - Action Button ON State`). TODO: implement against the real module.
+/// The labView module `DC Voltage Generation\DAQ_DC Voltage Gen Configure and Generate.vi`.
 Future<Object?> callDaqDcVoltageGenConfigureAndGenerate() async =>
     throw UnimplementedError('labView call: DC Voltage Generation\\DAQ_DC Voltage Gen Configure and Generate.vi');
 
-/// Stub for the labView module call `DC Voltage Generation\DAQ_DC Voltage Gen Close.vi`
-/// (from step `DC Voltage Generation - Close Action Button`). TODO: implement against the real module.
+/// The labView module `DC Voltage Generation\DAQ_DC Voltage Gen Close.vi`.
 Future<Object?> callDaqDcVoltageGenClose() async =>
     throw UnimplementedError('labView call: DC Voltage Generation\\DAQ_DC Voltage Gen Close.vi');
 
-/// Stub for the labView module call `Time Domain Measurement\DAQ_TDV Meas Close.vi`
-/// (from step `Time Domain Measurement - Close TP`). TODO: implement against the real module.
+/// The labView module `Time Domain Measurement\DAQ_TDV Meas Close.vi`.
 Future<Object?> callDaqTdvMeasClose() async =>
     throw UnimplementedError('labView call: Time Domain Measurement\\DAQ_TDV Meas Close.vi');
 
-/// Stub for the labView module call `Signal Voltage Generation\DAQ_SV Gen Initialize.vi`
-/// (from step `Signal Voltage Generation - Initialize Multi Tone Audio Signal Gen`). TODO: implement against the real module.
+/// The labView module `Signal Voltage Generation\DAQ_SV Gen Initialize.vi`.
 Future<Object?> callDaqSvGenInitialize() async =>
     throw UnimplementedError('labView call: Signal Voltage Generation\\DAQ_SV Gen Initialize.vi');
 
-/// Stub for the labView module call `Frequency Domain Measurement\DAQ_FDV Meas Initialize.vi`
-/// (from step `Frequency Domain Measurement - Initialize TP`). TODO: implement against the real module.
+/// The labView module `Frequency Domain Measurement\DAQ_FDV Meas Initialize.vi`.
 Future<Object?> callDaqFdvMeasInitialize() async =>
     throw UnimplementedError('labView call: Frequency Domain Measurement\\DAQ_FDV Meas Initialize.vi');
 
-/// Stub for the labView module call `Frequency Domain Measurement\DAQ_FDV Meas Configure and Measure.vi`
-/// (from step `Frequency Domain Measurement - Configure TP`). TODO: implement against the real module.
+/// The labView module `Frequency Domain Measurement\DAQ_FDV Meas Configure and Measure.vi`.
 Future<Object?> callDaqFdvMeasConfigureAndMeasure() async =>
     throw UnimplementedError('labView call: Frequency Domain Measurement\\DAQ_FDV Meas Configure and Measure.vi');
 
-/// Stub for the labView module call `Signal Voltage Generation\DAQ_SV Gen Configure and Generate.vi`
-/// (from step `Signal Voltage Generation -Send Multi Tone Audio Sine Signal`). TODO: implement against the real module.
+/// The labView module `Signal Voltage Generation\DAQ_SV Gen Configure and Generate.vi`.
 Future<Object?> callDaqSvGenConfigureAndGenerate() async =>
     throw UnimplementedError('labView call: Signal Voltage Generation\\DAQ_SV Gen Configure and Generate.vi');
 
-/// Stub for the labView module call `Signal Voltage Generation\DAQ_SV Gen Close.vi`
-/// (from step `Signal Voltage Generation - Close Audio Signal Gen`). TODO: implement against the real module.
+/// The labView module `Signal Voltage Generation\DAQ_SV Gen Close.vi`.
 Future<Object?> callDaqSvGenClose() async =>
     throw UnimplementedError('labView call: Signal Voltage Generation\\DAQ_SV Gen Close.vi');
 
-/// Stub for the labView module call `Frequency Domain Measurement\DAQ_FDV Meas Close.vi`
-/// (from step `Freq Domain Measurement - Close TP`). TODO: implement against the real module.
+/// The labView module `Frequency Domain Measurement\DAQ_FDV Meas Close.vi`.
 Future<Object?> callDaqFdvMeasClose() async =>
     throw UnimplementedError('labView call: Frequency Domain Measurement\\DAQ_FDV Meas Close.vi');

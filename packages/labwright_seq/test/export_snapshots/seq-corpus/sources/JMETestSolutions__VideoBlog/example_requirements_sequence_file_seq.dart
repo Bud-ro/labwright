@@ -2,12 +2,8 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final run = ts.SequenceRun();
-
-  // Finished Step: Statement with no expression
+Future<void> mainSequence() async {
+  // Finished Step
   ts.eval('Locals.result = Step.AsPropertyObject.Exists("TS.Requirements.Links",0)'); // In Progress Step
-  // Malformed Step: Statement with no expression
-
-  return run.status;
+  // Malformed Step
 }

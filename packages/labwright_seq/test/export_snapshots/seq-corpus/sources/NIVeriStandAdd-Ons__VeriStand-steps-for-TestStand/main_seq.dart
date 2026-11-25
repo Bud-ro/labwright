@@ -15,45 +15,11 @@ dynamic veristand = ts.PropObj({
   'StimulusProfileReference': null,
   'ProjectPath': '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Engine Demo.nivsproj"',
   'GatewayIP': '"localhost"',
-}); // Obj
+});
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic initializeVeriStandResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'VeristandError': null,
-    'Veristand': ts.PropObj({'Project': ''}),
-  }); // result of Initialize VeriStand
-  final dynamic openWorkspaceResult = ts.PropObj({
-    'TempErrorOccured': false,
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of OpenWorkspace
-  final dynamic setChannelValueResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Unit': '', 'ValueToSet': 0, 'ChannelName': '', 'Timeout': false}),
-  }); // result of Set Channel Value
-  final dynamic getChannelValueResult = ts.PropObj({
-    'Units': '',
-    'Numeric': 0,
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'ChannelUnit': '', 'ChannelName': '', 'ChannelInfo': null, 'Description': ''}),
-  }); // result of Get Channel Value
   final dynamic channelValueLimitTestResult = ts.PropObj({
     'Veristand': ts.PropObj({'ChannelName': '', 'Description': '', 'ChannelInfo': null}),
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -63,62 +29,14 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': '',
-  }); // result of Channel Value Limit Test
-  final dynamic setMultipleChannelValuesResult = ts.PropObj({
-    'VeriStandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({
-      'Units': List<dynamic>.filled(10, '', growable: true),
-      'Timeout': false,
-      'ChannelNames': <dynamic>[],
-      'ChannelValues': <dynamic>[],
-    }),
-  }); // result of Set Multiple Channel Values
-  final dynamic getMultipleChannelValuesResult = ts.PropObj({
-    'Veristand': ts.PropObj({'ChannelNames': <dynamic>[], 'ChannelUnits': <dynamic>[], 'ChannelValues': <dynamic>[]}),
-    'VeriStandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Get Multiple Channel Values
-  final dynamic setChannelTimeoutSubtestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Set Channel Timeout Subtest
-  final dynamic testSequenceParametersReturnValuesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Test sequence parameters & return values
-  final dynamic closeWorkspaceResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Close Workspace
-  final dynamic rtSequenceActionResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Path': ''}),
-  }); // result of RT Sequence Action
+  });
   final dynamic rtSequencePassFailTestResult = ts.PropObj({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of RT Sequence Pass/Fail Test
+  });
   final dynamic rtSequenceNumericLimitResult = ts.PropObj({
     'VeriStand': ts.PropObj({'Path': ''}),
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -127,1110 +45,23 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
     'Numeric': 0,
     'Units': '',
-  }); // result of RT Sequence Numeric Limit
-  final dynamic testRtSequenceTimeoutResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Path': ''}),
-  }); // result of Test RT Sequence Timeout
-  final dynamic setAlarmStateResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Alarm': '', 'State': '', 'Description': ''}),
-  }); // result of Set Alarm State
-  final dynamic getAlarmStateResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'AlarmState': '', 'Description': ''}),
-  }); // result of Get Alarm State
-  final dynamic startVsLoggingResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Start VS Logging
-  final dynamic setChannelFaultValueResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'FaultValue': 0, 'Description': '', 'Channel': ''}),
-  }); // result of Set Channel Fault Value
-  final dynamic getChannelFaultValueResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Numeric': 0, 'Faulted': false, 'Channel': '', 'Description': ''}),
-  }); // result of Get Channel Fault Value
-  final dynamic clearFaultResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Description': '', 'Channel': ''}),
-  }); // result of Clear Fault
-  final dynamic getChannelFaultValueResult2 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Numeric': 0, 'Faulted': false, 'Channel': '', 'Description': ''}),
-  }); // result of Get Channel Fault Value
-  final dynamic setChannelFaultValueResult2 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'FaultValue': 0, 'Description': '', 'Channel': ''}),
-  }); // result of Set Channel Fault Value
-  final dynamic getChannelFaultValueResult3 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Numeric': 0, 'Faulted': false, 'Channel': '', 'Description': ''}),
-  }); // result of Get Channel Fault Value
-  final dynamic clearAllFaultsResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Clear All Faults
-  final dynamic getChannelFaultValueResult4 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Numeric': 0, 'Faulted': false, 'Channel': '', 'Description': ''}),
-  }); // result of Get Channel Fault Value
-  final dynamic updateModelParametersFromFileResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({
-      'Target': '',
-      'ModelParameterFilepath': <dynamic>[''],
-    }),
-  }); // result of Update Model Parameters From File
-  final dynamic updateModelParametersFromFileResult2 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({
-      'Target': '',
-      'ModelParameterFilepath': <dynamic>[''],
-    }),
-  }); // result of Update Model Parameters From File
-  final dynamic setModelParameterValueResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'ValueSet': 0, 'ParameterSet': '', 'Target': '', 'Description': ''}),
-  }); // result of Set Model Parameter Value
-  final dynamic getModelParameterValueResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Target': '', 'Description': '', 'ModelParameter': '', 'Numeric': 0}),
-  }); // result of Get Model Parameter Value
-  final dynamic getModelParameterValueResult2 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Target': '', 'Description': '', 'ModelParameter': '', 'Numeric': 0}),
-  }); // result of Get Model Parameter Value
-  final dynamic stopVsLoggingResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Location': <dynamic>[]}),
-  }); // result of Stop VS Logging
-  final dynamic runStimulusProfileResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Run Stimulus Profile
-  final dynamic testStimulusProfileTimeoutResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Test Stimulus Profile Timeout
-  final dynamic callSubsequenceSeperateFileResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Call Subsequence (seperate file)
-  final dynamic callSubsequenceSameFileResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Call Subsequence (same file)
-  final dynamic stopVeriStandResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'VeristandError': null,
-  }); // result of Stop VeriStand
-  final dynamic callExecutableResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ExitCode': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Call Executable
+  });
 
   try {
-    // ── setup ──
-    await ts.stepHost.runStepType(
-      'InitializeVeriStand',
-      ts.StepPhase.pre,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ShowProgress': false, 'Visible': 'True', 'username': '""', 'password': '""'}),
-      }),
-      initializeVeriStandResult,
-    );
-    // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'InitializeVeriStand',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ShowProgress': false, 'Visible': 'True', 'username': '""', 'password': '""'}),
-      }),
-      initializeVeriStandResult,
-    );
-    initializeVeriStandResult.Status = 'Done';
-    run.record(initializeVeriStandResult.Status);
+    await ts.stepType('InitializeVeriStand', {
+      'Veristand': {'ShowProgress': false, 'Visible': 'True', 'username': '""', 'password': '""'},
+    });
 
-    // ── main ──
-    // label:
-    // OpenWorkspace [OpenWorkspace]: acts through ts.stepHost
-    await ts.stepHost.runStepType('OpenWorkspace', ts.StepPhase.post, ts.PropObj(), openWorkspaceResult);
-    openWorkspaceResult.Status = 'Done';
-    run.record(openWorkspaceResult.Status);
-    // Set Channel Value [SetChannelValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'SetChannelValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'}),
-      }),
-      setChannelValueResult,
-    );
-    setChannelValueResult.Status = 'Done';
-    run.record(setChannelValueResult.Status);
-    // Get Channel Value [GetChannelValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'GetChannelValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EngineTemp"'}),
-      }),
-      getChannelValueResult,
-    );
-    getChannelValueResult.Status = 'Done';
-    run.record(getChannelValueResult.Status);
-    // checks: Step.Result.Numeric EQ [low 1, high 11, nominal 100] (PERCENTAGE)
-    // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-    // Channel Value Limit Test [LimitTestChannelValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'LimitTestChannelValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'}),
-        'Limits': ts.PropObj({
-          'UseNominalExpr': false,
-          'UseThresholdTypeExpr': false,
-          'Nominal': 100,
-          'NominalExpr': '',
-          'ThresholdTypeExpr': '',
-          'ThresholdType': 'PERCENTAGE',
-          'Low': 1,
-          'High': 11,
-          'LowExpr': '',
-          'HighExpr': '',
-          'UseLowExpr': false,
-          'UseHighExpr': false,
-        }),
-        'Comp': 'EQ',
-        'CompExpr': '',
-        'UseCompExpr': false,
-        'InBuf': '',
-        'DataSource': 'Step.Result.Numeric',
-      }),
-      channelValueLimitTestResult,
-    );
-    channelValueLimitTestResult.Status = ts.checkLimits(
-      channelValueLimitTestResult.Numeric,
-      11,
-      1,
-      'EQ',
-    ); // status expression
-    run.record(channelValueLimitTestResult.Status);
-    // Set Multiple Channel Values [SetMultipleChannelValues]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'SetMultipleChannelValues',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'VeriStand': ts.PropObj({
-          'Timeout_ms': -1,
-          'BaseNodeArray': null,
-          'ValuesToSet': <dynamic>['4000', '1'],
-          'ChannelNames': <dynamic>['Aliases/DesiredRPM', 'Aliases/EnginePower'],
-        }),
-      }),
-      setMultipleChannelValuesResult,
-    );
-    setMultipleChannelValuesResult.Status = 'Done';
-    run.record(setMultipleChannelValuesResult.Status);
-    // Get Multiple Channel Values [GetMultipleChannelValues]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'GetMultipleChannelValues',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'VeriStand': ts.PropObj({
-          'BaseNodeArray': null,
-          'ChannelNames': <dynamic>['Aliases/ActualRPM', 'Aliases/DesiredRPM', 'Aliases/EnginePower'],
-        }),
-      }),
-      getMultipleChannelValuesResult,
-    );
-    getMultipleChannelValuesResult.Status = 'Done';
-    run.record(getMultipleChannelValuesResult.Status);
-    // label:
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    setChannelTimeoutSubtestResult.Status = await subtest_set_channel_timeout_seq
-        .mainSequence(); // Set Channel Timeout Subtest: external sequence
-    setChannelTimeoutSubtestResult.Status = setChannelTimeoutSubtestResult.Status == 'Done'
-        ? 'Passed'
-        : setChannelTimeoutSubtestResult.Status; // status expression
-    run.record(setChannelTimeoutSubtestResult.Status);
-    // [skipped in source] Extended RT Sequence Test
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    testSequenceParametersReturnValuesResult.Status = await subtest_rt_sequence_parameter_return_test_seq
-        .mainSequence(); // Test sequence parameters & return values: external sequence
-    testSequenceParametersReturnValuesResult.Status = testSequenceParametersReturnValuesResult.Status == 'Done'
-        ? 'Passed'
-        : testSequenceParametersReturnValuesResult.Status; // status expression
-    run.record(testSequenceParametersReturnValuesResult.Status);
-    // label:
-    // Close Workspace [CloseWorkspace]: acts through ts.stepHost
-    await ts.stepHost.runStepType('CloseWorkspace', ts.StepPhase.post, ts.PropObj(), closeWorkspaceResult);
-    closeWorkspaceResult.Status = 'Done';
-    run.record(closeWorkspaceResult.Status);
-    // RT Sequence Action [RunRTSequenceAction]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'RunRTSequenceAction',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'SeqTimeout': -1,
-          'Target': 'Controller',
-          'Timeout': 10000,
-          'SequenceFilePath':
-              '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
-          'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
-          'ParamTypesArray': '{"Path","Path"}',
-          'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
-        }),
-      }),
-      rtSequenceActionResult,
-    );
-    rtSequenceActionResult.Status = 'Done';
-    run.record(rtSequenceActionResult.Status);
-    // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-    // failure does NOT fail the sequence
-    // RT Sequence Pass/Fail Test [RunRTSequencePassFail]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'RunRTSequencePassFail',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'VeriStand': ts.PropObj({
-          'SeqTimeout': -1,
-          'Target': 'Controller',
-          'Timeout': 10000,
-          'SequenceFilePath':
-              '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Engine Demo Advanced & Return Value\\\\Engine Demo Advanced & Return Value.nivsseq"',
-          'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
-          'ParamTypesArray': '{"Path","Path","Path","Path"}',
-          'ParamNamesArray': '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
-        }),
-      }),
-      rtSequencePassFailTestResult,
-    );
-    rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
-        ? 'Passed'
-        : 'Failed'; // status expression
-    // checks: Step.Result.Numeric EQ [low 10, high 1, nominal 100] (PERCENTAGE)
-    // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-    // RT Sequence Numeric Limit [RunRTSequenceNumericLimit]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'RunRTSequenceNumericLimit',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'VeriStand': ts.PropObj({
-          'SeqTimeout': -1,
-          'Target': 'Controller',
-          'Timeout': 10000,
-          'SequenceFilePath':
-              '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\Engine Demo Basic with Numeric Return Value.nivsseq"',
-          'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
-          'ParamTypesArray': '{"Path","Path"}',
-          'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
-          'NumericDataType': '"Int64"',
-        }),
-        'Limits': ts.PropObj({
-          'UseNominalExpr': false,
-          'UseThresholdTypeExpr': false,
-          'Nominal': 100,
-          'NominalExpr': '',
-          'ThresholdTypeExpr': '',
-          'ThresholdType': 'PERCENTAGE',
-          'Low': 10,
-          'High': 1,
-          'LowExpr': '',
-          'HighExpr': '',
-          'UseLowExpr': false,
-          'UseHighExpr': false,
-        }),
-        'Comp': 'EQ',
-        'CompExpr': '',
-        'UseCompExpr': false,
-        'InBuf': '',
-        'DataSource': 'Step.Result.Numeric',
-      }),
-      rtSequenceNumericLimitResult,
-    );
-    rtSequenceNumericLimitResult.Status = ts.checkLimits(
-      rtSequenceNumericLimitResult.Numeric,
-      1,
-      10,
-      'EQ',
-    ); // status expression
-    run.record(rtSequenceNumericLimitResult.Status);
-    // Test RT Sequence Timeout [RunRTSequenceAction]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'RunRTSequenceAction',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'SeqTimeout': 10,
-          'Target': 'Controller',
-          'Timeout': 10000,
-          'SequenceFilePath':
-              '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Engine Demo Advanced\\\\Engine Demo Advanced.nivsseq"',
-          'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
-          'ParamTypesArray': '{"Path","Path","Path","Path"}',
-          'ParamNamesArray': '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
-        }),
-      }),
-      testRtSequenceTimeoutResult,
-    );
-    testRtSequenceTimeoutResult.Status = 'Done';
-    run.record(testRtSequenceTimeoutResult.Status);
-    // label:
-    // Set Alarm State [SetAlarmState]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'SetAlarmState',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'FullAlarmPath': '"Targets/Controller/Alarms/Engine Temperature Warning"',
-          'AlarmState': '"Tripped"',
-          'AlarmName': '"Engine"',
-        }),
-      }),
-      setAlarmStateResult,
-    );
-    setAlarmStateResult.Status = 'Done';
-    run.record(setAlarmStateResult.Status);
-    // Get Alarm State [GetAlarmState]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'GetAlarmState',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'FullAlarmPath': '"Targets/Controller/Alarms/Engine Temperature Warning"',
-          'AlarmState': '"Tripped"',
-          'AlarmName': '"Engine"',
-        }),
-      }),
-      getAlarmStateResult,
-    );
-    getAlarmStateResult.Status = 'Done';
-    run.record(getAlarmStateResult.Status);
-    // label:
-    // Start VS Logging [StartLogging]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'StartLogging',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'CustomLoggingRate': 0,
-          'CustomLoggingRateEnabled': false,
-          'LogFilePath': '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\logs\\\\Test Log.tdms"',
-          'BaseNodeArray': null,
-          'ChannelPaths': <dynamic>[
-            'Aliases/ActualRPM',
-            'Aliases/DesiredRPM',
-            'Aliases/EnginePower',
-            'Aliases/EngineTemp',
-          ],
-          'FileDescription': '',
-          'FileSegmenting': false,
-          'FileSegmentingSize': 0,
-          'FilePropertyNames': <dynamic>[],
-          'FilePropertyValues': <dynamic>[],
-        }),
-      }),
-      startVsLoggingResult,
-    );
-    startVsLoggingResult.Status = 'Done';
-    run.record(startVsLoggingResult.Status);
-    // Set Channel Fault Value [SetChannelFaultValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'SetChannelFaultValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'}),
-      }),
-      setChannelFaultValueResult,
-    );
-    setChannelFaultValueResult.Status = 'Done';
-    run.record(setChannelFaultValueResult.Status);
-    // Get Channel Fault Value [GetChannelFaultValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'GetChannelFaultValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'}),
-      }),
-      getChannelFaultValueResult,
-    );
-    getChannelFaultValueResult.Status = 'Done';
-    run.record(getChannelFaultValueResult.Status);
-    // Clear Fault [ClearFault]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'ClearFault',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'}),
-      }),
-      clearFaultResult,
-    );
-    clearFaultResult.Status = 'Done';
-    run.record(clearFaultResult.Status);
-    // Get Channel Fault Value [GetChannelFaultValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'GetChannelFaultValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'}),
-      }),
-      getChannelFaultValueResult2,
-    );
-    getChannelFaultValueResult2.Status = 'Done';
-    run.record(getChannelFaultValueResult2.Status);
-    // Set Channel Fault Value [SetChannelFaultValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'SetChannelFaultValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'}),
-      }),
-      setChannelFaultValueResult2,
-    );
-    setChannelFaultValueResult2.Status = 'Done';
-    run.record(setChannelFaultValueResult2.Status);
-    // Get Channel Fault Value [GetChannelFaultValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'GetChannelFaultValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'}),
-      }),
-      getChannelFaultValueResult3,
-    );
-    getChannelFaultValueResult3.Status = 'Done';
-    run.record(getChannelFaultValueResult3.Status);
-    // Clear All Faults [ClearAllFaults]: acts through ts.stepHost
-    await ts.stepHost.runStepType('ClearAllFaults', ts.StepPhase.post, ts.PropObj(), clearAllFaultsResult);
-    clearAllFaultsResult.Status = 'Done';
-    run.record(clearAllFaultsResult.Status);
-    // Get Channel Fault Value [GetChannelFaultValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'GetChannelFaultValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'}),
-      }),
-      getChannelFaultValueResult4,
-    );
-    getChannelFaultValueResult4.Status = 'Done';
-    run.record(getChannelFaultValueResult4.Status);
-    // label:
-    // Update Model Parameters From File [UpdateModelParametersFromFile]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'UpdateModelParametersFromFile',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'ModelParameterFilepath':
-              '{"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Update Model Parameters\\\\ParameterUpdate1.m"}',
-          'TargetName': '"Controller"',
-        }),
-      }),
-      updateModelParametersFromFileResult,
-    );
-    updateModelParametersFromFileResult.Status = 'Done';
-    run.record(updateModelParametersFromFileResult.Status);
-    // Update Model Parameters From File [UpdateModelParametersFromFile]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'UpdateModelParametersFromFile',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'ModelParameterFilepath':
-              '{"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Update Model Parameters\\\\ParameterUpdate2.m"}',
-          'TargetName': '"Controller"',
-        }),
-      }),
-      updateModelParametersFromFileResult2,
-    );
-    updateModelParametersFromFileResult2.Status = 'Done';
-    run.record(updateModelParametersFromFileResult2.Status);
-    // Set Model Parameter Value [SetModelParameterValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'SetModelParameterValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'FullChannelPath': '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/b11"',
-          'TargetName': '"Controller"',
-          'ValueToSet': '11',
-          'ChannelName': '"b11"',
-        }),
-      }),
-      setModelParameterValueResult,
-    );
-    setModelParameterValueResult.Status = 'Done';
-    run.record(setModelParameterValueResult.Status);
-    await Future<void>.delayed(const Duration(seconds: 3));
-    // Get Model Parameter Value [GetModelParameterValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'GetModelParameterValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'FullChannelPath': '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/b11"',
-          'TargetName': '"Controller"',
-          'ValueToSet': '',
-          'ChannelName': '"b11"',
-        }),
-      }),
-      getModelParameterValueResult,
-    );
-    getModelParameterValueResult.Status = 'Done';
-    run.record(getModelParameterValueResult.Status);
-    // Get Model Parameter Value [GetModelParameterValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'GetModelParameterValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'FullChannelPath': '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/idle speed (RPM)"',
-          'TargetName': '"Controller"',
-          'ValueToSet': '',
-          'ChannelName': '"idle speed (RPM)"',
-        }),
-      }),
-      getModelParameterValueResult2,
-    );
-    getModelParameterValueResult2.Status = 'Done';
-    run.record(getModelParameterValueResult2.Status);
-    // Stop VS Logging [StopLogging]: acts through ts.stepHost
-    await ts.stepHost.runStepType('StopLogging', ts.StepPhase.post, ts.PropObj(), stopVsLoggingResult);
-    stopVsLoggingResult.Status = 'Done';
-    run.record(stopVsLoggingResult.Status);
-    // label:
-    // Run Stimulus Profile [RunStimulusProfileBlocking]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'RunStimulusProfileBlocking',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'Timeout': -1,
-          'UUT': '"0"',
-          'StimulusProfilePath':
-              '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basics.nivsstimprof"',
-        }),
-      }),
-      runStimulusProfileResult,
-    );
-    runStimulusProfileResult.Status = 'Done';
-    run.record(runStimulusProfileResult.Status);
-    // Test Stimulus Profile Timeout [RunStimulusProfileBlocking]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'RunStimulusProfileBlocking',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'Timeout': 10,
-          'UUT': '"0"',
-          'StimulusProfilePath':
-              '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basics.nivsstimprof"',
-        }),
-      }),
-      testStimulusProfileTimeoutResult,
-    );
-    testStimulusProfileTimeoutResult.Status = 'Done';
-    run.record(testStimulusProfileTimeoutResult.Status);
-    // label:
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    callSubsequenceSeperateFileResult.Status = await main_sub_seq
-        .mainSequence(); // Call Subsequence (seperate file): external sequence
-    callSubsequenceSeperateFileResult.Status = callSubsequenceSeperateFileResult.Status == 'Done'
-        ? 'Passed'
-        : callSubsequenceSeperateFileResult.Status; // status expression
-    run.record(callSubsequenceSeperateFileResult.Status);
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    callSubsequenceSameFileResult.Status = await subsequence(); // Call Subsequence (same file)
-    callSubsequenceSameFileResult.Status = callSubsequenceSameFileResult.Status == 'Done'
-        ? 'Passed'
-        : callSubsequenceSameFileResult.Status; // status expression
-    run.record(callSubsequenceSameFileResult.Status);
-    // label:
-    // [skipped in source] Silent disconnect test
-  } finally {
-    // ── cleanup ──
-    // Stop VeriStand [StopVeriStand]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'StopVeriStand',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'CloseUIManager': false, 'CloseApp': true, 'ShowProgress': false}),
-      }),
-      stopVeriStandResult,
-    );
-    stopVeriStandResult.Status = 'Done';
-    run.record(stopVeriStandResult.Status);
-    // runs executable: taskkill "/IM NationalInstruments.VeriStand.UIManager.Application.exe /F" (WAIT_FOR_EXIT)
-    // Call Executable [CallExecutable]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'CallExecutable',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Executable': 'taskkill',
-        'ExecutableExpr': '',
-        'SpecifyExeByExpr': false,
-        'ExecutableCalled': '',
-        'Arguments': '"/IM NationalInstruments.VeriStand.UIManager.Application.exe /F"',
-        'WaitCondition': 'WAIT_FOR_EXIT',
-        'TimeToWait': 0,
-        'SetErrorCode': false,
-        'InitialWindowState': 'WINSTATE_SHOWNORM_A',
-        'TerminateOnAbort': false,
-        'StoreProcessHandle': false,
-        'ProcessHandleExpr': 'Step.ProcessHandlePtr',
-        'ProcessHandle': 0,
-        'ProcessHandlePtr': null,
-        'ExitCodeStatusAction': 'EXIT_CODE_NO_ACTION',
-        'ExitCodeErrorAction': 'EXIT_CODE_NO_ACTION',
-        'WorkingDir': ts.PropObj({'Source': 1, 'Expr': '', 'IsExpr': false}),
-        'RemoteSettings': ts.PropObj({
-          'Enabled': false,
-          'Host': '""',
-          'HostByExpr': true,
-          'Port': '13540',
-          'Password': '',
-          'PasswordByExpr': false,
-        }),
-        'StdInput': ts.PropObj({'Type': 0, 'Source': '""', 'IsExpr': false}),
-        'StdOutput': ts.PropObj({'Dest': 0, 'Expr': 'Step.StdOutput.Text', 'IsExpr': false, 'Text': ''}),
-        'StdError': ts.PropObj({
-          'Dest': 0,
-          'Expr': 'Step.StdError.Text',
-          'IsExpr': false,
-          'Text': '',
-          'Action': 0,
-          'SetErrorMsg': false,
-        }),
-      }),
-      callExecutableResult,
-    );
-    callExecutableResult.Status = 'Done';
-    run.record(callExecutableResult.Status);
-  }
-
-  return run.status;
-}
-
-/// Sequence `PreUUT` — Displays a dialog box in which the operator enters the UUTserial number.  Override this in client file to change or replace this action..
-Future<String> preUut({
-  bool continueTesting = true,
-  dynamic uut,
-  dynamic testSocket,
-  dynamic modelData,
-  dynamic modelPluginConfiguration,
-}) async {
-  final run = ts.SequenceRun();
-
-  // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
-  // [skipped in source] Call DoPreUUT
-
-  return run.status;
-}
-
-/// Sequence `PostUUT` — Displays a pass, fail, error, or terminated banner. Override this in client file to change or replace this action..
-Future<String> postUut({
-  dynamic result,
-  dynamic uut,
-  dynamic testSocket,
-  dynamic modelData,
-  dynamic modelPluginConfiguration,
-}) async {
-  final run = ts.SequenceRun();
-
-  // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
-  // [skipped in source] Call DoPostUUT
-
-  return run.status;
-}
-
-/// Sequence `Subsequence`.
-Future<String> subsequence() async {
-  final run = ts.SequenceRun();
-  final dynamic openWorkspaceResult = ts.PropObj({
-    'TempErrorOccured': false,
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of OpenWorkspace
-  final dynamic setChannelValueResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Unit': '', 'ValueToSet': 0, 'ChannelName': '', 'Timeout': false}),
-  }); // result of Set Channel Value
-  final dynamic getChannelValueResult = ts.PropObj({
-    'Units': '',
-    'Numeric': 0,
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'ChannelUnit': '', 'ChannelName': '', 'ChannelInfo': null, 'Description': ''}),
-  }); // result of Get Channel Value
-  final dynamic channelValueLimitTestResult = ts.PropObj({
-    'Veristand': ts.PropObj({'ChannelName': '', 'Description': '', 'ChannelInfo': null}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'VeristandError': null,
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  }); // result of Channel Value Limit Test
-  final dynamic setMultipleChannelValuesResult = ts.PropObj({
-    'VeriStandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({
-      'Units': List<dynamic>.filled(10, '', growable: true),
-      'Timeout': false,
-      'ChannelNames': <dynamic>[],
-      'ChannelValues': <dynamic>[],
-    }),
-  }); // result of Set Multiple Channel Values
-  final dynamic getMultipleChannelValuesResult = ts.PropObj({
-    'Veristand': ts.PropObj({'ChannelNames': <dynamic>[], 'ChannelUnits': <dynamic>[], 'ChannelValues': <dynamic>[]}),
-    'VeriStandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Get Multiple Channel Values
-  final dynamic setChannelTimeoutSubtestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Set Channel Timeout Subtest
-  final dynamic testSequenceParametersReturnValuesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Test sequence parameters & return values
-  final dynamic closeWorkspaceResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Close Workspace
-  final dynamic rtSequenceActionResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Path': ''}),
-  }); // result of RT Sequence Action
-  final dynamic rtSequencePassFailTestResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of RT Sequence Pass/Fail Test
-  final dynamic rtSequenceNumericLimitResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Numeric': 0,
-    'Units': '',
-  }); // result of RT Sequence Numeric Limit
-  final dynamic testRtSequenceTimeoutResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Path': ''}),
-  }); // result of Test RT Sequence Timeout
-  final dynamic setAlarmStateResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Alarm': '', 'State': '', 'Description': ''}),
-  }); // result of Set Alarm State
-  final dynamic getAlarmStateResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'AlarmState': '', 'Description': ''}),
-  }); // result of Get Alarm State
-  final dynamic startVsLoggingResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Start VS Logging
-  final dynamic setChannelFaultValueResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'FaultValue': 0, 'Description': '', 'Channel': ''}),
-  }); // result of Set Channel Fault Value
-  final dynamic getChannelFaultValueResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Numeric': 0, 'Faulted': false, 'Channel': '', 'Description': ''}),
-  }); // result of Get Channel Fault Value
-  final dynamic clearFaultResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Description': '', 'Channel': ''}),
-  }); // result of Clear Fault
-  final dynamic getChannelFaultValueResult2 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Numeric': 0, 'Faulted': false, 'Channel': '', 'Description': ''}),
-  }); // result of Get Channel Fault Value
-  final dynamic setChannelFaultValueResult2 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'FaultValue': 0, 'Description': '', 'Channel': ''}),
-  }); // result of Set Channel Fault Value
-  final dynamic getChannelFaultValueResult3 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Numeric': 0, 'Faulted': false, 'Channel': '', 'Description': ''}),
-  }); // result of Get Channel Fault Value
-  final dynamic clearAllFaultsResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Clear All Faults
-  final dynamic getChannelFaultValueResult4 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Numeric': 0, 'Faulted': false, 'Channel': '', 'Description': ''}),
-  }); // result of Get Channel Fault Value
-  final dynamic updateModelParametersFromFileResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({
-      'Target': '',
-      'ModelParameterFilepath': <dynamic>[''],
-    }),
-  }); // result of Update Model Parameters From File
-  final dynamic updateModelParametersFromFileResult2 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({
-      'Target': '',
-      'ModelParameterFilepath': <dynamic>[''],
-    }),
-  }); // result of Update Model Parameters From File
-  final dynamic setModelParameterValueResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'ValueSet': 0, 'ParameterSet': '', 'Target': '', 'Description': ''}),
-  }); // result of Set Model Parameter Value
-  final dynamic getModelParameterValueResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Target': '', 'Description': '', 'ModelParameter': '', 'Numeric': 0}),
-  }); // result of Get Model Parameter Value
-  final dynamic getModelParameterValueResult2 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Target': '', 'Description': '', 'ModelParameter': '', 'Numeric': 0}),
-  }); // result of Get Model Parameter Value
-  final dynamic stopVsLoggingResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Location': <dynamic>[]}),
-  }); // result of Stop VS Logging
-  final dynamic runStimulusProfileResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Run Stimulus Profile
-  final dynamic testStimulusProfileTimeoutResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Test Stimulus Profile Timeout
-
-  // OpenWorkspace [OpenWorkspace]: acts through ts.stepHost
-  await ts.stepHost.runStepType('OpenWorkspace', ts.StepPhase.post, ts.PropObj(), openWorkspaceResult);
-  openWorkspaceResult.Status = 'Done';
-  run.record(openWorkspaceResult.Status);
-  // Set Channel Value [SetChannelValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'SetChannelValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'}),
-    }),
-    setChannelValueResult,
-  );
-  setChannelValueResult.Status = 'Done';
-  run.record(setChannelValueResult.Status);
-  // Get Channel Value [GetChannelValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'GetChannelValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EngineTemp"'}),
-    }),
-    getChannelValueResult,
-  );
-  getChannelValueResult.Status = 'Done';
-  run.record(getChannelValueResult.Status);
-  // checks: Step.Result.Numeric EQ [low 1, high 11, nominal 100] (PERCENTAGE)
-  // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-  // Channel Value Limit Test [LimitTestChannelValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'LimitTestChannelValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'}),
-      'Limits': ts.PropObj({
+    await ts.stepType('OpenWorkspace');
+    await ts.stepType('SetChannelValue', {
+      'Veristand': {'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'},
+    });
+    await ts.stepType('GetChannelValue', {
+      'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EngineTemp"'},
+    });
+    await ts.stepType('LimitTestChannelValue', {
+      'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+      'Limits': {
         'UseNominalExpr': false,
         'UseThresholdTypeExpr': false,
         'Nominal': 100,
@@ -1243,79 +74,37 @@ Future<String> subsequence() async {
         'HighExpr': '',
         'UseLowExpr': false,
         'UseHighExpr': false,
-      }),
+      },
       'Comp': 'EQ',
       'CompExpr': '',
       'UseCompExpr': false,
       'InBuf': '',
       'DataSource': 'Step.Result.Numeric',
-    }),
-    channelValueLimitTestResult,
-  );
-  channelValueLimitTestResult.Status = ts.checkLimits(
-    channelValueLimitTestResult.Numeric,
-    11,
-    1,
-    'EQ',
-  ); // status expression
-  run.record(channelValueLimitTestResult.Status);
-  // Set Multiple Channel Values [SetMultipleChannelValues]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'SetMultipleChannelValues',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'VeriStand': ts.PropObj({
+    }, channelValueLimitTestResult);
+    channelValueLimitTestResult.Status = ts.checkLimits(channelValueLimitTestResult.Numeric, 11, 1, 'EQ');
+    run.record(channelValueLimitTestResult.Status);
+    await ts.stepType('SetMultipleChannelValues', {
+      'VeriStand': {
         'Timeout_ms': -1,
         'BaseNodeArray': null,
         'ValuesToSet': <dynamic>['4000', '1'],
         'ChannelNames': <dynamic>['Aliases/DesiredRPM', 'Aliases/EnginePower'],
-      }),
-    }),
-    setMultipleChannelValuesResult,
-  );
-  setMultipleChannelValuesResult.Status = 'Done';
-  run.record(setMultipleChannelValuesResult.Status);
-  // Get Multiple Channel Values [GetMultipleChannelValues]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'GetMultipleChannelValues',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'VeriStand': ts.PropObj({
+      },
+    });
+    await ts.stepType('GetMultipleChannelValues', {
+      'VeriStand': {
         'BaseNodeArray': null,
         'ChannelNames': <dynamic>['Aliases/ActualRPM', 'Aliases/DesiredRPM', 'Aliases/EnginePower'],
-      }),
-    }),
-    getMultipleChannelValuesResult,
-  );
-  getMultipleChannelValuesResult.Status = 'Done';
-  run.record(getMultipleChannelValuesResult.Status);
-  // label:
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  setChannelTimeoutSubtestResult.Status = await subtest_set_channel_timeout_seq
-      .mainSequence(); // Set Channel Timeout Subtest: external sequence
-  setChannelTimeoutSubtestResult.Status = setChannelTimeoutSubtestResult.Status == 'Done'
-      ? 'Passed'
-      : setChannelTimeoutSubtestResult.Status; // status expression
-  run.record(setChannelTimeoutSubtestResult.Status);
-  // [skipped in source] Extended RT Sequence Test
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  testSequenceParametersReturnValuesResult.Status = await subtest_rt_sequence_parameter_return_test_seq
-      .mainSequence(); // Test sequence parameters & return values: external sequence
-  testSequenceParametersReturnValuesResult.Status = testSequenceParametersReturnValuesResult.Status == 'Done'
-      ? 'Passed'
-      : testSequenceParametersReturnValuesResult.Status; // status expression
-  run.record(testSequenceParametersReturnValuesResult.Status);
-  // label:
-  // Close Workspace [CloseWorkspace]: acts through ts.stepHost
-  await ts.stepHost.runStepType('CloseWorkspace', ts.StepPhase.post, ts.PropObj(), closeWorkspaceResult);
-  closeWorkspaceResult.Status = 'Done';
-  run.record(closeWorkspaceResult.Status);
-  // RT Sequence Action [RunRTSequenceAction]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'RunRTSequenceAction',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
+      },
+    });
+    await subtest_set_channel_timeout_seq.mainSequence(); // Set Channel Timeout Subtest: external sequence
+    // [skipped in source] Extended RT Sequence Test
+    run.record(
+      await subtest_rt_sequence_parameter_return_test_seq.mainSequence(),
+    ); // Test sequence parameters & return values: external sequence
+    await ts.stepType('CloseWorkspace');
+    await ts.stepType('RunRTSequenceAction', {
+      'Veristand': {
         'SeqTimeout': -1,
         'Target': 'Controller',
         'Timeout': 10000,
@@ -1324,20 +113,10 @@ Future<String> subsequence() async {
         'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
         'ParamTypesArray': '{"Path","Path"}',
         'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
-      }),
-    }),
-    rtSequenceActionResult,
-  );
-  rtSequenceActionResult.Status = 'Done';
-  run.record(rtSequenceActionResult.Status);
-  // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  // failure does NOT fail the sequence
-  // RT Sequence Pass/Fail Test [RunRTSequencePassFail]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'RunRTSequencePassFail',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'VeriStand': ts.PropObj({
+      },
+    });
+    await ts.stepType('RunRTSequencePassFail', {
+      'VeriStand': {
         'SeqTimeout': -1,
         'Target': 'Controller',
         'Timeout': 10000,
@@ -1346,21 +125,13 @@ Future<String> subsequence() async {
         'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
         'ParamTypesArray': '{"Path","Path","Path","Path"}',
         'ParamNamesArray': '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
-      }),
-    }),
-    rtSequencePassFailTestResult,
-  );
-  rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  // checks: Step.Result.Numeric EQ [low 10, high 1, nominal 100] (PERCENTAGE)
-  // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-  // RT Sequence Numeric Limit [RunRTSequenceNumericLimit]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'RunRTSequenceNumericLimit',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'VeriStand': ts.PropObj({
+      },
+    }, rtSequencePassFailTestResult);
+    rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
+        ? 'Passed'
+        : 'Failed';
+    await ts.stepType('RunRTSequenceNumericLimit', {
+      'VeriStand': {
         'SeqTimeout': -1,
         'Target': 'Controller',
         'Timeout': 10000,
@@ -1370,8 +141,8 @@ Future<String> subsequence() async {
         'ParamTypesArray': '{"Path","Path"}',
         'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
         'NumericDataType': '"Int64"',
-      }),
-      'Limits': ts.PropObj({
+      },
+      'Limits': {
         'UseNominalExpr': false,
         'UseThresholdTypeExpr': false,
         'Nominal': 100,
@@ -1384,28 +155,17 @@ Future<String> subsequence() async {
         'HighExpr': '',
         'UseLowExpr': false,
         'UseHighExpr': false,
-      }),
+      },
       'Comp': 'EQ',
       'CompExpr': '',
       'UseCompExpr': false,
       'InBuf': '',
       'DataSource': 'Step.Result.Numeric',
-    }),
-    rtSequenceNumericLimitResult,
-  );
-  rtSequenceNumericLimitResult.Status = ts.checkLimits(
-    rtSequenceNumericLimitResult.Numeric,
-    1,
-    10,
-    'EQ',
-  ); // status expression
-  run.record(rtSequenceNumericLimitResult.Status);
-  // Test RT Sequence Timeout [RunRTSequenceAction]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'RunRTSequenceAction',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
+    }, rtSequenceNumericLimitResult);
+    rtSequenceNumericLimitResult.Status = ts.checkLimits(rtSequenceNumericLimitResult.Numeric, 1, 10, 'EQ');
+    run.record(rtSequenceNumericLimitResult.Status);
+    await ts.stepType('RunRTSequenceAction', {
+      'Veristand': {
         'SeqTimeout': 10,
         'Target': 'Controller',
         'Timeout': 10000,
@@ -1414,50 +174,24 @@ Future<String> subsequence() async {
         'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
         'ParamTypesArray': '{"Path","Path","Path","Path"}',
         'ParamNamesArray': '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
-      }),
-    }),
-    testRtSequenceTimeoutResult,
-  );
-  testRtSequenceTimeoutResult.Status = 'Done';
-  run.record(testRtSequenceTimeoutResult.Status);
-  // label:
-  // Set Alarm State [SetAlarmState]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'SetAlarmState',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
+      },
+    });
+    await ts.stepType('SetAlarmState', {
+      'Veristand': {
         'FullAlarmPath': '"Targets/Controller/Alarms/Engine Temperature Warning"',
         'AlarmState': '"Tripped"',
         'AlarmName': '"Engine"',
-      }),
-    }),
-    setAlarmStateResult,
-  );
-  setAlarmStateResult.Status = 'Done';
-  run.record(setAlarmStateResult.Status);
-  // Get Alarm State [GetAlarmState]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'GetAlarmState',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
+      },
+    });
+    await ts.stepType('GetAlarmState', {
+      'Veristand': {
         'FullAlarmPath': '"Targets/Controller/Alarms/Engine Temperature Warning"',
         'AlarmState': '"Tripped"',
         'AlarmName': '"Engine"',
-      }),
-    }),
-    getAlarmStateResult,
-  );
-  getAlarmStateResult.Status = 'Done';
-  run.record(getAlarmStateResult.Status);
-  // label:
-  // Start VS Logging [StartLogging]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'StartLogging',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
+      },
+    });
+    await ts.stepType('StartLogging', {
+      'Veristand': {
         'CustomLoggingRate': 0,
         'CustomLoggingRateEnabled': false,
         'LogFilePath': '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\logs\\\\Test Log.tdms"',
@@ -1473,210 +207,387 @@ Future<String> subsequence() async {
         'FileSegmentingSize': 0,
         'FilePropertyNames': <dynamic>[],
         'FilePropertyValues': <dynamic>[],
-      }),
-    }),
-    startVsLoggingResult,
-  );
-  startVsLoggingResult.Status = 'Done';
-  run.record(startVsLoggingResult.Status);
-  // Set Channel Fault Value [SetChannelFaultValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'SetChannelFaultValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'}),
-    }),
-    setChannelFaultValueResult,
-  );
-  setChannelFaultValueResult.Status = 'Done';
-  run.record(setChannelFaultValueResult.Status);
-  // Get Channel Fault Value [GetChannelFaultValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'GetChannelFaultValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'}),
-    }),
-    getChannelFaultValueResult,
-  );
-  getChannelFaultValueResult.Status = 'Done';
-  run.record(getChannelFaultValueResult.Status);
-  // Clear Fault [ClearFault]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'ClearFault',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'}),
-    }),
-    clearFaultResult,
-  );
-  clearFaultResult.Status = 'Done';
-  run.record(clearFaultResult.Status);
-  // Get Channel Fault Value [GetChannelFaultValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'GetChannelFaultValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'}),
-    }),
-    getChannelFaultValueResult2,
-  );
-  getChannelFaultValueResult2.Status = 'Done';
-  run.record(getChannelFaultValueResult2.Status);
-  // Set Channel Fault Value [SetChannelFaultValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'SetChannelFaultValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'}),
-    }),
-    setChannelFaultValueResult2,
-  );
-  setChannelFaultValueResult2.Status = 'Done';
-  run.record(setChannelFaultValueResult2.Status);
-  // Get Channel Fault Value [GetChannelFaultValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'GetChannelFaultValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'}),
-    }),
-    getChannelFaultValueResult3,
-  );
-  getChannelFaultValueResult3.Status = 'Done';
-  run.record(getChannelFaultValueResult3.Status);
-  // Clear All Faults [ClearAllFaults]: acts through ts.stepHost
-  await ts.stepHost.runStepType('ClearAllFaults', ts.StepPhase.post, ts.PropObj(), clearAllFaultsResult);
-  clearAllFaultsResult.Status = 'Done';
-  run.record(clearAllFaultsResult.Status);
-  // Get Channel Fault Value [GetChannelFaultValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'GetChannelFaultValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'}),
-    }),
-    getChannelFaultValueResult4,
-  );
-  getChannelFaultValueResult4.Status = 'Done';
-  run.record(getChannelFaultValueResult4.Status);
-  // label:
-  // Update Model Parameters From File [UpdateModelParametersFromFile]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'UpdateModelParametersFromFile',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
+      },
+    });
+    await ts.stepType('SetChannelFaultValue', {
+      'Veristand': {'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'},
+    });
+    await ts.stepType('GetChannelFaultValue', {
+      'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    });
+    await ts.stepType('ClearFault', {
+      'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    });
+    await ts.stepType('GetChannelFaultValue', {
+      'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    });
+    await ts.stepType('SetChannelFaultValue', {
+      'Veristand': {'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'},
+    });
+    await ts.stepType('GetChannelFaultValue', {
+      'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    });
+    await ts.stepType('ClearAllFaults');
+    await ts.stepType('GetChannelFaultValue', {
+      'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    });
+    await ts.stepType('UpdateModelParametersFromFile', {
+      'Veristand': {
         'ModelParameterFilepath':
             '{"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Update Model Parameters\\\\ParameterUpdate1.m"}',
         'TargetName': '"Controller"',
-      }),
-    }),
-    updateModelParametersFromFileResult,
-  );
-  updateModelParametersFromFileResult.Status = 'Done';
-  run.record(updateModelParametersFromFileResult.Status);
-  // Update Model Parameters From File [UpdateModelParametersFromFile]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'UpdateModelParametersFromFile',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
+      },
+    });
+    await ts.stepType('UpdateModelParametersFromFile', {
+      'Veristand': {
         'ModelParameterFilepath':
             '{"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Update Model Parameters\\\\ParameterUpdate2.m"}',
         'TargetName': '"Controller"',
-      }),
-    }),
-    updateModelParametersFromFileResult2,
-  );
-  updateModelParametersFromFileResult2.Status = 'Done';
-  run.record(updateModelParametersFromFileResult2.Status);
-  // Set Model Parameter Value [SetModelParameterValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'SetModelParameterValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
+      },
+    });
+    await ts.stepType('SetModelParameterValue', {
+      'Veristand': {
         'FullChannelPath': '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/b11"',
         'TargetName': '"Controller"',
         'ValueToSet': '11',
         'ChannelName': '"b11"',
-      }),
-    }),
-    setModelParameterValueResult,
-  );
-  setModelParameterValueResult.Status = 'Done';
-  run.record(setModelParameterValueResult.Status);
-  await Future<void>.delayed(const Duration(seconds: 3));
-  // Get Model Parameter Value [GetModelParameterValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'GetModelParameterValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
+      },
+    });
+    await Future<void>.delayed(const Duration(seconds: 3));
+    await ts.stepType('GetModelParameterValue', {
+      'Veristand': {
         'FullChannelPath': '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/b11"',
         'TargetName': '"Controller"',
         'ValueToSet': '',
         'ChannelName': '"b11"',
-      }),
-    }),
-    getModelParameterValueResult,
-  );
-  getModelParameterValueResult.Status = 'Done';
-  run.record(getModelParameterValueResult.Status);
-  // Get Model Parameter Value [GetModelParameterValue]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'GetModelParameterValue',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
+      },
+    });
+    await ts.stepType('GetModelParameterValue', {
+      'Veristand': {
         'FullChannelPath': '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/idle speed (RPM)"',
         'TargetName': '"Controller"',
         'ValueToSet': '',
         'ChannelName': '"idle speed (RPM)"',
-      }),
-    }),
-    getModelParameterValueResult2,
-  );
-  getModelParameterValueResult2.Status = 'Done';
-  run.record(getModelParameterValueResult2.Status);
-  // Stop VS Logging [StopLogging]: acts through ts.stepHost
-  await ts.stepHost.runStepType('StopLogging', ts.StepPhase.post, ts.PropObj(), stopVsLoggingResult);
-  stopVsLoggingResult.Status = 'Done';
-  run.record(stopVsLoggingResult.Status);
-  // label:
-  // Run Stimulus Profile [RunStimulusProfileBlocking]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'RunStimulusProfileBlocking',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
+      },
+    });
+    await ts.stepType('StopLogging');
+    await ts.stepType('RunStimulusProfileBlocking', {
+      'Veristand': {
         'Timeout': -1,
         'UUT': '"0"',
         'StimulusProfilePath':
             '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basics.nivsstimprof"',
-      }),
-    }),
-    runStimulusProfileResult,
-  );
-  runStimulusProfileResult.Status = 'Done';
-  run.record(runStimulusProfileResult.Status);
-  // Test Stimulus Profile Timeout [RunStimulusProfileBlocking]: acts through ts.stepHost
-  await ts.stepHost.runStepType(
-    'RunStimulusProfileBlocking',
-    ts.StepPhase.post,
-    ts.PropObj({
-      'Veristand': ts.PropObj({
+      },
+    });
+    await ts.stepType('RunStimulusProfileBlocking', {
+      'Veristand': {
         'Timeout': 10,
         'UUT': '"0"',
         'StimulusProfilePath':
             '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basics.nivsstimprof"',
-      }),
-    }),
-    testStimulusProfileTimeoutResult,
-  );
-  testStimulusProfileTimeoutResult.Status = 'Done';
-  run.record(testStimulusProfileTimeoutResult.Status);
+      },
+    });
+    run.record(await main_sub_seq.mainSequence()); // Call Subsequence (seperate file): external sequence
+    run.record(await subsequence()); // Call Subsequence (same file)
+    // [skipped in source] Silent disconnect test
+  } finally {
+    await ts.stepType('StopVeriStand', {
+      'Veristand': {'CloseUIManager': false, 'CloseApp': true, 'ShowProgress': false},
+    });
+    await ts.callExecutable(
+      'taskkill',
+      arguments: '/IM NationalInstruments.VeriStand.UIManager.Application.exe /F',
+      waitForExit: true,
+    );
+  }
+
+  return run.status;
+}
+
+/// Sequence `PreUUT` — Displays a dialog box in which the operator enters the UUTserial number.  Override this in client file to change or replace this action..
+Future<void> preUut({
+  bool continueTesting = true,
+  dynamic uut,
+  dynamic testSocket,
+  dynamic modelData,
+  dynamic modelPluginConfiguration,
+}) async {
+  // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
+  // [skipped in source] Call DoPreUUT
+}
+
+/// Sequence `PostUUT` — Displays a pass, fail, error, or terminated banner. Override this in client file to change or replace this action..
+Future<void> postUut({
+  dynamic result,
+  dynamic uut,
+  dynamic testSocket,
+  dynamic modelData,
+  dynamic modelPluginConfiguration,
+}) async {
+  // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
+  // [skipped in source] Call DoPostUUT
+}
+
+/// Sequence `Subsequence`.
+Future<ts.Status> subsequence() async {
+  final run = ts.SequenceRun();
+  final dynamic channelValueLimitTestResult = ts.PropObj({
+    'Veristand': ts.PropObj({'ChannelName': '', 'Description': '', 'ChannelInfo': null}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'VeristandError': null,
+    'Status': '',
+    'Numeric': 0,
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Units': '',
+  });
+  final dynamic rtSequencePassFailTestResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  });
+  final dynamic rtSequenceNumericLimitResult = ts.PropObj({
+    'VeriStand': ts.PropObj({'Path': ''}),
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+    'Numeric': 0,
+    'Units': '',
+  });
+
+  await ts.stepType('OpenWorkspace');
+  await ts.stepType('SetChannelValue', {
+    'Veristand': {'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'},
+  });
+  await ts.stepType('GetChannelValue', {
+    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EngineTemp"'},
+  });
+  await ts.stepType('LimitTestChannelValue', {
+    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    'Limits': {
+      'UseNominalExpr': false,
+      'UseThresholdTypeExpr': false,
+      'Nominal': 100,
+      'NominalExpr': '',
+      'ThresholdTypeExpr': '',
+      'ThresholdType': 'PERCENTAGE',
+      'Low': 1,
+      'High': 11,
+      'LowExpr': '',
+      'HighExpr': '',
+      'UseLowExpr': false,
+      'UseHighExpr': false,
+    },
+    'Comp': 'EQ',
+    'CompExpr': '',
+    'UseCompExpr': false,
+    'InBuf': '',
+    'DataSource': 'Step.Result.Numeric',
+  }, channelValueLimitTestResult);
+  channelValueLimitTestResult.Status = ts.checkLimits(channelValueLimitTestResult.Numeric, 11, 1, 'EQ');
+  run.record(channelValueLimitTestResult.Status);
+  await ts.stepType('SetMultipleChannelValues', {
+    'VeriStand': {
+      'Timeout_ms': -1,
+      'BaseNodeArray': null,
+      'ValuesToSet': <dynamic>['4000', '1'],
+      'ChannelNames': <dynamic>['Aliases/DesiredRPM', 'Aliases/EnginePower'],
+    },
+  });
+  await ts.stepType('GetMultipleChannelValues', {
+    'VeriStand': {
+      'BaseNodeArray': null,
+      'ChannelNames': <dynamic>['Aliases/ActualRPM', 'Aliases/DesiredRPM', 'Aliases/EnginePower'],
+    },
+  });
+  await subtest_set_channel_timeout_seq.mainSequence(); // Set Channel Timeout Subtest: external sequence
+  // [skipped in source] Extended RT Sequence Test
+  run.record(
+    await subtest_rt_sequence_parameter_return_test_seq.mainSequence(),
+  ); // Test sequence parameters & return values: external sequence
+  await ts.stepType('CloseWorkspace');
+  await ts.stepType('RunRTSequenceAction', {
+    'Veristand': {
+      'SeqTimeout': -1,
+      'Target': 'Controller',
+      'Timeout': 10000,
+      'SequenceFilePath':
+          '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
+      'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+      'ParamTypesArray': '{"Path","Path"}',
+      'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+    },
+  });
+  await ts.stepType('RunRTSequencePassFail', {
+    'VeriStand': {
+      'SeqTimeout': -1,
+      'Target': 'Controller',
+      'Timeout': 10000,
+      'SequenceFilePath':
+          '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Engine Demo Advanced & Return Value\\\\Engine Demo Advanced & Return Value.nivsseq"',
+      'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
+      'ParamTypesArray': '{"Path","Path","Path","Path"}',
+      'ParamNamesArray': '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
+    },
+  }, rtSequencePassFailTestResult);
+  rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
+      ? 'Passed'
+      : 'Failed';
+  await ts.stepType('RunRTSequenceNumericLimit', {
+    'VeriStand': {
+      'SeqTimeout': -1,
+      'Target': 'Controller',
+      'Timeout': 10000,
+      'SequenceFilePath':
+          '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\Engine Demo Basic with Numeric Return Value.nivsseq"',
+      'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
+      'ParamTypesArray': '{"Path","Path"}',
+      'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
+      'NumericDataType': '"Int64"',
+    },
+    'Limits': {
+      'UseNominalExpr': false,
+      'UseThresholdTypeExpr': false,
+      'Nominal': 100,
+      'NominalExpr': '',
+      'ThresholdTypeExpr': '',
+      'ThresholdType': 'PERCENTAGE',
+      'Low': 10,
+      'High': 1,
+      'LowExpr': '',
+      'HighExpr': '',
+      'UseLowExpr': false,
+      'UseHighExpr': false,
+    },
+    'Comp': 'EQ',
+    'CompExpr': '',
+    'UseCompExpr': false,
+    'InBuf': '',
+    'DataSource': 'Step.Result.Numeric',
+  }, rtSequenceNumericLimitResult);
+  rtSequenceNumericLimitResult.Status = ts.checkLimits(rtSequenceNumericLimitResult.Numeric, 1, 10, 'EQ');
+  run.record(rtSequenceNumericLimitResult.Status);
+  await ts.stepType('RunRTSequenceAction', {
+    'Veristand': {
+      'SeqTimeout': 10,
+      'Target': 'Controller',
+      'Timeout': 10000,
+      'SequenceFilePath':
+          '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Engine Demo Advanced\\\\Engine Demo Advanced.nivsseq"',
+      'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
+      'ParamTypesArray': '{"Path","Path","Path","Path"}',
+      'ParamNamesArray': '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
+    },
+  });
+  await ts.stepType('SetAlarmState', {
+    'Veristand': {
+      'FullAlarmPath': '"Targets/Controller/Alarms/Engine Temperature Warning"',
+      'AlarmState': '"Tripped"',
+      'AlarmName': '"Engine"',
+    },
+  });
+  await ts.stepType('GetAlarmState', {
+    'Veristand': {
+      'FullAlarmPath': '"Targets/Controller/Alarms/Engine Temperature Warning"',
+      'AlarmState': '"Tripped"',
+      'AlarmName': '"Engine"',
+    },
+  });
+  await ts.stepType('StartLogging', {
+    'Veristand': {
+      'CustomLoggingRate': 0,
+      'CustomLoggingRateEnabled': false,
+      'LogFilePath': '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\logs\\\\Test Log.tdms"',
+      'BaseNodeArray': null,
+      'ChannelPaths': <dynamic>['Aliases/ActualRPM', 'Aliases/DesiredRPM', 'Aliases/EnginePower', 'Aliases/EngineTemp'],
+      'FileDescription': '',
+      'FileSegmenting': false,
+      'FileSegmentingSize': 0,
+      'FilePropertyNames': <dynamic>[],
+      'FilePropertyValues': <dynamic>[],
+    },
+  });
+  await ts.stepType('SetChannelFaultValue', {
+    'Veristand': {'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'},
+  });
+  await ts.stepType('GetChannelFaultValue', {
+    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+  });
+  await ts.stepType('ClearFault', {
+    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+  });
+  await ts.stepType('GetChannelFaultValue', {
+    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+  });
+  await ts.stepType('SetChannelFaultValue', {
+    'Veristand': {'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'},
+  });
+  await ts.stepType('GetChannelFaultValue', {
+    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+  });
+  await ts.stepType('ClearAllFaults');
+  await ts.stepType('GetChannelFaultValue', {
+    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+  });
+  await ts.stepType('UpdateModelParametersFromFile', {
+    'Veristand': {
+      'ModelParameterFilepath':
+          '{"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Update Model Parameters\\\\ParameterUpdate1.m"}',
+      'TargetName': '"Controller"',
+    },
+  });
+  await ts.stepType('UpdateModelParametersFromFile', {
+    'Veristand': {
+      'ModelParameterFilepath':
+          '{"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Update Model Parameters\\\\ParameterUpdate2.m"}',
+      'TargetName': '"Controller"',
+    },
+  });
+  await ts.stepType('SetModelParameterValue', {
+    'Veristand': {
+      'FullChannelPath': '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/b11"',
+      'TargetName': '"Controller"',
+      'ValueToSet': '11',
+      'ChannelName': '"b11"',
+    },
+  });
+  await Future<void>.delayed(const Duration(seconds: 3));
+  await ts.stepType('GetModelParameterValue', {
+    'Veristand': {
+      'FullChannelPath': '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/b11"',
+      'TargetName': '"Controller"',
+      'ValueToSet': '',
+      'ChannelName': '"b11"',
+    },
+  });
+  await ts.stepType('GetModelParameterValue', {
+    'Veristand': {
+      'FullChannelPath': '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/idle speed (RPM)"',
+      'TargetName': '"Controller"',
+      'ValueToSet': '',
+      'ChannelName': '"idle speed (RPM)"',
+    },
+  });
+  await ts.stepType('StopLogging');
+  await ts.stepType('RunStimulusProfileBlocking', {
+    'Veristand': {
+      'Timeout': -1,
+      'UUT': '"0"',
+      'StimulusProfilePath':
+          '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basics.nivsstimprof"',
+    },
+  });
+  await ts.stepType('RunStimulusProfileBlocking', {
+    'Veristand': {
+      'Timeout': 10,
+      'UUT': '"0"',
+      'StimulusProfilePath':
+          '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basics.nivsstimprof"',
+    },
+  });
 
   return run.status;
 }

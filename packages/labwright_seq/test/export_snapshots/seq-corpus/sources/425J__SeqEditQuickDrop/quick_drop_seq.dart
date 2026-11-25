@@ -2,62 +2,46 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _StartLocals {
-  bool running = false; // Bool — default: false
+  bool running = false;
 }
 
 /// Sequence `Start`.
-Future<String> start() async {
+Future<void> start() async {
   final locals = _StartLocals();
-  final run = ts.SequenceRun();
 
   //   Engine <- RunState.Engine
   await callIsRunning(); // Is already running? [Action]
   // Start quick drop if not already running...
   if (!locals.running) {
-    // precondition of Start
-    ts.eval('OutputMessage("Quick Drop started.")'); // pre-expression
+    ts.eval('OutputMessage("Quick Drop started.")');
     //   Context <- ThisContext
     //   Engine <- RunState.Engine
     await callStart(); // Start [Action]
   }
-
-  return run.status;
 }
 
 /// Sequence `Stop`.
-Future<String> stop() async {
-  final run = ts.SequenceRun();
-
-  ts.eval('OutputMessage("Quick Drop stoped.")'); // pre-expression
+Future<void> stop() async {
+  ts.eval('OutputMessage("Quick Drop stoped.")');
   //   Engine <- RunState.Engine
   await callStop(); // Stop [Action]
-
-  return run.status;
 }
 
 /// Sequence `IsRunning`.
-Future<String> isRunning({bool running = false}) async {
-  final run = ts.SequenceRun();
-
+Future<void> isRunning({bool running = false}) async {
   //   Engine <- RunState.Engine
   //   Running <- Parameters.Running
   await callIsRunning(); // Is already running? [Action]
-
-  return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// Stub for the labView module call `Resources\Seq Edit Quick Drop.lvlibp\Sources\Is Running.vi`
-/// (from step `Is already running?`). TODO: implement against the real module.
+/// The labView module `Resources\Seq Edit Quick Drop.lvlibp\Sources\Is Running.vi`.
 Future<Object?> callIsRunning() async =>
     throw UnimplementedError('labView call: Resources\\Seq Edit Quick Drop.lvlibp\\Sources\\Is Running.vi');
 
-/// Stub for the labView module call `Resources\Seq Edit Quick Drop.lvlibp\Sources\Start.vi`
-/// (from step `Start`). TODO: implement against the real module.
+/// The labView module `Resources\Seq Edit Quick Drop.lvlibp\Sources\Start.vi`.
 Future<Object?> callStart() async =>
     throw UnimplementedError('labView call: Resources\\Seq Edit Quick Drop.lvlibp\\Sources\\Start.vi');
 
-/// Stub for the labView module call `Resources\Seq Edit Quick Drop.lvlibp\Sources\Stop.vi`
-/// (from step `Stop`). TODO: implement against the real module.
+/// The labView module `Resources\Seq Edit Quick Drop.lvlibp\Sources\Stop.vi`.
 Future<Object?> callStop() async =>
     throw UnimplementedError('labView call: Resources\\Seq Edit Quick Drop.lvlibp\\Sources\\Stop.vi');

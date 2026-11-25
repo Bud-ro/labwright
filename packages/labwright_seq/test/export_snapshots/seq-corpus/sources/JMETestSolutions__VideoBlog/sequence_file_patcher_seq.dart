@@ -2,22 +2,20 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _MainSequenceLocals {
-  String modelPath = ''; // Str
-  String modelPatchesPath = ''; // Str
-  String outputPath = ''; // Str
-  dynamic patchedSequenceFile; // Ref
-  dynamic originalModel; // Ref
-  dynamic patchesFile; // Ref
-  int loopingVariable = 0; // Num — default: 0
+  String modelPath = '';
+  String modelPatchesPath = '';
+  String outputPath = '';
+  dynamic patchedSequenceFile;
+  dynamic originalModel;
+  dynamic patchesFile;
+  int loopingVariable = 0;
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
-  final run = ts.SequenceRun();
 
   try {
-    // ── setup ──
     locals.modelPath =
         'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\SequentialModel.seq'; // Setup Paths
     locals.modelPatchesPath =
@@ -32,7 +30,6 @@ Future<String> mainSequence() async {
       'Locals.patchedSequenceFile.AsSequenceFile.SequenceFileType = SeqFileType_Model',
     ); // Change SequenceFile Type to Model
 
-    // ── main ──
     // Copy Sequence Patches
     for (
       locals.loopingVariable = 0;
@@ -63,20 +60,14 @@ Future<String> mainSequence() async {
     }
     locals.patchedSequenceFile.AsSequenceFile.Save(locals.outputPath); // Save File
   } finally {
-    // ── cleanup ──
     if (locals.originalModel != null) {
-      // precondition of Close Model
       ts.eval('RunState.Engine.ReleaseSequenceFileEx(Locals.originalModel)'); // Close Model
     }
     if (locals.patchesFile != null) {
-      // precondition of Close Patches
       ts.eval('RunState.Engine.ReleaseSequenceFileEx(Locals.patchesFile)'); // Close Patches
     }
     if (locals.patchedSequenceFile != null) {
-      // precondition of Close OutputFile
       ts.eval('RunState.Engine.ReleaseSequenceFileEx(Locals.patchedSequenceFile)'); // Close OutputFile
     }
   }
-
-  return run.status;
 }

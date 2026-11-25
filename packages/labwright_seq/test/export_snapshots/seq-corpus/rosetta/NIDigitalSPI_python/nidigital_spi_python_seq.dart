@@ -8,36 +8,12 @@ dynamic measurementPlugIns = ts.PropObj({
   'LevelsFilePaths': <dynamic>['PinLevels.digilevels'],
   'TimingFilePaths': <dynamic>['Timing.digitiming'],
   'PatternFilePaths': <dynamic>['Pattern.digipat'],
-}); // Obj
+});
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final run = ts.SequenceRun();
-  final dynamic updatePinMapResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Update pin map
-  final dynamic testSpiDeviceResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Test SPI device
-
+Future<void> mainSequence() async {
   try {
-    // ── setup ──
-    // pin map: FileGlobals.MeasurementPlugIns.PinMapPath
-    // Update pin map [NI_UpdatePinMap]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'NI_UpdatePinMap',
-      ts.StepPhase.post,
-      ts.PropObj({'PinMapPath': 'FileGlobals.MeasurementPlugIns.PinMapPath'}),
-      updatePinMapResult,
-    );
-    updatePinMapResult.Status = 'Done';
-    run.record(updatePinMapResult.Status);
+    await ts.updatePinMap(measurementPlugIns.PinMapPath as String);
     //   sequence_context <- ThisContext
     ts.notExported('python call: teststand_nidigital.py'); // Create and register NI-Digital sessions [Action]
     //   pin_map_path <- FileGlobals.MeasurementPlugIns.PinMapPath
@@ -54,131 +30,15 @@ Future<String> mainSequence() async {
     //   sequence_context <- ThisContext
     ts.notExported('python call: teststand_nidigital.py'); // Load NI-Digital patterns [Action]
 
-    // ── main ──
-    // measurement: ni.examples.NIDigitalSPI_Python
-    // measurement param: pin_names (In TypeString IOResource) = {"SPI_PINS"}
-    // measurement param: specification_file_path (In TypeString Path) = "Specifications.specs"
-    // measurement param: levels_file_path (In TypeString Path) = "PinLevels.digilevels"
-    // measurement param: timing_file_path (In TypeString Path) = "Timing.digitiming"
-    // measurement param: pattern_file_path (In TypeString Path) = "Pattern.digipat"
-    // measurement param: load_files (In TypeBool) = False
-    // measurement param: passing_sites (Out TypeInt32)
-    // measurement param: failing_sites (Out TypeInt32)
-    // Test SPI device [NI_Measurement]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'NI_Measurement',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Measurement': ts.PropObj({
-          'Name': 'ni.examples.NIDigitalSPI_Python',
-          'Parameters': <dynamic>[
-            ts.PropObj({
-              'MessageType': '',
-              'Name': 'pin_names',
-              'ArgumentValue': '{"SPI_PINS"}',
-              'Direction': 'In',
-              'Log': true,
-              'Dimension': 1,
-              'Type': 'TypeString',
-              'ID': 1,
-              'TypeSpecialization': 'IOResource',
-              'EnumDefinition': <dynamic>[],
-            }),
-            ts.PropObj({
-              'MessageType': '',
-              'Name': 'specification_file_path',
-              'ArgumentValue': '"Specifications.specs"',
-              'Direction': 'In',
-              'Log': true,
-              'Dimension': 0,
-              'Type': 'TypeString',
-              'ID': 2,
-              'TypeSpecialization': 'Path',
-              'EnumDefinition': <dynamic>[],
-            }),
-            ts.PropObj({
-              'MessageType': '',
-              'Name': 'levels_file_path',
-              'ArgumentValue': '"PinLevels.digilevels"',
-              'Direction': 'In',
-              'Log': true,
-              'Dimension': 0,
-              'Type': 'TypeString',
-              'ID': 3,
-              'TypeSpecialization': 'Path',
-              'EnumDefinition': <dynamic>[],
-            }),
-            ts.PropObj({
-              'MessageType': '',
-              'Name': 'timing_file_path',
-              'ArgumentValue': '"Timing.digitiming"',
-              'Direction': 'In',
-              'Log': true,
-              'Dimension': 0,
-              'Type': 'TypeString',
-              'ID': 4,
-              'TypeSpecialization': 'Path',
-              'EnumDefinition': <dynamic>[],
-            }),
-            ts.PropObj({
-              'MessageType': '',
-              'Name': 'pattern_file_path',
-              'ArgumentValue': '"Pattern.digipat"',
-              'Direction': 'In',
-              'Log': true,
-              'Dimension': 0,
-              'Type': 'TypeString',
-              'ID': 5,
-              'TypeSpecialization': 'Path',
-              'EnumDefinition': <dynamic>[],
-            }),
-            ts.PropObj({
-              'MessageType': '',
-              'Name': 'load_files',
-              'ArgumentValue': 'False',
-              'Direction': 'In',
-              'Log': true,
-              'Dimension': 0,
-              'Type': 'TypeBool',
-              'ID': 6,
-              'TypeSpecialization': 'None',
-              'EnumDefinition': <dynamic>[],
-            }),
-            ts.PropObj({
-              'MessageType': '',
-              'Name': 'passing_sites',
-              'ArgumentValue': '',
-              'Direction': 'Out',
-              'Log': true,
-              'Dimension': 1,
-              'Type': 'TypeInt32',
-              'ID': 1,
-              'TypeSpecialization': 'None',
-              'EnumDefinition': <dynamic>[],
-            }),
-            ts.PropObj({
-              'MessageType': '',
-              'Name': 'failing_sites',
-              'ArgumentValue': '',
-              'Direction': 'Out',
-              'Log': true,
-              'Dimension': 1,
-              'Type': 'TypeInt32',
-              'ID': 2,
-              'TypeSpecialization': 'None',
-              'EnumDefinition': <dynamic>[],
-            }),
-          ],
-        }),
-      }),
-      testSpiDeviceResult,
-    );
-    testSpiDeviceResult.Status = 'Done';
-    run.record(testSpiDeviceResult.Status);
+    await ts.measurement('ni.examples.NIDigitalSPI_Python', {
+      'pin_names': <dynamic>['SPI_PINS'],
+      'specification_file_path': 'Specifications.specs',
+      'levels_file_path': 'PinLevels.digilevels',
+      'timing_file_path': 'Timing.digitiming',
+      'pattern_file_path': 'Pattern.digipat',
+      'load_files': false,
+    });
   } finally {
-    // ── cleanup ──
     ts.notExported('python call: teststand_nidigital.py'); // Destroy and unregister NI-Digital sessions [Action]
   }
-
-  return run.status;
 }

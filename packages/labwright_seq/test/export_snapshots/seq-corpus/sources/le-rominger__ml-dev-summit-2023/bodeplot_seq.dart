@@ -6,11 +6,11 @@ dynamic measurementLink = ts.PropObj({
   'PinMapFileName': 'PinMap.pinmap',
   'PinMapPath': '',
   'PinMapId': '',
-}); // Obj
+});
 
 class _MainSequenceLocals {
-  double frequency = 0; // Num — default: 0
-  bool simulate = false; // Bool — default: false
+  double frequency = 0;
+  bool simulate = false;
   dynamic results = ts.PropObj({
     'gain': 0,
     'phase': 0,
@@ -19,204 +19,33 @@ class _MainSequenceLocals {
         ts.PropObj({'x': 0, 'y': 0}),
       ],
     ],
-  }); // Obj
+  });
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
-  final run = ts.SequenceRun();
-  dynamic acquireAWaveformUsingAnNiOscilloscopeResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Acquire a waveform using an NI oscilloscope
 
   try {
-    // ── setup ──
-    // label: See Process Setup
+    // See Process Setup
 
-    // ── main ──
     for (final value in ts.sweepPoints(200, 50000, 100, logarithmic: true)) {
       locals.frequency = (value as num).toDouble();
       // -- Call LabVIEW Service
-      // measurement: LabVIEW Bodeplot Summit_LabVIEW
-      // measurement param: Start Frequency (In TypeDouble) = Locals.Frequency
-      // measurement param: Frequency Steps (In TypeDouble) = 1
-      // measurement param: Stop Frequency (In TypeDouble) = Locals.Frequency+100
-      // measurement param: Amplitude (In TypeDouble) = 1
-      // measurement param: Timing (ms) (In TypeUint32) = 0ui64
-      // measurement param: Vin_signal (In TypeString Pin) = "Vin_signal"
-      // measurement param: filter_pins (In TypeString Pin) = "Vin_measure"
-      // measurement param: Simulate (In TypeBool) = Locals.Simulate
-      // measurement param: R1 (In TypeDouble) = 0
-      // measurement param: C1 (In TypeDouble) = 0
-      // measurement param: actual_gain (Out TypeDouble) = Locals.Results.gain
-      // measurement param: actual_phase (Out TypeDouble) = Locals.Results.phase
-      // measurement param: Gain (Out TypeDouble)
-      // measurement param: Phase (Out TypeDouble)
-      acquireAWaveformUsingAnNiOscilloscopeResult = ts.PropObj({
-        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-        'Status': '',
-        'ReportText': '',
-        'Common': ts.PropObj(),
+      final outputs = await ts.measurement('LabVIEW Bodeplot Summit_LabVIEW', {
+        'Start Frequency': locals.frequency,
+        'Frequency Steps': 1,
+        'Stop Frequency': locals.frequency + 100,
+        'Amplitude': 1,
+        'Timing (ms)': 0,
+        'Vin_signal': 'Vin_signal',
+        'filter_pins': 'Vin_measure',
+        'Simulate': locals.simulate,
+        'R1': 0,
+        'C1': 0,
       });
-      // Acquire a waveform using an NI oscilloscope [NI_Measurement]: acts through ts.stepHost
-      await ts.stepHost.runStepType(
-        'NI_Measurement',
-        ts.StepPhase.post,
-        ts.PropObj({
-          'Measurement': ts.PropObj({
-            'Name': 'LabVIEW Bodeplot Summit_LabVIEW',
-            'Parameters': <dynamic>[
-              ts.PropObj({
-                'Name': 'Start Frequency',
-                'ArgumentValue': 'Locals.Frequency',
-                'Direction': 'In',
-                'Log': false,
-                'Dimension': 0,
-                'Type': 'TypeDouble',
-                'ID': 1,
-                'TypeSpecialization': 'None',
-              }),
-              ts.PropObj({
-                'Name': 'Frequency Steps',
-                'ArgumentValue': '1',
-                'Direction': 'In',
-                'Log': false,
-                'Dimension': 0,
-                'Type': 'TypeDouble',
-                'ID': 2,
-                'TypeSpecialization': 'None',
-              }),
-              ts.PropObj({
-                'Name': 'Stop Frequency',
-                'ArgumentValue': 'Locals.Frequency+100',
-                'Direction': 'In',
-                'Log': false,
-                'Dimension': 0,
-                'Type': 'TypeDouble',
-                'ID': 3,
-                'TypeSpecialization': 'None',
-              }),
-              ts.PropObj({
-                'Name': 'Amplitude',
-                'ArgumentValue': '1',
-                'Direction': 'In',
-                'Log': true,
-                'Dimension': 0,
-                'Type': 'TypeDouble',
-                'ID': 4,
-                'TypeSpecialization': 'None',
-              }),
-              ts.PropObj({
-                'Name': 'Timing (ms)',
-                'ArgumentValue': '0ui64',
-                'Direction': 'In',
-                'Log': true,
-                'Dimension': 0,
-                'Type': 'TypeUint32',
-                'ID': 5,
-                'TypeSpecialization': 'None',
-              }),
-              ts.PropObj({
-                'Name': 'Vin_signal',
-                'ArgumentValue': '"Vin_signal"',
-                'Direction': 'In',
-                'Log': true,
-                'Dimension': 0,
-                'Type': 'TypeString',
-                'ID': 6,
-                'TypeSpecialization': 'Pin',
-              }),
-              ts.PropObj({
-                'Name': 'filter_pins',
-                'ArgumentValue': '"Vin_measure"',
-                'Direction': 'In',
-                'Log': true,
-                'Dimension': 0,
-                'Type': 'TypeString',
-                'ID': 7,
-                'TypeSpecialization': 'Pin',
-              }),
-              ts.PropObj({
-                'Name': 'Simulate',
-                'ArgumentValue': 'Locals.Simulate',
-                'Direction': 'In',
-                'Log': false,
-                'Dimension': 0,
-                'Type': 'TypeBool',
-                'ID': 8,
-                'TypeSpecialization': 'None',
-              }),
-              ts.PropObj({
-                'Name': 'R1',
-                'ArgumentValue': '0',
-                'Direction': 'In',
-                'Log': true,
-                'Dimension': 0,
-                'Type': 'TypeDouble',
-                'ID': 9,
-                'TypeSpecialization': 'None',
-              }),
-              ts.PropObj({
-                'Name': 'C1',
-                'ArgumentValue': '0',
-                'Direction': 'In',
-                'Log': true,
-                'Dimension': 0,
-                'Type': 'TypeDouble',
-                'ID': 10,
-                'TypeSpecialization': 'None',
-              }),
-              ts.PropObj({
-                'Name': 'actual_gain',
-                'ArgumentValue': 'Locals.Results.gain',
-                'Direction': 'Out',
-                'Log': true,
-                'Dimension': 0,
-                'Type': 'TypeDouble',
-                'ID': 1,
-                'TypeSpecialization': 'None',
-              }),
-              ts.PropObj({
-                'Name': 'actual_phase',
-                'ArgumentValue': 'Locals.Results.phase',
-                'Direction': 'Out',
-                'Log': true,
-                'Dimension': 0,
-                'Type': 'TypeDouble',
-                'ID': 2,
-                'TypeSpecialization': 'None',
-              }),
-              ts.PropObj({
-                'Name': 'Gain',
-                'ArgumentValue': '',
-                'Direction': 'Out',
-                'Log': false,
-                'Dimension': 1,
-                'Type': 'TypeDouble',
-                'ID': 3,
-                'TypeSpecialization': 'None',
-              }),
-              ts.PropObj({
-                'Name': 'Phase',
-                'ArgumentValue': '',
-                'Direction': 'Out',
-                'Log': false,
-                'Dimension': 1,
-                'Type': 'TypeDouble',
-                'ID': 4,
-                'TypeSpecialization': 'None',
-              }),
-            ],
-          }),
-        }),
-        acquireAWaveformUsingAnNiOscilloscopeResult,
-      );
-      acquireAWaveformUsingAnNiOscilloscopeResult.Status = 'Done';
-      run.record(acquireAWaveformUsingAnNiOscilloscopeResult.Status);
+      locals.results.gain = outputs['actual_gain'];
+      locals.results.phase = outputs['actual_phase'];
       // -- Call Python Service
       // [skipped in source] Acquire a waveform using an NI oscilloscope
       // -- Call Python Service: Simulation
@@ -226,21 +55,14 @@ Future<String> mainSequence() async {
       );
     }
   } finally {
-    // ── cleanup ──
-    // label: See Process Cleanup
+    // See Process Cleanup
   }
-
-  return run.status;
 }
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
-Future<String> processSetup() async {
-  final run = ts.SequenceRun();
+Future<void> processSetup() async {
+  // Registering Active Pinmap
 
-  // ── setup ──
-  // label: Registering Active Pinmap
-
-  // ── main ──
   ts.eval(
     'FindFile(FileGlobals.MeasurementLink.PinMapFileName,True,FileGlobals.MeasurementLink.PinMapPath)',
   ); // Get absolute path to pinmap file
@@ -253,25 +75,17 @@ Future<String> processSetup() async {
   ts.eval(
     'RunState.Engine.TemporaryGlobals.SetValString("NI.MeasurementLink.PinMapId", 0x1, FileGlobals.MeasurementLink.PinMapId)',
   ); // Register active PinMapId
-
-  return run.status;
 }
 
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
-Future<String> processCleanup() async {
-  final run = ts.SequenceRun();
-
+Future<void> processCleanup() async {
   ts.eval(
     'RunState.Engine.TemporaryGlobals.DeleteSubProperty("NI.MeasurementLink.PinMapId", 0x2)',
   ); // Unregister active PinMapId
   // -- Optional Unregister Sessions
   // [skipped in source] Destroy and unregister NI-DCPower sessions
-
-  return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// Stub for the labView module call `TestStand Code Modules\Update Pin Map.vi`
-/// (from step `Update pin map`). TODO: implement against the real module.
+/// The labView module `TestStand Code Modules\Update Pin Map.vi`.
 Future<Object?> callUpdatePinMap() async =>
     throw UnimplementedError('labView call: TestStand Code Modules\\Update Pin Map.vi');

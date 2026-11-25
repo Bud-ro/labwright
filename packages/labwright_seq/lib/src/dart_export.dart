@@ -111,9 +111,39 @@ SeqProjectExport exportSeqProjectToDart(Map<String, SeqFile> byPath) {
         final fn = fnOf[targetKey]![target];
         if (fn == null) continue;
         final prefix = moduleOf[targetKey]!;
-        (resolvedOf[key] ??= {})[(sf, target)] = (fn: '$prefix.$fn', scope: scopeByNameOf[targetKey]![target]!);
+        (resolvedOf[key] ??= {})[(sf, target)] = (
+          fn: '$prefix.$fn',
+          scope: scopeByNameOf[targetKey]![target]!,
+          key: (targetKey, target),
+        );
         (importsOf[key] ??= {}).add(targetKey);
       }
+    }
+  }
+
+  final callersOf = <(String, String), Set<(String, String)>>{};
+  final failing = <(String, String)>{};
+  for (final key in ordered) {
+    final file = byPath[key]!;
+    final probe = _DartExporter(file, sourceName: key);
+    final names = {for (final seq in file.sequences) seq.name};
+    for (final seq in file.sequences) {
+      final caller = (key, seq.name);
+      if (probe._failsItself(seq)) failing.add(caller);
+      for (final step in seq.steps) {
+        final m = step.module;
+        if (m.adapter != SeqAdapter.sequenceCall || step.settings.failureCausesSequenceFailure == false) continue;
+        if (m.threadOptionCode == _newThreadOption || m.threadOptionCode == _newExecutionOption) continue;
+        final target = m.sequenceName;
+        final local = m.resolvesLocalCall(ownFilePath: key) && names.contains(target);
+        final targetKey = local ? key : (m.sequenceFile == null ? null : resolveTargetFile(key, m.sequenceFile!));
+        if (target != null && targetKey != null) (callersOf[(targetKey, target)] ??= {}).add(caller);
+      }
+    }
+  }
+  for (final pending = failing.toList(); pending.isNotEmpty;) {
+    for (final caller in callersOf[pending.removeLast()] ?? const <(String, String)>{}) {
+      if (failing.add(caller)) pending.add(caller);
     }
   }
 
@@ -132,6 +162,7 @@ SeqProjectExport exportSeqProjectToDart(Map<String, SeqFile> byPath) {
     files['$module.dart'] = _DartExporter(
       byPath[key]!,
       sourceName: key,
+      failing: failing,
       imports: {for (final dep in importsOf[key] ?? const <String>{}) moduleOf[dep]!},
       resolveExternalCall: (m) {
         final (sf, name) = (m.sequenceFile, m.sequenceName);
@@ -563,7 +594,7 @@ class _StubInfo {
   }
 }
 
-typedef _ResolvedCall = ({String fn, _SeqScope scope});
+typedef _ResolvedCall = ({String fn, _SeqScope scope, (String, String) key});
 
 typedef _Param = ({String id, _DartSlot type, String? init, bool boxed});
 
@@ -1000,6 +1031,22 @@ enum _SweepStrategy {
 }
 
 /// A built-in step type whose whole behaviour, without a code module, is its expressions and post action.
+/// The step types whose action the export translates to a documented shim call.
+enum _BuiltInStep {
+  messagePopup('MessagePopup'),
+  callExecutable('CallExecutable'),
+  multipleNumericLimitTest('NI_MultipleNumericLimitTest'),
+  measurement('NI_Measurement'),
+  updatePinMap('NI_UpdatePinMap'),
+
+  /// Adds entries to the step's result for the report; nothing a sequence reads.
+  additionalResults('AdditionalResults');
+
+  const _BuiltInStep(this.type);
+  final String type;
+  static final Map<String, _BuiltInStep> byType = {for (final t in values) t.type: t};
+}
+
 enum _ModuleFreeStepType {
   /// Runs its module, so with none only its expressions.
   action('Action'),
@@ -1042,16 +1089,24 @@ _OpenBlock _openBlock(
   labelAt: labelAt,
 );
 
+/// The sequence call thread option that runs the callee in a new thread.
+const _newThreadOption = 1;
+
+/// The sequence call thread option that runs the callee in a new execution.
+const _newExecutionOption = 2;
+
 class _DartExporter {
   _DartExporter(
     this.file, {
     this.sourceName,
+    this.failing = const {},
     this.imports = const {},
     this.resolveExternalCall,
     this.stationIds = const {},
   });
   final SeqFile file;
   final String? sourceName;
+  final Set<(String, String)> failing;
   final Set<String> imports;
   final _ResolvedCall? Function(StepModule module)? resolveExternalCall;
   final Map<String, String> stationIds;
@@ -1714,7 +1769,7 @@ class _DartExporter {
       return null;
     }
     final name = switch (function) {
-      _SeqFunction.resStr || _SeqFunction.getResourceString => 'ts.stepHost.${function.dart}',
+      _SeqFunction.resStr || _SeqFunction.getResourceString => 'ts.${function.dart}',
       _ => 'ts.${function.dart}',
     };
     return (code: '$name(${codes.map((c) => c.code).join(', ')})', type: function.result, prec: _Prec.primary);
@@ -1758,7 +1813,8 @@ class _DartExporter {
     };
     _usedIds = <String>{..._topLevelNames, ...scope.allIds};
     _sequence = sequence;
-    _runId = _claimId('run');
+    final fails = failing.contains((sourceName, sequence.name));
+    _runId = fails ? _claimId('run') : 'run';
     _resultVars = _trackedResults(sequence);
     _reassignedResults = {};
     _boxedParams = {};
@@ -1798,7 +1854,7 @@ class _DartExporter {
         '${sequence.comment != null ? ' — ${_comment(sequence.comment!)}' : ''}.',
       )
       ..writeln(
-        'Future<String> $fnName('
+        '${fails ? 'Future<ts.Status>' : 'Future<void>'} $fnName('
         '${scope.emittedParams.isEmpty ? '' : '{${[for (final p in scope.emittedParams) _boxedParams.containsKey(_paramIds[p.name]) ? 'ts.Ref<${_idTypes[_paramIds[p.name]]!.source}>? ${_paramIds[p.name]}' : _paramDecl(p, _paramIds[p.name]!)].join(', ')}}'}) async {',
       );
     final preamble = [
@@ -1814,12 +1870,12 @@ class _DartExporter {
       if (_mentions(body, box)) _line(line);
     }
     if (localsClass != null) _line('final locals = $localsClass();');
-    _line('final $_runId = ts.SequenceRun();');
+    if (fails) _line('final $_runId = ts.SequenceRun();');
     if (_asyncId != null) _line('final $_asyncId = ts.AsyncCalls();');
     for (final step in sequence.steps) {
       if (_resultVars[step.raw] case final id?) {
         _line(
-          '${_reassignedResults.contains(id) ? '' : 'final '}dynamic $id = ${_resultInit(step)}; // result of ${_comment(step.name)}',
+          '${_reassignedResults.contains(id) ? '' : 'final '}dynamic $id = ${_resultInit(step)};',
         );
       }
     }
@@ -1827,7 +1883,7 @@ class _DartExporter {
     _out.write(body);
     if (_asyncId != null) _line('await $_asyncId.waitAtEnd();');
     _asyncId = null;
-    _line('return $_runId.status;');
+    if (fails) _line('return $_runId.status;');
     _indent = 0;
     _out
       ..writeln('}')
@@ -1871,7 +1927,6 @@ class _DartExporter {
       _indent++;
     }
     for (final group in bodyGroups) {
-      if (nonEmptyGroups.length > 1) _line('// ── ${group.name} ──');
       _group = group;
       _emitSteps(sequence.stepsIn(group));
       _line('');
@@ -1882,7 +1937,6 @@ class _DartExporter {
     }
     if (cleanup.isNotEmpty) {
       if (_bodyLabel != null) _indent++;
-      if (nonEmptyGroups.length > 1) _line('// ── ${StepGroup.cleanup.name} ──');
       _group = StepGroup.cleanup;
       _emitSteps(cleanup);
       if (_bodyLabel != null) {
@@ -1897,17 +1951,7 @@ class _DartExporter {
     _cleanupEntriesOf = const {};
   }
 
-  String _typeComment(SeqVariable v, {String? rawDefault}) {
-    final t = v.type;
-    final c = v.comment;
-    final parts = [
-      if (t != null) t,
-      if (rawDefault != null) "default: ${_comment(rawDefault)}",
-      if (c != null) _comment(c),
-    ];
-    if (parts.isEmpty) return '';
-    return ' // ${parts.join(' — ')}';
-  }
+  String _typeComment(SeqVariable v) => v.comment == null ? '' : ' // ${_comment(v.comment!)}';
 
   (_DartSlot, String, String)? _scalarDecl(SeqVariable v, String id) {
     final scalar = _scalarType(v);
@@ -1931,8 +1975,7 @@ class _DartExporter {
     final scalar = _scalarDecl(local, id);
     if (scalar != null) {
       final (type, zero, init) = scalar;
-      final fellBack = local.value != null && init == zero && type != _DartSlot.text;
-      return '${type.source} $id = $init;${_typeComment(local, rawDefault: fellBack ? local.value : null)}';
+      return '${type.source} $id = $init;${_typeComment(local)}';
     }
     if (_isArrayVar(local)) return 'List<dynamic> $id = ${_arrayInit(local)};${_typeComment(local)}';
     if (_isNullLocal(local)) return 'dynamic $id;${_typeComment(local)}';
@@ -2515,20 +2558,20 @@ class _DartExporter {
     if (codes.contains(null) || (custom == null && result == null)) return;
     final [onTrue!, onFalse!] = codes;
     final folded = custom == null ? null : _condition(custom);
-    final condition = custom != null ? _cond(custom) : "$result.Status == 'Passed'";
+    final condition = custom != null ? _cond(custom) : '$result.Status == ts.Status.passed';
     if (folded == 'true' || folded == 'false') {
       final taken = folded == 'true' ? onTrue : onFalse;
-      if (taken.isNotEmpty) _line('$taken // post action');
+      if (taken.isNotEmpty) _line(taken);
       return;
     }
-    final otherwise = custom != null ? null : "$result.Status == 'Failed'";
+    final otherwise = custom != null ? null : '$result.Status == ts.Status.failed';
     final arms = [
       if (onTrue.isNotEmpty) (condition, onTrue),
       if (onFalse.isNotEmpty) (otherwise ?? (onTrue.isEmpty ? _negate(condition) : null), onFalse),
     ];
     for (final (i, (test, code)) in arms.indexed) {
       final head = test == null ? '} else {' : (i == 0 ? 'if ($test) {' : '} else if ($test) {');
-      _line(i == 0 ? '$head // post action' : head);
+      _line(head);
       _line('  $code');
     }
     _line('}');
@@ -2614,161 +2657,8 @@ class _DartExporter {
     return parts.isNotEmpty;
   }
 
-  List<String> _stepPayloadNotes(Step step) {
-    final notes = <String>[];
-    final settings = step.settings;
-
-    final limits = step.limits;
-    String? bound(String label, String? value, String? expression, bool? usesExpression) {
-      final text = usesExpression == true ? (expression ?? value) : (value ?? expression);
-      return text == null ? null : '$label $text';
-    }
-
-    if (limits != null) {
-      final bounds = [
-        bound('low', limits.low, limits.lowExpression, limits.usesLowExpression),
-        bound('high', limits.high, limits.highExpression, limits.usesHighExpression),
-        bound('nominal', limits.nominal, limits.nominalExpression, null),
-      ].nonNulls.toList();
-      final comparison = step.usesComparisonExpression == true
-          ? 'comparison by ${limits.comparisonExpression ?? '?'}'
-          : limits.comparison;
-      notes.add(
-        'checks: ${limits.dataSource ?? step.dataSource ?? '(data source unset)'}'
-        '${comparison != null ? ' $comparison' : ''}'
-        '${bounds.isEmpty ? '' : ' [${bounds.join(', ')}]'}'
-        '${limits.thresholdType != null ? ' (${limits.thresholdType})' : ''}'
-        '${step.resultUnits != null ? ' ${step.resultUnits}' : ''}',
-      );
-    } else if (step.dataSource != null) {
-      notes.add('checks: ${step.dataSource}${step.resultUnits != null ? ' (${step.resultUnits})' : ''}');
-    } else if (step.resultUnits != null) {
-      notes.add('result units: ${step.resultUnits}');
-    }
-    if (_statusExpression(step) != null) {
-      notes.add('status expression: ${_statusExpression(step)}');
-    }
-
-    if (settings.isLooping) {
-      final parts = [
-        if (settings.loopInitialize != null) 'init ${settings.loopInitialize}',
-        if (settings.loopWhile != null) 'while ${settings.loopWhile}',
-        if (settings.loopIncrement != null) 'increment ${settings.loopIncrement}',
-        if (settings.loopStatus != null) 'status ${settings.loopStatus}',
-      ];
-      notes.add('step loop (${settings.loopType}): ${parts.join('; ')}');
-    }
-
-    String jump(String? target) {
-      if (target == null) return '';
-      final name = target.startsWith('ID#:') ? file.stepNameForId(target) : null;
-      return ' -> ${name != null ? 'step "$name"' : target}';
-    }
-
-    if (settings.passAction != null && settings.passAction != 'Next') {
-      notes.add('on pass: ${settings.passAction}${jump(settings.passActionTarget)}');
-    }
-    if (settings.failAction != null && settings.failAction != 'Next') {
-      notes.add('on fail: ${settings.failAction}${jump(settings.failActionTarget)}');
-    }
-    if (step.type == 'Goto' && settings.customTrueTarget != null) {
-      notes.add('goto${jump(settings.customTrueTarget)}');
-    } else if (settings.customExpression != null) {
-      notes.add(
-        'custom flow: if (${settings.customExpression}) '
-        '${settings.customTrueAction ?? 'Next'}${jump(settings.customTrueTarget)}'
-        ' else ${settings.customFalseAction ?? 'Next'}${jump(settings.customFalseTarget)}',
-      );
-    }
-
-    if (settings.ignoresRunTimeErrors == true) notes.add('ignores run-time errors');
-    if (settings.failureCausesSequenceFailure == false) {
-      notes.add('failure does NOT fail the sequence');
-    }
-    if (step.suppressesNextResult == true) notes.add("suppresses the next step's result");
-    if (settings.usesMutex == true) {
-      notes.add('acquires mutex${settings.mutexName != null ? ' ${settings.mutexName}' : ''}');
-    }
-    if (settings.switchEnabled == true) {
-      notes.add(
-        'IVI switching: device ${settings.virtualDeviceName ?? '?'}'
-        '${settings.routeGroupConnect != null ? ', connect ${settings.routeGroupConnect}' : ''}'
-        '${settings.routeGroupDisconnect != null ? ', disconnect ${settings.routeGroupDisconnect}' : ''}',
-      );
-    }
-    if (step.stepType != StepType.wait && step.timeoutEnabled == true && step.timeoutExpression != null) {
-      notes.add(
-        'timeout: ${step.timeoutExpression} s'
-        '${step.errorsOnTimeout == true ? ' (error on timeout)' : ''}',
-      );
-    }
-
-    if ((step.waitForTargetCode ?? 0) != _WaitTarget.timeInterval.code &&
-        step.specifiesBySequenceCall == true &&
-        step.referencedSequenceCallName != null) {
-      notes.add('waits for sequence call step "${step.referencedSequenceCallName}"');
-    }
-    if (step.threadReferenceExpression != null) {
-      notes.add('waits for thread: ${step.threadReferenceExpression}');
-    }
-    if (step.executionReferenceExpression != null) {
-      notes.add('waits for execution: ${step.executionReferenceExpression}');
-    }
-
-    if (step.sqlStatement != null) notes.add('SQL: ${step.sqlStatement}');
-    if (step.dbConnectionString != null) notes.add('DB connection: ${step.dbConnectionString}');
-    if (step.statementHandle != null) notes.add('statement handle: ${step.statementHandle}');
-    if (step.databaseHandle != null) notes.add('database handle: ${step.databaseHandle}');
-    if (step.numberOfRecordsSelectedExpression != null) {
-      notes.add('records selected -> ${step.numberOfRecordsSelectedExpression}');
-    }
-
-    if (step.popupTitleExpression != null) notes.add('popup title: ${step.popupTitleExpression}');
-    if (step.popupMessageExpression != null) notes.add('popup message: ${step.popupMessageExpression}');
-    final buttons = step.popupButtonLabelExpressions;
-    if (buttons.isNotEmpty) notes.add('popup buttons: ${buttons.join(' | ')}');
-    if (step.popupShowsResponse == true) {
-      notes.add(
-        'popup collects a response'
-        '${step.popupDefaultResponseExpression != null ? ' (default ${step.popupDefaultResponseExpression})' : ''}',
-      );
-    }
-
-    if (step.executablePath != null) {
-      notes.add(
-        'runs executable: ${step.executablePath}'
-        '${step.executableArguments != null ? ' ${step.executableArguments}' : ''}'
-        '${step.executableWaitCondition != null ? ' (${step.executableWaitCondition})' : ''}',
-      );
-    }
-
-    if (step.syncNameOrReferenceExpression != null) {
-      notes.add(
-        'sync object: ${step.syncNameOrReferenceExpression}'
-        '${step.syncOperationCode != null ? ', operation code ${step.syncOperationCode}' : ''}'
-        '${step.syncLifetimeCode != null ? ', lifetime code ${step.syncLifetimeCode}' : ''}'
-        '${step.syncCreatesIfMissing == true ? ', created if missing' : ''}',
-      );
-    }
-
-    if (step.measurementName != null) notes.add('measurement: ${step.measurementName}');
-    for (final parameter in step.measurementParameters) {
-      final kind = [parameter.direction, parameter.dataType, parameter.typeSpecialization].nonNulls.join(' ');
-      notes.add(
-        'measurement param: ${parameter.name}'
-        '${kind.isEmpty ? '' : ' ($kind)'}'
-        '${parameter.value != null ? ' = ${parameter.value}' : ''}',
-      );
-    }
-    if (step.pinMapPath != null) notes.add('pin map: ${step.pinMapPath}');
-    if (step.description != null) notes.add('description: ${step.description}');
-    return notes;
-  }
-
   void _emitPayloadNotes(Step step) {
-    for (final note in _stepPayloadNotes(step)) {
-      _line('// ${_comment(note)}');
-    }
+    if (step.description case final description?) _line('// ${_comment(description)}');
   }
 
   void _emitPlainStep(Step step) {
@@ -2779,10 +2669,7 @@ class _DartExporter {
     _emitPayloadNotes(step);
     final precondition = settings.precondition ?? _typePreconditions[step.type];
     if (precondition != null) {
-      _line(
-        'if (${_cond(precondition)}) { '
-        '// precondition of ${_comment(step.name)}',
-      );
+      _line('if (${_cond(precondition)}) {');
       _indent++;
     }
     final loop = settings.isLooping && result != null ? _claimId('loop') : null;
@@ -2790,8 +2677,8 @@ class _DartExporter {
       _line('final $loop = ts.StepLoop();');
       _stepLoop = loop;
       final initialize = settings.loopInitialize;
-      if (initialize != null) _emitStmt(initialize, 'loop initialize');
-      _line('while (${_cond(settings.loopWhile ?? 'true')}) { // loop while');
+      if (initialize != null) _emitStmt(initialize, '');
+      _line('while (${_cond(settings.loopWhile ?? 'true')}) {');
       _indent++;
     }
     if (result != null && (_loopDepth > 0 || loop != null)) {
@@ -2800,47 +2687,50 @@ class _DartExporter {
     }
 
     final pre = settings.preExpression;
-    if (pre != null) _emitStmt(pre, 'pre-expression');
+    if (pre != null) _emitStmt(pre, '');
 
     final hosted = _hostedPhases(step);
-    if (hosted.contains(_SubstepKind.pre)) _emitHostedStep(step, _SubstepKind.pre, result);
+    if (hosted.contains(_SubstepKind.pre)) _emitHostedStep(step, result);
     _emitStepAction(step);
-    if (hosted.contains(_SubstepKind.post)) _emitHostedStep(step, _SubstepKind.post, result);
+    if (hosted.isNotEmpty && !hosted.contains(_SubstepKind.pre)) _emitHostedStep(step, result);
 
     final post = settings.postExpression;
     if (post != null && step.stepType != StepType.statement) {
-      _emitStmt(post, 'post-expression');
+      _emitStmt(post, '');
     }
     final status = _statusExpression(step);
     if (result != null) {
       if (status != null) {
         final pieces = _rawStmtPieces(status) ?? [status];
         for (final piece in pieces.take(pieces.length - 1)) {
-          _emitStmt(piece, 'status expression');
+          _emitStmt(piece, '');
         }
-        _line('$result.Status = ${_expr(pieces.last)}; // status expression');
-      } else if (!_callsExportedSequence(step)) {
-        _line("$result.Status = 'Done';");
+        _line('$result.Status = ${_expr(pieces.last)};');
+      } else if (!_callsExportedSequence(step) &&
+          _BuiltInStep.byType[step.type] != _BuiltInStep.multipleNumericLimitTest) {
+        _line('$result.Status = ts.Status.done;');
       }
     }
     if (loop != null) {
       _line('$loop.count($result.Status);');
       final increment = settings.loopIncrement;
-      if (increment != null) _emitStmt(increment, 'loop increment');
+      if (increment != null) _emitStmt(increment, '');
       _indent--;
       _line('}');
       final loopStatus = settings.loopStatus;
-      if (loopStatus != null) _line('$result.Status = ${_expr(loopStatus)}; // loop status');
+      if (loopStatus != null) _line('$result.Status = ${_expr(loopStatus)};');
       _stepLoop = null;
     }
-    if (result != null && settings.failureCausesSequenceFailure != false) _line('$_runId.record($result.Status);');
+    if (result != null && _failsSequence(step) && (_judges(step) || _callsFailingSequence(step))) {
+      _line('$_runId.record($result.Status);');
+    }
     _emitPostAction(step, result);
 
     if (precondition != null) {
       _indent--;
       if (result != null) {
         _line('} else {');
-        _line("  $result.Status = 'Skipped';");
+        _line('  $result.Status = ts.Status.skipped;');
       }
       _line('}');
     }
@@ -2873,20 +2763,91 @@ class _DartExporter {
     return matches.length == 1 ? matches.single : null;
   }
 
-  /// The sequence call thread option that runs the callee in a new thread.
-  static const _newThreadOption = 1;
-
   String _sequenceCallLine(Step step, String call, String note) {
     final result = _resultVars[step.raw];
+    final comment = note.isEmpty ? '' : ' // $note';
+    final next = '\n${'  ' * _indent}';
     if (_asyncId != null && _startsThread(step)) {
       final start =
-          "$_asyncId.start('${_escape(step.id ?? step.name)}', $call, waitAtEnd: ${step.module.autoWaitsAsync != false}); // $note";
-      return result == null ? start : "$start\n${'  ' * _indent}$result.Status = 'Done';";
+          "$_asyncId.start('${_escape(step.id ?? step.name)}', $call, waitAtEnd: ${step.module.autoWaitsAsync != false});$comment";
+      return result == null ? start : '$start$next$result.Status = ts.Status.done;';
     }
-    if (result != null) return '$result.Status = await $call; // $note';
-    if (step.settings.failureCausesSequenceFailure == false) return 'await $call; // $note';
-    return '$_runId.record(await $call); // $note';
+    final fails = _callsFailingSequence(step);
+    if (result != null) {
+      return fails
+          ? '$result.Status = await $call;$comment'
+          : 'await $call;$comment$next$result.Status = ${_passesWhenDone(step) ? 'ts.Status.passed' : 'ts.Status.done'};';
+    }
+    if (fails && step.settings.failureCausesSequenceFailure != false) return '$_runId.record(await $call);$comment';
+    return 'await $call;$comment';
   }
+
+  /// Whether a step calls, in this thread, a sequence whose steps can fail it.
+  bool _callsFailingSequence(Step step) {
+    final module = step.module;
+    if (module.adapter != SeqAdapter.sequenceCall) return false;
+    if (module.threadOptionCode == _newThreadOption || module.threadOptionCode == _newExecutionOption) return false;
+    final target = module.sequenceName;
+    if (target == null) return false;
+    if (module.resolvesLocalCall(ownFilePath: sourceName) && file.sequences.any((s) => s.name == target)) {
+      return failing.contains((sourceName, target));
+    }
+    final resolved = resolveExternalCall?.call(module);
+    return resolved != null && failing.contains(resolved.key);
+  }
+
+  /// Whether a sequence call step's status expression is the one Sequence Call steps ship with, which turns Done into
+  /// Passed for a call in this thread.
+  bool _passesWhenDone(Step step) {
+    final raw =
+        step.raw.prop('TS')?.prop('StatusExpr')?.scalar ??
+        _typeByName[step.type]?.raw.prop('TS')?.prop('StatusExpr')?.scalar;
+    return raw != null && raw.replaceAll(RegExp(r'\s+'), '') == _sequenceCallStatusExpression;
+  }
+
+  static const _sequenceCallStatusExpression =
+      '(Step.Result.Status=="Done"&&(Step.TS.SData.ThreadOpt==0||Step.TS.SData.ThreadOpt==3))?"Passed":Step.Result.Status';
+
+  /// The expressions a step evaluates around its action.
+  Iterable<String> _stepExpressions(Step step) {
+    final settings = step.settings;
+    return [
+      settings.precondition,
+      settings.preExpression,
+      settings.postExpression,
+      _statusExpression(step),
+      settings.customExpression,
+      if (settings.isLooping) ...[
+        settings.loopInitialize,
+        settings.loopWhile,
+        settings.loopIncrement,
+        settings.loopStatus,
+      ],
+      for (final argument in step.module.sequenceArguments) argument.expression,
+    ].nonNulls;
+  }
+
+  static final _writesOwnStatus = RegExp(r'(?<![\w.])Step\.Result\.Status\s*=(?!=)', caseSensitive: false);
+  static final _sequenceFailed = RegExp(r'RunState\.SequenceFailed\b', caseSensitive: false);
+
+  /// Whether a step sets its own status to something other than Done: by judging a measurement, through its loop, or
+  /// by an expression writing it.
+  bool _judges(Step step) {
+    final status = _statusExpression(step);
+    return _BuiltInStep.byType[step.type] == _BuiltInStep.multipleNumericLimitTest ||
+        (status != null && status.trim() != '""') ||
+        (step.settings.isLooping && step.settings.loopStatus != null) ||
+        _stepExpressions(step).any(_writesOwnStatus.hasMatch);
+  }
+
+  /// Whether a step's failure fails the sequence it runs in.
+  bool _failsSequence(Step step) =>
+      step.flowControl == null && step.settings.isNormalMode && step.settings.failureCausesSequenceFailure != false;
+
+  /// Whether a sequence can fail without any of its sequence calls failing.
+  bool _failsItself(Sequence sequence) => sequence.steps.any(
+    (step) => (_failsSequence(step) && _judges(step)) || _stepExpressions(step).any(_sequenceFailed.hasMatch),
+  );
 
   String _resultInit(Step step) {
     final raw = step.raw.prop('Result');
@@ -2902,25 +2863,11 @@ class _DartExporter {
     final ownResult = RegExp(r'(?<![\w.])Step\.Result\b', caseSensitive: false);
     final steps = sequence.steps;
     for (final step in steps) {
-      final settings = step.settings;
-      final expressions = [
-        settings.precondition,
-        settings.preExpression,
-        settings.postExpression,
-        _statusExpression(step),
-        settings.customExpression,
-        if (settings.isLooping) ...[
-          settings.loopInitialize,
-          settings.loopWhile,
-          settings.loopIncrement,
-          settings.loopStatus,
-        ],
-      ].nonNulls;
-      final status = _statusExpression(step);
-      if ((status != null && status.trim() != '""') ||
-          settings.isLooping ||
-          _hostedPhases(step).isNotEmpty ||
-          expressions.any(ownResult.hasMatch)) {
+      final expressions = _stepExpressions(step).toList();
+      final judgedAfter =
+          step.settings.customExpression == null &&
+          [step.settings.passAction, step.settings.failAction].any((a) => a != null && a != 'Next');
+      if (_judges(step) || judgedAfter || step.settings.isLooping || expressions.any(ownResult.hasMatch)) {
         tracked.add(step.raw);
       }
       for (final m in expressions.expand(referenced.allMatches)) {
@@ -2948,11 +2895,11 @@ class _DartExporter {
       case StepType.statement:
         final expression = step.settings.postExpression;
         if (expression == null || !_emitStmt(expression, name == 'Statement' ? '' : name)) {
-          _line('// $name: Statement with no expression');
+          if (name.isNotEmpty) _line('// $name');
         }
         return;
       case StepType.label:
-        _line('// label: $name');
+        if (name.isNotEmpty) _line('// $name');
         return;
       case StepType.wait when _WaitTarget.byCode[step.waitForTargetCode ?? 0] != _WaitTarget.timeInterval:
         final target = _WaitTarget.byCode[step.waitForTargetCode];
@@ -3028,26 +2975,14 @@ class _DartExporter {
         _emitModuleNotes(module);
         _throwLine(step, '${module.adapter.name} call', _stubTarget(step, module));
       case SeqAdapter.none:
-        final status = _statusExpression(step);
-        final judged = status != null && status.trim() != '""';
-        final hosted = _hostedPhases(step).isNotEmpty;
-        final expressive = step.settings.preExpression != null || step.settings.postExpression != null;
-        final described = hosted
-            ? 'acts through ts.stepHost'
-            : judged
-            ? 'judged by its status expression'
-            : expressive
-            ? 'acts through its expressions'
-            : 'no code module';
-        if (hosted || !_runsSubsteps(step.type) || step.type == null) {
-          _line('// $name${step.type != null ? ' [${_comment(step.type!)}]' : ''}: $described');
-        } else {
+        if (_hostedPhases(step).isEmpty && _runsSubsteps(step.type) && step.type != null) {
           _throwLine(step, 'step type ${step.type}', 'action not exported yet');
         }
     }
   }
 
   String? _statusExpression(Step step) {
+    if (step.module.adapter == SeqAdapter.sequenceCall && _passesWhenDone(step)) return null;
     final own = step.raw.prop('TS')?.prop('StatusExpr')?.scalar;
     if (own != null) return nonEmpty(own);
     final type = step.type == null ? null : _typeByName[step.type];
@@ -3058,6 +2993,7 @@ class _DartExporter {
   /// Post substeps. A type the file does not define, or one with neither substeps, module nor expressions, acts after
   /// the module when the step has none.
   Set<_SubstepKind> _hostedPhases(Step step) {
+    if (_BuiltInStep.byType.containsKey(step.type) && step.flowControl == null) return const {_SubstepKind.post};
     if (step.flowControl != null ||
         const {StepType.statement, StepType.label, StepType.wait}.contains(step.stepType) ||
         step.type == null ||
@@ -3082,39 +3018,156 @@ class _DartExporter {
     return inert ? const {_SubstepKind.post} : const {};
   }
 
-  void _emitHostedStep(Step step, _SubstepKind phase, String? result) {
-    if (step.type == _messagePopupType && phase == _SubstepKind.post) {
-      final popup = _claimId('popup');
-      final buttons = [
-        for (var i = 1; i <= _popupButtonCount; i++) _expr(step.raw.prop('Button${i}Label')?.scalar ?? '""'),
-      ];
-      final defaultResponse = step.popupDefaultResponseExpression;
-      _line(
-        'final $popup = await ts.stepHost.messagePopup(title: ${_expr(step.popupTitleExpression ?? '""')}, '
-        'message: ${_expr(step.popupMessageExpression ?? '""')}, buttons: [${buttons.join(', ')}]'
-        '${step.popupShowsResponse == true ? ', showResponse: true' : ''}'
-        '${defaultResponse != null ? ', defaultResponse: ${_expr(defaultResponse)}' : ''});',
-      );
-      if (result != null) {
-        _line('$result.ButtonHit = $popup.buttonHit;');
-        _line('$result.Response = $popup.response;');
-      }
-      return;
+  void _emitHostedStep(Step step, String? result) {
+    switch (_BuiltInStep.byType[step.type]) {
+      case _BuiltInStep.messagePopup:
+        _emitMessagePopup(step, result);
+      case _BuiltInStep.callExecutable when _emitCallExecutable(step):
+        return;
+      case _BuiltInStep.multipleNumericLimitTest:
+        _emitMultipleNumericLimitTest(step, result);
+      case _BuiltInStep.measurement:
+        _emitMeasurement(step);
+      case _BuiltInStep.updatePinMap:
+        _line('await ts.updatePinMap(${_text(step.raw.prop('PinMapPath')?.scalar)});');
+      case _BuiltInStep.additionalResults:
+        return;
+      case _:
+        final args = [
+          "'${_escape(step.type!)}'",
+          if (step.raw.subProps.any((p) => p.name != 'TS' && p.name != 'Result') || result != null)
+            '{${[
+              for (final p in step.raw.subProps)
+                if (p.name != 'TS' && p.name != 'Result') "'${_escape(p.name)}': ${_literalValue(p)}",
+            ].join(', ')}}',
+          ?result,
+        ];
+        _line('await ts.stepType(${args.join(', ')});');
     }
-    final own = SeqProperty(
-      name: step.name,
-      subProps: [
-        for (final p in step.raw.subProps)
-          if (p.name != 'TS' && p.name != 'Result') p,
-      ],
-    );
-    _line(
-      "await ts.stepHost.runStepType('${_escape(step.type!)}', ts.StepPhase.${phase.name}, "
-      '${_propObjInit(own, {})}, ${result ?? 'null'});',
-    );
   }
 
-  static const _messagePopupType = 'MessagePopup';
+  /// [p] as a Dart value, with an object as a map of its members.
+  String _literalValue(SeqProperty p) => p.subProps.isEmpty || p.array != null || p.scalar != null
+      ? _propValue(p, {})
+      : '{${[for (final c in p.subProps) "'${_escape(c.name)}': ${_literalValue(c)}"].join(', ')}}';
+
+  String _text(String? raw) => _as(_expr(raw ?? '""'), _DartSlot.text);
+
+  /// The statement storing [value], of type [slot], in the variable the expression [raw] names, or null when it names
+  /// none.
+  String? _assignment(String raw, String value, [_DartSlot slot = _DartSlot.opaque]) {
+    final parsed = parseSeqExpression(raw);
+    final target = parsed == null ? null : _emitTarget(parsed);
+    if (target == null) return null;
+    final type = target.type == _DartSlot.list ? 'List<dynamic>' : target.type.source;
+    final cast = target.type != slot && !const {_DartSlot.untyped, _DartSlot.opaque}.contains(target.type);
+    return '${target.code} = ${cast ? '$value as $type' : value};';
+  }
+
+  bool _emitCallExecutable(Step step) {
+    String? prop(String path) => path.split('.').fold<SeqProperty?>(step.raw, (p, name) => p?.prop(name))?.scalar;
+    final wait = prop('WaitCondition');
+    if (wait != 'WAIT_NONE' && wait != 'WAIT_FOR_EXIT') return false;
+    final path = prop('SpecifyExeByExpr')?.toLowerCase() == 'true'
+        ? _text(prop('ExecutableExpr'))
+        : "'${_escape(prop('Executable') ?? '')}'";
+    final arguments = prop('Arguments');
+    final stderrTarget = prop('StdError.Dest') != '0' ? prop('StdError.Expr') : null;
+    final call =
+        'ts.callExecutable(${[
+          path,
+          if (arguments != null && arguments.trim().isNotEmpty && arguments.trim() != '""') 'arguments: ${_text(arguments)}',
+          if (wait == 'WAIT_FOR_EXIT') 'waitForExit: true',
+        ].join(', ')})';
+    final store = stderrTarget == null ? null : _assignment(stderrTarget, '\$executable.standardError', _DartSlot.text);
+    if (store == null) {
+      _line('await $call;');
+      return true;
+    }
+    final executable = _claimId('executable');
+    _line('final $executable = await $call;');
+    _line(store.replaceAll('\$executable', executable));
+    return true;
+  }
+
+  void _emitMultipleNumericLimitTest(Step step, String? result) {
+    String? prop(SeqProperty? p, String name) => p?.prop(name)?.scalar;
+    String limit(SeqProperty? limits, String name) => prop(limits, 'Use${name}Expr')?.toLowerCase() == 'true'
+        ? _expr(prop(limits, '${name}Expr') ?? '0')
+        : _propValue(limits?.prop(name) ?? SeqProperty(name: name), {});
+    final individual = prop(step.raw, 'UseIndividualDataSources')?.toLowerCase() == 'true';
+    final sources = step.raw.prop('DataSourceArray')?.array ?? const <SeqProperty>[];
+    final measurements = [
+      for (final (i, m) in (step.raw.prop('Result')?.prop('Measurement')?.array ?? const <SeqProperty>[]).indexed)
+        '(value: ${_expr(individual && i < sources.length ? sources[i].scalar ?? '0' : '${prop(step.raw, 'DataSource') ?? 'Step.NumericArray'}[$i]')}, '
+            "comparison: ${prop(m, 'UseCompExpr')?.toLowerCase() == 'true' ? _text(prop(m, 'CompExpr')) : "'${_escape(prop(m, 'Comp') ?? 'LOG')}'"}, "
+            'low: ${limit(m.prop('Limits'), 'Low')}, high: ${limit(m.prop('Limits'), 'High')})',
+    ];
+    final status = 'ts.multipleNumericLimitTest([${measurements.join(', ')}])';
+    _line(result == null ? '$status;' : '$result.Status = $status;');
+  }
+
+  void _emitMeasurement(Step step) {
+    final measurement = step.raw.prop('Measurement');
+    final parameters = measurement?.prop('Parameters')?.array ?? const <SeqProperty>[];
+    String? of(SeqProperty p, String name) => p.prop(name)?.scalar;
+    bool bound(SeqProperty p) => (of(p, 'ArgumentValue') ?? '').trim().isNotEmpty;
+    final inputs = [
+      for (final p in parameters)
+        if (of(p, 'Direction') == 'In' && bound(p))
+          "'${_escape(of(p, 'Name') ?? '')}': ${_expr(of(p, 'ArgumentValue')!)}",
+    ];
+    final call =
+        "ts.measurement('${_escape(of(measurement ?? SeqProperty(name: ''), 'Name') ?? '')}'${inputs.isEmpty ? '' : ', {${inputs.join(', ')}}'})";
+    final outputs = [
+      for (final p in parameters)
+        if (of(p, 'Direction') == 'Out' && bound(p)) p,
+    ];
+    if (outputs.isEmpty) {
+      _line('await $call;');
+      return;
+    }
+    final answer = _claimId('outputs');
+    _line('final $answer = await $call;');
+    for (final p in outputs) {
+      final name = _escape(of(p, 'Name') ?? '');
+      _line(
+        _assignment(of(p, 'ArgumentValue')!, "$answer['$name']") ??
+            "ts.notExported('${_escape('measurement output $name -> ${of(p, 'ArgumentValue')}')}');",
+      );
+    }
+  }
+
+  void _emitMessagePopup(Step step, String? result) {
+    final text = _text;
+    final labels = [for (var i = 1; i <= _popupButtonCount; i++) step.raw.prop('Button${i}Label')?.scalar ?? '""'];
+    final shown = labels.sublist(0, labels.lastIndexWhere((l) => l.trim() != '""') + 1).map(text).toList();
+    final timerButton = _parseTsNum(step.raw.prop('TimerButton')?.scalar ?? '0') ?? 0;
+    final timeToWait = _parseTsNum(step.raw.prop('TimeToWait')?.scalar ?? '0') ?? 0;
+    final defaultResponse = step.popupDefaultResponseExpression;
+    final args = [
+      text(step.popupTitleExpression),
+      text(step.popupMessageExpression),
+      if (shown.join() != "'OK'") 'buttons: [${shown.join(', ')}]',
+      if (step.popupShowsResponse == true) ...[
+        'showResponse: true',
+        if (defaultResponse != null && defaultResponse.trim() != '""') 'defaultResponse: ${text(defaultResponse)}',
+      ],
+      if (timerButton > 0 && timeToWait > 0) ...[
+        'timeout: const Duration(${timeToWait % 1 == 0 ? 'seconds: ${timeToWait.toInt()}' : 'milliseconds: ${(timeToWait * 1000).round()}'})',
+        if (timerButton != 1) 'timeoutButton: ${timerButton.toInt()}',
+      ],
+    ];
+    final call = 'ts.messagePopup(${args.join(', ')})';
+    if (result == null) {
+      _line('await $call;');
+      return;
+    }
+    final popup = _claimId('popup');
+    _line('final $popup = await $call;');
+    _line('$result.ButtonHit = $popup.buttonHit;');
+    _line('$result.Response = $popup.response;');
+  }
 
   /// Button1Label through Button6Label: the buttons a message popup step offers.
   static const _popupButtonCount = 6;
@@ -3311,31 +3364,12 @@ class _DartExporter {
 
   void _emitStubs() {
     if (_stubs.isEmpty) return;
-    _out.writeln(
-      '// ── code-module stubs '
-      '─────────────────────────────────────────────────────',
-    );
     for (final info in _stubs.values) {
       final params = info.signatureDecls();
       final lines = [
-        if (info.isSeq) ...[
-          '/// External sequence `${_comment(info.target)}`',
-          '/// (called from step `${_comment(info.firstStepName)}`) — lives in another',
-          '/// sequence file. TODO: implement, or delegate to that file\'s',
-          '/// exported function.',
-          if (params.isNotEmpty)
-            info.typed
-                ? "/// Signature: the call sites' prototype snapshot of the callee's"
-                      '\n/// parameters (defaults included; a snapshot can be stale if the'
-                      '\n/// callee changed after binding).'
-                : '/// Parameters: the union of names observed across the call sites\''
-                      '\n/// snapshots and bindings — they disagree or are partly missing,'
-                      '\n/// so no types are claimed (dynamic).',
-        ] else ...[
-          '/// Stub for the ${info.adapter.name} module call `${_comment(info.target)}`',
-          '/// (from step `${_comment(info.firstStepName)}`). TODO: implement against '
-              'the real module.',
-        ],
+        info.isSeq
+            ? '/// Sequence `${_comment(info.target)}` in a file outside this export.'
+            : '/// The ${info.adapter.name} module `${_comment(info.target)}`.',
         'Future<Object?> ${info.name}('
             '${params.isEmpty ? '' : '{${params.join(', ')}}'}) async =>',
         "    throw UnimplementedError('"
@@ -3374,7 +3408,8 @@ class _DartExporter {
   }
 
   (_DartSlot, String) _globalField(SeqProperty c, String name) {
-    final note = ' // ${c.typeName ?? c.className ?? 'value'}';
+    final comment = nonEmpty(c.directiveAttribute('%COMMENT')) ?? nonEmpty(c.xmlComment);
+    final note = comment == null ? '' : ' // ${_comment(comment)}';
     final cls = c.valueClass;
     if (c.array != null || c.declaredArrayLength != null || (cls?.isArray ?? false)) {
       return (_DartSlot.list, 'List<dynamic> $name = ${_listInit(c, {})};$note');

@@ -15,162 +15,43 @@ dynamic veristand = ts.PropObj({
   'SystemDefinitionPath':
       'C:\\Users\\Public\\Documents\\National Instruments\\NI VeriStand 2015\\Examples\\Stimulus Profile\\Engine Demo\\Engine Demo.nivssdf',
   'GatewayIP': '"localhost"',
-}); // Obj
+});
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final run = ts.SequenceRun();
-  final dynamic startVeristandResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Start Veristand
-  final dynamic openProjectResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'Path': ''}),
-  }); // result of Open Project
-  final dynamic openReferencesResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Open References
-  final dynamic deployProjectResult = ts.PropObj({
-    'TempErrorOccured': false,
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Deploy Project
-  final dynamic undeployProjectResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Undeploy Project
-  final dynamic runProjectResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Run Project
-  final dynamic undeployProjectResult2 = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Undeploy Project
-  final dynamic deployProjectResult2 = ts.PropObj({
-    'TempErrorOccured': false,
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Deploy Project
-
+Future<void> mainSequence() async {
   try {
-    // ── setup ──
-    ts.eval('RunState.Main.Locals.NewSubProperty("VSDialogs",PropValType_Container,False,"",0)'); // pre-expression
-    // Start Veristand [StartVeristand]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'StartVeristand',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({
-          'VSInstallDirectory': 'C:\\Program Files (x86)\\National Instruments\\VeriStand 2015\\NI VeriStand.exe',
-          'Silent': false,
-        }),
-      }),
-      startVeristandResult,
-    );
-    startVeristandResult.Status = 'Done';
-    run.record(startVeristandResult.Status);
+    ts.eval('RunState.Main.Locals.NewSubProperty("VSDialogs",PropValType_Container,False,"",0)');
+    await ts.stepType('StartVeristand', {
+      'Veristand': {
+        'VSInstallDirectory': 'C:\\Program Files (x86)\\National Instruments\\VeriStand 2015\\NI VeriStand.exe',
+        'Silent': false,
+      },
+    });
     await Future<void>.delayed(const Duration(seconds: 5));
 
-    // ── main ──
-    // Open Project [OpenProject]: acts through ts.stepHost
-    await ts.stepHost.runStepType('OpenProject', ts.StepPhase.post, ts.PropObj(), openProjectResult);
-    openProjectResult.Status = 'Done';
-    run.record(openProjectResult.Status);
+    await ts.stepType('OpenProject');
     await Future<void>.delayed(const Duration(seconds: 5));
-    // Open References [OpenReferences]: acts through ts.stepHost
-    await ts.stepHost.runStepType('OpenReferences', ts.StepPhase.post, ts.PropObj(), openReferencesResult);
-    openReferencesResult.Status = 'Done';
-    run.record(openReferencesResult.Status);
+    await ts.stepType('OpenReferences');
     await Future<void>.delayed(const Duration(seconds: 5));
-    // Deploy Project [DeployProject]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'DeployProject',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ShowProgress': false}),
-      }),
-      deployProjectResult,
-    );
-    deployProjectResult.Status = 'Done';
-    run.record(deployProjectResult.Status);
+    await ts.stepType('DeployProject', {
+      'Veristand': {'ShowProgress': false},
+    });
     await Future<void>.delayed(const Duration(seconds: 5));
-    // Undeploy Project [UndeployProject]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'UndeployProject',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ShowProgress': false}),
-      }),
-      undeployProjectResult,
-    );
-    undeployProjectResult.Status = 'Done';
-    run.record(undeployProjectResult.Status);
+    await ts.stepType('UndeployProject', {
+      'Veristand': {'ShowProgress': false},
+    });
     await Future<void>.delayed(const Duration(seconds: 5));
-    // Run Project [RunProject]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'RunProject',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ShowProgress': false}),
-      }),
-      runProjectResult,
-    );
-    runProjectResult.Status = 'Done';
-    run.record(runProjectResult.Status);
+    await ts.stepType('RunProject', {
+      'Veristand': {'ShowProgress': false},
+    });
     await Future<void>.delayed(const Duration(seconds: 5));
-    // Undeploy Project [UndeployProject]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'UndeployProject',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ShowProgress': false}),
-      }),
-      undeployProjectResult2,
-    );
-    undeployProjectResult2.Status = 'Done';
-    run.record(undeployProjectResult2.Status);
+    await ts.stepType('UndeployProject', {
+      'Veristand': {'ShowProgress': false},
+    });
   } finally {
-    // ── cleanup ──
     await Future<void>.delayed(const Duration(seconds: 5));
-    // Deploy Project [DeployProject]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'DeployProject',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ShowProgress': false}),
-      }),
-      deployProjectResult2,
-    );
-    deployProjectResult2.Status = 'Done';
-    run.record(deployProjectResult2.Status);
+    await ts.stepType('DeployProject', {
+      'Veristand': {'ShowProgress': false},
+    });
   }
-
-  return run.status;
 }

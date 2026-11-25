@@ -2,276 +2,42 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _MainSequenceLocals {
-  dynamic niVsFactory; // Ref
-  dynamic niVsWorkspace; // Ref
-  dynamic niVsStimulus; // Ref
-  dynamic niVsModelManager; // Ref
-  dynamic niVsProject; // Ref
-  int stimState = 0; // Num — default: 0
-  int enginestate = 0; // Num — default: 0
-  bool testResult = true; // Bool
-  bool notReady = true; // Bool
-  List<dynamic> logs = <dynamic>['']; // Strs
-  dynamic diAdemReference = ts.PropObj({'CommandReference': null, 'DataSheetReference': null}); // DIAdem_Reference
-  String diAdemPath = 'C:\\Program Files\\National Instruments\\DIAdem 11.1'; // Str
-  List<dynamic> workDir = <dynamic>[
-    'C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\Working Directory',
-  ]; // Strs
-  List<dynamic> analysisResult = <dynamic>['0']; // Nums
+  dynamic niVsFactory;
+  dynamic niVsWorkspace;
+  dynamic niVsStimulus;
+  dynamic niVsModelManager;
+  dynamic niVsProject;
+  int stimState = 0;
+  int enginestate = 0;
+  bool testResult = true;
+  bool notReady = true;
+  List<dynamic> logs = <dynamic>[''];
+  dynamic diAdemReference = ts.PropObj({'CommandReference': null, 'DataSheetReference': null});
+  String diAdemPath = 'C:\\Program Files\\National Instruments\\DIAdem 11.1';
+  List<dynamic> workDir = <dynamic>['C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\Working Directory'];
+  List<dynamic> analysisResult = <dynamic>['0'];
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
-  final dynamic callVeriStandExeResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ExitCode': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Call VeriStand.exe
-  final dynamic openDdRefResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Open DD Ref
-  final dynamic exportLogPathResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Export Log Path
-  final dynamic exportWorkingDirResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Export Working Dir
-  final dynamic runMaskAAnalysisVbsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Run MaskA_Analysis.VBS
-  final dynamic getTestResultsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Get test results
   final dynamic passFailTestMaskAAnalysisVbsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Pass Fail Test:MaskA_Analysis.VBS
-  final dynamic closeDdRefResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Close DD Ref
+  });
 
   try {
-    // ── setup ──
-    // runs executable: C:\Program Files (x86)\National Instruments\VeriStand 2011\NI VeriStand.exe "" (WAIT_NONE)
-    // Call VeriStand.exe [CallExecutable]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'CallExecutable',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Executable': 'C:\\Program Files (x86)\\National Instruments\\VeriStand 2011\\NI VeriStand.exe',
-        'ExecutableExpr': '',
-        'SpecifyExeByExpr': false,
-        'ExecutableCalled': '',
-        'Arguments': '""',
-        'WaitCondition': 'WAIT_NONE',
-        'TimeToWait': 0,
-        'SetErrorCode': false,
-        'InitialWindowState': 'WINSTATE_SHOWNORM_A',
-        'TerminateOnAbort': false,
-        'StoreProcessHandle': false,
-        'ProcessHandleExpr': 'Step.ProcessHandle',
-        'ProcessHandle': 0,
-        'ExitCodeStatusAction': 'EXIT_CODE_NO_ACTION',
-        'ExitCodeErrorAction': 'EXIT_CODE_NO_ACTION',
-        'WorkingDir': ts.PropObj({'Source': 1, 'Expr': '', 'IsExpr': false}),
-        'RemoteSettings': ts.PropObj({
-          'Enabled': false,
-          'Host': '""',
-          'HostByExpr': true,
-          'Port': '13540',
-          'Password': '',
-          'PasswordByExpr': false,
-        }),
-        'StdInput': ts.PropObj({'Type': 0, 'Source': '""', 'IsExpr': false}),
-        'StdOutput': ts.PropObj({'Dest': 0, 'Expr': 'Step.StdOutput.Text', 'IsExpr': false, 'Text': ''}),
-        'StdError': ts.PropObj({
-          'Dest': 0,
-          'Expr': 'Step.StdError.Text',
-          'IsExpr': false,
-          'Text': '',
-          'Action': 0,
-          'SetErrorMsg': false,
-        }),
-        'AdditionalResultsHints': <dynamic>[
-          ts.PropObj({
-            'Name': 'ResStr("CALLEXEC_STEP_TYPE", "EXECUTABLE_PATHNAME")',
-            'ValueToLog': 'Step.SpecifyExeByExpr ? Evaluate(Step.ExecutableExpr) : Step.Executable',
-            'Condition': '',
-            'Flags': 8192,
-            'CheckedState': 2,
-            'Type': ts.PropObj({
-              'ValueType': 3,
-              'IsObject': true,
-              'TypeName': '',
-              'ElementType': <dynamic>[],
-              'ArrayDimensions': ts.PropObj({'LowerBounds': <dynamic>[], 'UpperBounds': <dynamic>[]}),
-              'Representation': 1,
-            }),
-            'Elements': <dynamic>[],
-            'IsAnyType': true,
-          }),
-          ts.PropObj({
-            'Name': 'ResStr("CALLEXEC_STEP_TYPE", "EXECUTABLE_CALLED")',
-            'ValueToLog': 'Step.ExecutableCalled',
-            'Condition': '',
-            'Flags': 8192,
-            'CheckedState': 2,
-            'Type': ts.PropObj({
-              'ValueType': 3,
-              'IsObject': true,
-              'TypeName': '',
-              'ElementType': <dynamic>[],
-              'ArrayDimensions': ts.PropObj({'LowerBounds': <dynamic>[], 'UpperBounds': <dynamic>[]}),
-              'Representation': 1,
-            }),
-            'Elements': <dynamic>[],
-            'IsAnyType': true,
-          }),
-          ts.PropObj({
-            'Name': 'ResStr("CALLEXEC_STEP_TYPE", "ARGUMENTS")',
-            'ValueToLog': 'Evaluate(Step.Arguments)',
-            'Condition': '',
-            'Flags': 8192,
-            'CheckedState': 2,
-            'Type': ts.PropObj({
-              'ValueType': 3,
-              'IsObject': true,
-              'TypeName': '',
-              'ElementType': <dynamic>[],
-              'ArrayDimensions': ts.PropObj({'LowerBounds': <dynamic>[], 'UpperBounds': <dynamic>[]}),
-              'Representation': 1,
-            }),
-            'Elements': <dynamic>[],
-            'IsAnyType': true,
-          }),
-          ts.PropObj({
-            'Name': 'ResStr("CALLEXEC_STEP_TYPE", "REMOTE_HOST")',
-            'ValueToLog':
-                'Step.RemoteSettings.HostByExpr ? Evaluate(Step.RemoteSettings.Host) : Step.RemoteSettings.Host',
-            'Condition': 'Step.RemoteSettings.Enabled',
-            'Flags': 8192,
-            'CheckedState': 2,
-            'Type': ts.PropObj({
-              'ValueType': 3,
-              'IsObject': true,
-              'TypeName': '',
-              'ElementType': <dynamic>[],
-              'ArrayDimensions': ts.PropObj({'LowerBounds': <dynamic>[], 'UpperBounds': <dynamic>[]}),
-              'Representation': 1,
-            }),
-            'Elements': <dynamic>[],
-            'IsAnyType': true,
-          }),
-          ts.PropObj({
-            'Name': 'ResStr("CALLEXEC_STEP_TYPE", "PORT_NUMBER")',
-            'ValueToLog': 'Evaluate(Step.RemoteSettings.Port)',
-            'Condition': 'Step.RemoteSettings.Enabled',
-            'Flags': 8192,
-            'CheckedState': 2,
-            'Type': ts.PropObj({
-              'ValueType': 3,
-              'IsObject': true,
-              'TypeName': '',
-              'ElementType': <dynamic>[],
-              'ArrayDimensions': ts.PropObj({'LowerBounds': <dynamic>[], 'UpperBounds': <dynamic>[]}),
-              'Representation': 1,
-            }),
-            'Elements': <dynamic>[],
-            'IsAnyType': true,
-          }),
-          ts.PropObj({
-            'Name': 'ResStr("CALLEXEC_STEP_TYPE", "STANDARD_INPUT_VAL")',
-            'ValueToLog':
-                '(Step.StdInput.Type==3 ? ResStr("CALLEXEC_STEP_TYPE", "LOCAL_FILE_VAL") + " " : (Step.StdInput.Type == 4 ? ResStr("CALLEXEC_STEP_TYPE", "REMOTE_FILE_VAL") + " ":"")) + Evaluate(Step.StdInput.Source)',
-            'Condition': 'Step.StdInput.Type > 0',
-            'Flags': 8192,
-            'CheckedState': 2,
-            'Type': ts.PropObj({
-              'ValueType': 3,
-              'IsObject': true,
-              'TypeName': '',
-              'ElementType': <dynamic>[],
-              'ArrayDimensions': ts.PropObj({'LowerBounds': <dynamic>[], 'UpperBounds': <dynamic>[]}),
-              'Representation': 1,
-            }),
-            'Elements': <dynamic>[],
-            'IsAnyType': true,
-          }),
-          ts.PropObj({
-            'Name': 'ResStr("CALLEXEC_STEP_TYPE", "STANDARD_OUTPUT_VAL")',
-            'ValueToLog':
-                '(Step.StdOutput.Dest == 2 ? ResStr("CALLEXEC_STEP_TYPE", "LOCAL_FILE_VAL") + " " : (Step.StdOutput.Dest == 3 ? ResStr("CALLEXEC_STEP_TYPE", "REMOTE_FILE_VAL") + " ":"")) + Evaluate(Step.StdOutput.Expr)',
-            'Condition': 'Step.StdOutput.Dest > 0',
-            'Flags': 8192,
-            'CheckedState': 2,
-            'Type': ts.PropObj({
-              'ValueType': 3,
-              'IsObject': true,
-              'TypeName': '',
-              'ElementType': <dynamic>[],
-              'ArrayDimensions': ts.PropObj({'LowerBounds': <dynamic>[], 'UpperBounds': <dynamic>[]}),
-              'Representation': 1,
-            }),
-            'Elements': <dynamic>[],
-            'IsAnyType': true,
-          }),
-          ts.PropObj({
-            'Name': 'ResStr("CALLEXEC_STEP_TYPE", "STANDARD_ERROR_VAL")',
-            'ValueToLog':
-                '(Step.StdError.Dest==2 ? ResStr("CALLEXEC_STEP_TYPE", "LOCAL_FILE_VAL") + " " : (Step.StdError.Dest == 3 ? ResStr("CALLEXEC_STEP_TYPE", "REMOTE_FILE_VAL") + " ":"")) + Evaluate(Step.StdError.Expr)',
-            'Condition': 'Step.StdError.Dest > 0',
-            'Flags': 8192,
-            'CheckedState': 2,
-            'Type': ts.PropObj({
-              'ValueType': 3,
-              'IsObject': true,
-              'TypeName': '',
-              'ElementType': <dynamic>[],
-              'ArrayDimensions': ts.PropObj({'LowerBounds': <dynamic>[], 'UpperBounds': <dynamic>[]}),
-              'Representation': 1,
-            }),
-            'Elements': <dynamic>[],
-            'IsAnyType': true,
-          }),
-        ],
-      }),
-      callVeriStandExeResult,
-    );
-    callVeriStandExeResult.Status = 'Done';
-    run.record(callVeriStandExeResult.Status);
+    await ts.callExecutable('C:\\Program Files (x86)\\National Instruments\\VeriStand 2011\\NI VeriStand.exe');
     // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Factory
     //   Return Value <- Locals.NI_VS_Factory
     ts.notExported(
       'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.Factory',
     ); // Open VS Interface [Action]
     do {
-      // ignores run-time errors
-      // failure does NOT fail the sequence
       // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
       //   Existing Object <- Locals.NI_VS_Factory
       // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace
@@ -279,7 +45,7 @@ Future<String> mainSequence() async {
       ts.notExported(
         'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace',
       ); // Open VS Workspace Mngr Ref [Action]
-      ts.eval('Locals.NotReady=RunState.PreviousStep.Result.Error.Occurred'); // post-expression
+      ts.eval('Locals.NotReady=RunState.PreviousStep.Result.Error.Occurred');
       await Future<void>.delayed(const Duration(seconds: 2));
     } while (locals.notReady == true);
     // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
@@ -297,9 +63,8 @@ Future<String> mainSequence() async {
       'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIModelManager',
     ); // Open Model Mng Ref [Action]
 
-    // ── main ──
-    // label: Engine Test Script.rtts
-    // label: MIL Test
+    // Engine Test Script.rtts
+    // MIL Test
     // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
     //   Existing Object <- Locals.NI_VS_Factory
     // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject
@@ -355,97 +120,49 @@ Future<String> mainSequence() async {
     //   Latest File Saved <- Locals.Logs[0]
     //   error out <- Step.Result.Error
     await callLastTdmSfile(); // Get log file path [Action]
-    // failure does NOT fail the sequence
-    // Open DD Ref [DIAdem_OpenReference]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'DIAdem_OpenReference',
-      ts.StepPhase.post,
-      ts.PropObj({'HostNameExpr': '""', 'DIAdemRefExpr': 'Locals.DIAdemReference', 'ShowEnvironment': false}),
-      openDdRefResult,
-    );
-    openDdRefResult.Status = 'Done';
-    // Export Log Path [DIAdem_ExportChannels]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'DIAdem_ExportChannels',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'DIAdemRefExpr': 'Locals.DIAdemReference',
-        'SourceDataExpr': 'Locals.Logs',
-        'ChannelExpr': '"LogPaths"',
-        'UseName': true,
-        'CreateChannel': true,
-      }),
-      exportLogPathResult,
-    );
-    exportLogPathResult.Status = 'Done';
-    run.record(exportLogPathResult.Status);
-    // Export Working Dir [DIAdem_ExportChannels]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'DIAdem_ExportChannels',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'DIAdemRefExpr': 'Locals.DIAdemReference',
-        'SourceDataExpr': 'Locals.WorkDir',
-        'ChannelExpr': '"WorkDir"',
-        'UseName': true,
-        'CreateChannel': true,
-      }),
-      exportWorkingDirResult,
-    );
-    exportWorkingDirResult.Status = 'Done';
-    run.record(exportWorkingDirResult.Status);
-    // failure does NOT fail the sequence
-    // Run MaskA_Analysis.VBS [DIAdem_RunScript]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'DIAdem_RunScript',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'DIAdemRefExpr': 'Locals.DIAdemReference',
-        'PathExpr':
-            '"C:\\\\SE\\\\Demos and POCs\\\\RTTA\\\\Source\\\\Demos\\\\EngineController\\\\Analysis Scripts\\\\MaskA_Analysis.VBS"',
-        'Path': '""',
-        'Synchronous': true,
-        'UsePathExpr': true,
-      }),
-      runMaskAAnalysisVbsResult,
-    );
-    runMaskAAnalysisVbsResult.Status = 'Done';
-    // Get test results [DIAdem_ImportChannels]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'DIAdem_ImportChannels',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'DIAdemRefExpr': 'Locals.DIAdemReference',
-        'DataExpr': 'Locals.AnalysisResult',
-        'FirstChannelExpr': '"Analysis Result"',
-        'LastChannelExpr': '"Analysis Result"',
-        'UseName': true,
-      }),
-      getTestResultsResult,
-    );
-    getTestResultsResult.Status = 'Done';
-    run.record(getTestResultsResult.Status);
-    // checks: Step.Result.PassFail = Locals.AnalysisResult[0] == 1
-    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-    // Pass Fail Test:MaskA_Analysis.VBS [PassFailTest]: judged by its status expression
-    locals.testResult = passFailTestMaskAAnalysisVbsResult.PassFail as bool; // post-expression
+    await ts.stepType('DIAdem_OpenReference', {
+      'HostNameExpr': '""',
+      'DIAdemRefExpr': 'Locals.DIAdemReference',
+      'ShowEnvironment': false,
+    });
+    await ts.stepType('DIAdem_ExportChannels', {
+      'DIAdemRefExpr': 'Locals.DIAdemReference',
+      'SourceDataExpr': 'Locals.Logs',
+      'ChannelExpr': '"LogPaths"',
+      'UseName': true,
+      'CreateChannel': true,
+    });
+    await ts.stepType('DIAdem_ExportChannels', {
+      'DIAdemRefExpr': 'Locals.DIAdemReference',
+      'SourceDataExpr': 'Locals.WorkDir',
+      'ChannelExpr': '"WorkDir"',
+      'UseName': true,
+      'CreateChannel': true,
+    });
+    await ts.stepType('DIAdem_RunScript', {
+      'DIAdemRefExpr': 'Locals.DIAdemReference',
+      'PathExpr':
+          '"C:\\\\SE\\\\Demos and POCs\\\\RTTA\\\\Source\\\\Demos\\\\EngineController\\\\Analysis Scripts\\\\MaskA_Analysis.VBS"',
+      'Path': '""',
+      'Synchronous': true,
+      'UsePathExpr': true,
+    });
+    await ts.stepType('DIAdem_ImportChannels', {
+      'DIAdemRefExpr': 'Locals.DIAdemReference',
+      'DataExpr': 'Locals.AnalysisResult',
+      'FirstChannelExpr': '"Analysis Result"',
+      'LastChannelExpr': '"Analysis Result"',
+      'UseName': true,
+    });
+    locals.testResult = passFailTestMaskAAnalysisVbsResult.PassFail as bool;
     passFailTestMaskAAnalysisVbsResult.PassFail = passFailTestMaskAAnalysisVbsResult.PassFail =
-        locals.analysisResult[0] == 1; // status expression
+        locals.analysisResult[0] == 1;
     passFailTestMaskAAnalysisVbsResult.Status = ts.truthy(passFailTestMaskAAnalysisVbsResult.PassFail)
         ? 'Passed'
-        : 'Failed'; // status expression
+        : 'Failed';
     run.record(passFailTestMaskAAnalysisVbsResult.Status);
-    // failure does NOT fail the sequence
-    // Close DD Ref [DIAdem_Close_Reference]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'DIAdem_Close_Reference',
-      ts.StepPhase.post,
-      ts.PropObj({'DIAdemRefExpr': 'Locals.DIAdemReference'}),
-      closeDdRefResult,
-    );
-    closeDdRefResult.Status = 'Done';
+    await ts.stepType('DIAdem_Close_Reference', {'DIAdemRefExpr': 'Locals.DIAdemReference'});
   } finally {
-    // ── cleanup ──
     // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
     //   Existing Object <- Locals.NI_VS_Project
     // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit
@@ -455,9 +172,7 @@ Future<String> mainSequence() async {
   return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// Stub for the labView module call `C:\SE\Demos and POCs\RTTA\Source\Executable\Support Files\LastTDMSfile.vi`
-/// (from step `Get log file path`). TODO: implement against the real module.
+/// The labView module `C:\SE\Demos and POCs\RTTA\Source\Executable\Support Files\LastTDMSfile.vi`.
 Future<Object?> callLastTdmSfile() async => throw UnimplementedError(
   'labView call: C:\\SE\\Demos and POCs\\RTTA\\Source\\Executable\\Support Files\\LastTDMSfile.vi',
 );

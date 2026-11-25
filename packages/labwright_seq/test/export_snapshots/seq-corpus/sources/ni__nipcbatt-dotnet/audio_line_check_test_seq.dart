@@ -2,27 +2,12 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final run = ts.SequenceRun();
-  final dynamic audioLineCheckTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Audio Line Check Test
-
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  audioLineCheckTestResult.Status = await audioLineCheckTest(); // Audio Line Check Test
-  audioLineCheckTestResult.Status = audioLineCheckTestResult.Status == 'Done'
-      ? 'Passed'
-      : audioLineCheckTestResult.Status; // status expression
-  run.record(audioLineCheckTestResult.Status);
-
-  return run.status;
+Future<void> mainSequence() async {
+  await audioLineCheckTest(); // Audio Line Check Test
 }
 
 /// Sequence `Audio Line Check Test`.
-Future<String> audioLineCheckTest({
+Future<void> audioLineCheckTest({
   dynamic generationType,
   double durationSeconds = 0.1,
   int offsetVolts = 0,
@@ -33,13 +18,10 @@ Future<String> audioLineCheckTest({
   List<dynamic>? multiToneSettings,
   dynamic fdmResultData,
 }) async {
-  multiToneSettings ??= <dynamic>[]; // Objs
-
-  final run = ts.SequenceRun();
+  multiToneSettings ??= <dynamic>[];
 
   try {
-    // ── setup ──
-    // label: Example  - Demonstrates extraction of tones (Frequency domain measurement) from the captured Audio Signal (Single tone sine wave)
+    // Example  - Demonstrates extraction of tones (Frequency domain measurement) from the captured Audio Signal (Single tone sine wave)
     //
     //
     ts.eval('Locals.NewSubProperty("DateTime",PropValType_Container,False,"",0)'); // Get current date
@@ -68,7 +50,7 @@ Future<String> audioLineCheckTest({
     ts.notExported('dotNet call: System.Environment.GetFolderPath'); // Get document path [Action]
     //
     //
-    // label: Initialize Result Folder
+    // Initialize Result Folder
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
     // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
     //   Return Value <- Locals.ArtifactsManagerSVG
@@ -85,8 +67,8 @@ Future<String> audioLineCheckTest({
     ); // Frequency Domain Measurement -  Initialize Result Folder [Action]
     //
     //
-    // label: Initialize Hardware
-    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initialize Hardware
+    // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     //
     // Generates Sine wave and Trigger to Initiate measurement
     //
@@ -108,8 +90,8 @@ Future<String> audioLineCheckTest({
     ); // Frequency Domain Measurement - Initialize TP [Action]
     //
     //
-    // label: Assign Measure Folder
-    // label: Note: Build name, Directory and Save csv files.
+    // Assign Measure Folder
+    // Note: Build name, Directory and Save csv files.
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object
     //   Existing Object <- Locals.SVGRessource
@@ -131,9 +113,8 @@ Future<String> audioLineCheckTest({
       'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.AttachArtifactsManager',
     ); // Frequency Domain Measurement - Asign Assign Measure TP [Action]
 
-    // ── main ──
-    // label: Audio Line Check
-    // label: Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
+    // Audio Line Check
+    // Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
     //
     // Configure Freq Domain Measurement settings to wait for Hardware Trigger (ConfigureOnly)
     //
@@ -167,8 +148,7 @@ Future<String> audioLineCheckTest({
       'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure',
     ); // Generates Sine wave and Trigger to Initiate measurement [Action]
   } finally {
-    // ── cleanup ──
-    // label: Close all Tasks
+    // Close all Tasks
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
     //   Existing Object <- Locals.FDMRessource
@@ -184,6 +164,4 @@ Future<String> audioLineCheckTest({
       'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Close',
     ); // Signal Voltage Generation -  Close TP [Action]
   }
-
-  return run.status;
 }

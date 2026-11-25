@@ -14,64 +14,23 @@ dynamic veristand = ts.PropObj({
   'SystemDefinitionPath':
       'C:\\Users\\Public\\Documents\\National Instruments\\NI VeriStand 2015\\Examples\\Stimulus Profile\\Engine Demo\\Engine Demo.nivssdf',
   'GatewayIP': '"localhost"',
-}); // Obj
+});
 
 class _MainSequenceLocals {
-  int counter = 0; // Num — default: 0
-  int timesToRun = 500; // Num
-  dynamic veristand2 = ts.PropObj({'VSDialogs': null}); // Obj
+  int counter = 0;
+  int timesToRun = 500;
+  dynamic veristand2 = ts.PropObj({'VSDialogs': null});
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
-  final run = ts.SequenceRun();
-  final dynamic initializeVeriStandResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'VeristandError': null,
-    'Veristand': ts.PropObj({'Project': ''}),
-  }); // result of Initialize VeriStand
-  dynamic setChannelValueResult = ts.PropObj({
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'ValueToSet': 0, 'ChannelName': '', 'Timeout': false}),
-  }); // result of Set Channel Value
 
-  // ── setup ──
-  await ts.stepHost.runStepType('InitializeVeriStand', ts.StepPhase.pre, ts.PropObj(), initializeVeriStandResult);
-  // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
-  await ts.stepHost.runStepType('InitializeVeriStand', ts.StepPhase.post, ts.PropObj(), initializeVeriStandResult);
-  initializeVeriStandResult.Status = 'Done';
-  run.record(initializeVeriStandResult.Status);
+  await ts.stepType('InitializeVeriStand');
 
-  // ── main ──
   for (locals.counter = 0; locals.counter < locals.timesToRun; locals.counter += 1) {
-    setChannelValueResult = ts.PropObj({
-      'VeristandError': null,
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-      'Veristand': ts.PropObj({'ValueToSet': 0, 'ChannelName': '', 'Timeout': false}),
+    await ts.stepType('SetChannelValue', {
+      'Veristand': {'Timeout_ms': -1, 'ValueToSet': '3000', 'ChannelName': '"Aliases/DesiredRPM"'},
     });
-    // Set Channel Value [SetChannelValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'SetChannelValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'Timeout_ms': -1, 'ValueToSet': '3000', 'ChannelName': '"Aliases/DesiredRPM"'}),
-      }),
-      setChannelValueResult,
-    );
-    setChannelValueResult.Status = 'Done';
-    run.record(setChannelValueResult.Status);
   }
-
-  return run.status;
 }

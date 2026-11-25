@@ -100,25 +100,25 @@ void main() {
     expect(List.generate(8, (_) => lw.rand()).toSet().length, greaterThan(1));
   });
   test('checkLimits: the low limit alone for one-sided comparisons, both for ranges', () {
-    expect(ts.checkLimits(5, 0, 5, 'EQ'), ts.statusPassed);
-    expect(ts.checkLimits(6, 0, 5, 'GT'), ts.statusPassed);
-    expect(ts.checkLimits(5, 0, 5, 'GT'), ts.statusFailed);
-    expect(ts.checkLimits(10, 10, 0, 'GELE'), ts.statusPassed);
-    expect(ts.checkLimits(10, 10, 0, 'GELT'), ts.statusFailed);
-    expect(ts.checkLimits(11, 10, 0, 'LTGT'), ts.statusPassed);
-    expect(ts.checkLimits(-1, 1, 0, 'LOG'), ts.statusPassed);
+    expect(ts.checkLimits(5, 0, 5, 'EQ'), ts.Status.passed);
+    expect(ts.checkLimits(6, 0, 5, 'GT'), ts.Status.passed);
+    expect(ts.checkLimits(5, 0, 5, 'GT'), ts.Status.failed);
+    expect(ts.checkLimits(10, 10, 0, 'GELE'), ts.Status.passed);
+    expect(ts.checkLimits(10, 10, 0, 'GELT'), ts.Status.failed);
+    expect(ts.checkLimits(11, 10, 0, 'LTGT'), ts.Status.passed);
+    expect(ts.checkLimits(-1, 1, 0, 'LOG'), ts.Status.passed);
     expect(() => ts.checkLimits(1, 2, 0, 'EQT'), throwsUnimplementedError);
   });
   test('checkStrLimit compares with or without case', () {
-    expect(ts.checkStrLimit('Abc', 'aBC', 'IgnoreCase'), ts.statusPassed);
-    expect(ts.checkStrLimit('Abc', 'aBC', 'CaseSensitive'), ts.statusFailed);
+    expect(ts.checkStrLimit('Abc', 'aBC', 'IgnoreCase'), ts.Status.passed);
+    expect(ts.checkStrLimit('Abc', 'aBC', 'CaseSensitive'), ts.Status.failed);
     expect(() => ts.checkStrLimit('a', 'a', 'IgnoreCase', 3), throwsUnimplementedError);
   });
   test('a sequence run fails once a failed status is recorded', () {
-    final run = ts.SequenceRun()..record('Done');
-    expect(run.status, ts.statusPassed);
-    run.record(ts.statusFailed);
-    expect((run.status, run.failed), (ts.statusFailed, true));
+    final run = ts.SequenceRun()..record(ts.Status.done);
+    expect(run.status, ts.Status.passed);
+    run.record(ts.Status.failed);
+    expect((run.status, run.failed), (ts.Status.failed, true));
   });
   test('terminate raises the termination a caller unwinds through', () {
     expect(ts.terminate, throwsA(isA<ts.SequenceTermination>()));
@@ -151,19 +151,19 @@ void main() {
   });
   test('a step loop counts passed and failed iterations', () {
     final loop = ts.StepLoop()
-      ..count(ts.statusPassed)
-      ..count(ts.statusFailed)
-      ..count('Done');
+      ..count(ts.Status.passed)
+      ..count(ts.Status.failed)
+      ..count(ts.Status.done);
     expect((loop.numIterations, loop.numPassed, loop.numFailed), (3, 1, 1));
   });
-  test('without an installed host every step operation raises, naming it', () {
+  test('steps the export cannot perform raise, naming the step', () {
     expect(
-      () => ts.stepHost.runStepType('NI_Measurement', ts.StepPhase.post, null, null),
-      throwsA(isA<ts.StepHostUnavailable>().having((e) => e.operation, 'operation', 'NI_Measurement post')),
+      () => ts.messagePopup('t', 'm'),
+      throwsA(isA<UnimplementedError>().having((e) => e.message, 'message', 'MessagePopup "t"')),
     );
     expect(
-      () => ts.stepHost.messagePopup(title: 't', message: 'm', buttons: const []),
-      throwsA(isA<ts.StepHostUnavailable>()),
+      () => ts.stepType('NI_Measurement'),
+      throwsA(isA<UnimplementedError>().having((e) => e.message, 'message', 'step type NI_Measurement')),
     );
   });
   test('copy is deep for lists and property objects; a Ref carries a written value back', () {

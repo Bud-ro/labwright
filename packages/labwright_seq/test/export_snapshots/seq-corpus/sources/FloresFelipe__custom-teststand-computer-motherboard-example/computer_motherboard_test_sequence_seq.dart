@@ -2,16 +2,16 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _MainSequenceLocals {
-  bool powerFail = false; // Bool — default: false
-  bool cpuFail = false; // Bool — default: false
-  bool romFail = false; // Bool — default: false
-  bool ramFail = false; // Bool — default: false
-  int keyboardValue = 0; // Num — default: 0
-  int videoValue = 0; // Num — default: 0
+  bool powerFail = false;
+  bool cpuFail = false;
+  bool romFail = false;
+  bool ramFail = false;
+  int keyboardValue = 0;
+  int videoValue = 0;
 }
 
 /// Sequence `MainSequence` — Simulates testing a computer motherboard. | Tests Power On, ROM, RAM, Video, and Keyboard. | Then runs diagnostics for any areas which fail. | Sequence File:   Version 1.2 |                  Revision C | Test Fixture:    Part Number 3244.23 |                  Revision N |.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
   final dynamic powerupTestResult = ts.PropObj({
@@ -20,27 +20,27 @@ Future<String> mainSequence() async {
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Powerup Test
+  });
   final dynamic cpuTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of CPU Test
+  });
   final dynamic romTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of ROM Test
+  });
   final dynamic ramTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of RAM Test
+  });
   final dynamic videoTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -48,7 +48,7 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': 'microseconds',
-  }); // result of Video Test
+  });
   final dynamic keyboardTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -56,27 +56,21 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': '',
-  }); // result of Keyboard Test
-  final dynamic cpuDiagnosticsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of CPU Diagnostics
+  });
   final dynamic romDiagnosticsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of ROM Diagnostics
+  });
   final dynamic ramDiagnosticsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of RAM Diagnostics
+  });
   final dynamic videoDiagnosticsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -84,14 +78,14 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': 'Volts',
-  }); // result of Video Diagnostics
+  });
   final dynamic keyboardDiagnosticsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Keyboard Diagnostics
+  });
   final dynamic powerupDiagnosticsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -99,124 +93,73 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': 'ampere',
-  }); // result of Powerup Diagnostics
+  });
 
   try {
-    // ── setup ──
     //   Sequence Context <- ThisContext
     //   error out <- Step.Result.Error
     await callComputerSequenceSimulationDialog(); // Simulation Dialog [Action]
     //   error out <- Step.Result.Error
     await callVacuumOn(); // Turn Vacuum Table On [Action]
 
-    // ── main ──
-    // checks: Step.Result.PassFail
-    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
     //   PowerFail <- Locals.PowerFail
     //   Result <- Step.Result.PassFail
     //   error out <- Step.Result.Error
     await callPowerupTest(); // Powerup Test [PassFailTest]
-    powerupTestResult.Status = ts.truthy(powerupTestResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+    powerupTestResult.Status = ts.truthy(powerupTestResult.PassFail) ? 'Passed' : 'Failed';
     run.record(powerupTestResult.Status);
     // If the Powerup Test fails, do not test any additional components.
     if (ts.truthy(powerupTestResult.PassFail)) {
-      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       cpuTestResult.Status = await cpuTest(cpuFail: locals.cpuFail); // CPU Test
-      cpuTestResult.Status = cpuTestResult.Status == 'Done' ? 'Passed' : cpuTestResult.Status; // status expression
       run.record(cpuTestResult.Status);
-      // checks: Step.Result.PassFail
-      // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
       //   ROMFail <- Locals.ROMFail
       //   Result <- Step.Result.PassFail
       //   error out <- Step.Result.Error
       await callRomTest(); // ROM Test [PassFailTest]
-      romTestResult.Status = ts.truthy(romTestResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+      romTestResult.Status = ts.truthy(romTestResult.PassFail) ? 'Passed' : 'Failed';
       run.record(romTestResult.Status);
-      // checks: Step.Result.PassFail
-      // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
       //   RAMFail <- Locals.RAMFail
       //   Result <- Step.Result.PassFail
       //   error out <- Step.Result.Error
       await callRamTest(); // RAM Test [PassFailTest]
-      ramTestResult.Status = ts.truthy(ramTestResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+      ramTestResult.Status = ts.truthy(ramTestResult.PassFail) ? 'Passed' : 'Failed';
       run.record(ramTestResult.Status);
-      // checks: Step.Result.Numeric GTLT [low 0, high 10, nominal 100] (PERCENTAGE) microseconds
-      // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
       //   VideoValue <- Locals.VideoValue
       //   Latency (µs) <- Step.Result.Numeric
       //   error out <- Step.Result.Error
       await callVideoTest(); // Video Test [NumericLimitTest]
-      videoTestResult.Status = ts.checkLimits(
-        videoTestResult.Numeric,
-        10,
-        0,
-        'GTLT',
-        true,
-        100,
-        'PERCENTAGE',
-      ); // status expression
+      videoTestResult.Status = ts.checkLimits(videoTestResult.Numeric, 10, 0, 'GTLT', true, 100, 'PERCENTAGE');
       run.record(videoTestResult.Status);
-      // checks: Step.Result.Numeric GT [low 5, high 0, nominal 100] (PERCENTAGE)
-      // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
       //   Number of Keystrokes <- Locals.KeyboardValue
       //   Result <- Step.Result.Numeric
       //   error out <- Step.Result.Error
       await callKeyboardTest(); // Keyboard Test [NumericLimitTest]
-      keyboardTestResult.Status = ts.checkLimits(
-        keyboardTestResult.Numeric,
-        0,
-        5,
-        'GT',
-        true,
-        100,
-        'PERCENTAGE',
-      ); // status expression
+      keyboardTestResult.Status = ts.checkLimits(keyboardTestResult.Numeric, 0, 5, 'GT', true, 100, 'PERCENTAGE');
       run.record(keyboardTestResult.Status);
       // If any of the preceding tests failed, perform diagnositcs on the failed component(s) to get more information on the mode of failure
       if (ts.cond('ThisContext.SequenceFailed')) {
-        // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
         if (cpuTestResult.Status == 'Failed') {
-          // precondition of CPU Diagnostics
-          cpuDiagnosticsResult.Status = await cpuDiagnostics(cpuFail: locals.cpuFail); // CPU Diagnostics
-          cpuDiagnosticsResult.Status = cpuDiagnosticsResult.Status == 'Done'
-              ? 'Passed'
-              : cpuDiagnosticsResult.Status; // status expression
-          run.record(cpuDiagnosticsResult.Status);
-        } else {
-          cpuDiagnosticsResult.Status = 'Skipped';
+          run.record(await cpuDiagnostics(cpuFail: locals.cpuFail)); // CPU Diagnostics
         }
-        // checks: Step.Result.PassFail
-        // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
         if (romTestResult.Status == 'Failed') {
-          // precondition of ROM Diagnostics
           //   Result <- Step.Result.PassFail
           //   error out <- Step.Result.Error
           await callRomDiagnostics(); // ROM Diagnostics [PassFailTest]
-          romDiagnosticsResult.Status = ts.truthy(romDiagnosticsResult.PassFail)
-              ? 'Passed'
-              : 'Failed'; // status expression
+          romDiagnosticsResult.Status = ts.truthy(romDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
           run.record(romDiagnosticsResult.Status);
         } else {
-          romDiagnosticsResult.Status = 'Skipped';
+          romDiagnosticsResult.Status = ts.Status.skipped;
         }
-        // checks: Step.Result.PassFail
-        // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
         if (ramTestResult.Status == 'Failed') {
-          // precondition of RAM Diagnostics
           //   Result <- Step.Result.PassFail
           //   error out <- Step.Result.Error
           await callRamDiagnostics(); // RAM Diagnostics [PassFailTest]
-          ramDiagnosticsResult.Status = ts.truthy(ramDiagnosticsResult.PassFail)
-              ? 'Passed'
-              : 'Failed'; // status expression
+          ramDiagnosticsResult.Status = ts.truthy(ramDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
           run.record(ramDiagnosticsResult.Status);
         } else {
-          ramDiagnosticsResult.Status = 'Skipped';
+          ramDiagnosticsResult.Status = ts.Status.skipped;
         }
-        // checks: Step.Result.Numeric LT [low 0, high 10, nominal 100] (PERCENTAGE) Volts
-        // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
         if (videoTestResult.Status == 'Failed') {
-          // precondition of Video Diagnostics
           //   Voltage <- Step.Result.Numeric
           //   error out <- Step.Result.Error
           await callVideoDiagnostics(); // Video Diagnostics [NumericLimitTest]
@@ -228,29 +171,22 @@ Future<String> mainSequence() async {
             true,
             100,
             'PERCENTAGE',
-          ); // status expression
+          );
           run.record(videoDiagnosticsResult.Status);
         } else {
-          videoDiagnosticsResult.Status = 'Skipped';
+          videoDiagnosticsResult.Status = ts.Status.skipped;
         }
-        // checks: Step.Result.PassFail
-        // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
         if (keyboardTestResult.Status == 'Failed') {
-          // precondition of Keyboard Diagnostics
           //   Result <- Step.Result.PassFail
           //   error out <- Step.Result.Error
           await callKeyboardDiagnostics(); // Keyboard Diagnostics [PassFailTest]
-          keyboardDiagnosticsResult.Status = ts.truthy(keyboardDiagnosticsResult.PassFail)
-              ? 'Passed'
-              : 'Failed'; // status expression
+          keyboardDiagnosticsResult.Status = ts.truthy(keyboardDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
           run.record(keyboardDiagnosticsResult.Status);
         } else {
-          keyboardDiagnosticsResult.Status = 'Skipped';
+          keyboardDiagnosticsResult.Status = ts.Status.skipped;
         }
       }
     } else {
-      // checks: Step.Result.Numeric LOG [low 0, high 10, nominal 100] (PERCENTAGE) ampere
-      // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
       //   Current <- Step.Result.Numeric
       //   error out <- Step.Result.Error
       await callPowerupDiagnostics(); // Powerup Diagnostics [NumericLimitTest]
@@ -262,11 +198,10 @@ Future<String> mainSequence() async {
         true,
         100,
         'PERCENTAGE',
-      ); // status expression
+      );
       run.record(powerupDiagnosticsResult.Status);
     }
   } finally {
-    // ── cleanup ──
     //   error out <- Step.Result.Error
     await callVacuumOff(); // Turn Vacuum Table Off [Action]
   }
@@ -275,7 +210,7 @@ Future<String> mainSequence() async {
 }
 
 /// Sequence `CPU Test`.
-Future<String> cpuTest({bool cpuFail = false}) async {
+Future<ts.Status> cpuTest({bool cpuFail = false}) async {
   final run = ts.SequenceRun();
   final dynamic registerTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -283,66 +218,56 @@ Future<String> cpuTest({bool cpuFail = false}) async {
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Register Test
+  });
   final dynamic instructionSetTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Instruction Set Test
+  });
   final dynamic cacheTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Cache Test
+  });
   final dynamic fpuTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of FPU Test
+  });
 
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callRegisterTest(); // Register Test [PassFailTest]
-  registerTestResult.Status = ts.truthy(registerTestResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  registerTestResult.Status = ts.truthy(registerTestResult.PassFail) ? 'Passed' : 'Failed';
   run.record(registerTestResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   CPUFail <- Parameters.CPUFail
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callInstructionSetTest(); // Instruction Set Test [PassFailTest]
-  instructionSetTestResult.Status = ts.truthy(instructionSetTestResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
+  instructionSetTestResult.Status = ts.truthy(instructionSetTestResult.PassFail) ? 'Passed' : 'Failed';
   run.record(instructionSetTestResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callCacheTest(); // Cache Test [PassFailTest]
-  cacheTestResult.Status = ts.truthy(cacheTestResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  cacheTestResult.Status = ts.truthy(cacheTestResult.PassFail) ? 'Passed' : 'Failed';
   run.record(cacheTestResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callFpuTest(); // FPU Test [PassFailTest]
-  fpuTestResult.Status = ts.truthy(fpuTestResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  fpuTestResult.Status = ts.truthy(fpuTestResult.PassFail) ? 'Passed' : 'Failed';
   run.record(fpuTestResult.Status);
 
   return run.status;
 }
 
 /// Sequence `CPU Diagnostics`.
-Future<String> cpuDiagnostics({bool cpuFail = false}) async {
+Future<ts.Status> cpuDiagnostics({bool cpuFail = false}) async {
   final run = ts.SequenceRun();
   final dynamic registerDiagnosticsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -350,186 +275,140 @@ Future<String> cpuDiagnostics({bool cpuFail = false}) async {
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Register Diagnostics
+  });
   final dynamic instructionSetDiagnosticsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Instruction Set Diagnostics
+  });
   final dynamic cacheDiagnosticsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Cache Diagnostics
+  });
   final dynamic fpuDiagnosticsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of FPU Diagnostics
+  });
 
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callRegisterDiagnostics(); // Register Diagnostics [PassFailTest]
-  registerDiagnosticsResult.Status = ts.truthy(registerDiagnosticsResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
+  registerDiagnosticsResult.Status = ts.truthy(registerDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
   run.record(registerDiagnosticsResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   CPUFail <- Parameters.CPUFail
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callInstructionSetDiagnostics(); // Instruction Set Diagnostics [PassFailTest]
-  instructionSetDiagnosticsResult.Status = ts.truthy(instructionSetDiagnosticsResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
+  instructionSetDiagnosticsResult.Status = ts.truthy(instructionSetDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
   run.record(instructionSetDiagnosticsResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callCacheDiagnostics(); // Cache Diagnostics [PassFailTest]
-  cacheDiagnosticsResult.Status = ts.truthy(cacheDiagnosticsResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  cacheDiagnosticsResult.Status = ts.truthy(cacheDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
   run.record(cacheDiagnosticsResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   //   Result <- Step.Result.PassFail
   //   error out <- Step.Result.Error
   await callFpuDiagnostics(); // FPU Diagnostics [PassFailTest]
-  fpuDiagnosticsResult.Status = ts.truthy(fpuDiagnosticsResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  fpuDiagnosticsResult.Status = ts.truthy(fpuDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
   run.record(fpuDiagnosticsResult.Status);
 
   return run.status;
 }
 
 /// Sequence `SequenceFilePreStep`.
-Future<String> sequenceFilePreStep({dynamic step, dynamic result}) async {
-  final run = ts.SequenceRun();
-
+Future<void> sequenceFilePreStep({dynamic step, dynamic result}) async {
   ts.eval(
     'RunState.Thread.PostUIMessageEx(UIMsg_ProgressText, 0, Parameters.Step.Name + "," + Parameters.Step.Result.Status, "", False)\n',
   ); // PreStep Message
-
-  return run.status;
 }
 
 /// Sequence `SequenceFilePostStep`.
-Future<String> sequenceFilePostStep({dynamic step, dynamic result}) async {
-  final run = ts.SequenceRun();
-
+Future<void> sequenceFilePostStep({dynamic step, dynamic result}) async {
   ts.eval(
     'RunState.Thread.PostUIMessageEx(UIMsg_ProgressText, 0, Parameters.Step.Name + "," + Parameters.Step.Result.Status, "", False)\n',
   ); // PostStep Message
-
-  return run.status;
 }
 
 /// Sequence `SequenceFileUnload`.
-Future<String> sequenceFileUnload() async {
-  final run = ts.SequenceRun();
-
+Future<void> sequenceFileUnload() async {
   ts.eval(
     'RunState.Thread.PostUIMessageEx(UIMsg_UserMessageBase + 10, 0, "Uloading File", Nothing, False)',
   ); // Send Closing File Message
-
-  return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// Stub for the labView module call `Modules\Computer Sequence Simulation Dialog.vi`
-/// (from step `Simulation Dialog`). TODO: implement against the real module.
+/// The labView module `Modules\Computer Sequence Simulation Dialog.vi`.
 Future<Object?> callComputerSequenceSimulationDialog() async =>
     throw UnimplementedError('labView call: Modules\\Computer Sequence Simulation Dialog.vi');
 
-/// Stub for the labView module call `Modules\Vacuum On.vi`
-/// (from step `Turn Vacuum Table On`). TODO: implement against the real module.
+/// The labView module `Modules\Vacuum On.vi`.
 Future<Object?> callVacuumOn() async => throw UnimplementedError('labView call: Modules\\Vacuum On.vi');
 
-/// Stub for the labView module call `Modules\Powerup Test.vi`
-/// (from step `Powerup Test`). TODO: implement against the real module.
+/// The labView module `Modules\Powerup Test.vi`.
 Future<Object?> callPowerupTest() async => throw UnimplementedError('labView call: Modules\\Powerup Test.vi');
 
-/// Stub for the labView module call `Modules\ROM Test.vi`
-/// (from step `ROM Test`). TODO: implement against the real module.
+/// The labView module `Modules\ROM Test.vi`.
 Future<Object?> callRomTest() async => throw UnimplementedError('labView call: Modules\\ROM Test.vi');
 
-/// Stub for the labView module call `Modules\RAM Test.vi`
-/// (from step `RAM Test`). TODO: implement against the real module.
+/// The labView module `Modules\RAM Test.vi`.
 Future<Object?> callRamTest() async => throw UnimplementedError('labView call: Modules\\RAM Test.vi');
 
-/// Stub for the labView module call `Modules\Video Test.vi`
-/// (from step `Video Test`). TODO: implement against the real module.
+/// The labView module `Modules\Video Test.vi`.
 Future<Object?> callVideoTest() async => throw UnimplementedError('labView call: Modules\\Video Test.vi');
 
-/// Stub for the labView module call `Modules\Keyboard Test.vi`
-/// (from step `Keyboard Test`). TODO: implement against the real module.
+/// The labView module `Modules\Keyboard Test.vi`.
 Future<Object?> callKeyboardTest() async => throw UnimplementedError('labView call: Modules\\Keyboard Test.vi');
 
-/// Stub for the labView module call `Modules\ROM Diagnostics.vi`
-/// (from step `ROM Diagnostics`). TODO: implement against the real module.
+/// The labView module `Modules\ROM Diagnostics.vi`.
 Future<Object?> callRomDiagnostics() async => throw UnimplementedError('labView call: Modules\\ROM Diagnostics.vi');
 
-/// Stub for the labView module call `Modules\RAM Diagnostics.vi`
-/// (from step `RAM Diagnostics`). TODO: implement against the real module.
+/// The labView module `Modules\RAM Diagnostics.vi`.
 Future<Object?> callRamDiagnostics() async => throw UnimplementedError('labView call: Modules\\RAM Diagnostics.vi');
 
-/// Stub for the labView module call `Modules\Video Diagnostics.vi`
-/// (from step `Video Diagnostics`). TODO: implement against the real module.
+/// The labView module `Modules\Video Diagnostics.vi`.
 Future<Object?> callVideoDiagnostics() async => throw UnimplementedError('labView call: Modules\\Video Diagnostics.vi');
 
-/// Stub for the labView module call `Modules\Keyboard Diagnostics.vi`
-/// (from step `Keyboard Diagnostics`). TODO: implement against the real module.
+/// The labView module `Modules\Keyboard Diagnostics.vi`.
 Future<Object?> callKeyboardDiagnostics() async =>
     throw UnimplementedError('labView call: Modules\\Keyboard Diagnostics.vi');
 
-/// Stub for the labView module call `Modules\Powerup Diagnostics.vi`
-/// (from step `Powerup Diagnostics`). TODO: implement against the real module.
+/// The labView module `Modules\Powerup Diagnostics.vi`.
 Future<Object?> callPowerupDiagnostics() async =>
     throw UnimplementedError('labView call: Modules\\Powerup Diagnostics.vi');
 
-/// Stub for the labView module call `Modules\Vacuum Off.vi`
-/// (from step `Turn Vacuum Table Off`). TODO: implement against the real module.
+/// The labView module `Modules\Vacuum Off.vi`.
 Future<Object?> callVacuumOff() async => throw UnimplementedError('labView call: Modules\\Vacuum Off.vi');
 
-/// Stub for the labView module call `Modules\Register Test.vi`
-/// (from step `Register Test`). TODO: implement against the real module.
+/// The labView module `Modules\Register Test.vi`.
 Future<Object?> callRegisterTest() async => throw UnimplementedError('labView call: Modules\\Register Test.vi');
 
-/// Stub for the labView module call `Modules\Instruction Set Test.vi`
-/// (from step `Instruction Set Test`). TODO: implement against the real module.
+/// The labView module `Modules\Instruction Set Test.vi`.
 Future<Object?> callInstructionSetTest() async =>
     throw UnimplementedError('labView call: Modules\\Instruction Set Test.vi');
 
-/// Stub for the labView module call `Modules\Cache Test.vi`
-/// (from step `Cache Test`). TODO: implement against the real module.
+/// The labView module `Modules\Cache Test.vi`.
 Future<Object?> callCacheTest() async => throw UnimplementedError('labView call: Modules\\Cache Test.vi');
 
-/// Stub for the labView module call `Modules\FPU Test.vi`
-/// (from step `FPU Test`). TODO: implement against the real module.
+/// The labView module `Modules\FPU Test.vi`.
 Future<Object?> callFpuTest() async => throw UnimplementedError('labView call: Modules\\FPU Test.vi');
 
-/// Stub for the labView module call `Modules\Register Diagnostics.vi`
-/// (from step `Register Diagnostics`). TODO: implement against the real module.
+/// The labView module `Modules\Register Diagnostics.vi`.
 Future<Object?> callRegisterDiagnostics() async =>
     throw UnimplementedError('labView call: Modules\\Register Diagnostics.vi');
 
-/// Stub for the labView module call `Modules\Instruction Set Diagnostics.vi`
-/// (from step `Instruction Set Diagnostics`). TODO: implement against the real module.
+/// The labView module `Modules\Instruction Set Diagnostics.vi`.
 Future<Object?> callInstructionSetDiagnostics() async =>
     throw UnimplementedError('labView call: Modules\\Instruction Set Diagnostics.vi');
 
-/// Stub for the labView module call `Modules\Cache Diagnostics.vi`
-/// (from step `Cache Diagnostics`). TODO: implement against the real module.
+/// The labView module `Modules\Cache Diagnostics.vi`.
 Future<Object?> callCacheDiagnostics() async => throw UnimplementedError('labView call: Modules\\Cache Diagnostics.vi');
 
-/// Stub for the labView module call `Modules\FPU Diagnostics.vi`
-/// (from step `FPU Diagnostics`). TODO: implement against the real module.
+/// The labView module `Modules\FPU Diagnostics.vi`.
 Future<Object?> callFpuDiagnostics() async => throw UnimplementedError('labView call: Modules\\FPU Diagnostics.vi');

@@ -2,34 +2,16 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final run = ts.SequenceRun();
-  final dynamic digitalStateTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Digital State Test
-
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  digitalStateTestResult.Status = await digitalStateTest(); // Digital State Test
-  digitalStateTestResult.Status = digitalStateTestResult.Status == 'Done'
-      ? 'Passed'
-      : digitalStateTestResult.Status; // status expression
-  run.record(digitalStateTestResult.Status);
-
-  return run.status;
+Future<void> mainSequence() async {
+  await digitalStateTest(); // Digital State Test
 }
 
 /// Sequence `Digital State Test`.
-Future<String> digitalStateTest({List<dynamic>? dataToWrite, dynamic sdsgResultData, dynamic sdsmResultData}) async {
-  dataToWrite ??= <dynamic>['true', 'true']; // Bools
-
-  final run = ts.SequenceRun();
+Future<void> digitalStateTest({List<dynamic>? dataToWrite, dynamic sdsgResultData, dynamic sdsmResultData}) async {
+  dataToWrite ??= <dynamic>['true', 'true'];
 
   try {
-    // ── setup ──
-    // label: This example demonstrates how to set Digital High & Low states using Digital output modules and Measure the digital states of test points using digital input modules
+    // This example demonstrates how to set Digital High & Low states using Digital output modules and Measure the digital states of test points using digital input modules
     //
     //
     //
@@ -59,7 +41,7 @@ Future<String> digitalStateTest({List<dynamic>? dataToWrite, dynamic sdsgResultD
     ts.notExported('dotNet call: System.Environment.GetFolderPath'); // Get document path [Action]
     //
     //
-    // label: Initialize Result Folder
+    // Initialize Result Folder
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
     // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
     //   Return Value <- Locals.ArtifactsManagerSDSG
@@ -76,8 +58,8 @@ Future<String> digitalStateTest({List<dynamic>? dataToWrite, dynamic sdsgResultD
     ); // Static Digital State Measurement - Initialize Result Folder [Action]
     //
     //
-    // label: Initialize Hardware
-    // label: Note to run with Hardware: Update the Global Channel based on NI Max in the below initialize step
+    // Initialize Hardware
+    // Note to run with Hardware: Update the Global Channel based on NI Max in the below initialize step
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.CreateInstance
     //   Return Value <- Locals.SDSGRessource
@@ -94,8 +76,8 @@ Future<String> digitalStateTest({List<dynamic>? dataToWrite, dynamic sdsgResultD
     ); // Static Digital State Measurement -  Initialize [Action]
     //
     //
-    // label: Assign Measure Folder
-    // label: Note: Build name, directory and save csv files.
+    // Assign Measure Folder
+    // Note: Build name, directory and save csv files.
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Use Existing Object
     //   Existing Object <- Locals.SDSGRessource
@@ -117,8 +99,7 @@ Future<String> digitalStateTest({List<dynamic>? dataToWrite, dynamic sdsgResultD
       'dotNet call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.AttachArtifactsManager',
     ); // Static Digital State Measurement - Asign Measurement [Action]
 
-    // ── main ──
-    // label: Set Static State HIGH and measure the test points
+    // Set Static State HIGH and measure the test points
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Use Existing Object
     //   Existing Object <- Locals.SDSGRessource
@@ -136,8 +117,7 @@ Future<String> digitalStateTest({List<dynamic>? dataToWrite, dynamic sdsgResultD
       'dotNet call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.ConfigureAndMeasure',
     ); // Static Digital State Measurement - Read Digital State [Action]
   } finally {
-    // ── cleanup ──
-    // label: Close all Tasks
+    // Close all Tasks
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Use Existing Object
     //   Existing Object <- Locals.SDSGRessource
@@ -153,6 +133,4 @@ Future<String> digitalStateTest({List<dynamic>? dataToWrite, dynamic sdsgResultD
       'dotNet call: PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Close',
     ); // Static Digital State Measurement - Close [Action]
   }
-
-  return run.status;
 }

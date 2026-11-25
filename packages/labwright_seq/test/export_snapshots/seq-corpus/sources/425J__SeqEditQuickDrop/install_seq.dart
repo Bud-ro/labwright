@@ -2,8 +2,7 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `SequenceFileLoad`.
-Future<String> sequenceFileLoad() async {
-  final run = ts.SequenceRun();
+Future<void> sequenceFileLoad() async {
   final dynamic promptResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -11,67 +10,34 @@ Future<String> sequenceFileLoad() async {
     'Response': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Prompt
+  });
 
   endMain:
   {
-    // custom flow: if (Step.Result.ButtonHit == 1) Cback -> Install else Goto -> <End>
-    // popup title: "Installer"
-    // popup message: "Do you want to install Quick Drop?"
-    // popup buttons: "Yes" | "No"
-    // Prompt [MessagePopup]: acts through ts.stepHost
-    final popup = await ts.stepHost.messagePopup(
-      title: 'Installer',
-      message: 'Do you want to install Quick Drop?',
-      buttons: ['Yes', 'No', '', '', '', ''],
-    );
+    final popup = await ts.messagePopup('Installer', 'Do you want to install Quick Drop?', buttons: ['Yes', 'No']);
     promptResult.ButtonHit = popup.buttonHit;
     promptResult.Response = popup.response;
-    promptResult.Status = 'Done';
-    run.record(promptResult.Status);
+    promptResult.Status = ts.Status.done;
     if (promptResult.ButtonHit == 1) {
-      // post action
       await install();
     } else {
       break endMain;
     }
   }
-
-  return run.status;
 }
 
 class _InstallLocals {
-  String testStandPublic = ''; // Path
-  String currentDir = ''; // Path
-  String iconsDir = ''; // Path
-  dynamic source = ts.PropObj({'Tool': '', 'Icon': '', 'FrontEndCallback': ''}); // Obj
-  dynamic target = ts.PropObj({'ToolsDir': '', 'IconsDir': '', 'FrontEndCallbackDir': ''}); // Obj
+  String testStandPublic = '';
+  String currentDir = '';
+  String iconsDir = '';
+  dynamic source = ts.PropObj({'Tool': '', 'Icon': '', 'FrontEndCallback': ''});
+  dynamic target = ts.PropObj({'ToolsDir': '', 'IconsDir': '', 'FrontEndCallbackDir': ''});
 }
 
 /// Sequence `Install`.
-Future<String> install() async {
+Future<ts.Status> install() async {
   final locals = _InstallLocals();
   final run = ts.SequenceRun();
-  final dynamic copyToolResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Copy Tool
-  final dynamic copyFrontEndCallbackResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Copy FrontEnd Callback
-  final dynamic successMessageResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Success Message
 
   ts.eval(
     'Locals.CurrentDir = Left(ThisContext.SequenceFile.Path, Find(ThisContext.SequenceFile.Path, "\\\\", 0, True, True)),\nLocals.Source.Tool = Locals.CurrentDir + @"\\Resources\\QuickDrop",\nLocals.Source.Icon = Locals.CurrentDir + @"\\Resources\\seqedit.ico",\nLocals.Source.FrontEndCallback = Locals.CurrentDir + @"\\Resources\\FrontEnd"',
@@ -83,16 +49,13 @@ Future<String> install() async {
   locals.target.ToolsDir = '${locals.testStandPublic}\\Components\\Tools\\QuickDrop'; // Set Target Directories (cont.)
   locals.target.FrontEndCallbackDir =
       '${locals.testStandPublic}\\Components\\Callbacks\\FrontEnd'; // Set Target Directories (cont.)
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  copyToolResult.Status = await copy(
-    sourceDirectoryPath: locals.source.Tool as String,
-    targetDirectoryPath: locals.target.ToolsDir as String,
+  run.record(
+    await copy(
+      sourceDirectoryPath: locals.source.Tool as String,
+      targetDirectoryPath: locals.target.ToolsDir as String,
+    ),
   ); // Copy Tool
-  ts.eval(
-    'OutputMessage("Quick Drop tool copied: " + Locals.Source.Tool + " » " + Locals.Target.ToolsDir)',
-  ); // post-expression
-  copyToolResult.Status = copyToolResult.Status == 'Done' ? 'Passed' : copyToolResult.Status; // status expression
-  run.record(copyToolResult.Status);
+  ts.eval('OutputMessage("Quick Drop tool copied: " + Locals.Source.Tool + " » " + Locals.Target.ToolsDir)');
   // .NET call: System.IO.Directory.CreateDirectory
   //   path <- Locals.IconsDir
   ts.notExported('dotNet call: System.IO.Directory.CreateDirectory'); // Create Icons Directory [Action]
@@ -101,54 +64,32 @@ Future<String> install() async {
   //   destFileName <- Locals.Target.IconsDir
   //   overwrite <- True
   ts.notExported('dotNet call: System.IO.File.Copy'); // Copy Icon [Action]
-  ts.eval('OutputMessage("Icon copied: " + Locals.Source.Icon + " » " + Locals.Target.IconsDir)'); // post-expression
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  copyFrontEndCallbackResult.Status = await copy(
-    sourceDirectoryPath: locals.source.FrontEndCallback as String,
-    targetDirectoryPath: locals.target.FrontEndCallbackDir as String,
+  ts.eval('OutputMessage("Icon copied: " + Locals.Source.Icon + " » " + Locals.Target.IconsDir)');
+  run.record(
+    await copy(
+      sourceDirectoryPath: locals.source.FrontEndCallback as String,
+      targetDirectoryPath: locals.target.FrontEndCallbackDir as String,
+    ),
   ); // Copy FrontEnd Callback
   ts.eval(
     'OutputMessage("FrontEnd Callback copied: " + Locals.Source.FrontEndCallback + " » " + Locals.Target.FrontEndCallbackDir)',
-  ); // post-expression
-  copyFrontEndCallbackResult.Status = copyFrontEndCallbackResult.Status == 'Done'
-      ? 'Passed'
-      : copyFrontEndCallbackResult.Status; // status expression
-  run.record(copyFrontEndCallbackResult.Status);
-  // popup title: "Success"
-  // popup message: "Quick Drop successfully installed."
-  // popup buttons: "OK"
-  // Success Message [MessagePopup]: acts through ts.stepHost
-  final popup = await ts.stepHost.messagePopup(
-    title: 'Success',
-    message: 'Quick Drop successfully installed.',
-    buttons: ['OK', '', '', '', '', ''],
   );
-  successMessageResult.ButtonHit = popup.buttonHit;
-  successMessageResult.Response = popup.response;
-  successMessageResult.Status = 'Done';
-  run.record(successMessageResult.Status);
+  await ts.messagePopup('Success', 'Quick Drop successfully installed.');
 
   return run.status;
 }
 
 class _CopyLocals {
-  dynamic diSourceDirectory; // Ref
-  dynamic diTargetDirectory; // Ref
+  dynamic diSourceDirectory;
+  dynamic diTargetDirectory;
 }
 
 /// Sequence `Copy`.
-Future<String> copy({String sourceDirectoryPath = '', String targetDirectoryPath = ''}) async {
+Future<ts.Status> copy({String sourceDirectoryPath = '', String targetDirectoryPath = ''}) async {
   final locals = _CopyLocals();
   final run = ts.SequenceRun();
-  final dynamic copyAllResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of CopyAll
 
   try {
-    // ── main ──
     // .NET call: System.IO.DirectoryInfo.DirectoryInfo
     //   Return Value <- Locals.diSourceDirectory
     //   path <- Parameters.SourceDirectoryPath
@@ -157,12 +98,8 @@ Future<String> copy({String sourceDirectoryPath = '', String targetDirectoryPath
     //   Return Value <- Locals.diTargetDirectory
     //   path <- Parameters.TargetDirectoryPath
     ts.notExported('dotNet call: System.IO.DirectoryInfo.DirectoryInfo'); // Get Target DirectoryInfo [Action]
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    copyAllResult.Status = await copyAll(); // CopyAll
-    copyAllResult.Status = copyAllResult.Status == 'Done' ? 'Passed' : copyAllResult.Status; // status expression
-    run.record(copyAllResult.Status);
+    run.record(await copyAll()); // CopyAll
   } finally {
-    // ── cleanup ──
     locals.diSourceDirectory = null; // Release
     locals.diTargetDirectory = null; // Release (cont.)
   }
@@ -171,44 +108,37 @@ Future<String> copy({String sourceDirectoryPath = '', String targetDirectoryPath
 }
 
 class _CopyAllLocals {
-  String targetFullName = ''; // Str
-  String fileName = ''; // Str
-  String subdirectoryName = ''; // Str
-  List<dynamic> fiSourceFiles = <dynamic>[]; // Refs
-  List<dynamic> diSourceSubdirectories = <dynamic>[]; // Refs
-  dynamic fiSourceFile; // Ref
-  dynamic diSourceSubdirectory; // Ref
-  dynamic diTargetSubdirectory; // Ref
+  String targetFullName = '';
+  String fileName = '';
+  String subdirectoryName = '';
+  List<dynamic> fiSourceFiles = <dynamic>[];
+  List<dynamic> diSourceSubdirectories = <dynamic>[];
+  dynamic fiSourceFile;
+  dynamic diSourceSubdirectory;
+  dynamic diTargetSubdirectory;
 }
 
 /// Sequence `CopyAll`.
-Future<String> copyAll({dynamic diSourceDirectory, dynamic diTargetDirectory}) async {
+Future<ts.Status> copyAll({dynamic diSourceDirectory, dynamic diTargetDirectory}) async {
   diSourceDirectory = ts.copy(diSourceDirectory);
   diTargetDirectory = ts.copy(diTargetDirectory);
 
   final locals = _CopyAllLocals();
   final run = ts.SequenceRun();
-  dynamic copyAllResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of CopyAll
   dynamic releaseFiSourceFilesResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Release fiSourceFiles
+  });
   dynamic releaseDiSourceSubdirectoriesResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Release diSourceSubdirectories
+  });
 
   try {
-    // ── main ──
     // .NET call: System.IO.DirectoryInfo.Use Existing Object
     //   Existing Object <- Parameters.diTargetDirectory
     // .NET call: System.IO.DirectoryInfo.FullName
@@ -254,28 +184,15 @@ Future<String> copyAll({dynamic diSourceDirectory, dynamic diTargetDirectory}) a
       //   Return Value <- Locals.diTargetSubdirectory
       //   path <- Locals.SubdirectoryName
       ts.notExported('dotNet call: System.IO.DirectoryInfo.CreateSubdirectory'); // Create Subdirectory [Action]
-      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      copyAllResult = ts.PropObj({
-        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-        'Status': '',
-        'ReportText': '',
-        'Common': ts.PropObj(),
-      });
-      copyAllResult.Status = await copyAll(
-        diSourceDirectory: locals.diSourceSubdirectory,
-        diTargetDirectory: locals.diTargetSubdirectory,
+      run.record(
+        await copyAll(diSourceDirectory: locals.diSourceSubdirectory, diTargetDirectory: locals.diTargetSubdirectory),
       ); // CopyAll
-      copyAllResult.Status = copyAllResult.Status == 'Done' ? 'Passed' : copyAllResult.Status; // status expression
-      run.record(copyAllResult.Status);
     }
   } finally {
-    // ── cleanup ──
     locals.diTargetSubdirectory = null; // Release diTargetSubdirectory
-    // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.fiSourceFiles); increment RunState.LoopIndex += 1; status "Done"
     final loop = ts.StepLoop();
-    loop.index = 0; // loop initialize
+    loop.index = 0;
     while (loop.index < ts.getNumElements(locals.fiSourceFiles)) {
-      // loop while
       releaseFiSourceFilesResult = ts.PropObj({
         'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
         'Status': '',
@@ -283,17 +200,15 @@ Future<String> copyAll({dynamic diSourceDirectory, dynamic diTargetDirectory}) a
         'Common': ts.PropObj(),
       });
       locals.fiSourceFiles[loop.index.toInt()] = null; // Release fiSourceFiles
-      releaseFiSourceFilesResult.Status = 'Done';
+      releaseFiSourceFilesResult.Status = ts.Status.done;
       loop.count(releaseFiSourceFilesResult.Status);
-      loop.index += 1; // loop increment
+      loop.index += 1;
     }
-    releaseFiSourceFilesResult.Status = 'Done'; // loop status
+    releaseFiSourceFilesResult.Status = 'Done';
     run.record(releaseFiSourceFilesResult.Status);
-    // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.diSourceSubdirectories); increment RunState.LoopIndex += 1; status "Done"
     final loop2 = ts.StepLoop();
-    loop2.index = 0; // loop initialize
+    loop2.index = 0;
     while (loop2.index < ts.getNumElements(locals.diSourceSubdirectories)) {
-      // loop while
       releaseDiSourceSubdirectoriesResult = ts.PropObj({
         'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
         'Status': '',
@@ -301,11 +216,11 @@ Future<String> copyAll({dynamic diSourceDirectory, dynamic diTargetDirectory}) a
         'Common': ts.PropObj(),
       });
       locals.diSourceSubdirectories[loop2.index.toInt()] = null; // Release diSourceSubdirectories
-      releaseDiSourceSubdirectoriesResult.Status = 'Done';
+      releaseDiSourceSubdirectoriesResult.Status = ts.Status.done;
       loop2.count(releaseDiSourceSubdirectoriesResult.Status);
-      loop2.index += 1; // loop increment
+      loop2.index += 1;
     }
-    releaseDiSourceSubdirectoriesResult.Status = 'Done'; // loop status
+    releaseDiSourceSubdirectoriesResult.Status = 'Done';
     run.record(releaseDiSourceSubdirectoriesResult.Status);
   }
 

@@ -7,7 +7,7 @@ List<dynamic> sequenceFileTypes = <dynamic>[
   'DOC_SEQFILE_TYPE_FRONT_END_CALLBACK',
   'DOC_SEQFILE_TYPE_TEST_STAND_CALLBACK',
   'DOC_SEQFILE_TYPE_TEMPLATE',
-]; // Strs
+];
 List<dynamic> sequenceTypes = <dynamic>[
   'DOC_SEQ_TYPE_NORMAL',
   'DOC_SEQ_TYPE_CALLBACK',
@@ -16,21 +16,21 @@ List<dynamic> sequenceTypes = <dynamic>[
   'DOC_SEQ_TYPE_DEBUG_ENTRY_POINT',
   'DOC_SEQ_TYPE_CONFIG_ENTRY_POINT',
   'DOC_SEQ_TYPE_CONVERT_ENTRY_POINT',
-]; // Strs
-bool locked = false; // Bool
-double protection = 0; // Num
+];
+bool locked = false;
+double protection = 0;
 
 class _SequenceFileDocLocals {
-  String docResult = ''; // Str
-  double maxWwLineLength = 80; // Num
-  double wwIndentNum = 5; // Num
-  String tmpString = ''; // Str
-  int tmpNum = 0; // Num — default: 0
-  double totalNumSteps = 0; // Num — default: 0
+  String docResult = '';
+  double maxWwLineLength = 80;
+  double wwIndentNum = 5;
+  String tmpString = '';
+  int tmpNum = 0;
+  double totalNumSteps = 0;
 }
 
 /// Sequence `Sequence File Doc`.
-Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
+Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
   final locals = _SequenceFileDocLocals();
   final run = ts.SequenceRun();
   dynamic updateTotalNumStepsResult = ts.PropObj({
@@ -38,46 +38,26 @@ Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Update TotalNumSteps
-  final dynamic addRequirementsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Add Requirements
-  final dynamic processSubPropsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Process SubProps
-  final dynamic processSubPropsResult2 = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Process SubProps
+  });
   dynamic forEachSequenceResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of For Each Sequence
+  });
   final dynamic saveDocToFileResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': true,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Save Doc To File
+  });
 
-  // ── setup ──
   //   Return Value -> FileGlobals.Locked
   ts.notExported('cModule call: GetLocked?'); // GetLocked? [Action]
   //   Return Value -> FileGlobals.Protection
   ts.notExported('cModule call: GetProtection?'); // GetProtection? [Action]
 
-  // ── main ──
   skipToEndStationGlobals:
   {
     skipToEndSeqFileGlobals:
@@ -88,48 +68,40 @@ Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async
       ts.eval(
         '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_OPERATOR"), "%-35s") +\n	(PropertyExists("StationGlobals.TS.CurrentUser.LoginName") ? \n		StationGlobals.TS.CurrentUser.LoginName :\n		GetResourceString("SEQ_FILE_DOC", "DOC_USER_NONE")) +\n	"\\n"\n',
       ); // By Operator
-      locals.docResult +=
-          '${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Sequence File Header
+      locals.docResult += '${ts.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Sequence File Header
       if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
-        // precondition of WordWrapComment
         ts.notExported('cModule call: WordWrapComment'); // WordWrapComment [Action]
       }
       if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
-        // precondition of Comment
-        locals.docResult +=
-            '${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_COMMENT')}\n${locals.tmpString}\n'; // Comment
+        locals.docResult += '${ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_COMMENT')}\n${locals.tmpString}\n'; // Comment
       }
       locals.docResult +=
-          '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_PATH'), '%-35s')}"${sequenceFile.Path as String}"\n'; // Path
+          '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_PATH'), '%-35s')}"${sequenceFile.Path as String}"\n'; // Path
       locals.docResult +=
-          '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_VERSION'), '%-35s') + (sequenceFile.Data.Version as String)}\n'; // Version
+          '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_VERSION'), '%-35s') + (sequenceFile.Data.Version as String)}\n'; // Version
       locals.docResult +=
-          '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_TYPE'), '%-35s') + ts.stepHost.resourceString('SEQ_FILE_DOC', sequenceFileTypes[(sequenceFile.Data.Type as num).toInt()])}\n'; // Type
+          '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_TYPE'), '%-35s') + ts.resourceString('SEQ_FILE_DOC', sequenceFileTypes[(sequenceFile.Data.Type as num).toInt()])}\n'; // Type
       locals.docResult +=
-          '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_LOAD_OPTION'), '%-35s') + ts.stepHost.resourceString('LOAD OPTION STRINGS', sequenceFile.Data.LoadOpt)}\n'; // Load Option
+          '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_LOAD_OPTION'), '%-35s') + ts.resourceString('LOAD OPTION STRINGS', sequenceFile.Data.LoadOpt)}\n'; // Load Option
       locals.docResult +=
-          '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_UNLOAD_OPTION'), '%-35s') + ts.stepHost.resourceString('UNLOAD OPTION STRINGS', sequenceFile.Data.UnloadOpt)}\n'; // Unload Option
+          '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_UNLOAD_OPTION'), '%-35s') + ts.resourceString('UNLOAD OPTION STRINGS', sequenceFile.Data.UnloadOpt)}\n'; // Unload Option
       locals.docResult +=
-          '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_MODELOPT'), '%-35s') + ts.stepHost.resourceString('SF_MODEL_OPTIONS', ts.str(sequenceFile.Data.ModelOption))}\n'; // Model Option
+          '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_MODELOPT'), '%-35s') + ts.resourceString('SF_MODEL_OPTIONS', ts.str(sequenceFile.Data.ModelOption))}\n'; // Model Option
       if (sequenceFile.Data.ModelOption == 2) {
-        // precondition of Model File
         locals.docResult +=
-            '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_MODELFILE'), '%-35s')}"${sequenceFile.Data.ModelFile as String}"\n'; // Model File
+            '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_MODELFILE'), '%-35s')}"${sequenceFile.Data.ModelFile as String}"\n'; // Model File
       }
       if (ts.cond(
         'Parameters.SequenceFile.Data.BatchSync != 1 \' Use Model Setting (Default) - Only show if different from default',
       )) {
-        // precondition of Default Batch Sync
         locals.docResult +=
-            '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_DEFAULT_BATCH_SYNC'), '%-35s') + ts.stepHost.resourceString('SEQ_FILE_DOC_BATCH_SYNC_NAMES', ts.str(sequenceFile.Data.BatchSync))}\n'; // Default Batch Sync
+            '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_DEFAULT_BATCH_SYNC'), '%-35s') + ts.resourceString('SEQ_FILE_DOC_BATCH_SYNC_NAMES', ts.str(sequenceFile.Data.BatchSync))}\n'; // Default Batch Sync
       }
       locals.docResult +=
-          '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_NUM_SEQUENCES'), '%-35s') + ts.str(ts.getNumElements(sequenceFile.Data.Seq))}\n'; // Num Sequences
-      // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.SequenceFile.Data.Seq); increment RunState.LoopIndex += 1; status "Passed"
+          '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_NUM_SEQUENCES'), '%-35s') + ts.str(ts.getNumElements(sequenceFile.Data.Seq))}\n'; // Num Sequences
       final loop = ts.StepLoop();
-      loop.index = 0; // loop initialize
+      loop.index = 0;
       while (loop.index < ts.getNumElements(sequenceFile.Data.Seq)) {
-        // loop while
         updateTotalNumStepsResult = ts.PropObj({
           'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
           'Status': '',
@@ -140,17 +112,16 @@ Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async
             ts.getNumElements(sequenceFile.Data.Seq[loop.index.toInt()].Main) +
             ts.getNumElements(sequenceFile.Data.Seq[loop.index.toInt()].Setup) +
             ts.getNumElements(sequenceFile.Data.Seq[loop.index.toInt()].Cleanup); // Update TotalNumSteps
-        updateTotalNumStepsResult.Status = 'Done';
+        updateTotalNumStepsResult.Status = ts.Status.done;
         loop.count(updateTotalNumStepsResult.Status);
-        loop.index += 1; // loop increment
+        loop.index += 1;
       }
-      updateTotalNumStepsResult.Status = 'Passed'; // loop status
+      updateTotalNumStepsResult.Status = 'Passed';
       run.record(updateTotalNumStepsResult.Status);
       locals.docResult +=
-          '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_NUM_STEPS'), '%-35s') + (locked && protection == 2 ? '${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_UNKNOWN')} <${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_LOCKED')}>' : ts.str(locals.totalNumSteps))}\n'; // Num Steps
-      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+          '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_NUM_STEPS'), '%-35s') + (locked && protection == 2 ? '${ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_UNKNOWN')} <${ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_LOCKED')}>' : ts.str(locals.totalNumSteps))}\n'; // Num Steps
       final docResultRef = ts.Ref<String>(locals.docResult);
-      addRequirementsResult.Status = await writeRequirementsElements(
+      await writeRequirementsElements(
         requirements: sequenceFile.Data.Requirements,
         docResult: docResultRef,
         maxWwLineLength: locals.maxWwLineLength,
@@ -158,89 +129,54 @@ Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async
         tmpNum: locals.tmpNum,
       ); // Add Requirements
       locals.docResult = docResultRef.value;
-      addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
-          ? 'Passed'
-          : addRequirementsResult.Status; // status expression
-      run.record(addRequirementsResult.Status);
       locals.docResult += '\n'; // Sequence File Footer
-      // label: --- SeqFile Globals ---
-      // goto -> --- End SeqFile Globals ---
+      // --- SeqFile Globals ---
       if (docOptions.ShowFileGlobals == false) {
-        // precondition of skip if not displayed
-        // skip if not displayed [Goto]: no code module
-        break skipToEndSeqFileGlobals; // post action
+        break skipToEndSeqFileGlobals;
       }
       //   Return Value -> Locals.tmpNum
       //   lookupString <- ""
       ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
       if (locals.tmpNum > 0) {
-        // precondition of SetProgressMsg
         ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
       }
       if (locals.tmpNum > 0) {
-        // precondition of Header
         locals.docResult +=
-            '     ${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_GLOBALS')}\n     ${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Header
-      }
-      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      if (locals.tmpNum > 0) {
-        // precondition of Process SubProps
-        processSubPropsResult.Status = await writeSubproperties(); // Process SubProps
-        processSubPropsResult.Status = processSubPropsResult.Status == 'Done'
-            ? 'Passed'
-            : processSubPropsResult.Status; // status expression
-        run.record(processSubPropsResult.Status);
-      } else {
-        processSubPropsResult.Status = 'Skipped';
+            '     ${ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_GLOBALS')}\n     ${ts.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Header
       }
       if (locals.tmpNum > 0) {
-        // precondition of Footer
+        await writeSubproperties(); // Process SubProps
+      }
+      if (locals.tmpNum > 0) {
         locals.docResult += '\n'; // Footer
       }
     }
-    // label: --- End SeqFile Globals ---
-    // label: --- Station Globals ---
-    // goto -> --- End Station Globals ---
+    // --- End SeqFile Globals ---
+    // --- Station Globals ---
     if (docOptions.ShowStationGlobals == false) {
-      // precondition of skip if not displayed
-      // skip if not displayed [Goto]: no code module
-      break skipToEndStationGlobals; // post action
+      break skipToEndStationGlobals;
     }
     //   Return Value -> Locals.tmpNum
     //   lookupString <- ""
     ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
     if (locals.tmpNum > 0) {
-      // precondition of SetProgressMsg
       ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
     }
     if (locals.tmpNum > 0) {
-      // precondition of Header
       locals.docResult +=
-          '     ${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STATION_GLOBALS')}\n     ${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Header
-    }
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    if (locals.tmpNum > 0) {
-      // precondition of Process SubProps
-      processSubPropsResult2.Status = await writeSubproperties(); // Process SubProps
-      processSubPropsResult2.Status = processSubPropsResult2.Status == 'Done'
-          ? 'Passed'
-          : processSubPropsResult2.Status; // status expression
-      run.record(processSubPropsResult2.Status);
-    } else {
-      processSubPropsResult2.Status = 'Skipped';
+          '     ${ts.resourceString('SEQ_FILE_DOC', 'DOC_STATION_GLOBALS')}\n     ${ts.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Header
     }
     if (locals.tmpNum > 0) {
-      // precondition of Footer
+      await writeSubproperties(); // Process SubProps
+    }
+    if (locals.tmpNum > 0) {
       locals.docResult += '\n'; // Footer
     }
   }
-  // label: --- End Station Globals ---
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.SequenceFile.Data.Seq); increment RunState.LoopIndex += 1; status "Passed"
+  // --- End Station Globals ---
   final loop2 = ts.StepLoop();
-  loop2.index = 0; // loop initialize
+  loop2.index = 0;
   while (loop2.index < ts.getNumElements(sequenceFile.Data.Seq)) {
-    // loop while
     forEachSequenceResult = ts.PropObj({
       'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
       'Status': '',
@@ -248,73 +184,50 @@ Future<String> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async
       'Common': ts.PropObj(),
     });
     forEachSequenceResult.Status = await sequenceDoc(); // For Each Sequence
-    forEachSequenceResult.Status = forEachSequenceResult.Status == 'Done'
-        ? 'Passed'
-        : forEachSequenceResult.Status; // status expression
     loop2.count(forEachSequenceResult.Status);
-    loop2.index += 1; // loop increment
+    loop2.index += 1;
   }
-  forEachSequenceResult.Status = 'Passed'; // loop status
+  forEachSequenceResult.Status = 'Passed';
   run.record(forEachSequenceResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.Result.PassFail ? "Passed" : "Failed"
   ts.notExported('cModule call: Save Doc To File'); // Save Doc To File [PassFailTest]
-  saveDocToFileResult.Status = ts.truthy(saveDocToFileResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+  saveDocToFileResult.Status = ts.truthy(saveDocToFileResult.PassFail) ? 'Passed' : 'Failed';
   run.record(saveDocToFileResult.Status);
 
   return run.status;
 }
 
 class _SequenceDocLocals {
-  double maxWwLineLength = 80; // Num
-  double wwIndentNum = 5; // Num
-  String tmpString = ''; // Str
-  int tmpNum = 0; // Num — default: 0
-  double totalNumSteps = 0; // Num — default: 0
-  int stepsSoFar = 0; // Num — default: 0
+  double maxWwLineLength = 80;
+  double wwIndentNum = 5;
+  String tmpString = '';
+  int tmpNum = 0;
+  double totalNumSteps = 0;
+  int stepsSoFar = 0;
 }
 
 /// Sequence `Sequence Doc`.
-Future<String> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dynamic docOptions}) async {
+Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dynamic docOptions}) async {
   final docResultRef = docResult ?? ts.Ref<String>('');
   final locals = _SequenceDocLocals();
   final run = ts.SequenceRun();
-  final dynamic addRequirementsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Add Requirements
-  final dynamic processSubPropsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Process SubProps
-  final dynamic processSubPropsResult2 = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Process SubProps
   dynamic forEachSetupStepResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of For Each Setup Step
+  });
   dynamic forEachMainStepResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of For Each Main Step
+  });
   dynamic forEachCleanupStepResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of For Each Cleanup Step
+  });
 
   skipToEndLocals:
   {
@@ -324,30 +237,27 @@ Future<String> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dynamic
         'Parameters.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NAME") +\n	"\\"" + NameOf( Parameters.Sequence) + "\\"\\n" +\n	GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"\n',
       ); // Sequence Header
       if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
-        // precondition of WordWrapComment
         ts.notExported('cModule call: WordWrapComment'); // WordWrapComment [Action]
       }
       if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
-        // precondition of Comment
         docResultRef.value +=
-            '${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_COMMENT')}\n${locals.tmpString}\n'; // Comment
+            '${ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_COMMENT')}\n${locals.tmpString}\n'; // Comment
       }
       docResultRef.value +=
-          '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_TYPE'), '%-35s') + ts.stepHost.resourceString('SEQ_FILE_DOC', sequenceTypes[(sequence.RTS.Type as num).toInt()])}\n'; // Type
+          '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_TYPE'), '%-35s') + ts.resourceString('SEQ_FILE_DOC', sequenceTypes[(sequence.RTS.Type as num).toInt()])}\n'; // Type
       docResultRef.value +=
-          '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_DISABLE_RESULTS'), '%-35s') + ts.str(!ts.truthy(sequence.RecordResults))}\n'; // Record Results
+          '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_DISABLE_RESULTS'), '%-35s') + ts.str(!ts.truthy(sequence.RecordResults))}\n'; // Record Results
       docResultRef.value +=
-          '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_GOTO_CLEANUP_ON_FAIL'), '%-35s') + (sequence.FailureAction == 0 ? ts.stepHost.resourceString('SEQUENCE_PROP_DLG', 'STEP_FAILURE_ACTION_NONE') : (sequence.FailureAction == 1 ? ts.stepHost.resourceString('SEQUENCE_PROP_DLG', 'STEP_FAILURE_ACTION_GOTO_CLEANUP') : ts.stepHost.resourceString('SEQUENCE_PROP_DLG', 'STEP_FAILURE_ACTION_USE_STATION_OPTION')))}\n'; // Cleanup On Fail
+          '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_GOTO_CLEANUP_ON_FAIL'), '%-35s') + (sequence.FailureAction == 0 ? ts.resourceString('SEQUENCE_PROP_DLG', 'STEP_FAILURE_ACTION_NONE') : (sequence.FailureAction == 1 ? ts.resourceString('SEQUENCE_PROP_DLG', 'STEP_FAILURE_ACTION_GOTO_CLEANUP') : ts.resourceString('SEQUENCE_PROP_DLG', 'STEP_FAILURE_ACTION_USE_STATION_OPTION')))}\n'; // Cleanup On Fail
       if (!locked || protection != 2) {
         docResultRef.value +=
-            '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_NUM_SETUP_STEPS'), '%-35s') + ts.str(ts.getNumElements(sequence.Setup))}\n'; // Num Setup Steps
+            '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_NUM_SETUP_STEPS'), '%-35s') + ts.str(ts.getNumElements(sequence.Setup))}\n'; // Num Setup Steps
         docResultRef.value +=
-            '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_NUM_MAIN_STEPS'), '%-35s') + ts.str(ts.getNumElements(sequence.Main))}\n'; // Num Main Steps
+            '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_NUM_MAIN_STEPS'), '%-35s') + ts.str(ts.getNumElements(sequence.Main))}\n'; // Num Main Steps
         docResultRef.value +=
-            '${ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_NUM_CLEANUP_STEPS'), '%-35s') + ts.str(ts.getNumElements(sequence.Cleanup))}\n'; // Num Cleanup Steps
-        // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+            '${ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_NUM_CLEANUP_STEPS'), '%-35s') + ts.str(ts.getNumElements(sequence.Cleanup))}\n'; // Num Cleanup Steps
         final docResultRef2 = ts.Ref<String>(docResultRef.value);
-        addRequirementsResult.Status = await writeRequirementsElements(
+        await writeRequirementsElements(
           requirements: sequence.Requirements,
           docResult: docResultRef2,
           maxWwLineLength: locals.maxWwLineLength,
@@ -355,95 +265,61 @@ Future<String> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dynamic
           tmpNum: locals.tmpNum,
         ); // Add Requirements
         docResultRef.value = docResultRef2.value;
-        addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
-            ? 'Passed'
-            : addRequirementsResult.Status; // status expression
-        run.record(addRequirementsResult.Status);
       }
       docResultRef.value += '\n'; // Sequence Footer
-      // label: --- Parameters ---
-      // goto -> --- End Parameters ---
+      // --- Parameters ---
       if (docOptions.ShowParameters == false) {
-        // precondition of skip if not displayed
-        // skip if not displayed [Goto]: no code module
-        break skipToEndParameters; // post action
+        break skipToEndParameters;
       }
       //   Return Value -> Locals.tmpNum
       //   lookupString <- ""
       ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
       if (locals.tmpNum > 0) {
-        // precondition of SetProgressMsg
         ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
       }
       if (locals.tmpNum > 0) {
-        // precondition of Header
         docResultRef.value +=
-            '     ${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_PARAMS')}\n     ${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Header
+            '     ${ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_PARAMS')}\n     ${ts.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Header
       }
-      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       if (locals.tmpNum > 0) {
-        // precondition of Process SubProps
-        processSubPropsResult.Status = await writeSubproperties(); // Process SubProps
-        processSubPropsResult.Status = processSubPropsResult.Status == 'Done'
-            ? 'Passed'
-            : processSubPropsResult.Status; // status expression
-        run.record(processSubPropsResult.Status);
-      } else {
-        processSubPropsResult.Status = 'Skipped';
+        await writeSubproperties(); // Process SubProps
       }
       docResultRef.value += '\n'; // Footer
     }
-    // label: --- End Parameters ---
-    // label: --- Locals ---
-    // goto -> --- End Locals ---
+    // --- End Parameters ---
+    // --- Locals ---
     if (docOptions.ShowLocals == false) {
-      // precondition of skip if not displayed
-      // skip if not displayed [Goto]: no code module
-      break skipToEndLocals; // post action
+      break skipToEndLocals;
     }
     //   Return Value -> Locals.tmpNum
     //   lookupString <- ""
     ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
     if (locals.tmpNum > 0) {
-      // precondition of SetProgressMsg
       ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
     }
     if (locals.tmpNum > 0) {
-      // precondition of Header
       docResultRef.value +=
-          '     ${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_LOCALS')}\n     ${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Header
+          '     ${ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_LOCALS')}\n     ${ts.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Header
     }
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     if (locals.tmpNum > 0) {
-      // precondition of Process SubProps
-      processSubPropsResult2.Status = await writeSubproperties(); // Process SubProps
-      processSubPropsResult2.Status = processSubPropsResult2.Status == 'Done'
-          ? 'Passed'
-          : processSubPropsResult2.Status; // status expression
-      run.record(processSubPropsResult2.Status);
-    } else {
-      processSubPropsResult2.Status = 'Skipped';
+      await writeSubproperties(); // Process SubProps
     }
     docResultRef.value += '\n'; // Footer
   }
-  // label: --- End Locals ---
-  // label: --- Step Doc ---
+  // --- End Locals ---
+  // --- Step Doc ---
   ts.notExported('cModule call: SetProgressMsg'); // SetProgressMsg [Action]
   locals.totalNumSteps =
       ts.getNumElements(sequence.Setup) +
       ts.getNumElements(sequence.Main) +
       ts.getNumElements(sequence.Cleanup); // CalcNumSteps
   if (ts.getNumElements(sequence.Setup) > 0) {
-    // precondition of Setup Steps Header
     docResultRef.value +=
-        '     ${ts.stepHost.resourceString('EXECUTION PHASE', 'Setup')}\n     ${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Setup Steps Header
+        '     ${ts.resourceString('EXECUTION PHASE', 'Setup')}\n     ${ts.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Setup Steps Header
   }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Sequence.Setup); increment RunState.LoopIndex += 1; status "Passed"
   final loop = ts.StepLoop();
-  loop.index = 0; // loop initialize
+  loop.index = 0;
   while (loop.index < ts.getNumElements(sequence.Setup)) {
-    // loop while
     forEachSetupStepResult = ts.PropObj({
       'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
       'Status': '',
@@ -451,25 +327,18 @@ Future<String> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dynamic
       'Common': ts.PropObj(),
     });
     forEachSetupStepResult.Status = await stepDoc(); // For Each Setup Step
-    forEachSetupStepResult.Status = forEachSetupStepResult.Status == 'Done'
-        ? 'Passed'
-        : forEachSetupStepResult.Status; // status expression
     loop.count(forEachSetupStepResult.Status);
-    loop.index += 1; // loop increment
+    loop.index += 1;
   }
-  forEachSetupStepResult.Status = 'Passed'; // loop status
+  forEachSetupStepResult.Status = 'Passed';
   run.record(forEachSetupStepResult.Status);
   if (ts.getNumElements(sequence.Main) > 0) {
-    // precondition of Main Steps Header
     docResultRef.value +=
-        '     ${ts.stepHost.resourceString('EXECUTION PHASE', 'MainSteps')}\n     ${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Main Steps Header
+        '     ${ts.resourceString('EXECUTION PHASE', 'MainSteps')}\n     ${ts.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Main Steps Header
   }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Sequence.Main); increment RunState.LoopIndex += 1; status "Passed"
   final loop2 = ts.StepLoop();
-  loop2.index = 0; // loop initialize
+  loop2.index = 0;
   while (loop2.index < ts.getNumElements(sequence.Main)) {
-    // loop while
     forEachMainStepResult = ts.PropObj({
       'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
       'Status': '',
@@ -477,25 +346,18 @@ Future<String> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dynamic
       'Common': ts.PropObj(),
     });
     forEachMainStepResult.Status = await stepDoc(); // For Each Main Step
-    forEachMainStepResult.Status = forEachMainStepResult.Status == 'Done'
-        ? 'Passed'
-        : forEachMainStepResult.Status; // status expression
     loop2.count(forEachMainStepResult.Status);
-    loop2.index += 1; // loop increment
+    loop2.index += 1;
   }
-  forEachMainStepResult.Status = 'Passed'; // loop status
+  forEachMainStepResult.Status = 'Passed';
   run.record(forEachMainStepResult.Status);
   if (ts.getNumElements(sequence.Cleanup) > 0) {
-    // precondition of Cleanup Steps Header
     docResultRef.value +=
-        '     ${ts.stepHost.resourceString('EXECUTION PHASE', 'Cleanup')}\n     ${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Cleanup Steps Header
+        '     ${ts.resourceString('EXECUTION PHASE', 'Cleanup')}\n     ${ts.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Cleanup Steps Header
   }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Sequence.Cleanup); increment RunState.LoopIndex += 1; status "Passed"
   final loop3 = ts.StepLoop();
-  loop3.index = 0; // loop initialize
+  loop3.index = 0;
   while (loop3.index < ts.getNumElements(sequence.Cleanup)) {
-    // loop while
     forEachCleanupStepResult = ts.PropObj({
       'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
       'Status': '',
@@ -503,35 +365,32 @@ Future<String> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dynamic
       'Common': ts.PropObj(),
     });
     forEachCleanupStepResult.Status = await stepDoc(); // For Each Cleanup Step
-    forEachCleanupStepResult.Status = forEachCleanupStepResult.Status == 'Done'
-        ? 'Passed'
-        : forEachCleanupStepResult.Status; // status expression
     loop3.count(forEachCleanupStepResult.Status);
-    loop3.index += 1; // loop increment
+    loop3.index += 1;
   }
-  forEachCleanupStepResult.Status = 'Passed'; // loop status
+  forEachCleanupStepResult.Status = 'Passed';
   run.record(forEachCleanupStepResult.Status);
 
   return run.status;
 }
 
 class _StepDocLocals {
-  String stepTypeName = ''; // Str
-  double maxWwLineLength = 0; // Num — default: 0
-  double wwIndentNum = 0; // Num — default: 0
-  String tmpString = ''; // Str
-  int tmpNum = 0; // Num — default: 0
-  bool isNiStepType = false; // Bool — default: false
-  String execFlow = ''; // Str
-  String stepKeyName = ''; // Str
-  String stepDocs = ''; // Str
-  int blockLevel = 0; // Num — default: 0
-  String indent = ''; // Str
-  String doubleIndent = ''; // Str
+  String stepTypeName = '';
+  double maxWwLineLength = 0;
+  double wwIndentNum = 0;
+  String tmpString = '';
+  int tmpNum = 0;
+  bool isNiStepType = false;
+  String execFlow = '';
+  String stepKeyName = '';
+  String stepDocs = '';
+  int blockLevel = 0;
+  String indent = '';
+  String doubleIndent = '';
 }
 
 /// Sequence `Step Doc`.
-Future<String> stepDoc({
+Future<ts.Status> stepDoc({
   dynamic step,
   ts.Ref<String>? docResult,
   int totalNumSteps = 0,
@@ -547,19 +406,7 @@ Future<String> stepDoc({
     'PassFail': true,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Get StepType Name
-  final dynamic addRequirementsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Add Requirements
-  final dynamic addMultipleNumericLimitsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Add Multiple Numeric Limits
+  });
 
   skipToBeginOfMultipleLimits:
   {
@@ -574,14 +421,12 @@ Future<String> stepDoc({
     ts.eval(
       'Locals.StepDocs += Locals.Indent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_NAME") + "\\"" + NameOf(Parameters.Step) + "\\"\\n"\n',
     ); // Step Header
-    // checks: Step.Result.PassFail
-    // status expression: Step.Result.PassFail ? "Passed" : "Failed"
     ts.notExported('cModule call: Get StepType Name'); // Get StepType Name [PassFailTest]
-    getStepTypeNameResult.Status = ts.truthy(getStepTypeNameResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+    getStepTypeNameResult.Status = ts.truthy(getStepTypeNameResult.PassFail) ? 'Passed' : 'Failed';
     run.record(getStepTypeNameResult.Status);
     //   Return Value -> Locals.StepKeyName
     ts.notExported('cModule call: GetStepKeyName'); // GetStepKeyName [Action]
-    locals.tmpString = ts.stepHost.resourceString('Adapter Names', locals.stepKeyName); // Process Adapter Name
+    locals.tmpString = ts.resourceString('Adapter Names', locals.stepKeyName); // Process Adapter Name
     ts.eval(
       'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_TYPE_AND_ADAPTER"), "%-35s") +\nResStr("STEPTYPE_NAMES", Locals.StepTypeName, Locals.StepTypeName) + \n", " + Locals.tmpString + "\\n"\n',
     ); // Step Type, Adapter Name
@@ -590,19 +435,16 @@ Future<String> stepDoc({
     ts.notExported('cModule call: Get Step Desc'); // Get Step Desc [Action]
     ts.notExported('cModule call: WordWrapDesc'); // WordWrapDesc [Action]
     locals.stepDocs +=
-        '${locals.doubleIndent + ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_DESC')}\n${locals.tmpString}\n'; // Step Description
+        '${locals.doubleIndent + ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_DESC')}\n${locals.tmpString}\n'; // Step Description
     if (ts.cond('CommentOf(Parameters.Step) != ""')) {
-      // precondition of WordWrapComment
       ts.notExported('cModule call: WordWrapComment'); // WordWrapComment [Action]
     }
     if (ts.cond('CommentOf(Parameters.Step) != ""')) {
-      // precondition of Comment
       locals.stepDocs +=
-          '${locals.doubleIndent + ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_COMMENT')}\n${locals.tmpString}\n'; // Comment
+          '${locals.doubleIndent + ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_COMMENT')}\n${locals.tmpString}\n'; // Comment
     }
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     final docResultRef2 = ts.Ref<String>(locals.stepDocs);
-    addRequirementsResult.Status = await writeRequirementsElements(
+    await writeRequirementsElements(
       requirements: step.TS.Requirements,
       docResult: docResultRef2,
       doubleIndent: locals.doubleIndent,
@@ -611,91 +453,66 @@ Future<String> stepDoc({
       tmpNum: locals.tmpNum,
     ); // Add Requirements
     locals.stepDocs = docResultRef2.value;
-    addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
-        ? 'Passed'
-        : addRequirementsResult.Status; // status expression
-    run.record(addRequirementsResult.Status);
     if (ts.cond('PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False')) {
-      // precondition of WordWrapInBuf
       ts.notExported('cModule call: WordWrapInBuf'); // WordWrapInBuf [Action]
     }
     if (ts.cond('PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False')) {
-      // precondition of InBuf
       locals.stepDocs +=
-          '${locals.doubleIndent + ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_INBUF')}\n${locals.tmpString}\n'; // InBuf
+          '${locals.doubleIndent + ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_INBUF')}\n${locals.tmpString}\n'; // InBuf
     }
     locals.stepDocs +=
-        '${locals.doubleIndent + ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_LOAD_OPTION'), '%-35s') + ts.stepHost.resourceString('LOAD OPTION STRINGS', step.TS.LoadOpt)}\n'; // Load Option
+        '${locals.doubleIndent + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_LOAD_OPTION'), '%-35s') + ts.resourceString('LOAD OPTION STRINGS', step.TS.LoadOpt)}\n'; // Load Option
     locals.stepDocs +=
-        '${locals.doubleIndent + ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_UNLOAD_OPTION'), '%-35s') + ts.stepHost.resourceString('UNLOAD OPTION STRINGS', step.TS.UnloadOpt)}\n'; // Unload Option
+        '${locals.doubleIndent + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_UNLOAD_OPTION'), '%-35s') + ts.resourceString('UNLOAD OPTION STRINGS', step.TS.UnloadOpt)}\n'; // Unload Option
     if (step.TS.ResultOption != 1) {
-      // precondition of Record Results
       locals.stepDocs +=
-          '${locals.doubleIndent + ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_RECORD_RESULTS'), '%-35s') + (step.TS.ResultOption == 0 ? ts.stepHost.resourceString('STEP_PROP_DLG', 'RESULT_RECORDING_OPTION_DISABLED') : (step.TS.ResultOption == 1 ? ts.stepHost.resourceString('STEP_PROP_DLG', 'RESULT_RECORDING_OPTION_ENABLED') : ts.stepHost.resourceString('STEP_PROP_DLG', 'RESULT_RECORDING_OPTION_ENABLED_OVERRIDE_SEQUENCE_SETTING')))}\n'; // Record Results
+          '${locals.doubleIndent + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_RECORD_RESULTS'), '%-35s') + (step.TS.ResultOption == 0 ? ts.resourceString('STEP_PROP_DLG', 'RESULT_RECORDING_OPTION_DISABLED') : (step.TS.ResultOption == 1 ? ts.resourceString('STEP_PROP_DLG', 'RESULT_RECORDING_OPTION_ENABLED') : ts.resourceString('STEP_PROP_DLG', 'RESULT_RECORDING_OPTION_ENABLED_OVERRIDE_SEQUENCE_SETTING')))}\n'; // Record Results
     }
     if (!ts.truthy(step.TS.StepFCSeqF)) {
-      // precondition of Step Fail Causes Seq Fail
       locals.stepDocs +=
-          '${locals.doubleIndent + ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_STEP_FAIL_SEQ_FAIL'), '%-35s') + ts.str(step.TS.StepFCSeqF)}\n'; // Step Fail Causes Seq Fail
+          '${locals.doubleIndent + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_STEP_FAIL_SEQ_FAIL'), '%-35s') + ts.str(step.TS.StepFCSeqF)}\n'; // Step Fail Causes Seq Fail
     }
     if (ts.truthy(step.TS.IgnoreRTE)) {
-      // precondition of Ignore Run-Time Error
       locals.stepDocs +=
-          '${locals.doubleIndent + ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_IGNORE_RTE'), '%-35s') + ts.str(step.TS.IgnoreRTE)}\n'; // Ignore Run-Time Error
+          '${locals.doubleIndent + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_IGNORE_RTE'), '%-35s') + ts.str(step.TS.IgnoreRTE)}\n'; // Ignore Run-Time Error
     }
-    // goto -> --- Begin of Multiple Limits ---
     if (ts.cond('PropertyExists("Parameters.Step.Result.Measurement")')) {
-      // precondition of Skip to Multiple Limits Section
-      // Skip to Multiple Limits Section [Goto]: no code module
-      break skipToBeginOfMultipleLimits; // post action
+      break skipToBeginOfMultipleLimits;
     }
     if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
-      // precondition of WordWrapStringLimit
       ts.notExported('cModule call: WordWrapStringLimit'); // WordWrapStringLimit [Action]
     }
     if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
-      // precondition of String Limit
       locals.stepDocs +=
-          '${locals.doubleIndent + ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT_STRING')}\n${locals.tmpString}\n'; // String Limit
+          '${locals.doubleIndent + ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT_STRING')}\n${locals.tmpString}\n'; // String Limit
     }
     if (ts.cond('PropertyExists("Parameters.Step.DataSource")')) {
-      // precondition of Data Source
       ts.eval(
         'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DATASOURCE"), "%-35s") +\n		LocalizeExpression(Parameters.Step.DataSource) + "\\n"\n',
       ); // Data Source
     }
   }
-  // label: --- Begin of Multiple Limits ---
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+  // --- Begin of Multiple Limits ---
   if (ts.cond(
     'AllOf(Locals.StepTypeName == "NI_MultipleNumericLimitTest", PropertyExists("Parameters.Step.Result.Measurement"))',
   )) {
-    // precondition of Add Multiple Numeric Limits
     final docResultRef3 = ts.Ref<String>(locals.stepDocs);
-    addMultipleNumericLimitsResult.Status = await writeMultipleNumericLimitLimits(
+    await writeMultipleNumericLimitLimits(
       step: step,
       docResult: docResultRef3,
       doubleIndent: locals.doubleIndent,
     ); // Add Multiple Numeric Limits
     locals.stepDocs = docResultRef3.value;
-    addMultipleNumericLimitsResult.Status = addMultipleNumericLimitsResult.Status == 'Done'
-        ? 'Passed'
-        : addMultipleNumericLimitsResult.Status; // status expression
-    run.record(addMultipleNumericLimitsResult.Status);
-  } else {
-    addMultipleNumericLimitsResult.Status = 'Skipped';
   }
   //   Return Value -> Locals.ExecFlow
   //   options <- 0x1 ' StepDescOption_Long
   ts.notExported('cModule call: Get Execution Flow'); // Get Execution Flow [Action]
   if (locals.execFlow != '') {
-    // precondition of WordWrapExecFlow
     ts.notExported('cModule call: WordWrapExecFlow'); // WordWrapExecFlow [Action]
   }
   if (locals.execFlow != '') {
-    // precondition of Execution Flow
     locals.stepDocs +=
-        '${locals.doubleIndent + ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_EXEC_FLOW'), '%-35s')}\n${locals.tmpString}\n'; // Execution Flow
+        '${locals.doubleIndent + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_EXEC_FLOW'), '%-35s')}\n${locals.tmpString}\n'; // Execution Flow
   }
   locals.stepDocs += '\n'; // Step Footer
   docResultRef.value += locals.stepDocs; // Append Step Docs
@@ -704,16 +521,16 @@ Future<String> stepDoc({
 }
 
 class _WriteSubpropertiesLocals {
-  int numSubproperties = 0; // Num — default: 0
-  int i = 0; // Num — default: 0
-  String subpropName = ''; // Str
-  String subpropLookupStr = ''; // Str
-  bool isHidden = false; // Bool — default: false
-  int subpropFlags = 0; // Num — default: 0
+  int numSubproperties = 0;
+  int i = 0;
+  String subpropName = '';
+  String subpropLookupStr = '';
+  bool isHidden = false;
+  int subpropFlags = 0;
 }
 
 /// Sequence `Write Subproperties`.
-Future<String> writeSubproperties({
+Future<void> writeSubproperties({
   dynamic root,
   String docResult = '',
   String parentPropLookupStr = '',
@@ -721,19 +538,6 @@ Future<String> writeSubproperties({
   dynamic docOptions,
 }) async {
   final locals = _WriteSubpropertiesLocals();
-  final run = ts.SequenceRun();
-  final dynamic displayPropertyResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of DisplayProperty
-  final dynamic displaySubpropertiesOfSubpropertyResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of DisplaySubpropertiesOfSubproperty
 
   endMain:
   {
@@ -742,11 +546,8 @@ Future<String> writeSubproperties({
     ts.notExported('cModule call: GetNumSubProperties'); // GetNumSubProperties [Action]
     backToGotoEndWhenDone:
     while (true) {
-      // goto -> <End>
       if (locals.i == locals.numSubproperties) {
-        // precondition of Goto End When Done
-        // Goto End When Done [Goto]: no code module
-        break endMain; // post action
+        break endMain;
       }
       //   Return Value -> Locals.SubpropName
       //   lookupString <- Parameters.ParentPropLookupStr
@@ -761,51 +562,29 @@ Future<String> writeSubproperties({
       //   options <- 0
       ts.notExported('cModule call: GetFlags'); // GetFlags [Action]
       locals.subpropFlags & 8 != 0 ? (locals.isHidden = true) : (locals.isHidden = false); // IsHidden
-      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       if (locals.isHidden == false || ts.truthy(docOptions.ShowHidden)) {
-        // precondition of DisplayProperty
-        displayPropertyResult.Status = await writePropertyDetails(); // DisplayProperty
-        displayPropertyResult.Status = displayPropertyResult.Status == 'Done'
-            ? 'Passed'
-            : displayPropertyResult.Status; // status expression
-        run.record(displayPropertyResult.Status);
-      } else {
-        displayPropertyResult.Status = 'Skipped';
+        await writePropertyDetails(); // DisplayProperty
       }
-      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       if ((locals.isHidden == false || ts.truthy(docOptions.ShowHidden)) && ts.truthy(docOptions.ShowSubproperties)) {
-        // precondition of DisplaySubpropertiesOfSubproperty
-        displaySubpropertiesOfSubpropertyResult.Status =
-            await writeSubproperties(); // DisplaySubpropertiesOfSubproperty
-        displaySubpropertiesOfSubpropertyResult.Status = displaySubpropertiesOfSubpropertyResult.Status == 'Done'
-            ? 'Passed'
-            : displaySubpropertiesOfSubpropertyResult.Status; // status expression
-        run.record(displaySubpropertiesOfSubpropertyResult.Status);
-      } else {
-        displaySubpropertiesOfSubpropertyResult.Status = 'Skipped';
+        await writeSubproperties(); // DisplaySubpropertiesOfSubproperty
       }
       locals.i += 1; // Increment index
       if (isRecursiveCall == false) {
-        // precondition of Update Percent Done
         ts.notExported('cModule call: Update Percent Done'); // Update Percent Done [Action]
       }
-      // goto -> Goto End When Done
-      // Loop back around [Goto]: no code module
-      continue backToGotoEndWhenDone; // post action
+      continue backToGotoEndWhenDone;
     }
   }
-
-  return run.status;
 }
 
 class _WriteArrayElementsLocals {
-  String currentArrayIndex = ''; // Str
-  int currentOffset = 0; // Num — default: 0
-  int numElements = 0; // Num — default: 0
+  String currentArrayIndex = '';
+  int currentOffset = 0;
+  int numElements = 0;
 }
 
 /// Sequence `Write Array Elements`.
-Future<String> writeArrayElements({
+Future<void> writeArrayElements({
   dynamic root,
   ts.Ref<String>? docResult,
   String arrayPropLookupStr = '',
@@ -813,19 +592,6 @@ Future<String> writeArrayElements({
 }) async {
   final docResultRef = docResult ?? ts.Ref<String>('');
   final locals = _WriteArrayElementsLocals();
-  final run = ts.SequenceRun();
-  final dynamic displayPropertyResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of DisplayProperty
-  final dynamic displaySubpropertiesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of DisplaySubproperties
 
   endMain:
   {
@@ -840,67 +606,47 @@ Future<String> writeArrayElements({
       ts.notExported('cModule call: GetNumElements'); // GetNumElements [Action]
       backToStartOfLoop:
       while (true) {
-        // label: --- Start of Loop ---
-        // goto -> --- Max Num Array Elements Msg ---
+        // --- Start of Loop ---
         if (locals.currentOffset == docOptions.MaxNumArrayElementsToShow &&
             locals.currentOffset != locals.numElements) {
-          // precondition of Check for Max Num Array Elements
-          // Check for Max Num Array Elements [Goto]: no code module
-          break skipToMaxNumArrayElementsMsg; // post action
+          break skipToMaxNumArrayElementsMsg;
         }
-        // goto -> <End>
         if (locals.currentOffset == locals.numElements) {
-          // precondition of Goto End When Done
-          // Goto End When Done [Goto]: no code module
-          break endMain; // post action
+          break endMain;
         }
         //   Return Value -> Locals.CurrentArrayIndex
         //   lookupString <- Parameters.ArrayPropLookupStr
         //   options <- 0
         //   offset <- Locals.CurrentOffset
         ts.notExported('cModule call: GetArrayIndexFromOffset'); // GetArrayIndexFromOffset [Action]
-        // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-        displayPropertyResult.Status = await writePropertyDetails(); // DisplayProperty
-        displayPropertyResult.Status = displayPropertyResult.Status == 'Done'
-            ? 'Passed'
-            : displayPropertyResult.Status; // status expression
-        run.record(displayPropertyResult.Status);
-        // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-        displaySubpropertiesResult.Status = await writeSubproperties(); // DisplaySubproperties
-        displaySubpropertiesResult.Status = displaySubpropertiesResult.Status == 'Done'
-            ? 'Passed'
-            : displaySubpropertiesResult.Status; // status expression
-        run.record(displaySubpropertiesResult.Status);
+        await writePropertyDetails(); // DisplayProperty
+        await writeSubproperties(); // DisplaySubproperties
         locals.currentOffset += 1; // Inc Loop Var
-        // goto -> --- Start of Loop ---
-        // Loop back around [Goto]: no code module
-        continue backToStartOfLoop; // post action
+        continue backToStartOfLoop;
       }
     }
-    // label: --- Max Num Array Elements Msg ---
+    // --- Max Num Array Elements Msg ---
     docResultRef.value +=
-        '     $arrayPropLookupStr[...] --- ${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_MAX_ARRAY_DISPLAY_EXCEEDED')}\n'; // Add Max Exceeded Msg
+        '     $arrayPropLookupStr[...] --- ${ts.resourceString('SEQ_FILE_DOC', 'DOC_MAX_ARRAY_DISPLAY_EXCEEDED')}\n'; // Add Max Exceeded Msg
   }
-
-  return run.status;
 }
 
 class _WritePropertyDetailsLocals {
-  int valueType = 0; // Num — default: 0
-  bool isObject = false; // Bool — default: false
-  bool isArray = false; // Bool — default: false
-  String typeName = ''; // Str
-  String subpropValue = '...'; // Str
-  int subpropFlags = 0; // Num — default: 0
-  String byRefStr = ''; // Str
-  int maxWwLineLength = 80; // Num
-  int wwIndentNum = 10; // Num
-  int tmpNum = 0; // Num — default: 0
-  String unused = ''; // Str
+  int valueType = 0;
+  bool isObject = false;
+  bool isArray = false;
+  String typeName = '';
+  String subpropValue = '...';
+  int subpropFlags = 0;
+  String byRefStr = '';
+  int maxWwLineLength = 80;
+  int wwIndentNum = 10;
+  int tmpNum = 0;
+  String unused = '';
 }
 
 /// Sequence `Write Property Details`.
-Future<String> writePropertyDetails({
+Future<void> writePropertyDetails({
   ts.Ref<String>? docResult,
   dynamic root,
   String propertyToDisplayName = '',
@@ -908,19 +654,12 @@ Future<String> writePropertyDetails({
 }) async {
   final docResultRef = docResult ?? ts.Ref<String>('');
   final locals = _WritePropertyDetailsLocals();
-  final run = ts.SequenceRun();
   final dynamic tryToEvaluateResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of TryToEvaluate
-  final dynamic displayArrayElementsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of DisplayArrayElements
+  });
 
   skipToSkipEvaluate:
   {
@@ -932,95 +671,73 @@ Future<String> writePropertyDetails({
     //   typeName -> Locals.typeName
     ts.notExported('cModule call: GetTypeInfo'); // GetTypeInfo [Action]
     // Normally Evaluate() should only fail if the property name has invalid characters in it.
-    // label: --- Test Evaluate Error ---
-    // ignores run-time errors
-    // failure does NOT fail the sequence
+    // --- Test Evaluate Error ---
     ts.eval('Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName)'); // TryToEvaluate
-    tryToEvaluateResult.Status = 'Done';
+    tryToEvaluateResult.Status = ts.Status.done;
     if (tryToEvaluateResult.Status == 'Error') {
-      // precondition of Document Error
       locals.subpropValue = '\n${tryToEvaluateResult.Error.Msg as String}'; // Document Error
     }
     if (tryToEvaluateResult.Status == 'Error') {
-      // precondition of WordWrapStringValue_Copy
       ts.notExported('cModule call: WordWrapStringValue_Copy'); // WordWrapStringValue_Copy [Action]
     }
-    // goto -> --- Skip Evaluate ---
     if (tryToEvaluateResult.Status == 'Error') {
-      // precondition of Skip Evaluate
-      // Skip Evaluate [Goto]: no code module
-      break skipToSkipEvaluate; // post action
+      break skipToSkipEvaluate;
     }
     locals.typeName =
         root.GetPropertyObject(propertyToDisplayName, 0).Type.DisplayString as String; // GetTypeNameForDisplay
     // Get the value of a number, boolean or activex property
     if (locals.valueType == 2 || locals.valueType == 3 || locals.valueType == 5) {
-      // precondition of GetSubPropValue1
       ts.eval(
         'Locals.SubpropValue = Str(Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName))',
       ); // GetSubPropValue1
     }
     // Get the value of a string property
     if (locals.valueType == 1) {
-      // precondition of GetSubPropValue2
       ts.eval(
         'Locals.SubpropValue = "\\n\\"" + Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName) + "\\""',
       ); // GetSubPropValue2
     }
     // Get the value of an enum property
     if (ts.cond('Locals.valueType == PropValType_Enum')) {
-      // precondition of GetSubPropValue7
       ts.eval(
         ' Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName).GetDisplayNames("", PropOption_NoOptions, Locals.Unused, Locals.SubpropValue)',
       ); // GetSubPropValue7
     }
     if (locals.valueType == 1) {
-      // precondition of WordWrapStringValue
       ts.notExported('cModule call: WordWrapStringValue'); // WordWrapStringValue [Action]
     }
   }
-  // label: --- Skip Evaluate ---
+  // --- Skip Evaluate ---
   //   Return Value -> Locals.SubpropFlags
   //   lookupString <- Parameters.PropertyToDisplayName
   //   options <- 0
   ts.notExported('cModule call: GetFlags'); // GetFlags [Action]
   locals.subpropFlags & 4 != 0
-      ? (locals.byRefStr = ' - ${ts.stepHost.resourceString('SEQUENCING ADAPTER', 'PASS_BYREFERENCE')}')
+      ? (locals.byRefStr = ' - ${ts.resourceString('SEQUENCING ADAPTER', 'PASS_BYREFERENCE')}')
       : (locals.byRefStr = ''); // IsByRef
   docResultRef.value +=
       '     ${ts.str('$propertyToDisplayName (${locals.typeName}${locals.byRefStr})', '%-40s')} ${locals.subpropValue}\n'; // Add Display String
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   if (locals.isArray && ts.truthy(docOptions.ShowArrayElements)) {
-    // precondition of DisplayArrayElements
-    displayArrayElementsResult.Status = await writeArrayElements(); // DisplayArrayElements
-    displayArrayElementsResult.Status = displayArrayElementsResult.Status == 'Done'
-        ? 'Passed'
-        : displayArrayElementsResult.Status; // status expression
-    run.record(displayArrayElementsResult.Status);
-  } else {
-    displayArrayElementsResult.Status = 'Skipped';
+    await writeArrayElements(); // DisplayArrayElements
   }
-
-  return run.status;
 }
 
 class _WriteMultipleNumericLimitLimitsLocals {
-  int currentOffset = 0; // Num — default: 0
-  int numElements = 0; // Num — default: 0
-  bool oneLimitOnly = false; // Bool — default: false
-  String lowLimitFmt = ''; // Str
-  String highLimitFmt = ''; // Str
+  int currentOffset = 0;
+  int numElements = 0;
+  bool oneLimitOnly = false;
+  String lowLimitFmt = '';
+  String highLimitFmt = '';
 }
 
 /// Sequence `Write Multiple Numeric Limit Limits`.
-Future<String> writeMultipleNumericLimitLimits({
+Future<void> writeMultipleNumericLimitLimits({
   dynamic step,
   ts.Ref<String>? docResult,
   String doubleIndent = '',
 }) async {
   final docResultRef = docResult ?? ts.Ref<String>('');
   final locals = _WriteMultipleNumericLimitLimitsLocals();
-  final run = ts.SequenceRun();
 
   skipToAfterLoop:
   {
@@ -1033,102 +750,85 @@ Future<String> writeMultipleNumericLimitLimits({
     ts.notExported('cModule call: GetNumElements'); // GetNumElements [Action]
     backToStartOfLoop:
     while (true) {
-      // label: --- Start of Loop ---
-      // goto -> --- After Loop ---
+      // --- Start of Loop ---
       if (locals.currentOffset == locals.numElements) {
-        // precondition of Goto After Loop Section When Done
-        // Goto After Loop Section When Done [Goto]: no code module
-        break skipToAfterLoop; // post action
+        break skipToAfterLoop;
       }
       locals.oneLimitOnly = false; // Initialize Local Variables
       ts.eval(
         '\nParameters.DocResult += Parameters.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n" +  Parameters.DoubleIndent + Str(ResStr("SEQ_FILE_DOC", "MEAS_NAME_LBL"), "%-35s") + NameOf(Parameters.Step.Result.Measurement[Locals.CurrentOffset]) + "\\n"\n',
       ); // Header
       if (ts.cond('PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Comp")')) {
-        // precondition of Comparison Type
         docResultRef.value +=
-            '${doubleIndent + ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_COMP_TYPE'), '%-35s') + (step.Result.Measurement[locals.currentOffset].Comp as String)}\n'; // Comparison Type
+            '${doubleIndent + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_COMP_TYPE'), '%-35s') + (step.Result.Measurement[locals.currentOffset].Comp as String)}\n'; // Comparison Type
       }
       if (ts.cond(
         '#NoValidation(\nAllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Comp"), PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High"), AnyOf(Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "EQ", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "NE", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "GT", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "LT", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "GE", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "LE"))\n)',
       )) {
-        // precondition of One Limit Only?
         locals.oneLimitOnly = true; // One Limit Only?
       }
       if (ts.cond(
         'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low")',
       )) {
-        // precondition of Get Low Limit Format
         //   Return Value -> Locals.LowLimitFmt
         ts.notExported('cModule call: Get Low Limit Format'); // Get Low Limit Format [Action]
       }
       if (ts.cond(
         'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High")',
       )) {
-        // precondition of Get High Limit Format
         //   Return Value -> Locals.HighLimitFmt
         ts.notExported('cModule call: Get High Limit Format'); // Get High Limit Format [Action]
       }
       if (ts.cond(
         '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Comp != "LOG"))',
       )) {
-        // precondition of Low Limit
         docResultRef.value +=
-            '${doubleIndent + ts.str(locals.oneLimitOnly ? ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT') : ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT_LOW'), '%-35s') + ts.str(step.Result.Measurement[locals.currentOffset].Limits.Low, locals.lowLimitFmt)}\n'; // Low Limit
+            '${doubleIndent + ts.str(locals.oneLimitOnly ? ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT') : ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT_LOW'), '%-35s') + ts.str(step.Result.Measurement[locals.currentOffset].Limits.Low, locals.lowLimitFmt)}\n'; // Low Limit
       }
       if (ts.cond(
         '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Comp != "LOG", !Locals.OneLimitOnly))',
       )) {
-        // precondition of High Limit
         docResultRef.value +=
-            '${doubleIndent + ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT_HIGH'), '%-35s') + ts.str(step.Result.Measurement[locals.currentOffset].Limits.High, locals.highLimitFmt)}\n'; // High Limit
+            '${doubleIndent + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT_HIGH'), '%-35s') + ts.str(step.Result.Measurement[locals.currentOffset].Limits.High, locals.highLimitFmt)}\n'; // High Limit
       }
       if (ts.cond(
         '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Units"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Units != ""))',
       )) {
-        // precondition of Units
         docResultRef.value +=
-            '${doubleIndent + ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_UNITS'), '%-35s') + (step.Result.Measurement[locals.currentOffset].Units as String)}\n'; // Units
+            '${doubleIndent + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_UNITS'), '%-35s') + (step.Result.Measurement[locals.currentOffset].Units as String)}\n'; // Units
       }
       if (ts.cond(
         'AllOf(PropertyExists("Parameters.Step.DataSourceArray[" + Str(Locals.CurrentOffset) + "]"), Parameters.Step.UseIndividualDataSources)',
       )) {
-        // precondition of Individual Data Source
         ts.eval(
           '\nParameters.DocResult += Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DATASOURCE"), "%-35s") + LocalizeExpression(Parameters.Step.DataSourceArray[Locals.CurrentOffset]) + "\\n"\n',
         ); // Individual Data Source
       }
       locals.currentOffset += 1; // Inc Loop Var
-      // goto -> --- Start of Loop ---
-      // Loop back around [Goto]: no code module
-      continue backToStartOfLoop; // post action
+      continue backToStartOfLoop;
     }
   }
-  // label: --- After Loop ---
+  // --- After Loop ---
   if (locals.numElements > 0) {
-    // precondition of Footer
     docResultRef.value +=
-        '${doubleIndent + ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n$doubleIndent${ts.stepHost.resourceString('SEQ_FILE_DOC', 'END_OF_MEAS_LBL')}\n$doubleIndent${ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Footer
+        '${doubleIndent + ts.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n$doubleIndent${ts.resourceString('SEQ_FILE_DOC', 'END_OF_MEAS_LBL')}\n$doubleIndent${ts.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Footer
   }
   if (ts.cond(
     '#NoValidation(AllOf(PropertyExists("Parameters.Step.DataSource"), !Parameters.Step.UseIndividualDataSources, Locals.NumElements > 0))',
   )) {
-    // precondition of Data Source
     ts.eval(
       'Parameters.DocResult +=Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DATASOURCE"), "%-35s") + LocalizeExpression(Parameters.Step.DataSource) + "\\n"',
     ); // Data Source
   }
-
-  return run.status;
 }
 
 class _WriteRequirementsElementsLocals {
-  String currentReqElement = ''; // Str
-  String tmpString = ''; // Str
+  String currentReqElement = '';
+  String tmpString = '';
 }
 
 /// Sequence `Write Requirements Elements`.
-Future<String> writeRequirementsElements({
+Future<void> writeRequirementsElements({
   dynamic requirements,
   ts.Ref<String>? docResult,
   String doubleIndent = '',
@@ -1138,9 +838,8 @@ Future<String> writeRequirementsElements({
 }) async {
   final docResultRef = docResult ?? ts.Ref<String>('');
   final locals = _WriteRequirementsElementsLocals();
-  final run = ts.SequenceRun();
 
-  // label: Process Requirements
+  // Process Requirements
   for (final element in ts.iterate(requirements.Links)) {
     locals.currentReqElement = element as String;
     locals.tmpString += '${locals.currentReqElement}\n'; // Get Requirments
@@ -1148,8 +847,6 @@ Future<String> writeRequirementsElements({
   if (ts.len(locals.tmpString) > 0) {
     ts.notExported('cModule call: WordWrapInBuf'); // WordWrapInBuf [Action]
     docResultRef.value +=
-        '${doubleIndent + ts.str(ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_REQUIREMENTS'), '%-30s')}\n${locals.tmpString}\n'; // Requirements
+        '${doubleIndent + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_REQUIREMENTS'), '%-30s')}\n${locals.tmpString}\n'; // Requirements
   }
-
-  return run.status;
 }

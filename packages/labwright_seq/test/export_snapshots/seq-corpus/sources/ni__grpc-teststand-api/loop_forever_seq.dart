@@ -2,7 +2,7 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   dynamic numericLimitTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -11,7 +11,7 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': '',
-  }); // result of Numeric Limit Test
+  });
   dynamic numericLimitTest2Result = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -19,7 +19,7 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': '',
-  }); // result of Numeric Limit Test 2
+  });
   dynamic numericLimitTest3Result = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -27,7 +27,7 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': '',
-  }); // result of Numeric Limit Test 3
+  });
   dynamic numericLimitTest4Result = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -35,7 +35,7 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': '',
-  }); // result of Numeric Limit Test 4
+  });
   dynamic numericLimitTest5Result = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -43,11 +43,9 @@ Future<String> mainSequence() async {
     'ReportText': '',
     'Common': ts.PropObj(),
     'Units': '',
-  }); // result of Numeric Limit Test 5
+  });
 
   while (ts.truthy(true)) {
-    // checks: 10 GELE [low 9, high 11, nominal 100] (PERCENTAGE)
-    // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
     numericLimitTestResult = ts.PropObj({
       'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
       'Status': '',
@@ -65,10 +63,8 @@ Future<String> mainSequence() async {
       true,
       100,
       'PERCENTAGE',
-    ); // status expression
+    );
     run.record(numericLimitTestResult.Status);
-    // checks: 12 GELE [low 9, high 11, nominal 100] (PERCENTAGE)
-    // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
     numericLimitTest2Result = ts.PropObj({
       'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
       'Status': '',
@@ -86,10 +82,8 @@ Future<String> mainSequence() async {
       true,
       100,
       'PERCENTAGE',
-    ); // status expression
+    );
     run.record(numericLimitTest2Result.Status);
-    // checks: Random(8, 12) GELE [low 9, high 11, nominal 100] (PERCENTAGE)
-    // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
     numericLimitTest3Result = ts.PropObj({
       'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
       'Status': '',
@@ -107,10 +101,8 @@ Future<String> mainSequence() async {
       true,
       100,
       'PERCENTAGE',
-    ); // status expression
+    );
     run.record(numericLimitTest3Result.Status);
-    // checks: Random(8, 12) GELE [low 9, high 11, nominal 100] (PERCENTAGE)
-    // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
     numericLimitTest4Result = ts.PropObj({
       'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
       'Status': '',
@@ -128,10 +120,8 @@ Future<String> mainSequence() async {
       true,
       100,
       'PERCENTAGE',
-    ); // status expression
+    );
     run.record(numericLimitTest4Result.Status);
-    // checks: Random(8, 12) GELE [low 9, high 11, nominal 100] (PERCENTAGE)
-    // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
     numericLimitTest5Result = ts.PropObj({
       'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
       'Status': '',
@@ -149,10 +139,9 @@ Future<String> mainSequence() async {
       true,
       100,
       'PERCENTAGE',
-    ); // status expression
+    );
     run.record(numericLimitTest5Result.Status);
     if (ts.cond('GetNumElements(Locals.ResultList) > 50')) {
-      // precondition of Remove Excess Results
       ts.eval('Locals.ResultList.DeleteElements(0, GetNumElements(Locals.ResultList) - 50)'); // Remove Excess Results
     }
   }

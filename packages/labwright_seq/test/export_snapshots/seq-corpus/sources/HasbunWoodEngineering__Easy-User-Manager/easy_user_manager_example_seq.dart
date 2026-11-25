@@ -2,16 +2,16 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _MainSequenceLocals {
-  dynamic eum; // Ref
-  String newUserName = ''; // Str
-  bool userExists = false; // Bool — default: false
-  bool saveUsersFile = false; // Bool — default: false
-  bool groupExists = false; // Bool — default: false
-  String groupName = ''; // Str
+  dynamic eum;
+  String newUserName = '';
+  bool userExists = false;
+  bool saveUsersFile = false;
+  bool groupExists = false;
+  String groupName = '';
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
   dynamic enterANewUserNameResult = ts.PropObj({
@@ -21,15 +21,7 @@ Future<String> mainSequence() async {
     'Response': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Enter a new user name
-  dynamic warningUserAlreadyExistsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Warning user already exists
+  });
   dynamic enterAGroupNameResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -37,32 +29,23 @@ Future<String> mainSequence() async {
     'Response': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Enter a group name
-  dynamic warningGroupWillBeCreatedResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Warning group will be created
+  });
   final dynamic userInGroupResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of User in group?
+  });
   final dynamic userHasPrivilegeResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of User has privilege?
+  });
 
   try {
-    // ── setup ──
     // Initialize EasyUserManager object using the VI "Initialize from Teststand.vi". This VI duplicates the engine reference to avoid automatic closing when the VI finishes execution.
     //
     // Save the EasyUserManager object to a local variable (object reference) for further use.
@@ -71,10 +54,6 @@ Future<String> mainSequence() async {
     //   error out <- Step.Result.Error
     await callInitializeFromTeststand(); // Initialize EasyUserManager [Action]
     while (ts.checkStrLimit(locals.newUserName, '', 'CaseSensitive') == 'Passed') {
-      // popup title: NameOf(Step)
-      // popup message: "Enter a user name. The user password will be set to 12345"
-      // popup buttons: "Done" | "Cancel"
-      // popup collects a response (default "ExampleUser2025")
       enterANewUserNameResult = ts.PropObj({
         'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
         'Status': '',
@@ -83,21 +62,18 @@ Future<String> mainSequence() async {
         'ReportText': '',
         'Common': ts.PropObj(),
       });
-      // Enter a new user name [MessagePopup]: acts through ts.stepHost
-      final popup = await ts.stepHost.messagePopup(
-        title: 'Enter a new user name',
-        message: 'Enter a user name. The user password will be set to 12345',
-        buttons: ['Done', 'Cancel', '', '', '', ''],
+      final popup = await ts.messagePopup(
+        'Enter a new user name',
+        'Enter a user name. The user password will be set to 12345',
+        buttons: ['Done', 'Cancel'],
         showResponse: true,
         defaultResponse: 'ExampleUser2025',
       );
       enterANewUserNameResult.ButtonHit = popup.buttonHit;
       enterANewUserNameResult.Response = popup.response;
-      locals.newUserName = enterANewUserNameResult.Response as String; // post-expression
-      enterANewUserNameResult.Status = 'Done';
-      run.record(enterANewUserNameResult.Status);
+      locals.newUserName = enterANewUserNameResult.Response as String;
+      enterANewUserNameResult.Status = ts.Status.done;
       if (ts.cond('RunState.PreviousStep.Result.ButtonHit==2')) {
-        // precondition of Terminate execution if user cancels
         ts.eval('RunState.Execution.Terminate()'); // Terminate execution if user cancels
       }
       //   EasyUserManager in <- Locals.EUM
@@ -105,32 +81,12 @@ Future<String> mainSequence() async {
       //   User Exists <- Locals.UserExists
       //   error out <- Step.Result.Error
       await callUserExists(); // Check if user already exists [Action]
-      // popup title: NameOf(Step)
-      // popup message: "There is already a user with the LoginName " + Locals.NewUserName + ". Enter a different user name."
-      // popup buttons: "OK"
       if (locals.userExists) {
-        // precondition of Warning user already exists
-        warningUserAlreadyExistsResult = ts.PropObj({
-          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-          'Status': '',
-          'ButtonHit': 0,
-          'Response': '',
-          'ReportText': '',
-          'Common': ts.PropObj(),
-        });
-        // Warning user already exists [MessagePopup]: acts through ts.stepHost
-        final popup2 = await ts.stepHost.messagePopup(
-          title: 'Warning user already exists',
-          message: 'There is already a user with the LoginName ${locals.newUserName}. Enter a different user name.',
-          buttons: ['OK', '', '', '', '', ''],
+        await ts.messagePopup(
+          'Warning user already exists',
+          'There is already a user with the LoginName ${locals.newUserName}. Enter a different user name.',
         );
-        warningUserAlreadyExistsResult.ButtonHit = popup2.buttonHit;
-        warningUserAlreadyExistsResult.Response = popup2.response;
-        locals.newUserName = ''; // post-expression
-        warningUserAlreadyExistsResult.Status = 'Done';
-        run.record(warningUserAlreadyExistsResult.Status);
-      } else {
-        warningUserAlreadyExistsResult.Status = 'Skipped';
+        locals.newUserName = '';
       }
     }
     //   Save File <- Locals.SaveUsersFile
@@ -140,10 +96,6 @@ Future<String> mainSequence() async {
     //   error out <- Step.Result.Error
     await callCreateUser(); // Create user [Action]
     while (!locals.groupExists) {
-      // popup title: NameOf(Step)
-      // popup message: "Enter a group to which the new user shall be added.  | Pick a group that does not already have the privilege Configure.ConfigAdapter (e.g. Technician)."
-      // popup buttons: "Done" | "Cancel"
-      // popup collects a response (default "Technician")
       enterAGroupNameResult = ts.PropObj({
         'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
         'Status': '',
@@ -152,22 +104,18 @@ Future<String> mainSequence() async {
         'ReportText': '',
         'Common': ts.PropObj(),
       });
-      // Enter a group name [MessagePopup]: acts through ts.stepHost
-      final popup3 = await ts.stepHost.messagePopup(
-        title: 'Enter a group name',
-        message:
-            'Enter a group to which the new user shall be added. \n\nPick a group that does not already have the privilege Configure.ConfigAdapter (e.g. Technician).',
-        buttons: ['Done', 'Cancel', '', '', '', ''],
+      final popup2 = await ts.messagePopup(
+        'Enter a group name',
+        'Enter a group to which the new user shall be added. \n\nPick a group that does not already have the privilege Configure.ConfigAdapter (e.g. Technician).',
+        buttons: ['Done', 'Cancel'],
         showResponse: true,
         defaultResponse: 'Technician',
       );
-      enterAGroupNameResult.ButtonHit = popup3.buttonHit;
-      enterAGroupNameResult.Response = popup3.response;
-      locals.groupName = enterAGroupNameResult.Response as String; // post-expression
-      enterAGroupNameResult.Status = 'Done';
-      run.record(enterAGroupNameResult.Status);
+      enterAGroupNameResult.ButtonHit = popup2.buttonHit;
+      enterAGroupNameResult.Response = popup2.response;
+      locals.groupName = enterAGroupNameResult.Response as String;
+      enterAGroupNameResult.Status = ts.Status.done;
       if (ts.cond('RunState.PreviousStep.Result.ButtonHit==2')) {
-        // precondition of Terminate execution if user cancels
         ts.eval('RunState.Execution.Terminate()'); // Terminate execution if user cancels
       }
       //   EasyUserManager in <- Locals.EUM
@@ -175,40 +123,19 @@ Future<String> mainSequence() async {
       //   Group Exists <- Locals.GroupExists
       //   error out <- Step.Result.Error
       await callGroupExists(); // Check if group exists [Action]
-      // popup title: NameOf(Step)
-      // popup message: "The group " + Locals.GroupName + " does not exist and will be created."
-      // popup buttons: "OK"
       if (!locals.groupExists) {
-        // precondition of Warning group will be created
-        warningGroupWillBeCreatedResult = ts.PropObj({
-          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-          'Status': '',
-          'ButtonHit': 0,
-          'Response': '',
-          'ReportText': '',
-          'Common': ts.PropObj(),
-        });
-        // Warning group will be created [MessagePopup]: acts through ts.stepHost
-        final popup4 = await ts.stepHost.messagePopup(
-          title: 'Warning group will be created',
-          message: 'The group ${locals.groupName} does not exist and will be created.',
-          buttons: ['OK', '', '', '', '', ''],
+        await ts.messagePopup(
+          'Warning group will be created',
+          'The group ${locals.groupName} does not exist and will be created.',
         );
-        warningGroupWillBeCreatedResult.ButtonHit = popup4.buttonHit;
-        warningGroupWillBeCreatedResult.Response = popup4.response;
-        warningGroupWillBeCreatedResult.Status = 'Done';
-        run.record(warningGroupWillBeCreatedResult.Status);
-      } else {
-        warningGroupWillBeCreatedResult.Status = 'Skipped';
       }
       if (!locals.groupExists) {
-        // precondition of Create group
         //   Save File <- Locals.SaveUsersFile
         //   EasyUserManager in <- Locals.EUM
         //   Group Name <- Locals.GroupName
         //   error out <- Step.Result.Error
         await callCreateGroup(); // Create group [Action]
-        locals.groupExists = true; // post-expression
+        locals.groupExists = true;
       }
     }
     //   Save File <- Locals.SaveUsersFile
@@ -231,31 +158,23 @@ Future<String> mainSequence() async {
     //   error out <- Step.Result.Error
     await callSetUserPrivilege(); // Set user privilege Configure.ConfigAdapter to True [Action]
 
-    // ── main ──
-    // checks: Step.Result.PassFail
-    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
     //   EasyUserManager in <- Locals.EUM
     //   LoginName <- Locals.NewUserName
     //   Group Name <- Locals.GroupName
     //   User in Group <- Step.Result.PassFail
     //   error out <- Step.Result.Error
     await callUserInGroup(); // User in group? [PassFailTest]
-    userInGroupResult.Status = ts.truthy(userInGroupResult.PassFail) ? 'Passed' : 'Failed'; // status expression
+    userInGroupResult.Status = ts.truthy(userInGroupResult.PassFail) ? 'Passed' : 'Failed';
     run.record(userInGroupResult.Status);
-    // checks: Step.Result.PassFail
-    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
     //   EasyUserManager in <- Locals.EUM
     //   LoginName <- Locals.NewUserName
     //   Privilege <- "Configure.ConfigAdapter"
     //   User Has Privilege <- Step.Result.PassFail
     //   error out <- Step.Result.Error
     await callCheckUserHasPrivilege(); // User has privilege? [PassFailTest]
-    userHasPrivilegeResult.Status = ts.truthy(userHasPrivilegeResult.PassFail)
-        ? 'Passed'
-        : 'Failed'; // status expression
+    userHasPrivilegeResult.Status = ts.truthy(userHasPrivilegeResult.PassFail) ? 'Passed' : 'Failed';
     run.record(userHasPrivilegeResult.Status);
   } finally {
-    // ── cleanup ──
     // As the engine reference was duplicated you need to close it in the clean up process.
     //   EasyUserManager in <- Locals.EUM
     //   error out <- Step.Result.Error
@@ -266,79 +185,47 @@ Future<String> mainSequence() async {
 }
 
 /// Sequence `SequenceFileLoad`.
-Future<String> sequenceFileLoad() async {
-  final run = ts.SequenceRun();
-  final dynamic showInstructionsToUserResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Show Instructions to user
-
-  // popup title: NameOf(Step)
-  // popup message: "This example shows you how to use the EasyUserManager VIs directly from Teststand. | For this example to work properly, you need to add  | <LabVIEW>\vi.lib\Hasbun Wood Engineering\Easy User Manager  | to the search directories. | Use the local variable Local.SaveUsersFile to control whether changes are immediately  | saved to your users file. If this variable is False, you will see changes in your user |  manager denoted by a *, and you can save them manually.  | If this variable is True, changes will be immediately saved and you will not see the *. | "
-  // popup buttons: "OK"
-  // Show Instructions to user [MessagePopup]: acts through ts.stepHost
-  final popup = await ts.stepHost.messagePopup(
-    title: 'Show Instructions to user',
-    message: ts.eval(
-      '"This example shows you how to use the EasyUserManager VIs directly from Teststand.\n\nFor this example to work properly, you need to add \n<LabVIEW>\\vi.lib\\Hasbun Wood Engineering\\Easy User Manager \nto the search directories.\n\nUse the local variable Local.SaveUsersFile to control whether changes are immediately \nsaved to your users file. If this variable is False, you will see changes in your user\n manager denoted by a *, and you can save them manually. \nIf this variable is True, changes will be immediately saved and you will not see the *.\n"',
-    ),
-    buttons: ['OK', '', '', '', '', ''],
+Future<void> sequenceFileLoad() async {
+  await ts.messagePopup(
+    'Show Instructions to user',
+    ts.eval(
+          '"This example shows you how to use the EasyUserManager VIs directly from Teststand.\n\nFor this example to work properly, you need to add \n<LabVIEW>\\vi.lib\\Hasbun Wood Engineering\\Easy User Manager \nto the search directories.\n\nUse the local variable Local.SaveUsersFile to control whether changes are immediately \nsaved to your users file. If this variable is False, you will see changes in your user\n manager denoted by a *, and you can save them manually. \nIf this variable is True, changes will be immediately saved and you will not see the *.\n"',
+        )
+        as String,
   );
-  showInstructionsToUserResult.ButtonHit = popup.buttonHit;
-  showInstructionsToUserResult.Response = popup.response;
-  showInstructionsToUserResult.Status = 'Done';
-  run.record(showInstructionsToUserResult.Status);
-
-  return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// Stub for the labView module call `Initialize from Teststand.vi`
-/// (from step `Initialize EasyUserManager`). TODO: implement against the real module.
+/// The labView module `Initialize from Teststand.vi`.
 Future<Object?> callInitializeFromTeststand() async =>
     throw UnimplementedError('labView call: Initialize from Teststand.vi');
 
-/// Stub for the labView module call `User Exists.vi`
-/// (from step `Check if user already exists`). TODO: implement against the real module.
+/// The labView module `User Exists.vi`.
 Future<Object?> callUserExists() async => throw UnimplementedError('labView call: User Exists.vi');
 
-/// Stub for the labView module call `Create User.vi`
-/// (from step `Create user`). TODO: implement against the real module.
+/// The labView module `Create User.vi`.
 Future<Object?> callCreateUser() async => throw UnimplementedError('labView call: Create User.vi');
 
-/// Stub for the labView module call `Group Exists.vi`
-/// (from step `Check if group exists`). TODO: implement against the real module.
+/// The labView module `Group Exists.vi`.
 Future<Object?> callGroupExists() async => throw UnimplementedError('labView call: Group Exists.vi');
 
-/// Stub for the labView module call `Create Group.vi`
-/// (from step `Create group`). TODO: implement against the real module.
+/// The labView module `Create Group.vi`.
 Future<Object?> callCreateGroup() async => throw UnimplementedError('labView call: Create Group.vi');
 
-/// Stub for the labView module call `Add User to Group.vi`
-/// (from step `Add user to group`). TODO: implement against the real module.
+/// The labView module `Add User to Group.vi`.
 Future<Object?> callAddUserToGroup() async => throw UnimplementedError('labView call: Add User to Group.vi');
 
-/// Stub for the labView module call `Set User FullName.vi`
-/// (from step `Set User FullName`). TODO: implement against the real module.
+/// The labView module `Set User FullName.vi`.
 Future<Object?> callSetUserFullName() async => throw UnimplementedError('labView call: Set User FullName.vi');
 
-/// Stub for the labView module call `Set User Privilege.vi`
-/// (from step `Set user privilege Configure.ConfigAdapter to True`). TODO: implement against the real module.
+/// The labView module `Set User Privilege.vi`.
 Future<Object?> callSetUserPrivilege() async => throw UnimplementedError('labView call: Set User Privilege.vi');
 
-/// Stub for the labView module call `User in Group.vi`
-/// (from step `User in group?`). TODO: implement against the real module.
+/// The labView module `User in Group.vi`.
 Future<Object?> callUserInGroup() async => throw UnimplementedError('labView call: User in Group.vi');
 
-/// Stub for the labView module call `Check User Has Privilege.vi`
-/// (from step `User has privilege?`). TODO: implement against the real module.
+/// The labView module `Check User Has Privilege.vi`.
 Future<Object?> callCheckUserHasPrivilege() async =>
     throw UnimplementedError('labView call: Check User Has Privilege.vi');
 
-/// Stub for the labView module call `Close Engine Reference.vi`
-/// (from step `Close duplicated reference`). TODO: implement against the real module.
+/// The labView module `Close Engine Reference.vi`.
 Future<Object?> callCloseEngineReference() async => throw UnimplementedError('labView call: Close Engine Reference.vi');

@@ -2,36 +2,27 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _MainSequenceLocals {
-  int i = 0; // Num — default: 0
+  int i = 0;
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
-  final run = ts.SequenceRun();
 
   try {
-    // ── setup ──
-    // Setup [OutputMessage]: acts through its expressions
     ts.eval(
       'OutputMessage( Str(Evaluate(Step.Message)), Str(Evaluate(Step.Category)), (Step.Use_Severity_Exp ? Evaluate(Step.Severiy_Exp) : Val(Step.Severity)) )',
-    ); // post-expression
+    );
 
-    // ── main ──
     for (locals.i = 0; locals.i < 10; locals.i += 1) {
-      // Current Iteration [OutputMessage]: acts through its expressions
       ts.eval(
         'OutputMessage( Str(Evaluate(Step.Message)), Str(Evaluate(Step.Category)), (Step.Use_Severity_Exp ? Evaluate(Step.Severiy_Exp) : Val(Step.Severity)) )',
-      ); // post-expression
+      );
       await Future<void>.delayed(const Duration(milliseconds: 100)); // Wait 100ms
     }
   } finally {
-    // ── cleanup ──
-    // Cleanup [OutputMessage]: acts through its expressions
     ts.eval(
       'OutputMessage( Str(Evaluate(Step.Message)), Str(Evaluate(Step.Category)), (Step.Use_Severity_Exp ? Evaluate(Step.Severiy_Exp) : Val(Step.Severity)) )',
-    ); // post-expression
+    );
   }
-
-  return run.status;
 }

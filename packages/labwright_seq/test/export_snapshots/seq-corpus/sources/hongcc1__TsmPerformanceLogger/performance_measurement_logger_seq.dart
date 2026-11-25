@@ -65,10 +65,10 @@ dynamic modelPluginComponentDescription = ts.PropObj({
   'ConfigurationOrder': 100,
   'InitializationExpression': '',
   'DisplayNameExpression': '"Performance Measurement Logger"',
-}); // NI_ModelPluginComponentDescription
+});
 
 /// Sequence `Model Plugin - Configure Standard Options`.
-Future<String> modelPluginConfigureStandardOptions({
+Future<void> modelPluginConfigureStandardOptions({
   ts.Ref<bool>? changed,
   dynamic processModel,
   String modelType = '',
@@ -77,99 +77,51 @@ Future<String> modelPluginConfigureStandardOptions({
   processModel = ts.copy(processModel);
 
   final changedRef = changed ?? ts.Ref<bool>(false);
-  final run = ts.SequenceRun();
-  final dynamic setLogFileDirectoryResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Set Log File Directory
-  final dynamic setBatchSampleRateResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Set Batch Sample Rate
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
-  // popup title: NameOf(Step)
-  // popup message: "Set the log file directory. If empty string, it will be save in the test program directory"
-  // popup buttons: "OK" | "Cancel"
-  // popup collects a response (default Parameters.ModelPlugin.PluginSpecific.Options.LogFileFolder)
-  // Set Log File Directory [MessagePopup]: acts through ts.stepHost
-  final popup = await ts.stepHost.messagePopup(
-    title: 'Set Log File Directory',
-    message: 'Set the log file directory. If empty string, it will be save in the test program directory',
-    buttons: ['OK', 'Cancel', '', '', '', ''],
+  await ts.messagePopup(
+    'Set Log File Directory',
+    'Set the log file directory. If empty string, it will be save in the test program directory',
+    buttons: ['OK', 'Cancel'],
     showResponse: true,
-    defaultResponse: modelPlugin.PluginSpecific.Options.LogFileFolder,
+    defaultResponse: modelPlugin.PluginSpecific.Options.LogFileFolder as String,
   );
-  setLogFileDirectoryResult.ButtonHit = popup.buttonHit;
-  setLogFileDirectoryResult.Response = popup.response;
-  setLogFileDirectoryResult.Status = 'Done';
-  run.record(setLogFileDirectoryResult.Status);
   if (ts.cond('RunState.PreviousStep.Result.ButtonHit == "1"')) {
-    // precondition of Apply changes if user click OK
     changedRef.value = true; // Apply changes if user click OK
     ts.eval(
       '\nParameters.ModelPlugin.PluginSpecific.Options.LogFileFolder = RunState.PreviousStep.Result.Response',
     ); // Apply changes if user click OK (cont.)
   }
-  // popup title: NameOf(Step)
-  // popup message: "Set the batch sample rate. If it is zero or one, the logger will sample log time of every batch.  | If you have concern of perforamance impact due to the logging, set this number higher to reduce the frequency of logging data"
-  // popup buttons: "OK" | "Cancel"
-  // popup collects a response (default Str(Parameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate))
-  // Set Batch Sample Rate [MessagePopup]: acts through ts.stepHost
-  final popup2 = await ts.stepHost.messagePopup(
-    title: 'Set Batch Sample Rate',
-    message:
-        'Set the batch sample rate. If it is zero or one, the logger will sample log time of every batch. \nIf you have concern of perforamance impact due to the logging, set this number higher to reduce the frequency of logging data',
-    buttons: ['OK', 'Cancel', '', '', '', ''],
+  await ts.messagePopup(
+    'Set Batch Sample Rate',
+    'Set the batch sample rate. If it is zero or one, the logger will sample log time of every batch. \nIf you have concern of perforamance impact due to the logging, set this number higher to reduce the frequency of logging data',
+    buttons: ['OK', 'Cancel'],
     showResponse: true,
     defaultResponse: ts.str(modelPlugin.PluginSpecific.Options.BatchSampleRate),
   );
-  setBatchSampleRateResult.ButtonHit = popup2.buttonHit;
-  setBatchSampleRateResult.Response = popup2.response;
-  setBatchSampleRateResult.Status = 'Done';
-  run.record(setBatchSampleRateResult.Status);
   if (ts.cond('RunState.PreviousStep.Result.ButtonHit == "1"')) {
-    // precondition of Apply changes if user click OK
     ts.eval(
       'Parameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate = Val(RunState.PreviousStep.Result.Response)',
     ); // Apply changes if user click OK
     changedRef.value = true; // Apply changes if user click OK (cont.)
   }
-
-  return run.status;
 }
 
 /// Sequence `Model Plugin - Initialize`.
-Future<String> modelPluginInitialize({dynamic modelPlugin, dynamic modelPluginConfiguration, dynamic modelData}) async {
-  final run = ts.SequenceRun();
-
+Future<void> modelPluginInitialize({dynamic modelPlugin, dynamic modelPluginConfiguration, dynamic modelData}) async {
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
-
-  return run.status;
 }
 
 class _ModelPluginBeginLocals {
-  dynamic semiconductorModuleManager; // Ref
-  dynamic performanceMeasurementUtility; // Ref
-  String dateString = ''; // Str
-  String timeString = ''; // Str
-  String logFileBaseDirectory = ''; // Str
+  dynamic semiconductorModuleManager;
+  dynamic performanceMeasurementUtility;
+  String dateString = '';
+  String timeString = '';
+  String logFileBaseDirectory = '';
 }
 
 /// Sequence `Model Plugin - Begin`.
-Future<String> modelPluginBegin({
+Future<void> modelPluginBegin({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -182,13 +134,9 @@ Future<String> modelPluginBegin({
   parentThread = ts.copy(parentThread);
 
   final locals = _ModelPluginBeginLocals();
-  final run = ts.SequenceRun();
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
   if (ts.truthy(modelPlugin.Base.Enabled) && ts.truthy(modelPlugin.Base.ProcessOnTheFly)) {
-    // precondition of Set OTF Callback Requirements
     ts.eval(
       'RunState.Execution.PostResultsCallbackMask |= PostResultsCallbackMaskOption_SequenceCall | PostResultsCallbackMaskOption_PostAction',
     ); // Set OTF Callback Requirements
@@ -241,12 +189,10 @@ Future<String> modelPluginBegin({
       'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.SetPerformanceLogFileLocation',
     ); // Set Output File Path [Action]
   }
-
-  return run.status;
 }
 
 /// Sequence `Model Plugin - Post UUT`.
-Future<String> modelPluginPostUut({
+Future<void> modelPluginPostUut({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -260,17 +206,7 @@ Future<String> modelPluginPostUut({
 }) async {
   mainSequenceResult = ts.copy(mainSequenceResult);
 
-  final run = ts.SequenceRun();
-  final dynamic callLogDataToFileResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Call Log Data to File
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
   if (ts.cond(
     '#NoValidation(\nParameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate == 0? True:\n(Parameters.ModelData.BatchLoopIndex % Parameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate) == 0\n)',
   )) {
@@ -304,24 +240,15 @@ Future<String> modelPluginPostUut({
     ); // Process MainSequence Result [Action]
     if (modelData.ModelType == 'Sequential') {
       // We log the data here for the sequential model since Post Batch is only called for the batch model.
-      // status expression: ""
-      // label:
-      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      callLogDataToFileResult.Status = await logDataToFile(
+      await logDataToFile(
         performanceMeasurementLogger: modelPlugin.PluginSpecific.RuntimeVariables.PerformanceMeasurementLogger,
       ); // Call Log Data to File
-      callLogDataToFileResult.Status = callLogDataToFileResult.Status == 'Done'
-          ? 'Passed'
-          : callLogDataToFileResult.Status; // status expression
-      run.record(callLogDataToFileResult.Status);
     }
   }
-
-  return run.status;
 }
 
 /// Sequence `Model Plugin - Post Batch`.
-Future<String> modelPluginPostBatch({
+Future<void> modelPluginPostBatch({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -335,38 +262,19 @@ Future<String> modelPluginPostBatch({
 }) async {
   mainSequenceResult = ts.copy(mainSequenceResult);
 
-  final run = ts.SequenceRun();
-  final dynamic callLogDataToFileResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Call Log Data to File
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
   if (ts.cond(
     '#NoValidation(\nParameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate == 0? True:\n(Parameters.ModelData.BatchLoopIndex % Parameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate) == 0\n)',
   )) {
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    callLogDataToFileResult.Status = await logDataToFile(
+    await logDataToFile(
       performanceMeasurementLogger: modelPlugin.PluginSpecific.RuntimeVariables.PerformanceMeasurementLogger,
     ); // Call Log Data to File
-    callLogDataToFileResult.Status = callLogDataToFileResult.Status == 'Done'
-        ? 'Passed'
-        : callLogDataToFileResult.Status; // status expression
-    run.record(callLogDataToFileResult.Status);
   }
-
-  return run.status;
 }
 
 /// Sequence `Log Data to File`.
-Future<String> logDataToFile({dynamic performanceMeasurementLogger}) async {
+Future<void> logDataToFile({dynamic performanceMeasurementLogger}) async {
   performanceMeasurementLogger = ts.copy(performanceMeasurementLogger);
-
-  final run = ts.SequenceRun();
 
   // .NET assembly: API\DotNET\Assemblies\CurrentVersion\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll
   // .NET call: NationalInstruments.TestStand.SemiconductorModule.SemiconductorModuleManagerFactory.GetSemiconductorModuleManager
@@ -392,12 +300,10 @@ Future<String> logDataToFile({dynamic performanceMeasurementLogger}) async {
   ts.notExported(
     'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.WriteAllStepDataToPerformanceLogFile',
   ); // Log to File [Action]
-
-  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - Pre Batch`.
-Future<String> reservedModelPluginPreBatch({
+Future<void> reservedModelPluginPreBatch({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -408,33 +314,21 @@ Future<String> reservedModelPluginPreBatch({
   dynamic uut,
   bool continueTesting = true,
 }) async {
-  final run = ts.SequenceRun();
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
-
-  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - End`.
-Future<String> reservedModelPluginEnd({
+Future<void> reservedModelPluginEnd({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
   dynamic modelData,
 }) async {
-  final run = ts.SequenceRun();
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
-
-  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - Configure Additional Options`.
-Future<String> reservedModelPluginConfigureAdditionalOptions({
+Future<void> reservedModelPluginConfigureAdditionalOptions({
   bool changed = false,
   dynamic processModel,
   String modelType = '',
@@ -442,38 +336,15 @@ Future<String> reservedModelPluginConfigureAdditionalOptions({
 }) async {
   processModel = ts.copy(processModel);
 
-  final run = ts.SequenceRun();
-  final dynamic replaceThisStepWithACallToYourAdditionalOptionsDialogResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Replace this step with a call to your additional options dialog
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
-  // popup title: ResStr("PLUGIN_TEMPLATE", "ADDITIONAL_OPTIONS_DIALOG_TITLE")
-  // popup message: ResStr("PLUGIN_TEMPLATE", "ADDITIONAL_OPTIONS_DIALOG_MESSAGE")
-  // popup buttons: "OK"
-  // Replace this step with a call to your additional options dialog [MessagePopup]: acts through ts.stepHost
-  final popup = await ts.stepHost.messagePopup(
-    title: ts.stepHost.resourceString('PLUGIN_TEMPLATE', 'ADDITIONAL_OPTIONS_DIALOG_TITLE'),
-    message: ts.stepHost.resourceString('PLUGIN_TEMPLATE', 'ADDITIONAL_OPTIONS_DIALOG_MESSAGE'),
-    buttons: ['OK', '', '', '', '', ''],
+  await ts.messagePopup(
+    ts.resourceString('PLUGIN_TEMPLATE', 'ADDITIONAL_OPTIONS_DIALOG_TITLE'),
+    ts.resourceString('PLUGIN_TEMPLATE', 'ADDITIONAL_OPTIONS_DIALOG_MESSAGE'),
   );
-  replaceThisStepWithACallToYourAdditionalOptionsDialogResult.ButtonHit = popup.buttonHit;
-  replaceThisStepWithACallToYourAdditionalOptionsDialogResult.Response = popup.response;
-  replaceThisStepWithACallToYourAdditionalOptionsDialogResult.Status = 'Done';
-  run.record(replaceThisStepWithACallToYourAdditionalOptionsDialogResult.Status);
-
-  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - Pre UUT`.
-Future<String> reservedModelPluginPreUut({
+Future<void> reservedModelPluginPreUut({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -484,23 +355,17 @@ Future<String> reservedModelPluginPreUut({
   dynamic uut,
   bool continueTesting = true,
 }) async {
-  final run = ts.SequenceRun();
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
   // Make sure a prior plug-in instance has not already decided to stop testing
   if (continueTesting) {}
-
-  return run.status;
 }
 
 class _ReservedModelPluginBatchStartLocals {
-  dynamic controllerAndSocketSynchronizationManager; // Ref
+  dynamic controllerAndSocketSynchronizationManager;
 }
 
 /// Sequence `(Reserved) Model Plugin - Batch Start`.
-Future<String> reservedModelPluginBatchStart({
+Future<void> reservedModelPluginBatchStart({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -511,28 +376,21 @@ Future<String> reservedModelPluginBatchStart({
   dynamic uut,
 }) async {
   final locals = _ReservedModelPluginBatchStartLocals();
-  final run = ts.SequenceRun();
 
-  // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
   locals.controllerAndSocketSynchronizationManager = modelPluginConfiguration
       .RuntimeVariables
       .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
 
-  // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
-
-  return run.status;
 }
 
 class _ReservedModelPluginUutStartLocals {
-  dynamic controllerAndSocketSynchronizationManager; // Ref
+  dynamic controllerAndSocketSynchronizationManager;
 }
 
 /// Sequence `(Reserved) Model Plugin - UUT Start`.
-Future<String> reservedModelPluginUutStart({
+Future<void> reservedModelPluginUutStart({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -543,24 +401,17 @@ Future<String> reservedModelPluginUutStart({
   dynamic uut,
 }) async {
   final locals = _ReservedModelPluginUutStartLocals();
-  final run = ts.SequenceRun();
 
-  // ── setup ──
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Start and UUT Start entry points
   locals.controllerAndSocketSynchronizationManager = modelPluginConfiguration
       .RuntimeVariables
       .ControllerAndSocketSynchronizationManager; // Setup ControllerAndSocketSynchronizationManager
 
-  // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
-
-  return run.status;
 }
 
 /// Sequence `(Reserved) Model Plugin - OnTheFly Step Results`.
-Future<String> reservedModelPluginOnTheFlyStepResults({
+Future<void> reservedModelPluginOnTheFlyStepResults({
   dynamic modelPlugin,
   dynamic modelData,
   dynamic startTime,
@@ -574,27 +425,21 @@ Future<String> reservedModelPluginOnTheFlyStepResults({
   dynamic modelPluginConfiguration,
 }) async {
   context = ts.copy(context);
-  steps ??= <dynamic>[]; // Refs
-  results ??= <dynamic>[]; // Refs
-  callbackNames ??= <dynamic>[]; // Strs
-  parentIds ??= <dynamic>[]; // Nums
-
-  final run = ts.SequenceRun();
+  steps ??= <dynamic>[];
+  results ??= <dynamic>[];
+  callbackNames ??= <dynamic>[];
+  parentIds ??= <dynamic>[];
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
-
-  return run.status;
 }
 
 class _ReservedModelPluginUutDoneLocals {
-  bool inNewThread = false; // Bool — default: false
-  dynamic controllerAndSocketSynchronizationManager; // Ref
+  bool inNewThread = false;
+  dynamic controllerAndSocketSynchronizationManager;
 }
 
 /// Sequence `(Reserved) Model Plugin - UUT Done`.
-Future<String> reservedModelPluginUutDone({
+Future<void> reservedModelPluginUutDone({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -615,10 +460,7 @@ Future<String> reservedModelPluginUutDone({
   priorIterationNewThread = ts.copy(priorIterationNewThread);
 
   final locals = _ReservedModelPluginUutDoneLocals();
-  final run = ts.SequenceRun();
-  final dynamic unblockCallingThreadResult = ts.PropObj({'Status': ''}); // result of Unblock Calling Thread
 
-  // ── setup ──
   ts.eval(
     'Locals.InNewThread = Parameters.CallingThread.AsThread.Id != Runstate.Thread.Id ',
   ); // Determine if this is a new post processing thread
@@ -631,54 +473,37 @@ Future<String> reservedModelPluginUutDone({
             .RuntimeVariables
             .ControllerAndSocketSynchronizationManager); // Setup ControllerAndSocketSynchronizationManager
   // If this entry point is called in a new thread, then another entry point for the next UUT might be called before this sequence completes. Both sequences will operate on the same ModelPlugin and ModelPluginConfiguration data structures, but from different threads. Thus, if there is any value or sub-field that you need to save before the next UUT has a chance to operate on it, make a local copy of that value prior to this step.
-  // sync object: Parameters.CallingThreadBlocker, operation code 1, lifetime code 3
   if (callingThreadBlocker != null) {
-    // precondition of Unblock Calling Thread
-    // Unblock Calling Thread [NI_Notification]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'NI_Notification',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'NameOrRefExpr': 'Parameters.CallingThreadBlocker',
-        'LifetimeRefExpr': '',
-        'TimeoutEnabled': false,
-        'TimeoutExpr': '',
-        'ErrorOnTimeout': true,
-        'AlreadyExistsExpr': '',
-        'NumThreadsWaitingExpr': '',
-        'Operation': 1,
-        'Lifetime': 3,
-        'DataExpr': '',
-        'ByRef': false,
-        'WhichNotificationExpr': '',
-        'IsSetExpr': '',
-        'IsAutoClearExpr': '',
-        'AutoClear': true,
-        'PulseNotifyOpt': 1,
-      }),
-      unblockCallingThreadResult,
-    );
-    unblockCallingThreadResult.Status = 'Done';
-    run.record(unblockCallingThreadResult.Status);
-  } else {
-    unblockCallingThreadResult.Status = 'Skipped';
+    await ts.stepType('NI_Notification', {
+      'NameOrRefExpr': 'Parameters.CallingThreadBlocker',
+      'LifetimeRefExpr': '',
+      'TimeoutEnabled': false,
+      'TimeoutExpr': '',
+      'ErrorOnTimeout': true,
+      'AlreadyExistsExpr': '',
+      'NumThreadsWaitingExpr': '',
+      'Operation': 1,
+      'Lifetime': 3,
+      'DataExpr': '',
+      'ByRef': false,
+      'WhichNotificationExpr': '',
+      'IsSetExpr': '',
+      'IsAutoClearExpr': '',
+      'AutoClear': true,
+      'PulseNotifyOpt': 1,
+    });
   }
 
-  // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
-
-  return run.status;
 }
 
 class _ReservedModelPluginBatchDoneLocals {
-  bool inNewThread = false; // Bool — default: false
-  dynamic controllerAndSocketSynchronizationManager; // Ref
+  bool inNewThread = false;
+  dynamic controllerAndSocketSynchronizationManager;
 }
 
 /// Sequence `(Reserved) Model Plugin - Batch Done`.
-Future<String> reservedModelPluginBatchDone({
+Future<void> reservedModelPluginBatchDone({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
   dynamic modelThreadType,
@@ -699,10 +524,7 @@ Future<String> reservedModelPluginBatchDone({
   priorIterationNewThread = ts.copy(priorIterationNewThread);
 
   final locals = _ReservedModelPluginBatchDoneLocals();
-  final run = ts.SequenceRun();
-  final dynamic unblockCallingThreadResult = ts.PropObj({'Status': ''}); // result of Unblock Calling Thread
 
-  // ── setup ──
   ts.eval(
     'Locals.InNewThread = Parameters.CallingThread.AsThread.Id != Runstate.Thread.Id ',
   ); // Determine if this is a new post processing thread
@@ -715,43 +537,26 @@ Future<String> reservedModelPluginBatchDone({
             .RuntimeVariables
             .ControllerAndSocketSynchronizationManager); // Setup ControllerAndSocketSynchronizationManager
   // If this entry point is called in a new thread, then another entry point for the next Batch might be called before this sequence completes. Both sequences will operate on the same ModelPlugin and ModelPluginConfiguration data structures, but from different threads. Thus, if there is any value or sub-field that you need to save before the next Batch has a chance to operate on it, make a local copy of that value prior to this step.
-  // sync object: Parameters.CallingThreadBlocker, operation code 1, lifetime code 3
   if (callingThreadBlocker != null) {
-    // precondition of Unblock Calling Thread
-    // Unblock Calling Thread [NI_Notification]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'NI_Notification',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'NameOrRefExpr': 'Parameters.CallingThreadBlocker',
-        'LifetimeRefExpr': '',
-        'TimeoutEnabled': false,
-        'TimeoutExpr': '',
-        'ErrorOnTimeout': true,
-        'AlreadyExistsExpr': '',
-        'NumThreadsWaitingExpr': '',
-        'Operation': 1,
-        'Lifetime': 3,
-        'DataExpr': '',
-        'ByRef': false,
-        'WhichNotificationExpr': '',
-        'IsSetExpr': '',
-        'IsAutoClearExpr': '',
-        'AutoClear': true,
-        'PulseNotifyOpt': 1,
-      }),
-      unblockCallingThreadResult,
-    );
-    unblockCallingThreadResult.Status = 'Done';
-    run.record(unblockCallingThreadResult.Status);
-  } else {
-    unblockCallingThreadResult.Status = 'Skipped';
+    await ts.stepType('NI_Notification', {
+      'NameOrRefExpr': 'Parameters.CallingThreadBlocker',
+      'LifetimeRefExpr': '',
+      'TimeoutEnabled': false,
+      'TimeoutExpr': '',
+      'ErrorOnTimeout': true,
+      'AlreadyExistsExpr': '',
+      'NumThreadsWaitingExpr': '',
+      'Operation': 1,
+      'Lifetime': 3,
+      'DataExpr': '',
+      'ByRef': false,
+      'WhichNotificationExpr': '',
+      'IsSetExpr': '',
+      'IsAutoClearExpr': '',
+      'AutoClear': true,
+      'PulseNotifyOpt': 1,
+    });
   }
 
-  // ── main ──
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
-  // status expression: ""
-  // label:
-
-  return run.status;
 }

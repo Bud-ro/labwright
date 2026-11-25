@@ -2,17 +2,12 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final run = ts.SequenceRun();
-
+Future<void> mainSequence() async {
   // [force-pass in source] Pass
   // [force-fail in source] Fail
   // [skipped in source] Skip
-  // Done: Statement with no expression
-  // ignores run-time errors
+  // Done
   ts.eval('RunState.Step.Result.Error.Occurred = True'); // Error
   ts.eval('\nRunState.Step.Result.Error.Code = 123'); // Error (cont.)
   ts.eval('\nRunState.Step.Result.Error.Msg = "Error occurred"'); // Error (cont.)
-
-  return run.status;
 }

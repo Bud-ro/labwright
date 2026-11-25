@@ -14,68 +14,23 @@ dynamic veristand = ts.PropObj({
   'SystemDefinitionPath':
       'C:\\Users\\Public\\Documents\\National Instruments\\NI VeriStand 2015\\Examples\\Stimulus Profile\\Engine Demo\\Engine Demo.nivssdf',
   'GatewayIP': '"localhost"',
-}); // Obj
+});
 
 class _MainSequenceLocals {
-  int counter = 0; // Num — default: 0
-  int timesToRun = 500; // Num
-  dynamic veristand2 = ts.PropObj({'VSDialogs': null}); // Obj
+  int counter = 0;
+  int timesToRun = 500;
+  dynamic veristand2 = ts.PropObj({'VSDialogs': null});
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
-  final run = ts.SequenceRun();
-  final dynamic initializeVeriStandResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'VeristandError': null,
-    'Veristand': ts.PropObj({'Project': ''}),
-  }); // result of Initialize VeriStand
-  dynamic getChannelValueResult = ts.PropObj({
-    'Units': '',
-    'Numeric': 0,
-    'VeristandError': null,
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Veristand': ts.PropObj({'ChannelInfo': null, 'Description': ''}),
-  }); // result of Get Channel Value
 
-  // ── setup ──
-  await ts.stepHost.runStepType('InitializeVeriStand', ts.StepPhase.pre, ts.PropObj(), initializeVeriStandResult);
-  // Initialize VeriStand [InitializeVeriStand]: acts through ts.stepHost
-  await ts.stepHost.runStepType('InitializeVeriStand', ts.StepPhase.post, ts.PropObj(), initializeVeriStandResult);
-  initializeVeriStandResult.Status = 'Done';
-  run.record(initializeVeriStandResult.Status);
+  await ts.stepType('InitializeVeriStand');
 
-  // ── main ──
   for (locals.counter = 0; locals.counter < locals.timesToRun; locals.counter += 1) {
-    getChannelValueResult = ts.PropObj({
-      'Units': '',
-      'Numeric': 0,
-      'VeristandError': null,
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-      'Veristand': ts.PropObj({'ChannelInfo': null, 'Description': ''}),
+    await ts.stepType('GetChannelValue', {
+      'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/ActualRPM"'},
     });
-    // Get Channel Value [GetChannelValue]: acts through ts.stepHost
-    await ts.stepHost.runStepType(
-      'GetChannelValue',
-      ts.StepPhase.post,
-      ts.PropObj({
-        'Veristand': ts.PropObj({'ValueToSet': '0', 'ChannelName': '"Aliases/ActualRPM"'}),
-      }),
-      getChannelValueResult,
-    );
-    getChannelValueResult.Status = 'Done';
-    run.record(getChannelValueResult.Status);
   }
-
-  return run.status;
 }

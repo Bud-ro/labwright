@@ -2,28 +2,16 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic powerSupplyAndMeasureWithoutTriggerResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Power Supply and Measure without trigger
 
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  powerSupplyAndMeasureWithoutTriggerResult.Status =
-      await powerSupplyAndMeasureWithoutTrigger(); // Power Supply and Measure without trigger
-  powerSupplyAndMeasureWithoutTriggerResult.Status = powerSupplyAndMeasureWithoutTriggerResult.Status == 'Done'
-      ? 'Passed'
-      : powerSupplyAndMeasureWithoutTriggerResult.Status; // status expression
-  run.record(powerSupplyAndMeasureWithoutTriggerResult.Status);
+  run.record(await powerSupplyAndMeasureWithoutTrigger()); // Power Supply and Measure without trigger
 
   return run.status;
 }
 
 /// Sequence `Power Supply and Measure without trigger`.
-Future<String> powerSupplyAndMeasureWithoutTrigger({
+Future<ts.Status> powerSupplyAndMeasureWithoutTrigger({
   String skipAnalysis = 'ProceedToAnalysis',
   int samplingRateHertz = 10000,
   int numberOfSamplesPerChannel = 1000,
@@ -42,13 +30,12 @@ Future<String> powerSupplyAndMeasureWithoutTrigger({
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Time Domain Measurement - Configure and Measure
+  });
 
   try {
-    // ── setup ──
     //
     //
-    // label: Power Supply Source and Measure To Time Domain Measurement Without Trigger
+    // Power Supply Source and Measure To Time Domain Measurement Without Trigger
     ts.eval('Locals.NewSubProperty("DateTime",PropValType_Container,False,"",0)'); // Get current date
     ts.eval('\nLocals.DateTime.NewSubProperty("Now",PropValType_String,False,"",0)'); // Get current date (cont.)
     ts.eval('\nLocals.DateTime.NewSubProperty("Year",PropValType_Number,False,"",0)'); // Get current date (cont.)
@@ -73,7 +60,7 @@ Future<String> powerSupplyAndMeasureWithoutTrigger({
     //   Return Value <- Locals.DocumentPath
     //   folder <- "MyDocuments"
     ts.notExported('dotNet call: System.Environment.GetFolderPath'); // Get document path [Action]
-    // label: Initialize Result Folder
+    // Initialize Result Folder
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
     // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
     //   Return Value <- Locals.ArtifactsManagerTDM
@@ -90,8 +77,8 @@ Future<String> powerSupplyAndMeasureWithoutTrigger({
     ); // Power Supply Source and Measure - Init Artifacts Manager [Action]
     //
     //
-    // label: Initialize Hardware
-    // label: Note to run with Hardware: Update the Global Channel based on NI MAX in the below Initialize Steps
+    // Initialize Hardware
+    // Note to run with Hardware: Update the Global Channel based on NI MAX in the below Initialize Steps
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.CreateInstance
     //   Return Value <- Locals.PSSMRessource
@@ -108,8 +95,8 @@ Future<String> powerSupplyAndMeasureWithoutTrigger({
     ); // Time Domain Measurement - Create Instance [Action]
     //
     //
-    // label: Assign Measure folder
-    // label: Note: Build name, Directory and Save csv files.
+    // Assign Measure folder
+    // Note: Build name, Directory and Save csv files.
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object
     //   Existing Object <- Locals.PSSMRessource
@@ -131,7 +118,6 @@ Future<String> powerSupplyAndMeasureWithoutTrigger({
       'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.AttachArtifactsManager',
     ); // Time Domain Measurement - Asign Artifacts [Action]
 
-    // ── main ──
     //
     // Timing engine should match with configured Hardware trigger line for Time Domain Measurement
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
@@ -144,11 +130,10 @@ Future<String> powerSupplyAndMeasureWithoutTrigger({
     ); // Power Supply Source and Measure - Configure and Measure [Action]
     //
     //
-    // label: Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
+    // Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
     //
     // Fetches the measured DC Voltage (measured when Power Supply sends Trigger after source) and returns Time Domain Analysis
     //
-    // ignores run-time errors
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
     //   Existing Object <- Locals.TDMRessource
@@ -159,13 +144,11 @@ Future<String> powerSupplyAndMeasureWithoutTrigger({
     ); // Time Domain Measurement - Configure and Measure [Action]
     ts.eval(
       'RunState.GotoCleanup = !(!(Step.Result.Error.Occurred) || (Find(Step.Result.Error.Msg, "ErrorCode = 20308") > 0 && Str(Parameters.SkipAnalysis) == "ProceedToAnalysis"))',
-    ); // post-expression
-    ts.eval('\nRunState.SequenceFailed = RunState.GotoCleanup'); // post-expression (cont.)
-    timeDomainMeasurementConfigureAndMeasureResult.Status = 'Done';
-    run.record(timeDomainMeasurementConfigureAndMeasureResult.Status);
+    );
+    ts.eval('\nRunState.SequenceFailed = RunState.GotoCleanup');
+    timeDomainMeasurementConfigureAndMeasureResult.Status = ts.Status.done;
   } finally {
-    // ── cleanup ──
-    // label: Close all Tasks
+    // Close all Tasks
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object
     //   Existing Object <- Locals.PSSMRessource

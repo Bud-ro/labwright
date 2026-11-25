@@ -2,8 +2,7 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `SequenceFileLoad`.
-Future<String> sequenceFileLoad() async {
-  final run = ts.SequenceRun();
+Future<void> sequenceFileLoad() async {
   final dynamic promptResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -11,57 +10,39 @@ Future<String> sequenceFileLoad() async {
     'Response': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Prompt
+  });
 
   endMain:
   {
-    // custom flow: if (Step.Result.ButtonHit == 1) Cback -> Install else Goto -> <End>
-    // popup title: "Installer"
-    // popup message: "Do you want to install Templates Generator?"
-    // popup buttons: "Yes" | "No"
-    // Prompt [MessagePopup]: acts through ts.stepHost
-    final popup = await ts.stepHost.messagePopup(
-      title: 'Installer',
-      message: 'Do you want to install Templates Generator?',
-      buttons: ['Yes', 'No', '', '', '', ''],
+    final popup = await ts.messagePopup(
+      'Installer',
+      'Do you want to install Templates Generator?',
+      buttons: ['Yes', 'No'],
     );
     promptResult.ButtonHit = popup.buttonHit;
     promptResult.Response = popup.response;
-    promptResult.Status = 'Done';
-    run.record(promptResult.Status);
+    promptResult.Status = ts.Status.done;
     if (promptResult.ButtonHit == 1) {
-      // post action
       await install();
     } else {
       break endMain;
     }
   }
-
-  return run.status;
 }
 
 class _InstallLocals {
-  String testStandPublic = ''; // Path
-  String currentDir = ''; // Path
-  String toolsDir = ''; // Path
-  String toolSetupDir = ''; // Path
-  String toolMenusToInstallDir = ''; // Path
-  dynamic source = ts.PropObj({'Tool': '', 'ExportFile': ''}); // Obj
-  dynamic target = ts.PropObj({'Tool': '', 'ExportFile': ''}); // Obj
+  String testStandPublic = '';
+  String currentDir = '';
+  String toolsDir = '';
+  String toolSetupDir = '';
+  String toolMenusToInstallDir = '';
+  dynamic source = ts.PropObj({'Tool': '', 'ExportFile': ''});
+  dynamic target = ts.PropObj({'Tool': '', 'ExportFile': ''});
 }
 
 /// Sequence `Install`.
-Future<String> install() async {
+Future<void> install() async {
   final locals = _InstallLocals();
-  final run = ts.SequenceRun();
-  final dynamic successMessageResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Success Message
 
   ts.eval(
     'Locals.CurrentDir = Left(ThisContext.SequenceFile.Path, Find(ThisContext.SequenceFile.Path, "\\\\", 0, True, True)),\nLocals.Source.Tool = Locals.CurrentDir + @"\\Resources\\TemplatesGenerator.seq",\nLocals.Source.ExportFile = Locals.CurrentDir + @"\\Resources\\Tools.ini",\n',
@@ -82,7 +63,7 @@ Future<String> install() async {
   //   destFileName <- Locals.Target.Tool
   //   overwrite <- True
   ts.notExported('dotNet call: System.IO.File.Copy'); // Copy Tool [Action]
-  ts.eval('OutputMessage("Tool copied: " + Locals.Source.Tool + " » " + Locals.Target.Tool)'); // post-expression
+  ts.eval('OutputMessage("Tool copied: " + Locals.Source.Tool + " » " + Locals.Target.Tool)');
   // .NET call: System.IO.Directory.CreateDirectory
   //   path <- Locals.ToolSetupDir
   ts.notExported('dotNet call: System.IO.Directory.CreateDirectory'); // Create Setup Directory [Action]
@@ -94,22 +75,6 @@ Future<String> install() async {
   //   destFileName <- Locals.Target.ExportFile
   //   overwrite <- True
   ts.notExported('dotNet call: System.IO.File.Copy'); // Copy Tool.ini [Action]
-  ts.eval(
-    'OutputMessage("Tool.ini copied: " + Locals.Source.ExportFile + " » " + Locals.Target.ExportFile)',
-  ); // post-expression
-  // popup title: "Success"
-  // popup message: "Templates Generator successfully installed.\n\nRestart Sequence Editor."
-  // popup buttons: "OK"
-  // Success Message [MessagePopup]: acts through ts.stepHost
-  final popup = await ts.stepHost.messagePopup(
-    title: 'Success',
-    message: 'Templates Generator successfully installed.\n\nRestart Sequence Editor.',
-    buttons: ['OK', '', '', '', '', ''],
-  );
-  successMessageResult.ButtonHit = popup.buttonHit;
-  successMessageResult.Response = popup.response;
-  successMessageResult.Status = 'Done';
-  run.record(successMessageResult.Status);
-
-  return run.status;
+  ts.eval('OutputMessage("Tool.ini copied: " + Locals.Source.ExportFile + " » " + Locals.Target.ExportFile)');
+  await ts.messagePopup('Success', 'Templates Generator successfully installed.\n\nRestart Sequence Editor.');
 }

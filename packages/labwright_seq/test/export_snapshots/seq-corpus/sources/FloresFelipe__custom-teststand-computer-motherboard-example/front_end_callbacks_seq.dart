@@ -2,23 +2,16 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `LoginLogout`.
-Future<String> loginLogout({bool logout = false, bool isInitialLogin = false}) async {
-  final run = ts.SequenceRun();
-
+Future<void> loginLogout({bool logout = false, bool isInitialLogin = false}) async {
   endMain:
   {
-    // custom flow: if (True) Goto -> <End> else Goto -> <End>
     if (logout) {
-      // precondition of Logout
       ts.notExported('cModule call: Logout'); // Logout [Action]
-      break endMain; // post action
+      break endMain;
     }
     // [skipped in source] Login
     if (!logout) {
-      // precondition of Auto Login
       ts.eval('RunState.Engine.CurrentUser = RunState.Engine.GetUser("administrator")'); // Auto Login
     }
   }
-
-  return run.status;
 }

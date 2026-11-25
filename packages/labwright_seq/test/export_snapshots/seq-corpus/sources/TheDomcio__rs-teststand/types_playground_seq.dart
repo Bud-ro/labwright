@@ -14,7 +14,7 @@ dynamic container = ts.PropObj({
     '_1D_EmptyArrayOfLabVIEWAnalogWaveforms': <dynamic>[],
   }),
   '_1D_ArrayOfCustomEnumeration_File_CustomDataType': List<dynamic>.filled(10, 'Zero', growable: true),
-}); // Obj
+});
 dynamic numbers = ts.PropObj({
   'UseDefault': 0,
   'Integer': 0,
@@ -29,9 +29,9 @@ dynamic numbers = ts.PropObj({
   'NaN': double.nan,
   'INV': double.nan,
   'INF': double.infinity,
-}); // Obj
-dynamic error = ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}); // Error
-String expression = ''; // Expression
+});
+dynamic error = ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false});
+String expression = '';
 dynamic viParamterElement = ts.PropObj({
   'Label': '_notNamed',
   'Caption': '',
@@ -50,13 +50,9 @@ dynamic viParamterElement = ts.PropObj({
   'PartiallySpecified': false,
   'ArrayClusterEls': <dynamic>[],
   'AdditionalResult': ts.PropObj({'Condition': '', 'Flags': 8192, 'CheckedState': 1}),
-}); // VIParameterElement
+});
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence({bool test = false}) async {
-  final run = ts.SequenceRun();
-
-  // Statement: Statement with no expression
-
-  return run.status;
+Future<void> mainSequence({bool test = false}) async {
+  // Statement
 }

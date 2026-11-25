@@ -2,40 +2,22 @@
 import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
-  final run = ts.SequenceRun();
-  final dynamic actionButtonTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Action Button Test
-
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  actionButtonTestResult.Status = await actionButtonTest(); // Action Button Test
-  actionButtonTestResult.Status = actionButtonTestResult.Status == 'Done'
-      ? 'Passed'
-      : actionButtonTestResult.Status; // status expression
-  run.record(actionButtonTestResult.Status);
-
-  return run.status;
+Future<void> mainSequence() async {
+  await actionButtonTest(); // Action Button Test
 }
 
 /// Sequence `Action Button Test`.
-Future<String> actionButtonTest({
+Future<void> actionButtonTest({
   dynamic terminalConfiguration,
   int minimumValueVolts = -10,
   int maximumValueVolts = 10,
   List<dynamic>? channelSettings,
   dynamic dcvmResultData,
 }) async {
-  channelSettings ??= <dynamic>[]; // Objs
-
-  final run = ts.SequenceRun();
+  channelSettings ??= <dynamic>[];
 
   try {
-    // ── setup ──
-    // label: Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points.
+    // Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points.
     //
     //
     ts.eval('Locals.NewSubProperty("DateTime",PropValType_Container,False,"",0)'); // Get current date
@@ -64,7 +46,7 @@ Future<String> actionButtonTest({
     ts.notExported('dotNet call: System.Environment.GetFolderPath'); // Get document path [Action]
     //
     //
-    // label: Initialize Result Folder
+    // Initialize Result Folder
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
     // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
     //   Return Value <- Locals.ArtifactsManagerDCVG
@@ -81,8 +63,8 @@ Future<String> actionButtonTest({
     ); // DC-RMS Voltage Measurement - Initialize Result Folder [Action]
     //
     //
-    // label: Initialize Hardware
-    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initialize Hardware
+    // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     //
     // Initializes the configured Physical/Virtual channels of Analog Output module to perform Action Button functionality
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
@@ -103,8 +85,8 @@ Future<String> actionButtonTest({
     ); // DC-RMS Voltage Measurement - Initialize TP [Action]
     //
     //
-    // label: Assign Measure folder
-    // label: Note: Build name, Directory and Save csv files.
+    // Assign Measure folder
+    // Note: Build name, Directory and Save csv files.
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
     //   Existing Object <- Locals.DCVGRessource
@@ -126,11 +108,10 @@ Future<String> actionButtonTest({
       'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.AttachArtifactsManager',
     ); // DC-RMS Voltage Measurement - Assign Measure TP [Action]
 
-    // ── main ──
-    // label: Button ON Action
+    // Button ON Action
     //
     // Note: This Step can be replaced with actual button action
-    // label: Note to run with Hardware: Update DC Voltage for Action Button ON condition
+    // Note to run with Hardware: Update DC Voltage for Action Button ON condition
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
     //   Existing Object <- Locals.DCVGRessource
@@ -148,8 +129,8 @@ Future<String> actionButtonTest({
     ); // DC-RMS Voltage Measurement - Measure TP [Action]
     //
     //
-    // label: Button OFF Action
-    // label: Note to run with Hardware: Update DC Voltage for Action Button OFF condition
+    // Button OFF Action
+    // Note to run with Hardware: Update DC Voltage for Action Button OFF condition
     //
     // Note: This Step can be replaced with actual button action
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
@@ -168,8 +149,7 @@ Future<String> actionButtonTest({
       'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure',
     ); // DC-RMS Voltage Measurement - Measure TP [Action]
   } finally {
-    // ── cleanup ──
-    // label: Close all Tasks
+    // Close all Tasks
     // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
     // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
     //   Existing Object <- Locals.DCVGRessource
@@ -185,6 +165,4 @@ Future<String> actionButtonTest({
       'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Close',
     ); // DC-RMS Voltage Measurement -  Close Action TP [Action]
   }
-
-  return run.status;
 }

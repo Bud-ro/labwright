@@ -2,48 +2,25 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _MainSequenceLocals {
-  String xmlString = ''; // Str
-  dynamic mySimpleContainer = ts.PropObj({'MyNum1': 0, 'MyStr1': '', 'EmptyNumArray': <dynamic>[]}); // Obj
+  String xmlString = '';
+  dynamic mySimpleContainer = ts.PropObj({'MyNum1': 0, 'MyStr1': '', 'EmptyNumArray': <dynamic>[]});
   dynamic myContainerWithArray = ts.PropObj({
     'MyNum1': 0,
     'MyStr1': '',
     'MyNumArray1': <dynamic>['0', '0', '0', '0', '0', '0'],
     'MyStrArray1': List<dynamic>.filled(10, '', growable: true),
-  }); // Obj
-  int myNumber = 0; // Num — default: 0
-  String myString = 'xTLDR'; // Str
-  bool myBoolean = false; // Bool — default: false
-  List<dynamic> myNumArray = List<dynamic>.filled(10, '0', growable: true); // Nums
-  List<dynamic> myStrArray = List<dynamic>.filled(10, '', growable: true); // Strs
+  });
+  int myNumber = 0;
+  String myString = 'xTLDR';
+  bool myBoolean = false;
+  List<dynamic> myNumArray = List<dynamic>.filled(10, '0', growable: true);
+  List<dynamic> myStrArray = List<dynamic>.filled(10, '', growable: true);
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
-  final run = ts.SequenceRun();
-  final dynamic displayXmlStringResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of DisplayXMLString
 
   locals.xmlString = locals.mySimpleContainer.GetXML(0, 0) as String; // GetXMLString
-  // popup title: NameOf(Step)
-  // popup message: Locals.XMLString
-  // popup buttons: "OK"
-  // DisplayXMLString [MessagePopup]: acts through ts.stepHost
-  final popup = await ts.stepHost.messagePopup(
-    title: 'DisplayXMLString',
-    message: locals.xmlString,
-    buttons: ['OK', '', '', '', '', ''],
-  );
-  displayXmlStringResult.ButtonHit = popup.buttonHit;
-  displayXmlStringResult.Response = popup.response;
-  displayXmlStringResult.Status = 'Done';
-  run.record(displayXmlStringResult.Status);
-
-  return run.status;
+  await ts.messagePopup('DisplayXMLString', locals.xmlString);
 }

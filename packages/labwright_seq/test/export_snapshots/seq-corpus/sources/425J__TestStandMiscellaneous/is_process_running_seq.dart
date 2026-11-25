@@ -2,12 +2,12 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _IsProcessRunningLocals {
-  List<dynamic> processes = <dynamic>[]; // Refs
-  String description = ''; // Str
+  List<dynamic> processes = <dynamic>[];
+  String description = '';
 }
 
 /// Sequence `Is Process Running`.
-Future<String> isProcessRunning({
+Future<ts.Status> isProcessRunning({
   String processName = 'LabVIEW',
   String descriptionToSearch = 'LabVIEW 18.*',
   ts.Ref<bool>? processFound,
@@ -19,12 +19,10 @@ Future<String> isProcessRunning({
     'Status': '',
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of Release Process
+  });
 
   body:
   try {
-    // ── main ──
-    // custom flow: if (Parameters.ProcessFound = (GetNumElements(Locals.Processes) != 0 && Locals.Processes[0] != Nothing), | Parameters.ProcessFound | ) Next else Goto -> <Cleanup>
     // .NET call: System.Diagnostics.Process.GetProcessesByName
     //   Return Value <- Locals.Processes
     //   processName <- Parameters.ProcessName
@@ -32,7 +30,6 @@ Future<String> isProcessRunning({
     if (!ts.cond(
       'Parameters.ProcessFound = (GetNumElements(Locals.Processes) != 0 && Locals.Processes[0] != Nothing),\nParameters.ProcessFound\n',
     )) {
-      // post action
       break body;
     }
     if (descriptionToSearch != '') {
@@ -48,12 +45,9 @@ Future<String> isProcessRunning({
       ); // Check description
     }
   } finally {
-    // ── cleanup ──
-    // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.Processes); increment RunState.LoopIndex += 1; status "Done"
     final loop = ts.StepLoop();
-    loop.index = 0; // loop initialize
+    loop.index = 0;
     while (loop.index < ts.getNumElements(locals.processes)) {
-      // loop while
       releaseProcessResult = ts.PropObj({
         'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
         'Status': '',
@@ -61,11 +55,11 @@ Future<String> isProcessRunning({
         'Common': ts.PropObj(),
       });
       locals.processes[loop.index.toInt()] = null; // Release Process
-      releaseProcessResult.Status = 'Done';
+      releaseProcessResult.Status = ts.Status.done;
       loop.count(releaseProcessResult.Status);
-      loop.index += 1; // loop increment
+      loop.index += 1;
     }
-    releaseProcessResult.Status = 'Done'; // loop status
+    releaseProcessResult.Status = 'Done';
     run.record(releaseProcessResult.Status);
   }
 

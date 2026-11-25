@@ -2,42 +2,27 @@
 import 'package:labwright/shims.dart' as ts;
 import 'station_globals.dart' as station;
 
-String entTime = ''; // Str
-String endTime = ''; // Str
-double testResult = 0; // Num
-String failStringDataToSend = ''; // Str
+String entTime = '';
+String endTime = '';
+double testResult = 0;
+String failStringDataToSend = '';
 
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
-Future<String> processSetup() async {
-  final run = ts.SequenceRun();
-  final dynamic loadVarInitResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Load var init
-
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  loadVarInitResult.Status = await loadVariables(variableList: 'Init'); // Load var init
-  loadVarInitResult.Status = loadVarInitResult.Status == 'Done'
-      ? 'Passed'
-      : loadVarInitResult.Status; // status expression
-  run.record(loadVarInitResult.Status);
+Future<void> processSetup() async {
+  await loadVariables(variableList: 'Init'); // Load var init
   ts.eval('StationGlobals.isTraceEnable = FileGlobals.isTraceEnable'); // Assign TraceabilityEnabled Var
   ts.eval('\nStationGlobals.isRecordFail = FileGlobals.isRecordFail'); // Assign TraceabilityEnabled Var (cont.)
   ts.eval('\nStationGlobals.StationName = FileGlobals.StationName'); // Assign TraceabilityEnabled Var (cont.)
   ts.eval('\nStationGlobals.ProcessName = FileGlobals.ProcessName'); // Assign TraceabilityEnabled Var (cont.)
-
-  return run.status;
 }
 
 class _PreUutLocals {
-  int backCheck = 0; // Num — default: 0
-  String replyBackCheck = ''; // Str
+  int backCheck = 0;
+  String replyBackCheck = '';
 }
 
 /// Sequence `PreUUT` — Displays a dialog box in which the operator enters the UUTserial number.  Override this in client file to change or replace this action..
-Future<String> preUut({
+Future<void> preUut({
   bool continueTesting = true,
   dynamic uut,
   dynamic testSocket,
@@ -45,43 +30,13 @@ Future<String> preUut({
   dynamic modelPluginConfiguration,
 }) async {
   final locals = _PreUutLocals();
-  final run = ts.SequenceRun();
-  final dynamic callDoPreUutResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Call DoPreUUT
-  final dynamic msgBachcheckFailResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Msg Bachcheck fail
-  final dynamic msgTraceDisableResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Msg Trace disable
 
-  // ── setup ──
   station.isBackcheckOk = false; // Reset Traceability Variables
   locals.backCheck = 0; // Reset Traceability Variables (cont.)
   locals.replyBackCheck = ''; // Reset Traceability Variables (cont.)
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await doPreUut(); // Call DoPreUUT: external sequence call
-  callDoPreUutResult.Status = callDoPreUutResult.Status == 'Done'
-      ? 'Passed'
-      : callDoPreUutResult.Status; // status expression
-  run.record(callDoPreUutResult.Status);
 
-  // ── main ──
   skipToEndOfTraceabilitySection:
   {
     //   Time <- FileGlobals.Ent_Time
@@ -89,15 +44,10 @@ Future<String> preUut({
     await callWsp2GetDateTimeStr(); // Get Entry Time [Action]
     testResult = 0; // Init TestResult
     failStringDataToSend = ''; // Init FailString
-    // status expression: ""
-    // label:
-    // goto -> step "End Of Traceability Section"
     if (station.isTraceEnable == 'False') {
-      // precondition of Jump if Traceability is Disabled
-      // Jump if Traceability is Disabled [Goto]: no code module
-      break skipToEndOfTraceabilitySection; // post action
+      break skipToEndOfTraceabilitySection;
     }
-    // label: Start Traceability Section
+    // Start Traceability Section
     //   SerialNumber <- Parameters.UUT.SerialNumber
     //   AssemblyPartNumber <- Parameters.UUT.PartNumber
     //   error out <- Step.Result.Error
@@ -112,46 +62,17 @@ Future<String> preUut({
       station.isBackcheckOk = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk = false; // Set Backcheck NOG
-      // popup title: NameOf(Step)
-      // popup message: "Unidad reporta: " + Locals.Reply_BackCheck
-      // popup buttons: "OK"
-      // Msg Bachcheck fail [MessagePopup]: acts through ts.stepHost
-      final popup = await ts.stepHost.messagePopup(
-        title: 'Msg Bachcheck fail',
-        message: 'Unidad reporta: ${locals.replyBackCheck}',
-        buttons: ['OK', '', '', '', '', ''],
-      );
-      msgBachcheckFailResult.ButtonHit = popup.buttonHit;
-      msgBachcheckFailResult.Response = popup.response;
-      msgBachcheckFailResult.Status = 'Done';
-      run.record(msgBachcheckFailResult.Status);
+      await ts.messagePopup('Msg Bachcheck fail', 'Unidad reporta: ${locals.replyBackCheck}');
     }
   }
-  // label: End Of Traceability Section
-  // popup title: NameOf(Step)
-  // popup message: "Trazabilidad esta desactivada"
-  // popup buttons: "OK"
+  // End Of Traceability Section
   if (station.isTraceEnable == 'False') {
-    // precondition of Msg Trace disable
-    // Msg Trace disable [MessagePopup]: acts through ts.stepHost
-    final popup2 = await ts.stepHost.messagePopup(
-      title: 'Msg Trace disable',
-      message: 'Trazabilidad esta desactivada',
-      buttons: ['OK', '', '', '', '', ''],
-    );
-    msgTraceDisableResult.ButtonHit = popup2.buttonHit;
-    msgTraceDisableResult.Response = popup2.response;
-    msgTraceDisableResult.Status = 'Done';
-    run.record(msgTraceDisableResult.Status);
-  } else {
-    msgTraceDisableResult.Status = 'Skipped';
+    await ts.messagePopup('Msg Trace disable', 'Trazabilidad esta desactivada');
   }
-
-  return run.status;
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic uutNotForThisProcessResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
@@ -159,70 +80,43 @@ Future<String> mainSequence() async {
     'PassFail': false,
     'ReportText': '',
     'Common': ts.PropObj(),
-  }); // result of UUT Not For This Process
+  });
 
   body:
   try {
-    // ── setup ──
     ts.eval('RunState.Engine.StationOptions.AlwaysGotoCleanupOnFailure == True'); // Go to cleanup on failure
     if (station.isBackcheckOk == false && station.isTraceEnable == 'True') {
-      // checks: False
-      // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-      // UUT Not For This Process [PassFailTest]: judged by its status expression
-      uutNotForThisProcessResult.PassFail = false; // status expression
-      uutNotForThisProcessResult.Status = ts.truthy(uutNotForThisProcessResult.PassFail)
-          ? 'Passed'
-          : 'Failed'; // status expression
+      uutNotForThisProcessResult.PassFail = false;
+      uutNotForThisProcessResult.Status = ts.truthy(uutNotForThisProcessResult.PassFail) ? 'Passed' : 'Failed';
       run.record(uutNotForThisProcessResult.Status);
-      // goto -> step "Failed Point"
-      // Goto [Goto]: no code module
-      break body; // post action
+      break body;
     }
   } finally {
-    // ── cleanup ──
-    // label: Failed Point
+    // Failed Point
   }
 
   return run.status;
 }
 
 /// Sequence `PostUUT` — Displays a pass, fail, error, or terminated banner. Override this in client file to change or replace this action..
-Future<String> postUut({
+Future<void> postUut({
   dynamic result,
   dynamic uut,
   dynamic testSocket,
   dynamic modelData,
   dynamic modelPluginConfiguration,
 }) async {
-  final run = ts.SequenceRun();
-  final dynamic callDoPostUutResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Call DoPostUUT
-
-  // ── setup ──
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await doPreUut(); // Call DoPostUUT: external sequence call
-  callDoPostUutResult.Status = callDoPostUutResult.Status == 'Done'
-      ? 'Passed'
-      : callDoPostUutResult.Status; // status expression
-  run.record(callDoPostUutResult.Status);
 
-  // ── main ──
   skipToEndOfTraceabilitySection:
   {
     //   error out <- Step.Result.Error
     await callWsp2GetDateTimeStr(); // Get End Time [Action]
-    // goto -> step "End Of Traceability Section"
     if (station.isTraceEnable == 'False' || !ts.truthy(station.isBackcheckOk)) {
-      // precondition of Jump if Traceability is Disabled
-      // Jump if Traceability is Disabled [Goto]: no code module
-      break skipToEndOfTraceabilitySection; // post action
+      break skipToEndOfTraceabilitySection;
     }
-    // label: Start Traceability Section
+    // Start Traceability Section
     if (testResult == 1) {
       //   FailString <- ""
       //   EntryTime <- FileGlobals.Ent_Time
@@ -236,7 +130,6 @@ Future<String> postUut({
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     } else {
       if (station.isRecordFail == 'True') {
-        // precondition of Send Process
         //   FailString <- FileGlobals.FailString_DataToSend
         //   EntryTime <- FileGlobals.Ent_Time
         //   SerialNumber <- Parameters.UUT.SerialNumber
@@ -250,27 +143,24 @@ Future<String> postUut({
       }
     }
   }
-  // label: End Of Traceability Section
-
-  return run.status;
+  // End Of Traceability Section
 }
 
 class _LoadVariablesLocals {
-  String filePath = 'C:\\Elatch-Bench-Programming\\Load_Data\\Variables.ini'; // Str
-  List<dynamic> testName = <dynamic>[]; // Strs
-  List<dynamic> numLimits = <dynamic>[]; // Nums
-  List<dynamic> strLimits = <dynamic>[]; // Strs
-  String tempName = ''; // Str
-  String tempStr = ''; // Str
-  int arrayIndex = 0; // Num — default: 0
-  int tempNum = 0; // Num — default: 0
-  int tempLoop = 0; // Num — default: 0
+  String filePath = 'C:\\Elatch-Bench-Programming\\Load_Data\\Variables.ini';
+  List<dynamic> testName = <dynamic>[];
+  List<dynamic> numLimits = <dynamic>[];
+  List<dynamic> strLimits = <dynamic>[];
+  String tempName = '';
+  String tempStr = '';
+  int arrayIndex = 0;
+  int tempNum = 0;
+  int tempLoop = 0;
 }
 
 /// Sequence `Load_Variables`.
-Future<String> loadVariables({String variableList = ''}) async {
+Future<void> loadVariables({String variableList = ''}) async {
   final locals = _LoadVariablesLocals();
-  final run = ts.SequenceRun();
 
   //   FilePath <- Locals.File_Path
   //   OutPutValue <- 1
@@ -286,38 +176,27 @@ Future<String> loadVariables({String variableList = ''}) async {
     locals.tempName = locals.testName[locals.tempLoop] as String; // NamesToVariables
     ts.eval('RunState.Main.FileGlobals.SetValString(Locals.Temp_Name,0x1,Locals.Temp_Str)'); // CreateLimits
   }
-
-  return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// External sequence `DoPreUUT`
-/// (called from step `Call DoPreUUT`) — lives in another
-/// sequence file. TODO: implement, or delegate to that file's
-/// exported function.
+/// Sequence `DoPreUUT` in a file outside this export.
 Future<Object?> doPreUut() async => throw UnimplementedError('external sequence: DoPreUUT');
 
-/// Stub for the labView module call `..\LabVIEW_VIs\Traceability\WSP2_GetDateTimeStr.vi`
-/// (from step `Get Entry Time`). TODO: implement against the real module.
+/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_GetDateTimeStr.vi`.
 Future<Object?> callWsp2GetDateTimeStr() async =>
     throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_GetDateTimeStr.vi');
 
-/// Stub for the labView module call `..\LabVIEW_VIs\Traceability\WSP2_PartNumberRef.vi`
-/// (from step `Get_PartNumber`). TODO: implement against the real module.
+/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_PartNumberRef.vi`.
 Future<Object?> callWsp2PartNumberRef() async =>
     throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_PartNumberRef.vi');
 
-/// Stub for the labView module call `..\LabVIEW_VIs\Traceability\WSP2_BackCheck_Serial.vi`
-/// (from step `Get_BackCheck`). TODO: implement against the real module.
+/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_BackCheck_Serial.vi`.
 Future<Object?> callWsp2BackCheckSerial() async =>
     throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi');
 
-/// Stub for the labView module call `..\LabVIEW_VIs\Traceability\WSP2_InsertProcessDataWithFails.vi`
-/// (from step `Send Process`). TODO: implement against the real module.
+/// The labView module `..\LabVIEW_VIs\Traceability\WSP2_InsertProcessDataWithFails.vi`.
 Future<Object?> callWsp2InsertProcessDataWithFails() async =>
     throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Traceability\\WSP2_InsertProcessDataWithFails.vi');
 
-/// Stub for the labView module call `..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi`
-/// (from step `ReadFileLimit`). TODO: implement against the real module.
+/// The labView module `..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi`.
 Future<Object?> callGetLimitsV3() async =>
     throw UnimplementedError('labView call: ..\\LabVIEW_VIs\\Generic_Vi\'s\\Get_Limits_V3.vi');

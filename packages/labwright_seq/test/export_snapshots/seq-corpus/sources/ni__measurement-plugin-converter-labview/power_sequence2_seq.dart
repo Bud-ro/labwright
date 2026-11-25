@@ -2,43 +2,28 @@
 import 'package:labwright/shims.dart' as ts;
 
 class _MainSequenceLocals {
-  dynamic task = ts.PropObj({'DevName': '', 'SesNumber': 0}); // Obj
-  String channel = 'PowerModule/power'; // Str
-  dynamic channelSettings = ts.PropObj({'CurrentSetpoint': 3, 'VoltageSetpoint': 6}); // Obj
-  dynamic timingSettings = ts.PropObj({
-    'Source': '/TS1/20MHzTimebase',
-    'SampleRate': 1000,
-    'NumberOfSamples': 100,
-  }); // Obj
-  dynamic triggerSettings = ts.PropObj({'StartTrigger': true, 'Source': '/AImodule/PFI0', 'Edge': 'Rising'}); // Obj
-  dynamic local = ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}); // Error
-  bool analyze = true; // Bool
-  List<dynamic> voltage = <dynamic>[]; // Nums
-  List<dynamic> current = <dynamic>[]; // Nums
-  dynamic analyzeddata = ts.PropObj({'MaxVoltage': 0, 'MaxCurrent': 0, 'MaxPower': 0, 'AvgPower': 0}); // Obj
-  String operation = 'Configure and Measure'; // Str
+  dynamic task = ts.PropObj({'DevName': '', 'SesNumber': 0});
+  String channel = 'PowerModule/power';
+  dynamic channelSettings = ts.PropObj({'CurrentSetpoint': 3, 'VoltageSetpoint': 6});
+  dynamic timingSettings = ts.PropObj({'Source': '/TS1/20MHzTimebase', 'SampleRate': 1000, 'NumberOfSamples': 100});
+  dynamic triggerSettings = ts.PropObj({'StartTrigger': true, 'Source': '/AImodule/PFI0', 'Edge': 'Rising'});
+  dynamic local = ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false});
+  bool analyze = true;
+  List<dynamic> voltage = <dynamic>[];
+  List<dynamic> current = <dynamic>[];
+  dynamic analyzeddata = ts.PropObj({'MaxVoltage': 0, 'MaxCurrent': 0, 'MaxPower': 0, 'AvgPower': 0});
+  String operation = 'Configure and Measure';
 }
 
 /// Sequence `MainSequence`.
-Future<String> mainSequence() async {
+Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
-  final run = ts.SequenceRun();
-  final dynamic messagePopupResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  }); // result of Message Popup
 
   try {
-    // ── setup ──
     //   Physical Channel <- Locals.Channel
     //   error out <- Step.Result.Error
     await callPowMeasInitialize(); // Action [Action]
 
-    // ── main ──
     //   error in (no error) <- Step.Result.Error
     //   Operation <- Locals.Operation
     //   Calculate Analysis? <- Locals.Analyze
@@ -47,41 +32,24 @@ Future<String> mainSequence() async {
     //   error out <- Step.Result.Error
     await callPowMeasConfigureAndMeasure(); // Action [Action]
     if (locals.analyze && (locals.operation == 'Measure Only' || locals.operation == 'Configure and Measure')) {
-      // popup title: NameOf(Step)
-      // popup message: "MAX Voltage  " + Str(Locals.Analyzeddata.MaxVoltage) + " Max Current  " + Str(Locals.Analyzeddata.MaxCurrent) + "  Max Power  " + Str(Locals.Analyzeddata.MaxPower) + "  Avg power  " + Str(Locals.Analyzeddata.AvgPower)
-      // popup buttons: "OK"
-      // Message Popup [MessagePopup]: acts through ts.stepHost
-      final popup = await ts.stepHost.messagePopup(
-        title: 'Message Popup',
-        message:
-            'MAX Voltage  ${ts.str(locals.analyzeddata.MaxVoltage)} Max Current  ${ts.str(locals.analyzeddata.MaxCurrent)}  Max Power  ${ts.str(locals.analyzeddata.MaxPower)}  Avg power  ${ts.str(locals.analyzeddata.AvgPower)}',
-        buttons: ['OK', '', '', '', '', ''],
+      await ts.messagePopup(
+        'Message Popup',
+        'MAX Voltage  ${ts.str(locals.analyzeddata.MaxVoltage)} Max Current  ${ts.str(locals.analyzeddata.MaxCurrent)}  Max Power  ${ts.str(locals.analyzeddata.MaxPower)}  Avg power  ${ts.str(locals.analyzeddata.AvgPower)}',
       );
-      messagePopupResult.ButtonHit = popup.buttonHit;
-      messagePopupResult.Response = popup.response;
-      messagePopupResult.Status = 'Done';
-      run.record(messagePopupResult.Status);
     }
   } finally {
-    // ── cleanup ──
     //   error in (no error) <- Step.Result.Error
     //   error out <- Step.Result.Error
     await callPowMeasClose(); // Action [Action]
   }
-
-  return run.status;
 }
 
-// ── code-module stubs ─────────────────────────────────────────────────────
-/// Stub for the labView module call `Pow Meas Initialize.vi`
-/// (from step `Action`). TODO: implement against the real module.
+/// The labView module `Pow Meas Initialize.vi`.
 Future<Object?> callPowMeasInitialize() async => throw UnimplementedError('labView call: Pow Meas Initialize.vi');
 
-/// Stub for the labView module call `Pow Meas Configure and Measure.vi`
-/// (from step `Action`). TODO: implement against the real module.
+/// The labView module `Pow Meas Configure and Measure.vi`.
 Future<Object?> callPowMeasConfigureAndMeasure() async =>
     throw UnimplementedError('labView call: Pow Meas Configure and Measure.vi');
 
-/// Stub for the labView module call `Pow Meas Close.vi`
-/// (from step `Action`). TODO: implement against the real module.
+/// The labView module `Pow Meas Close.vi`.
 Future<Object?> callPowMeasClose() async => throw UnimplementedError('labView call: Pow Meas Close.vi');
