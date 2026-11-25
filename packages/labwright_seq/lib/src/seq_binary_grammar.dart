@@ -365,19 +365,24 @@ final class BinaryTypeEntry {
 /// The body fields the grammar reads but cannot yet name.
 enum BinaryUndecodedField {
   /// The word after a typedef entry's flags.
-  typeEntryWord,
+  typeEntryWord(1),
 
   /// The word after a record's flags; the parse stops when it is nonzero.
-  recordFlagsHigh,
+  recordFlagsHigh(0),
 
   /// The word before an `Enum` typedef's items array.
-  enumItemsWord,
+  enumItemsWord(1),
 
   /// The word between the data root and the `0xffffffff` terminator.
-  bodyTailWord,
+  bodyTailWord(0),
 
   /// Bytes after the last pool string.
-  poolTail,
+  poolTail(null);
+
+  const BinaryUndecodedField(this.reserved);
+
+  /// The value the word holds in every file decoded so far; null for a field that is not one word.
+  final int? reserved;
 }
 
 typedef BinaryUndecodedSpan = ({int start, int end, BinaryUndecodedField field});
@@ -433,6 +438,16 @@ final class Tof1Body {
       if (poolTail.isNotEmpty)
         (start: bytes.length - poolTail.length, end: bytes.length, field: BinaryUndecodedField.poolTail),
     ]..sort((a, b) => a.start.compareTo(b.start));
+  }
+
+  /// Record-region bytes in an undecoded word that does not hold its field's reserved value.
+  int get unexplainedRecordBytes {
+    final view = ByteData.sublistView(bytes);
+    return [
+      for (final span in undecodedSpans)
+        if (span.field.reserved case final reserved? when view.getUint32(span.start, Endian.little) != reserved)
+          span.end - span.start,
+    ].fold(0, (a, b) => a + b);
   }
 
   /// Record-region bytes whose purpose is not yet decoded.
