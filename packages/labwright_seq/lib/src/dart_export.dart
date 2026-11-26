@@ -3120,11 +3120,16 @@ class _DartExporter {
       case _BuiltInStep.additionalResults:
         return;
       case _:
+        final definitions = [
+          for (final p in step.raw.prop('Result')?.subProps ?? const <SeqProperty>[])
+            if (p.array?.firstOrNull?.subProps.isNotEmpty ?? false) p,
+        ];
         final args = [
           "'${_escape(step.type!)}'",
-          if (step.typeProperties.isNotEmpty || result != null)
+          if (step.typeProperties.isNotEmpty || definitions.isNotEmpty || result != null)
             '{${[
               for (final p in step.typeProperties) "'${_escape(p.name)}': ${_literalValue(p)}",
+              if (definitions.isNotEmpty) "'Result': {${[for (final p in definitions) "'${_escape(p.name)}': ${_literalValue(p)}"].join(', ')}}",
             ].join(', ')}}',
           ?result,
         ];
