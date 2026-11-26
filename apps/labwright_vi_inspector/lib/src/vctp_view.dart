@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'span_annotations.dart';
