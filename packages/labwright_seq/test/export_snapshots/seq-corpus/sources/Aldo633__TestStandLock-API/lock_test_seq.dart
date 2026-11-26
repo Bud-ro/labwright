@@ -41,15 +41,6 @@ Future<void> processSetup() async {
     await ts.stepType('NI_Lock', {
       'NameOrRefExpr': '"*"+Locals.Instrument',
       'LifetimeRefExpr': 'StationGlobals.LockReference',
-      'TimeoutEnabled': false,
-      'TimeoutExpr': '',
-      'ErrorOnTimeout': true,
-      'AlreadyExistsExpr': '',
-      'NumThreadsWaitingExpr': '',
-      'Operation': 0,
-      'Lifetime': 3,
-      'LockLifetime': 0,
-      'CreateIfDoesNotExist': false,
     });
   }
 }

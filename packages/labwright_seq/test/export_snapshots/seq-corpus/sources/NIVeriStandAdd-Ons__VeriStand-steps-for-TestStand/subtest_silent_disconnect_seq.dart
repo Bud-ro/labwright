@@ -23,11 +23,9 @@ Future<void> mainSequence() async {
   await Future<void>.delayed(const Duration(seconds: 10));
   await ts.stepType('SilentDisconnect');
   await Future<void>.delayed(const Duration(seconds: 10));
-  await ts.stepType('ConnectProject', {
-    'Veristand': {'ShowProgress': false},
-  });
+  await ts.stepType('ConnectProject');
   await Future<void>.delayed(const Duration(seconds: 10));
   await ts.stepType('GetChannelValue', {
-    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EngineTemp"'},
+    'Veristand': {'ChannelName': '"Aliases/EngineTemp"'},
   });
 }

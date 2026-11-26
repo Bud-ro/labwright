@@ -17,80 +17,20 @@ double tolerence = 1;
 Future<void> mainSequence() async {
   // Measure the rise time of a digital signal using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'TestSettings': {
-      'OfflineModeMeasurementDataOption': 1,
-      'EnableAutoTestNumberGeneration': false,
-      'BaseTestNumber': 1,
-      'TestNumberIncrementPerTestIndex': 1,
-      'TestNumberIncrementPerLoopIteration': 1,
-    },
-    'DotNetRuntimeData': null,
-    'EvaluationFailureOption': 0,
-    'PerSiteInputs': <dynamic>[],
+    'TestSettings': {'OfflineModeMeasurementDataOption': 1},
     'Result': {
-      'Evaluations': <dynamic>[
-        ts.PropObj({
-          'EvaluationType': 0,
+      'Evaluations': [
+        {
           'Pin': 'C0',
           'MeasurementId': 'RiseTime',
-          'TestNumberExpr': '',
           'TestNumber': 1000,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
           'TestName': 'TmuRiseTimeMeasurement',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
+          'NumericLimit': {
             'LowLimitExpr': 'FileGlobals.ExpectedValues.RiseTime-FileGlobals.Tolerence',
-            'LowLimit': 0,
             'HighLimitExpr': 'FileGlobals.ExpectedValues.RiseTime+FileGlobals.Tolerence',
-            'HighLimit': 0,
             'ComparisonType': 'GELE',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
+          },
+        },
       ],
     },
   });
@@ -101,80 +41,20 @@ Future<void> mainSequence() async {
   ); // Measure Rise Time
   // Measure the fall time between a reference pin and a targt pin using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'TestSettings': {
-      'OfflineModeMeasurementDataOption': 1,
-      'EnableAutoTestNumberGeneration': false,
-      'BaseTestNumber': 1,
-      'TestNumberIncrementPerTestIndex': 1,
-      'TestNumberIncrementPerLoopIteration': 1,
-    },
-    'DotNetRuntimeData': null,
-    'EvaluationFailureOption': 0,
-    'PerSiteInputs': <dynamic>[],
+    'TestSettings': {'OfflineModeMeasurementDataOption': 1},
     'Result': {
-      'Evaluations': <dynamic>[
-        ts.PropObj({
-          'EvaluationType': 0,
+      'Evaluations': [
+        {
           'Pin': 'C0',
           'MeasurementId': 'FallTime',
-          'TestNumberExpr': '',
           'TestNumber': 1001,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
           'TestName': 'TmuFallTimeMeasurement',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
+          'NumericLimit': {
             'LowLimitExpr': 'FileGlobals.ExpectedValues.FallTime-FileGlobals.Tolerence',
-            'LowLimit': 0,
             'HighLimitExpr': 'FileGlobals.ExpectedValues.FallTime+FileGlobals.Tolerence',
-            'HighLimit': 0,
             'ComparisonType': 'GELE',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
+          },
+        },
       ],
     },
   });
@@ -185,80 +65,20 @@ Future<void> mainSequence() async {
   ); // Measure Fall Time
   // Measure the period of a digital signal using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'TestSettings': {
-      'OfflineModeMeasurementDataOption': 1,
-      'EnableAutoTestNumberGeneration': false,
-      'BaseTestNumber': 1,
-      'TestNumberIncrementPerTestIndex': 1,
-      'TestNumberIncrementPerLoopIteration': 1,
-    },
-    'DotNetRuntimeData': null,
-    'EvaluationFailureOption': 0,
-    'PerSiteInputs': <dynamic>[],
+    'TestSettings': {'OfflineModeMeasurementDataOption': 1},
     'Result': {
-      'Evaluations': <dynamic>[
-        ts.PropObj({
-          'EvaluationType': 0,
+      'Evaluations': [
+        {
           'Pin': 'C0',
           'MeasurementId': 'Period',
-          'TestNumberExpr': '',
           'TestNumber': 1002,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
           'TestName': 'TmuPeriodMeasurement',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
+          'NumericLimit': {
             'LowLimitExpr': 'FileGlobals.ExpectedValues.Period-FileGlobals.Tolerence',
-            'LowLimit': 0,
             'HighLimitExpr': 'FileGlobals.ExpectedValues.Period+FileGlobals.Tolerence',
-            'HighLimit': 0,
             'ComparisonType': 'GELE',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
+          },
+        },
       ],
     },
   });
@@ -269,80 +89,20 @@ Future<void> mainSequence() async {
   ); // Measure Period
   // Measure the skew between a reference pin and a targt pin using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'TestSettings': {
-      'OfflineModeMeasurementDataOption': 1,
-      'EnableAutoTestNumberGeneration': false,
-      'BaseTestNumber': 1,
-      'TestNumberIncrementPerTestIndex': 1,
-      'TestNumberIncrementPerLoopIteration': 1,
-    },
-    'DotNetRuntimeData': null,
-    'EvaluationFailureOption': 0,
-    'PerSiteInputs': <dynamic>[],
+    'TestSettings': {'OfflineModeMeasurementDataOption': 1},
     'Result': {
-      'Evaluations': <dynamic>[
-        ts.PropObj({
-          'EvaluationType': 0,
+      'Evaluations': [
+        {
           'Pin': 'C0',
           'MeasurementId': 'Skew',
-          'TestNumberExpr': '',
           'TestNumber': 1003,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
           'TestName': 'TmuSkewMeasurement',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
+          'NumericLimit': {
             'LowLimitExpr': 'FileGlobals.ExpectedValues.Skew-FileGlobals.Tolerence',
-            'LowLimit': 0,
             'HighLimitExpr': 'FileGlobals.ExpectedValues.Skew+FileGlobals.Tolerence',
-            'HighLimit': 0,
             'ComparisonType': 'GELE',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
+          },
+        },
       ],
     },
   });
@@ -353,126 +113,31 @@ Future<void> mainSequence() async {
   ); // Measure Skew
   // Measure the duty cycle ratio of a digital signal using the PXIe-657x's TMU based on the time duration the signal spends in the high state.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'TestSettings': {
-      'OfflineModeMeasurementDataOption': 1,
-      'EnableAutoTestNumberGeneration': false,
-      'BaseTestNumber': 1,
-      'TestNumberIncrementPerTestIndex': 1,
-      'TestNumberIncrementPerLoopIteration': 1,
-    },
-    'DotNetRuntimeData': null,
-    'EvaluationFailureOption': 0,
-    'PerSiteInputs': <dynamic>[],
+    'TestSettings': {'OfflineModeMeasurementDataOption': 1},
     'Result': {
-      'Evaluations': <dynamic>[
-        ts.PropObj({
-          'EvaluationType': 0,
+      'Evaluations': [
+        {
           'Pin': 'C0',
           'MeasurementId': 'DutyCycleTime',
-          'TestNumberExpr': '',
           'TestNumber': 1004,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
           'TestName': 'TmuDutyMeasurement',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
+          'NumericLimit': {
             'LowLimitExpr': 'FileGlobals.ExpectedValues.DutyCycleTime-FileGlobals.Tolerence',
-            'LowLimit': 0,
             'HighLimitExpr': 'FileGlobals.ExpectedValues.DutyCycleTime+FileGlobals.Tolerence',
-            'HighLimit': 0,
             'ComparisonType': 'GELE',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
-        ts.PropObj({
-          'EvaluationType': 0,
+          },
+        },
+        {
           'Pin': 'C0',
           'MeasurementId': 'DutyCycleRatio',
-          'TestNumberExpr': '',
           'TestNumber': 1005,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
           'TestName': 'TmuDutyMeasurement',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
+          'NumericLimit': {
             'LowLimitExpr': 'FileGlobals.ExpectedValues.DutyCycleRatio-FileGlobals.Tolerence',
-            'LowLimit': 0,
             'HighLimitExpr': 'FileGlobals.ExpectedValues.DutyCycleRatio+FileGlobals.Tolerence',
-            'HighLimit': 0,
             'ComparisonType': 'GELE',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
+          },
+        },
       ],
     },
   });
@@ -483,80 +148,20 @@ Future<void> mainSequence() async {
   ); // Measure Duty Cycle
   // Measure the pulse width of a digital signal using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'TestSettings': {
-      'OfflineModeMeasurementDataOption': 1,
-      'EnableAutoTestNumberGeneration': false,
-      'BaseTestNumber': 1,
-      'TestNumberIncrementPerTestIndex': 1,
-      'TestNumberIncrementPerLoopIteration': 1,
-    },
-    'DotNetRuntimeData': null,
-    'EvaluationFailureOption': 0,
-    'PerSiteInputs': <dynamic>[],
+    'TestSettings': {'OfflineModeMeasurementDataOption': 1},
     'Result': {
-      'Evaluations': <dynamic>[
-        ts.PropObj({
-          'EvaluationType': 0,
+      'Evaluations': [
+        {
           'Pin': 'C0',
           'MeasurementId': 'PulseWidth',
-          'TestNumberExpr': '',
           'TestNumber': 1006,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
           'TestName': 'TmuPulseWidthMeasurement',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
+          'NumericLimit': {
             'LowLimitExpr': 'FileGlobals.ExpectedValues.PulseWidth-FileGlobals.Tolerence',
-            'LowLimit': 0,
             'HighLimitExpr': 'FileGlobals.ExpectedValues.PulseWidth+FileGlobals.Tolerence',
-            'HighLimit': 0,
             'ComparisonType': 'GELE',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
+          },
+        },
       ],
     },
   });
@@ -570,37 +175,18 @@ Future<void> mainSequence() async {
 /// Sequence `ProcessSetup` — Runs once at lot start.
 Future<void> processSetup() async {
   await ts.stepType('NI_SemiconductorModule_GetTestSettings', {
-    'SettingAssignments': <dynamic>[
-      ts.PropObj({
+    'SettingAssignments': [
+      {
         'SettingName': 'StationSettings.Standard.OfflineMode',
         'DestinationExpr': 'FileGlobals.IsOfflineMode',
         'NameFilter': 0,
-      }),
+      },
     ],
   });
   ts.eval(
     'FileGlobals.IsOfflineMode\n?\n    \n    (\n        FileGlobals.ExpectedValues.RiseTime = 0,\n        FileGlobals.ExpectedValues.FallTime = 0,\n        FileGlobals.ExpectedValues.Period = 0,\n        FileGlobals.ExpectedValues.Skew = 0,\n        FileGlobals.ExpectedValues.DutyCycleTime = 0,\n        FileGlobals.ExpectedValues.DutyCycleRatio = NAN,\n        FileGlobals.ExpectedValues.PulseWidth = 0\n    )\n: 0 ',
   ); // Update Expected Values When In Offline Mode
-  await ts.stepType('NI_SemiconductorTest_SetupNIDigitalPatternInstrumentation', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorTest_SetupNIDigitalPatternInstrumentation');
   await ts.callDotNet(
     'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll',
     'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.SetupNIDigitalPatternInstrumentation',
@@ -608,24 +194,7 @@ Future<void> processSetup() async {
   ); // Setup NI Digital Instrumentation
   // This method call is necessary to ensure the cached instrument session information is consistent between the NationalInstruments.SemiconductorTestLibrary.TestStandSteps assembly and client assembly. as they may not share the same memory space if the client assembly is using a newer version of the NationalInstruments.SemiconductorTestLibrary.Abstractions.
   await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 1,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
+    'Multisite': {'SynchronizationOption': 1},
   });
   await ts.callDotNet(
     'Code Modules\\bin\\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll',
@@ -636,26 +205,7 @@ Future<void> processSetup() async {
 
 /// Sequence `ProcessCleanup` — Runs once at lot end.
 Future<void> processCleanup() async {
-  await ts.stepType('NI_SemiconductorTest_CleanupInstrumentation', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorTest_CleanupInstrumentation');
   await ts.callDotNet(
     'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll',
     'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation',

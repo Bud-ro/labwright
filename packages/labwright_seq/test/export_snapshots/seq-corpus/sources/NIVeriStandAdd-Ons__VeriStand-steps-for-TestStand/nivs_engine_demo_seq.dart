@@ -28,22 +28,17 @@ Future<ts.Status> mainSequence() async {
   });
 
   try {
-    await ts.stepType('InitializeVeriStand', {
-      'Veristand': {'ShowProgress': false, 'Visible': 'True', 'username': '""', 'password': '""'},
-    });
+    await ts.stepType('InitializeVeriStand');
 
     // The step is used to read the Absolute Time system channel.
     // Get Absolute Time
     await ts.stepType('GetChannelValue', {
-      'Veristand': {'ValueToSet': '0', 'ChannelName': '"Targets/Controller/System Channels/Absolute Time"'},
+      'Veristand': {'ChannelName': '"Targets/Controller/System Channels/Absolute Time"'},
     });
     // The step is used to run the Engine Demo Advanced & Return Value RT sequence.
     // Run Engine Demo Advanced RT Sequence
     await ts.stepType('RunRTSequencePassFail', {
       'VeriStand': {
-        'SeqTimeout': -1,
-        'Target': '',
-        'Timeout': 10000,
         'SequenceFilePath':
             '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2013\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Engine Demo Advanced & Return Value\\\\Engine Demo Advanced & Return Value.nivsseq"',
         'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
@@ -59,9 +54,6 @@ Future<ts.Status> mainSequence() async {
     // Run Get Rise Time RT Sequence
     await ts.stepType('RunRTSequenceAction', {
       'Veristand': {
-        'SeqTimeout': -1,
-        'Target': '',
-        'Timeout': 10000,
         'SequenceFilePath':
             '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2013\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Get Rise Time.nivsseq"',
         'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM","5000","Aliases/ActualRPM"}',
@@ -75,9 +67,7 @@ Future<ts.Status> mainSequence() async {
           as String,
     );
   } finally {
-    await ts.stepType('StopVeriStand', {
-      'Veristand': {'CloseUIManager': false, 'CloseApp': false, 'ShowProgress': false},
-    });
+    await ts.stepType('StopVeriStand');
   }
 
   return run.status;

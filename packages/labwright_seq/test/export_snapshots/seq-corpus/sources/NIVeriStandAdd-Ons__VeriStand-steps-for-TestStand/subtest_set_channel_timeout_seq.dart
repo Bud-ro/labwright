@@ -6,19 +6,19 @@ dynamic veristand = ts.PropObj({'GatewayIP': '"localhost"'});
 /// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   await ts.stepType('SetChannelFaultValue', {
-    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    'Veristand': {'ChannelName': '"Aliases/EnginePower"'},
   });
   await Future<void>.delayed(const Duration(seconds: 4));
   await ts.stepType('GetChannelValue', {
-    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    'Veristand': {'ChannelName': '"Aliases/EnginePower"'},
   });
   await ts.stepType('SetChannelValue', {
     'Veristand': {'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"', 'Timeout_ms': 10000},
   });
   await ts.stepType('GetChannelValue', {
-    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    'Veristand': {'ChannelName': '"Aliases/EnginePower"'},
   });
   await ts.stepType('ClearFault', {
-    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    'Veristand': {'ChannelName': '"Aliases/EnginePower"'},
   });
 }

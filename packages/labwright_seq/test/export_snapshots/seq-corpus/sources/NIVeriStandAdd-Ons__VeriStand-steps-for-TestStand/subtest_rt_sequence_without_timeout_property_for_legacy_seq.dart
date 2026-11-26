@@ -36,8 +36,6 @@ Future<ts.Status> mainSequence() async {
 
   await ts.stepType('RunRTSequenceAction_2', {
     'Veristand': {
-      'Target': '',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
       'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
@@ -47,8 +45,6 @@ Future<ts.Status> mainSequence() async {
   });
   await ts.stepType('RunRTSequenceNumericLimit_2', {
     'VeriStand': {
-      'Target': '',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
       'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
@@ -56,32 +52,11 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
       'NumericDataType': '"Void"',
     },
-    'Limits': {
-      'UseNominalExpr': false,
-      'UseThresholdTypeExpr': false,
-      'Nominal': 100,
-      'NominalExpr': '',
-      'ThresholdTypeExpr': '',
-      'ThresholdType': 'PERCENTAGE',
-      'Low': 9,
-      'High': 11,
-      'LowExpr': '',
-      'HighExpr': '',
-      'UseLowExpr': false,
-      'UseHighExpr': false,
-    },
-    'Comp': 'GELE',
-    'CompExpr': '',
-    'UseCompExpr': false,
-    'InBuf': '',
-    'DataSource': 'Step.Result.Numeric',
   }, rtSequenceNumericLimitTestResult);
   rtSequenceNumericLimitTestResult.Status = ts.checkLimits(rtSequenceNumericLimitTestResult.Numeric, 11, 9, 'GELE');
   run.record(rtSequenceNumericLimitTestResult.Status);
   await ts.stepType('RunRTSequencePassFail_2', {
     'VeriStand': {
-      'Target': '',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
       'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',

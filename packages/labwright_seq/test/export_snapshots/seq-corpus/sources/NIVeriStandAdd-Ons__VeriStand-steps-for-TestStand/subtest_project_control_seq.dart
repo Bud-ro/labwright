@@ -21,37 +21,22 @@ dynamic veristand = ts.PropObj({
 Future<void> mainSequence() async {
   try {
     ts.eval('RunState.Main.Locals.NewSubProperty("VSDialogs",PropValType_Container,False,"",0)');
-    await ts.stepType('StartVeristand', {
-      'Veristand': {
-        'VSInstallDirectory': 'C:\\Program Files (x86)\\National Instruments\\VeriStand 2015\\NI VeriStand.exe',
-        'Silent': false,
-      },
-    });
+    await ts.stepType('StartVeristand');
     await Future<void>.delayed(const Duration(seconds: 5));
 
     await ts.stepType('OpenProject');
     await Future<void>.delayed(const Duration(seconds: 5));
     await ts.stepType('OpenReferences');
     await Future<void>.delayed(const Duration(seconds: 5));
-    await ts.stepType('DeployProject', {
-      'Veristand': {'ShowProgress': false},
-    });
+    await ts.stepType('DeployProject');
     await Future<void>.delayed(const Duration(seconds: 5));
-    await ts.stepType('UndeployProject', {
-      'Veristand': {'ShowProgress': false},
-    });
+    await ts.stepType('UndeployProject');
     await Future<void>.delayed(const Duration(seconds: 5));
-    await ts.stepType('RunProject', {
-      'Veristand': {'ShowProgress': false},
-    });
+    await ts.stepType('RunProject');
     await Future<void>.delayed(const Duration(seconds: 5));
-    await ts.stepType('UndeployProject', {
-      'Veristand': {'ShowProgress': false},
-    });
+    await ts.stepType('UndeployProject');
   } finally {
     await Future<void>.delayed(const Duration(seconds: 5));
-    await ts.stepType('DeployProject', {
-      'Veristand': {'ShowProgress': false},
-    });
+    await ts.stepType('DeployProject');
   }
 }

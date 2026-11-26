@@ -36,10 +36,6 @@ Future<ts.Status> mainSequence() async {
 
   await ts.stepType('InitializeVeriStand', {
     'Veristand': {
-      'ShowProgress': false,
-      'Visible': 'True',
-      'username': '""',
-      'password': '""',
       'GatewayIP': '"localhost"',
       'ProjectPath':
           '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\ECU HIL.nivsproj"',
@@ -63,10 +59,9 @@ Future<ts.Status> mainSequence() async {
 
   await ts.stepType('StartLogging', {
     'Veristand': {
-      'BaseNodeArray': null,
       'LogFilePath':
           '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Logs\\\\Knock Response.tdms"',
-      'ChannelPaths': <dynamic>[
+      'ChannelPaths': [
         'Aliases/Knock/Knock Amp Cyl 1',
         'Aliases/Knock/Knock Base Amp',
         'Aliases/State/Simulated RPM',
@@ -84,11 +79,6 @@ Future<ts.Status> mainSequence() async {
         'Aliases/State/Sparks/Spark 6 Start angle',
         'Aliases/State/Vehicle Speed (kmph)',
       ],
-      'FileDescription': '',
-      'FileSegmenting': false,
-      'FileSegmentingSize': 0,
-      'FilePropertyNames': <dynamic>[],
-      'FilePropertyValues': <dynamic>[],
     },
   });
   // Set the knock amplitude to three different levels. verify that Spark End Angle decreases when knock amplitude increases.

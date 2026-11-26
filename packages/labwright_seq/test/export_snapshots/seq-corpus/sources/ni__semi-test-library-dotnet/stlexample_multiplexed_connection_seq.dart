@@ -6,30 +6,15 @@ Future<void> mainSequence() async {
   // For each site, applies the relay route, reads the shared
   // DMM, publishes the result, and restores the relays.
   await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
     'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[
+      'IncludedRelayConfigurations': [
         'ConnectDmmToPinASite0',
         'ConnectDmmToPinASite1',
         'ConnectDmmToPinASite2',
         'ConnectDmmToPinASite3',
         'DisconnectDmmFromPinAOnAllSites',
       ],
-      'IncludeSystemRelays': false,
     },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
   });
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.MultiplexedConnection.dll',
@@ -60,119 +45,24 @@ Future<void> sequenceFileLoad() async {
 /// Sequence `ProcessCleanup` — Runs once at lot end.
 Future<void> processCleanup() async {
   // Clean Up Multiplexer Sessions
-  await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.MultiplexedConnection.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.CleanupGenericMultiplexerSession',
     inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext'), 'multiplexerTypeId': 'NIGenericMultiplexer'},
   ); // Cleanup NI Generic Multiplexer
   // Clean Up Instrument Sessions
-  await ts.stepType('NI_SemiconductorTest_CleanupInstrumentation', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorTest_CleanupInstrumentation');
 }
 
 /// Sequence `ProcessSetup` — Runs once at lot start.
 Future<void> processSetup() async {
   // Initialize Realy Module Sessions
-  await ts.stepType('NI_SemiconductorTest_SetupNIRelayModules', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorTest_SetupNIRelayModules');
   // Initialize DMM Sessions
-  await ts.stepType('NI_SemiconductorTest_SetupNIDMMInstrumentation', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorTest_SetupNIDMMInstrumentation');
   // Initialize Multiplexer Sessions
-  await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.MultiplexedConnection.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.InitializeGenericMultiplexerSession',

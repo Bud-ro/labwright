@@ -29,9 +29,7 @@ Future<ts.Status> mainSequence() async {
   for (int sequenceCounter = 0; sequenceCounter < locals.sequencesToRun; sequenceCounter += 1) {
     await ts.stepType('RunRTSequenceAction', {
       'Veristand': {
-        'SeqTimeout': -1,
         'Target': 'Controller',
-        'Timeout': 10000,
         'SequenceFilePath':
             '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
         'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
@@ -52,7 +50,6 @@ Future<ts.Status> mainSequence() async {
       'VeriStand': {
         'SeqTimeout': 10,
         'Target': 'Controller',
-        'Timeout': 10000,
         'SequenceFilePath':
             '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Engine Demo Advanced & Return Value\\\\Engine Demo Advanced & Return Value.nivsseq"',
         'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
@@ -60,25 +57,7 @@ Future<ts.Status> mainSequence() async {
         'ParamNamesArray': '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
         'NumericDataType': '"Boolean"',
       },
-      'Limits': {
-        'UseNominalExpr': false,
-        'UseThresholdTypeExpr': false,
-        'Nominal': 100,
-        'NominalExpr': '',
-        'ThresholdTypeExpr': '',
-        'ThresholdType': 'PERCENTAGE',
-        'Low': 0,
-        'High': 100,
-        'LowExpr': '',
-        'HighExpr': '',
-        'UseLowExpr': false,
-        'UseHighExpr': false,
-      },
-      'Comp': 'GELE',
-      'CompExpr': '',
-      'UseCompExpr': false,
-      'InBuf': '',
-      'DataSource': 'Step.Result.Numeric',
+      'Limits': {'Low': 0, 'High': 100},
     }, rtSequenceNumericLimitTestResult);
     rtSequenceNumericLimitTestResult.Status = ts.checkLimits(rtSequenceNumericLimitTestResult.Numeric, 100, 0, 'GELE');
     run.record(rtSequenceNumericLimitTestResult.Status);
@@ -91,9 +70,7 @@ Future<ts.Status> mainSequence() async {
     });
     await ts.stepType('RunRTSequencePassFail', {
       'VeriStand': {
-        'SeqTimeout': -1,
         'Target': 'Controller',
-        'Timeout': 10000,
         'SequenceFilePath':
             '"C:\\\\Users\\\\Public\\\\Documents\\\\National Instruments\\\\NI VeriStand 2015\\\\Examples\\\\Stimulus Profile\\\\Engine Demo\\\\Stimulus Profiles\\\\Engine Demo Advanced & Return Value\\\\Engine Demo Advanced & Return Value.nivsseq"',
         'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',

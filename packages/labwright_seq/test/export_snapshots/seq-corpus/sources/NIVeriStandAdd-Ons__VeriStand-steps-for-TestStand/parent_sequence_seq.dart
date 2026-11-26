@@ -24,9 +24,6 @@ Future<void> mainSequence() async {
 
     await ts.stepType('RunRTSequenceAction', {
       'Veristand': {
-        'SeqTimeout': -1,
-        'Target': '',
-        'Timeout': 10000,
         'SequenceFilePath':
             '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\Engine Demo Basic with Numeric Return Value.nivsseq"',
         'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
@@ -43,7 +40,7 @@ Future<void> mainSequence() async {
   } finally {
     await threads.wait('ID#:toyzAMhaP0KUec0ek9zdHA'); // Wait for Child Sequence Thread to Complete
     await ts.stepType('StopVeriStand', {
-      'Veristand': {'CloseUIManager': true, 'CloseApp': true, 'ShowProgress': false},
+      'Veristand': {'CloseUIManager': true, 'CloseApp': true},
     });
   }
 
@@ -54,9 +51,6 @@ Future<void> mainSequence() async {
 Future<void> childSequenceSameFile() async {
   await ts.stepType('RunRTSequenceAction', {
     'Veristand': {
-      'SeqTimeout': -1,
-      'Target': '',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\Engine Demo Basic with Numeric Return Value.nivsseq"',
       'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',

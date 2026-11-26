@@ -12,77 +12,21 @@ Future<void> mainSequence() async {
   await ts.stepType('DIAdem_OpenReference', {
     'DIAdemRefExpr': 'Locals.DIAdemReference',
     'ShowEnvironment': true,
-    'DescriptionFormat':
-        'ResStr("OPEN_DIADEM_REF_STEP_TYPE","DESCRIPTION") + (Step.HostNameExpr=="\\"\\""? ResStr("OPEN_DIADEM_REF_STEP_TYPE","LOCALHOST") :Step.HostNameExpr)',
-    'DefaultNameFormat': 'ResStr("OPEN_DIADEM_REF_STEP_TYPE","DEFAULT_NAME")',
-    'BlockStartTypes': '',
-    'BlockEndTypes': '',
-    'AppliesToBlockStructure': false,
-    'Menu': {
-      'ItemName': 'ResStr("OPEN_DIADEM_REF_STEP_TYPE","MENU_ITEM")',
-      'Group': 'DIAdem',
-      'CanBeSubstepType': false,
-      'CanOnlyBeSubstepType': false,
-      'Category': '""',
-      'SingularItemName': '""',
-      'SeparatorBeforeCategory': false,
-      'SeparatorBeforeItemName': false,
-    },
     'Substeps': ts.PropObj(),
-    'CodeTemplates': '',
-    'HostNameExpr': '""',
   });
   await ts.stepType('DIAdem_ExportChannels', {
     'DIAdemRefExpr': 'Locals.DIAdemReference',
     'SourceDataExpr': 'Locals.DataToCopy',
     'ChannelExpr': '"Chn1"',
     'CreateChannel': true,
-    'DescriptionFormat':
-        '(Step.SourceDataExpr!="" && Step.ChannelExpr!="")?(ResStr("EXPORT_DIADEM_CHN_STEP_TYPE","DESCRIPTION") + " " + Step.SourceDataExpr + " " + ResStr("EXPORT_DIADEM_CHN_STEP_TYPE","DESCRIPTION2") + " " + Step.ChannelExpr):ResStr("EXPORT_DIADEM_CHN_STEP_TYPE","DESCRIPTION3") ',
-    'DefaultNameFormat': 'ResStr("EXPORT_DIADEM_CHN_STEP_TYPE","DEFAULT_NAME")',
-    'BlockStartTypes': '',
-    'BlockEndTypes': '',
-    'AppliesToBlockStructure': false,
-    'Menu': {
-      'ItemName': 'ResStr("EXPORT_DIADEM_CHN_STEP_TYPE","MENU_ITEM")',
-      'Group': 'DIAdem',
-      'CanBeSubstepType': false,
-      'CanOnlyBeSubstepType': false,
-      'Category': '""',
-      'SingularItemName': '""',
-      'SeparatorBeforeCategory': false,
-      'SeparatorBeforeItemName': false,
-    },
     'Substeps': ts.PropObj(),
-    'CodeTemplates':
-        'DefaultLabVIEW|DefaultCVI|DefaultVB.NET|DefaultCSharp.NET|DefaultC++.NET|DefaultVC++_Template|DefaultHTB72_Template|DefaultHTB80_Template|Default_Template',
-    'UseName': true,
   });
   await ts.stepType('DIAdem_ImportChannels', {
     'DIAdemRefExpr': 'Locals.DIAdemReference',
     'DataExpr': 'Locals.DataReturned',
     'FirstChannelExpr': '"Chn1"',
     'LastChannelExpr': '"Chn1"',
-    'DescriptionFormat':
-        '(Step.DataExpr!="" && Step.FirstChannelExpr!="" && Step.LastChannelExpr!="")?(ResStr("IMPORT_DIADEM_CHN_STEP_TYPE","DESCRIPTION") + " " + Step.FirstChannelExpr+ ":" + Step.LastChannelExpr + " " + ResStr("IMPORT_DIADEM_CHN_STEP_TYPE","DESCRIPTION2") + " " + Step.DataExpr):ResStr("IMPORT_DIADEM_CHN_STEP_TYPE","DESCRIPTION") ',
-    'DefaultNameFormat': 'ResStr("IMPORT_DIADEM_CHN_STEP_TYPE","DEFAULT_NAME")',
-    'BlockStartTypes': '',
-    'BlockEndTypes': '',
-    'AppliesToBlockStructure': false,
-    'Menu': {
-      'ItemName': 'ResStr("IMPORT_DIADEM_CHN_STEP_TYPE","MENU_ITEM")',
-      'Group': 'DIAdem',
-      'CanBeSubstepType': false,
-      'CanOnlyBeSubstepType': false,
-      'Category': '""',
-      'SingularItemName': '""',
-      'SeparatorBeforeCategory': false,
-      'SeparatorBeforeItemName': false,
-    },
     'Substeps': ts.PropObj(),
-    'CodeTemplates':
-        'DefaultLabVIEW|DefaultCVI|DefaultVB.NET|DefaultCSharp.NET|DefaultC++.NET|DefaultVC++_Template|DefaultHTB72_Template|DefaultHTB80_Template|Default_Template',
-    'UseName': true,
   });
   await ts.messagePopup('Data Returned', ts.str(locals.dataReturned));
   await ts.stepType('DIAdem_RunScript', {
@@ -90,46 +34,9 @@ Future<void> mainSequence() async {
     'PathExpr': 'Locals.DIAdemPath + "\\\\Demo\\\\Aut\\\\Demo.vbs"',
     'Synchronous': true,
     'UsePathExpr': true,
-    'DescriptionFormat':
-        'ResStr("RUN_DIADEM_SCRIPT_STEP_TYPE","DESCRIPTION")  + ((Step.UsePathExpr)?Step.PathExpr:Step.Path)',
-    'DefaultNameFormat': 'ResStr("RUN_DIADEM_SCRIPT_STEP_TYPE","DEFAULT_NAME") ',
-    'BlockStartTypes': '',
-    'BlockEndTypes': '',
-    'AppliesToBlockStructure': false,
-    'Menu': {
-      'ItemName': 'ResStr("RUN_DIADEM_SCRIPT_STEP_TYPE","MENU_ITEM")',
-      'Group': 'DIAdem',
-      'CanBeSubstepType': false,
-      'CanOnlyBeSubstepType': false,
-      'Category': '""',
-      'SingularItemName': '""',
-      'SeparatorBeforeCategory': false,
-      'SeparatorBeforeItemName': false,
-    },
     'Substeps': ts.PropObj(),
-    'CodeTemplates': '',
-    'Path': ts.PropObj(),
   });
-  await ts.stepType('DIAdem_Close_Reference', {
-    'DIAdemRefExpr': 'Locals.DIAdemReference',
-    'DescriptionFormat': 'ResStr("CLOSE_DIADEM_REF_STEP_TYPE","DESCRIPTION")',
-    'DefaultNameFormat': 'ResStr("CLOSE_DIADEM_REF_STEP_TYPE","DEFAULT_NAME")',
-    'BlockStartTypes': '',
-    'BlockEndTypes': '',
-    'AppliesToBlockStructure': false,
-    'Menu': {
-      'ItemName': 'ResStr("CLOSE_DIADEM_REF_STEP_TYPE","MENU_ITEM")',
-      'Group': 'DIAdem',
-      'CanBeSubstepType': false,
-      'CanOnlyBeSubstepType': false,
-      'Category': '""',
-      'SingularItemName': '""',
-      'SeparatorBeforeCategory': false,
-      'SeparatorBeforeItemName': false,
-    },
-    'Substeps': ts.PropObj(),
-    'CodeTemplates': '',
-  });
+  await ts.stepType('DIAdem_Close_Reference', {'DIAdemRefExpr': 'Locals.DIAdemReference', 'Substeps': ts.PropObj()});
 }
 
 /// Sequence `SequenceFileLoad`.

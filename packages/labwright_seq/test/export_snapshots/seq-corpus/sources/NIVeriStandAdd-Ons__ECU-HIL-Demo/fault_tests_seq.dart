@@ -106,10 +106,6 @@ Future<ts.Status> mainSequence() async {
 
   await ts.stepType('InitializeVeriStand', {
     'Veristand': {
-      'ShowProgress': false,
-      'Visible': 'True',
-      'username': '""',
-      'password': '""',
       'GatewayIP': '"localhost"',
       'ProjectPath':
           '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\ECU HIL.nivsproj"',
@@ -131,10 +127,9 @@ Future<ts.Status> mainSequence() async {
 
   await ts.stepType('StartLogging', {
     'Veristand': {
-      'BaseNodeArray': null,
       'LogFilePath':
           '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Logs\\\\IMP Fault(response).tdms"',
-      'ChannelPaths': <dynamic>[
+      'ChannelPaths': [
         'Aliases/Driver controls/Gas',
         'Aliases/Fault/IMP_Fault',
         'Aliases/State/ECU Fault/IMP_Low',
@@ -142,11 +137,6 @@ Future<ts.Status> mainSequence() async {
         'Aliases/State/Throttle Position',
         'Aliases/State/Vehicle Speed (kmph)',
       ],
-      'FileDescription': '',
-      'FileSegmenting': false,
-      'FileSegmentingSize': 0,
-      'FilePropertyNames': <dynamic>[],
-      'FilePropertyValues': <dynamic>[],
     },
   });
   // Create Open circuit fault on the APP line to the ECU. Verify over XCP/CCP that ECU detects the fault.

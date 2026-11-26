@@ -3120,27 +3120,55 @@ class _DartExporter {
       case _BuiltInStep.additionalResults:
         return;
       case _:
+        final defaults = _typeByName[step.type]?.raw;
+        final changed = [
+          for (final p in step.typeProperties)
+            if (_changedValue(p, defaults?.prop(p.name)) case final value?) "'${_escape(p.name)}': $value",
+        ];
         final definitions = [
           for (final p in step.raw.prop('Result')?.subProps ?? const <SeqProperty>[])
-            if (p.array?.firstOrNull?.subProps.isNotEmpty ?? false) p,
+            if (p.array?.firstOrNull?.subProps.isNotEmpty ?? false)
+              if (_changedValue(p, defaults?.prop('Result')?.prop(p.name)) case final value?)
+                "'${_escape(p.name)}': $value",
         ];
+        if (definitions.isNotEmpty) changed.add("'Result': {${definitions.join(', ')}}");
         final args = [
           "'${_escape(step.type!)}'",
-          if (step.typeProperties.isNotEmpty || definitions.isNotEmpty || result != null)
-            '{${[
-              for (final p in step.typeProperties) "'${_escape(p.name)}': ${_literalValue(p)}",
-              if (definitions.isNotEmpty) "'Result': {${[for (final p in definitions) "'${_escape(p.name)}': ${_literalValue(p)}"].join(', ')}}",
-            ].join(', ')}}',
+          if (changed.isNotEmpty || result != null) '{${changed.join(', ')}}',
           ?result,
         ];
         _line('await ts.stepType(${args.join(', ')});');
     }
   }
 
-  /// [p] as a Dart value, with an object as a map of its members.
-  String _literalValue(SeqProperty p) => p.subProps.isEmpty || p.array != null || p.scalar != null
-      ? _propValue(p, {})
-      : '{${[for (final c in p.subProps) "'${_escape(c.name)}': ${_literalValue(c)}"].join(', ')}}';
+  /// The members a session editor caches from the instrument driver: every attribute the session could set.
+  static const _driverCatalogs = {'AllAttributes', 'SweepableAttributes'};
+
+  /// A serialized payload: long text with no spaces.
+  static final _blob = RegExp(r'^\S{200,}$');
+
+  /// [own] as a Dart value, or null when it equals [fallback], the same member of its type's definition. An object
+  /// is a map of the members that differ.
+  String? _changedValue(SeqProperty own, SeqProperty? fallback) {
+    if (_driverCatalogs.contains(own.name)) return null;
+    final base = fallback ?? _typeByName[own.typeName]?.raw;
+    if (own.array case final elements?) {
+      final whole = _propValue(own, {});
+      if (base != null && whole == _propValue(base, {})) return null;
+      if (elements.isEmpty || elements.first.subProps.isEmpty) return whole.replaceFirst('<dynamic>[', '[');
+      return '[${[for (final e in elements) _changedValue(e, _typeByName[e.typeName]?.raw ?? own.elemProto) ?? '{}'].join(', ')}]';
+    }
+    if (own.subProps.isEmpty || own.scalar != null) {
+      final value = _propValue(own, {});
+      if (base != null && value == _propValue(base, {})) return null;
+      return own.scalar != null && _blob.hasMatch(own.scalar!) ? 'const ts.Undecoded(${own.scalar!.length})' : value;
+    }
+    final members = [
+      for (final c in own.subProps)
+        if (_changedValue(c, base?.prop(c.name)) case final value?) "'${_escape(c.name)}': $value",
+    ];
+    return members.isEmpty && base != null ? null : '{${members.join(', ')}}';
+  }
 
   String _text(String? raw) => _as(_expr(raw ?? '""'), _DartSlot.text);
 

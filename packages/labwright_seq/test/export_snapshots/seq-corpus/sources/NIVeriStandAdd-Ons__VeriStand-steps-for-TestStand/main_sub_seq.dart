@@ -52,44 +52,24 @@ Future<ts.Status> mainSequence() async {
     'Veristand': {'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'},
   });
   await ts.stepType('GetChannelValue', {
-    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EngineTemp"'},
+    'Veristand': {'ChannelName': '"Aliases/EngineTemp"'},
   });
   await ts.stepType('LimitTestChannelValue', {
-    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
-    'Limits': {
-      'UseNominalExpr': false,
-      'UseThresholdTypeExpr': false,
-      'Nominal': 100,
-      'NominalExpr': '',
-      'ThresholdTypeExpr': '',
-      'ThresholdType': 'PERCENTAGE',
-      'Low': 1,
-      'High': 11,
-      'LowExpr': '',
-      'HighExpr': '',
-      'UseLowExpr': false,
-      'UseHighExpr': false,
-    },
+    'Veristand': {'ChannelName': '"Aliases/EnginePower"'},
+    'Limits': {'Low': 1},
     'Comp': 'EQ',
-    'CompExpr': '',
-    'UseCompExpr': false,
-    'InBuf': '',
-    'DataSource': 'Step.Result.Numeric',
   }, channelValueLimitTestResult);
   channelValueLimitTestResult.Status = ts.checkLimits(channelValueLimitTestResult.Numeric, 11, 1, 'EQ');
   run.record(channelValueLimitTestResult.Status);
   await ts.stepType('SetMultipleChannelValues', {
     'VeriStand': {
-      'Timeout_ms': -1,
-      'BaseNodeArray': null,
-      'ValuesToSet': <dynamic>['4000', '1'],
-      'ChannelNames': <dynamic>['Aliases/DesiredRPM', 'Aliases/EnginePower'],
+      'ValuesToSet': ['4000', '1'],
+      'ChannelNames': ['Aliases/DesiredRPM', 'Aliases/EnginePower'],
     },
   });
   await ts.stepType('GetMultipleChannelValues', {
     'VeriStand': {
-      'BaseNodeArray': null,
-      'ChannelNames': <dynamic>['Aliases/ActualRPM', 'Aliases/DesiredRPM', 'Aliases/EnginePower'],
+      'ChannelNames': ['Aliases/ActualRPM', 'Aliases/DesiredRPM', 'Aliases/EnginePower'],
     },
   });
   await subtest_set_channel_timeout_seq.mainSequence(); // Set Channel Timeout Subtest: external sequence
@@ -100,9 +80,7 @@ Future<ts.Status> mainSequence() async {
   await ts.stepType('CloseWorkspace');
   await ts.stepType('RunRTSequenceAction', {
     'Veristand': {
-      'SeqTimeout': -1,
       'Target': 'Controller',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
       'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
@@ -112,9 +90,7 @@ Future<ts.Status> mainSequence() async {
   });
   await ts.stepType('RunRTSequencePassFail', {
     'VeriStand': {
-      'SeqTimeout': -1,
       'Target': 'Controller',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Engine Demo Advanced & Return Value\\\\Engine Demo Advanced & Return Value.nivsseq"',
       'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
@@ -127,9 +103,7 @@ Future<ts.Status> mainSequence() async {
       : 'Failed';
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {
-      'SeqTimeout': -1,
       'Target': 'Controller',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\Engine Demo Basic with Numeric Return Value.nivsseq"',
       'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
@@ -137,25 +111,8 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
       'NumericDataType': '"Int64"',
     },
-    'Limits': {
-      'UseNominalExpr': false,
-      'UseThresholdTypeExpr': false,
-      'Nominal': 100,
-      'NominalExpr': '',
-      'ThresholdTypeExpr': '',
-      'ThresholdType': 'PERCENTAGE',
-      'Low': 10,
-      'High': 1,
-      'LowExpr': '',
-      'HighExpr': '',
-      'UseLowExpr': false,
-      'UseHighExpr': false,
-    },
+    'Limits': {'Low': 10, 'High': 1},
     'Comp': 'EQ',
-    'CompExpr': '',
-    'UseCompExpr': false,
-    'InBuf': '',
-    'DataSource': 'Step.Result.Numeric',
   }, rtSequenceNumericLimitResult);
   rtSequenceNumericLimitResult.Status = ts.checkLimits(rtSequenceNumericLimitResult.Numeric, 1, 10, 'EQ');
   run.record(rtSequenceNumericLimitResult.Status);
@@ -163,7 +120,6 @@ Future<ts.Status> mainSequence() async {
     'Veristand': {
       'SeqTimeout': 10,
       'Target': 'Controller',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Engine Demo Advanced\\\\Engine Demo Advanced.nivsseq"',
       'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM","Aliases/ActualRPM","Aliases/EngineTemp"}',
@@ -187,52 +143,42 @@ Future<ts.Status> mainSequence() async {
   });
   await ts.stepType('StartLogging', {
     'Veristand': {
-      'CustomLoggingRate': 0,
-      'CustomLoggingRateEnabled': false,
       'LogFilePath': '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\logs\\\\Test Log.tdms"',
-      'BaseNodeArray': null,
-      'ChannelPaths': <dynamic>['Aliases/ActualRPM', 'Aliases/DesiredRPM', 'Aliases/EnginePower', 'Aliases/EngineTemp'],
-      'FileDescription': '',
-      'FileSegmenting': false,
-      'FileSegmentingSize': 0,
-      'FilePropertyNames': <dynamic>[],
-      'FilePropertyValues': <dynamic>[],
+      'ChannelPaths': ['Aliases/ActualRPM', 'Aliases/DesiredRPM', 'Aliases/EnginePower', 'Aliases/EngineTemp'],
     },
   });
   await ts.stepType('SetChannelFaultValue', {
     'Veristand': {'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'},
   });
   await ts.stepType('GetChannelFaultValue', {
-    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    'Veristand': {'ChannelName': '"Aliases/EnginePower"'},
   });
   await ts.stepType('ClearFault', {
-    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    'Veristand': {'ChannelName': '"Aliases/EnginePower"'},
   });
   await ts.stepType('GetChannelFaultValue', {
-    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    'Veristand': {'ChannelName': '"Aliases/EnginePower"'},
   });
   await ts.stepType('SetChannelFaultValue', {
     'Veristand': {'ValueToSet': '1', 'ChannelName': '"Aliases/EnginePower"'},
   });
   await ts.stepType('GetChannelFaultValue', {
-    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    'Veristand': {'ChannelName': '"Aliases/EnginePower"'},
   });
   await ts.stepType('ClearAllFaults');
   await ts.stepType('GetChannelFaultValue', {
-    'Veristand': {'ValueToSet': '0', 'ChannelName': '"Aliases/EnginePower"'},
+    'Veristand': {'ChannelName': '"Aliases/EnginePower"'},
   });
   await ts.stepType('UpdateModelParametersFromFile', {
     'Veristand': {
       'ModelParameterFilepath':
           '{"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Update Model Parameters\\\\ParameterUpdate1.m"}',
-      'TargetName': '"Controller"',
     },
   });
   await ts.stepType('UpdateModelParametersFromFile', {
     'Veristand': {
       'ModelParameterFilepath':
           '{"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Update Model Parameters\\\\ParameterUpdate2.m"}',
-      'TargetName': '"Controller"',
     },
   });
   await ts.stepType('SetModelParameterValue', {
@@ -248,7 +194,6 @@ Future<ts.Status> mainSequence() async {
     'Veristand': {
       'FullChannelPath': '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/b11"',
       'TargetName': '"Controller"',
-      'ValueToSet': '',
       'ChannelName': '"b11"',
     },
   });
@@ -256,15 +201,12 @@ Future<ts.Status> mainSequence() async {
     'Veristand': {
       'FullChannelPath': '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/idle speed (RPM)"',
       'TargetName': '"Controller"',
-      'ValueToSet': '',
       'ChannelName': '"idle speed (RPM)"',
     },
   });
   await ts.stepType('StopLogging');
   await ts.stepType('RunStimulusProfileBlocking', {
     'Veristand': {
-      'Timeout': -1,
-      'UUT': '"0"',
       'StimulusProfilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basics.nivsstimprof"',
     },
@@ -272,7 +214,6 @@ Future<ts.Status> mainSequence() async {
   await ts.stepType('RunStimulusProfileBlocking', {
     'Veristand': {
       'Timeout': 10,
-      'UUT': '"0"',
       'StimulusProfilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basics.nivsstimprof"',
     },

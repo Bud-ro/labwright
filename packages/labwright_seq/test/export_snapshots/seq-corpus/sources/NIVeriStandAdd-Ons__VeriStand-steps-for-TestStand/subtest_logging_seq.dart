@@ -28,8 +28,7 @@ Future<void> mainSequence() async {
     await ts.stepType('StartLogging', {
       'Veristand': {
         'LogFilePath': '"K:\\Logs"',
-        'BaseNodeArray': null,
-        'ChannelPaths': <dynamic>[
+        'ChannelPaths': [
           'Aliases/DesiredRPM',
           'Aliases/Engine Calculations/RPM Velocity',
           'Aliases/Engine Calculations/RPM Offset',
@@ -38,19 +37,12 @@ Future<void> mainSequence() async {
           'Aliases/Engine Safety Limits/Engine Temperature Warning',
           'Aliases/EnginePower',
         ],
-        'FileDescription': '',
-        'FileSegmenting': false,
-        'FileSegmentingSize': 0,
-        'FilePropertyNames': <dynamic>[],
-        'FilePropertyValues': <dynamic>[],
       },
     });
     await ts.stepType('SetMultipleChannelValues', {
       'VeriStand': {
-        'Timeout_ms': -1,
-        'BaseNodeArray': null,
-        'ValuesToSet': <dynamic>['0', '0', '0', '0', '0', '0', '0'],
-        'ChannelNames': <dynamic>[
+        'ValuesToSet': ['0', '0', '0', '0', '0', '0', '0'],
+        'ChannelNames': [
           'Aliases/DesiredRPM',
           'Aliases/Engine Calculations/RPM Velocity',
           'Aliases/Engine Calculations/RPM Offset',
@@ -63,9 +55,6 @@ Future<void> mainSequence() async {
     });
     await ts.stepType('RunRTSequenceAction', {
       'Veristand': {
-        'SeqTimeout': -1,
-        'Target': '',
-        'Timeout': 10000,
         'SequenceFilePath':
             '"K:\\\\Base Test Files\\\\VeriStand Project\\\\Engine Demo\\\\Stimulus Profiles\\\\Basic Engine Demo\\\\Engine Demo Basic.nivsseq"',
         'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',
@@ -75,8 +64,6 @@ Future<void> mainSequence() async {
     });
     await ts.stepType('StopLogging');
   } finally {
-    await ts.stepType('StopVeriStand', {
-      'Veristand': {'CloseApp': false, 'ShowProgress': false},
-    });
+    await ts.stepType('StopVeriStand');
   }
 }

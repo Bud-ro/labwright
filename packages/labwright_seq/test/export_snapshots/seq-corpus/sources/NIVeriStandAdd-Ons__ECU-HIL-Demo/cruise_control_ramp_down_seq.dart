@@ -48,10 +48,6 @@ Future<ts.Status> mainSequence() async {
 
   await ts.stepType('InitializeVeriStand', {
     'Veristand': {
-      'ShowProgress': false,
-      'Visible': 'True',
-      'username': '""',
-      'password': '""',
       'GatewayIP': '"localhost"',
       'ProjectPath':
           '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\ECU HIL.nivsproj"',
@@ -75,10 +71,9 @@ Future<ts.Status> mainSequence() async {
 
   await ts.stepType('StartLogging', {
     'Veristand': {
-      'BaseNodeArray': null,
       'LogFilePath':
           '"C:\\\\Users\\\\PasswordIsNI\\\\Documents\\\\HIL ECU demo 2014\\\\VeriStand Project\\\\Logs\\\\Cruise Control(ramp down).tdms"',
-      'ChannelPaths': <dynamic>[
+      'ChannelPaths': [
         'Aliases/Driver controls/Brake',
         'Aliases/Driver controls/Cruise Control/Cruise Active',
         'Aliases/Driver controls/Cruise Control/Cruise Control Accel',
@@ -94,10 +89,8 @@ Future<ts.Status> mainSequence() async {
         'Aliases/State/Vehicle Speed (kmph)',
       ],
       'FileDescription': 'ECU HIL Cruise Control Test ',
-      'FileSegmenting': false,
-      'FileSegmentingSize': 0,
-      'FilePropertyNames': <dynamic>['Author'],
-      'FilePropertyValues': <dynamic>['Don Smith'],
+      'FilePropertyNames': ['Author'],
+      'FilePropertyValues': ['Don Smith'],
     },
   });
   // Ramp down the set speed. Check if actual speed stays within 5 kmph of set speed throughout.
@@ -117,24 +110,17 @@ Future<ts.Status> mainSequence() async {
   await ts.stepType('StopLogging', {}, stopVsLoggingResult);
   locals.tdmsFile = stopVsLoggingResult.Veristand.Location as List<dynamic>;
   stopVsLoggingResult.Status = ts.Status.done;
-  await ts.stepType('DIAdem_OpenReference', {
-    'HostNameExpr': '""',
-    'DIAdemRefExpr': 'Locals.DIAdemRef',
-    'ShowEnvironment': false,
-  });
+  await ts.stepType('DIAdem_OpenReference', {'DIAdemRefExpr': 'Locals.DIAdemRef'});
   await ts.stepType('DIAdem_ExportChannels', {
     'DIAdemRefExpr': 'Locals.DIAdemRef',
     'SourceDataExpr': 'Locals.TDMSFile',
     'ChannelExpr': '"TDMS_File_Name"',
-    'UseName': true,
     'CreateChannel': true,
   });
   await ts.stepType('DIAdem_RunScript', {
     'DIAdemRefExpr': 'Locals.DIAdemRef',
-    'PathExpr': '',
     'Path': 'C:\\Users\\PasswordIsNI\\Documents\\HIL ECU demo 2014\\Diadem Files\\CC.VBS',
     'Synchronous': true,
-    'UsePathExpr': false,
   });
   await Future<void>.delayed(const Duration(seconds: 1));
 

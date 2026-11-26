@@ -509,24 +509,7 @@ Future<void> reservedModelPluginUutDone({
             .ControllerAndSocketSynchronizationManager); // Setup ControllerAndSocketSynchronizationManager
   // If this entry point is called in a new thread, then another entry point for the next UUT might be called before this sequence completes. Both sequences will operate on the same ModelPlugin and ModelPluginConfiguration data structures, but from different threads. Thus, if there is any value or sub-field that you need to save before the next UUT has a chance to operate on it, make a local copy of that value prior to this step.
   if (callingThreadBlocker != null) {
-    await ts.stepType('NI_Notification', {
-      'NameOrRefExpr': 'Parameters.CallingThreadBlocker',
-      'LifetimeRefExpr': '',
-      'TimeoutEnabled': false,
-      'TimeoutExpr': '',
-      'ErrorOnTimeout': true,
-      'AlreadyExistsExpr': '',
-      'NumThreadsWaitingExpr': '',
-      'Operation': 1,
-      'Lifetime': 3,
-      'DataExpr': '',
-      'ByRef': false,
-      'WhichNotificationExpr': '',
-      'IsSetExpr': '',
-      'IsAutoClearExpr': '',
-      'AutoClear': true,
-      'PulseNotifyOpt': 1,
-    });
+    await ts.stepType('NI_Notification', {'NameOrRefExpr': 'Parameters.CallingThreadBlocker', 'Operation': 1});
   }
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -573,24 +556,7 @@ Future<void> reservedModelPluginBatchDone({
             .ControllerAndSocketSynchronizationManager); // Setup ControllerAndSocketSynchronizationManager
   // If this entry point is called in a new thread, then another entry point for the next Batch might be called before this sequence completes. Both sequences will operate on the same ModelPlugin and ModelPluginConfiguration data structures, but from different threads. Thus, if there is any value or sub-field that you need to save before the next Batch has a chance to operate on it, make a local copy of that value prior to this step.
   if (callingThreadBlocker != null) {
-    await ts.stepType('NI_Notification', {
-      'NameOrRefExpr': 'Parameters.CallingThreadBlocker',
-      'LifetimeRefExpr': '',
-      'TimeoutEnabled': false,
-      'TimeoutExpr': '',
-      'ErrorOnTimeout': true,
-      'AlreadyExistsExpr': '',
-      'NumThreadsWaitingExpr': '',
-      'Operation': 1,
-      'Lifetime': 3,
-      'DataExpr': '',
-      'ByRef': false,
-      'WhichNotificationExpr': '',
-      'IsSetExpr': '',
-      'IsAutoClearExpr': '',
-      'AutoClear': true,
-      'PulseNotifyOpt': 1,
-    });
+    await ts.stepType('NI_Notification', {'NameOrRefExpr': 'Parameters.CallingThreadBlocker', 'Operation': 1});
   }
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.

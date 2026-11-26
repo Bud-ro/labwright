@@ -175,17 +175,11 @@ Future<void> mainSequence() async {
       'CsvFilePath': 'C:\\Users\\tester\\Desktop\\test.csv',
       'CsvFilePathExpr': 'FileGlobals.OutputFilePath',
       'OutputRecordStreamExpr': 'FileGlobals.OutputFile',
-      'TagExpr': '',
       'FieldHeadersExpr': 'FileGlobals.Current_Sweep_Step.Input_and_Output',
-      'FieldHeaderMappingExpr': '',
-      'SpecifyPrototype': false,
       'FileOpenModeExpr': 'FileOpenMode_Uniquify',
-      'AutoFlush': false,
       'AttachToExecution': true,
       'ExecutionOutputRecordStreamNameExpr': 'FileGlobals.OutputStream',
-      'ExecutionOutputRecordStreamExpr': '',
       'RecordsToDisplayInReportViewExpr': '100',
-      'SetActiveReport': true,
     });
     ts.setNumElements(
       loadedWaveformIndexes,
@@ -256,7 +250,6 @@ Future<void> mainSequence() async {
       await ts.stepType('NI_WriteRecord', {
         'OutputRecordStreamExpr': 'FileGlobals.OutputStream',
         'RecordExpr': 'FileGlobals.Current_Sweep_Step.Input_and_Output',
-        'FieldMappingExpr': '""',
       });
     }
   } finally {

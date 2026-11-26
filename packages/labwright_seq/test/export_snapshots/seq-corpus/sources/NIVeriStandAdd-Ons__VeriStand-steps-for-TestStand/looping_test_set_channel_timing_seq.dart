@@ -28,7 +28,7 @@ Future<void> mainSequence() async {
 
   for (int counter = 0; counter < locals.timesToRun; counter += 1) {
     await ts.stepType('SetChannelValue', {
-      'Veristand': {'Timeout_ms': -1, 'ValueToSet': '3000', 'ChannelName': '"Aliases/DesiredRPM"'},
+      'Veristand': {'ValueToSet': '3000', 'ChannelName': '"Aliases/DesiredRPM"'},
     });
   }
 }

@@ -6,26 +6,7 @@ String testFlowId = '';
 
 /// Sequence `ProcessSetup` — Runs once at lot start.
 Future<void> processSetup() async {
-  await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.CustomInstrument.RSeries.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.SetupRSeries7822RInstrumentation',
@@ -45,126 +26,30 @@ Future<void> mainSequence() async {
 
   // Provides different digital values to the digital input port and measures the values at digital output port to ensure the measured values match the input values provided.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'TestSettings': {
-      'OfflineModeMeasurementDataOption': 1,
-      'EnableAutoTestNumberGeneration': false,
-      'BaseTestNumber': 1,
-      'TestNumberIncrementPerTestIndex': 1,
-      'TestNumberIncrementPerLoopIteration': 1,
-    },
-    'DotNetRuntimeData': null,
+    'TestSettings': {'OfflineModeMeasurementDataOption': 1},
     'EvaluationFailureOption': 1,
-    'PerSiteInputs': <dynamic>[],
     'Result': {
-      'Evaluations': <dynamic>[
-        ts.PropObj({
-          'EvaluationType': 0,
-          'Pin': '',
+      'Evaluations': [
+        {
           'MeasurementId': 'DigitalOutput_A',
-          'TestNumberExpr': '',
           'TestNumber': 101,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
           'TestName': 'ValidateDigitalOutput A',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
+          'NumericLimit': {
             'LowLimitExpr': 'Locals.ExpectedDigtalData[0]- Locals.Tolerance',
-            'LowLimit': 0,
             'HighLimitExpr': 'Locals.ExpectedDigtalData[0]+Locals.Tolerance',
-            'HighLimit': 0,
             'ComparisonType': 'GELE',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
-        ts.PropObj({
-          'EvaluationType': 0,
-          'Pin': '',
+          },
+        },
+        {
           'MeasurementId': 'DigitalOutput_B',
-          'TestNumberExpr': '',
           'TestNumber': 102,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
           'TestName': 'ValidateDigitalOutput B',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
+          'NumericLimit': {
             'LowLimitExpr': 'Locals.ExpectedDigtalData[1]- Locals.Tolerance',
-            'LowLimit': 0,
             'HighLimitExpr': 'Locals.ExpectedDigtalData[1]+ Locals.Tolerance',
-            'HighLimit': 0,
             'ComparisonType': 'GELE',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
+          },
+        },
       ],
     },
   });
@@ -196,26 +81,7 @@ Future<void> sequenceFileLoad() async {
 
 /// Sequence `ProcessCleanup` — Runs once at lot end.
 Future<void> processCleanup() async {
-  await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.CustomInstrument.RSeries.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.CleanupRSeries7822RInstrumentation',

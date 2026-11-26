@@ -66,48 +66,16 @@ Future<ts.Status> mainSequence() async {
     ],
   });
 
-  await ts.stepType('AddProperty', {
-    'FilePathExpr': '',
-    'FileIdExpr': '',
-    'UploadById': false,
-    'Reporter': null,
-    'KeyExpr': '"Location"',
-    'ValueExpr': '"Austin"',
-  });
-  await ts.stepType('AddProperty', {
-    'FilePathExpr': '',
-    'FileIdExpr': '',
-    'UploadById': false,
-    'Reporter': null,
-    'KeyExpr': '"Voltage (V)"',
-    'ValueExpr': '"1.5"',
-  });
-  await ts.stepType('AddProperty', {
-    'FilePathExpr': '',
-    'FileIdExpr': '',
-    'UploadById': false,
-    'Reporter': null,
-    'KeyExpr': '"Capacity (mAh)"',
-    'ValueExpr': 'Str(Locals.Capacity)',
-  });
-  await ts.stepType('AddProperty', {
-    'FilePathExpr': '',
-    'FileIdExpr': '',
-    'UploadById': false,
-    'Reporter': null,
-    'KeyExpr': '"Composition"',
-    'ValueExpr': '"NiMH"',
-  });
+  await ts.stepType('AddProperty', {'KeyExpr': '"Location"', 'ValueExpr': '"Austin"'});
+  await ts.stepType('AddProperty', {'KeyExpr': '"Voltage (V)"', 'ValueExpr': '"1.5"'});
+  await ts.stepType('AddProperty', {'KeyExpr': '"Capacity (mAh)"', 'ValueExpr': 'Str(Locals.Capacity)'});
+  await ts.stepType('AddProperty', {'KeyExpr': '"Composition"', 'ValueExpr': '"NiMH"'});
   await ts.stepType('EmailNotification', {
     'SendOnErrored': true,
     'SendOnFailed': true,
     'SendOnTerminated': true,
     'SendOnPassed': true,
-    'SendImmediately': false,
     'RecipientExpr': 'Locals.EmailAddress',
-    'TemplateId': '',
-    'AddressGroupId': '',
-    'NotificationStrategyId': '',
   });
   for (locals.cycle = 0; locals.cycle < 500; locals.cycle += 1) {
     chargeAndDischargeResult = ts.PropObj({
@@ -175,7 +143,7 @@ Future<ts.Status> mainSequence() async {
     ]);
     run.record(chargeAndDischargeResult.Status);
   }
-  await ts.stepType('UploadFile', {'FilePathExpr': 'Locals.FilePath', 'FileIdExpr': '', 'UploadById': false});
+  await ts.stepType('UploadFile', {'FilePathExpr': 'Locals.FilePath'});
 
   return run.status;
 }

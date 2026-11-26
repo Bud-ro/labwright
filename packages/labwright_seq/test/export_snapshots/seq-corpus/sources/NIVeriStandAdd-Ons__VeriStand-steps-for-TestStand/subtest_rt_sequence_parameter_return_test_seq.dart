@@ -61,9 +61,6 @@ Future<ts.Status> mainSequence() async {
 
   await ts.stepType('RunRTSequencePassFail', {
     'VeriStand': {
-      'SeqTimeout': -1,
-      'Target': '',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\bool_parameter_with_bool_return.nivsseq"',
       'ParamValuesArray': '{"True","0","0","0","0","0"}',
@@ -77,9 +74,6 @@ Future<ts.Status> mainSequence() async {
   run.record(testBoolParameterReturnResult.Status);
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {
-      'SeqTimeout': -1,
-      'Target': '',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\uint32_parameter_with_uint32_return.nivsseq"',
       'ParamValuesArray': '{"False","0","0","500","0","0"}',
@@ -87,33 +81,12 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Boolean","I32Variable","I64Variable","TestInput","U64Variable","DoubleVariable"}',
       'NumericDataType': '"UInt32"',
     },
-    'Limits': {
-      'UseNominalExpr': false,
-      'UseThresholdTypeExpr': false,
-      'Nominal': 100,
-      'NominalExpr': '',
-      'ThresholdTypeExpr': '',
-      'ThresholdType': 'PERCENTAGE',
-      'Low': 499,
-      'High': 501,
-      'LowExpr': '',
-      'HighExpr': '',
-      'UseLowExpr': false,
-      'UseHighExpr': false,
-    },
-    'Comp': 'GELE',
-    'CompExpr': '',
-    'UseCompExpr': false,
-    'InBuf': '',
-    'DataSource': 'Step.Result.Numeric',
+    'Limits': {'Low': 499, 'High': 501},
   }, testU32ParameterReturnResult);
   testU32ParameterReturnResult.Status = ts.checkLimits(testU32ParameterReturnResult.Numeric, 501, 499, 'GELE');
   run.record(testU32ParameterReturnResult.Status);
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {
-      'SeqTimeout': -1,
-      'Target': '',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\uint64_parameter_with_uint64_return.nivsseq"',
       'ParamValuesArray': '{"0","0","0","0","10","0"}',
@@ -121,33 +94,11 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Boolean","I32Variable","I64Variable","U32Variable","TestInput","DoubleVariable"}',
       'NumericDataType': '"UInt64"',
     },
-    'Limits': {
-      'UseNominalExpr': false,
-      'UseThresholdTypeExpr': false,
-      'Nominal': 100,
-      'NominalExpr': '',
-      'ThresholdTypeExpr': '',
-      'ThresholdType': 'PERCENTAGE',
-      'Low': 9,
-      'High': 11,
-      'LowExpr': '',
-      'HighExpr': '',
-      'UseLowExpr': false,
-      'UseHighExpr': false,
-    },
-    'Comp': 'GELE',
-    'CompExpr': '',
-    'UseCompExpr': false,
-    'InBuf': '',
-    'DataSource': 'Step.Result.Numeric',
   }, testU64ParameterReturnResult);
   testU64ParameterReturnResult.Status = ts.checkLimits(testU64ParameterReturnResult.Numeric, 11, 9, 'GELE');
   run.record(testU64ParameterReturnResult.Status);
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {
-      'SeqTimeout': -1,
-      'Target': '',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\int32_parameter_with_int32_return.nivsseq"',
       'ParamValuesArray': '{"0","10","0","0","0","0"}',
@@ -155,33 +106,11 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Boolean","TestInput","I64Variable","U32Variable","U64Variable","DoubleVariable"}',
       'NumericDataType': '"Int32"',
     },
-    'Limits': {
-      'UseNominalExpr': false,
-      'UseThresholdTypeExpr': false,
-      'Nominal': 100,
-      'NominalExpr': '',
-      'ThresholdTypeExpr': '',
-      'ThresholdType': 'PERCENTAGE',
-      'Low': 9,
-      'High': 11,
-      'LowExpr': '',
-      'HighExpr': '',
-      'UseLowExpr': false,
-      'UseHighExpr': false,
-    },
-    'Comp': 'GELE',
-    'CompExpr': '',
-    'UseCompExpr': false,
-    'InBuf': '',
-    'DataSource': 'Step.Result.Numeric',
   }, testI32ParameterReturnResult);
   testI32ParameterReturnResult.Status = ts.checkLimits(testI32ParameterReturnResult.Numeric, 11, 9, 'GELE');
   run.record(testI32ParameterReturnResult.Status);
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {
-      'SeqTimeout': -1,
-      'Target': '',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\int64_parameter_with_int64_return.nivsseq"',
       'ParamValuesArray': '{"0","0","10","0","0","0"}',
@@ -189,33 +118,11 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Boolean","I32Variable","TestInput","U32Variable","U64Variable","DoubleVariable"}',
       'NumericDataType': '"Int64"',
     },
-    'Limits': {
-      'UseNominalExpr': false,
-      'UseThresholdTypeExpr': false,
-      'Nominal': 100,
-      'NominalExpr': '',
-      'ThresholdTypeExpr': '',
-      'ThresholdType': 'PERCENTAGE',
-      'Low': 9,
-      'High': 11,
-      'LowExpr': '',
-      'HighExpr': '',
-      'UseLowExpr': false,
-      'UseHighExpr': false,
-    },
-    'Comp': 'GELE',
-    'CompExpr': '',
-    'UseCompExpr': false,
-    'InBuf': '',
-    'DataSource': 'Step.Result.Numeric',
   }, testI64ParameterReturnResult);
   testI64ParameterReturnResult.Status = ts.checkLimits(testI64ParameterReturnResult.Numeric, 11, 9, 'GELE');
   run.record(testI64ParameterReturnResult.Status);
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {
-      'SeqTimeout': -1,
-      'Target': '',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\dbl_parameter_with_dbl_return.nivsseq"',
       'ParamValuesArray': '{"0","0","0","0","0","10"}',
@@ -223,25 +130,6 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Boolean","I32Variable","I64Variable","U32Variable","U64Variable","TestInput"}',
       'NumericDataType': '"Double"',
     },
-    'Limits': {
-      'UseNominalExpr': false,
-      'UseThresholdTypeExpr': false,
-      'Nominal': 100,
-      'NominalExpr': '',
-      'ThresholdTypeExpr': '',
-      'ThresholdType': 'PERCENTAGE',
-      'Low': 9,
-      'High': 11,
-      'LowExpr': '',
-      'HighExpr': '',
-      'UseLowExpr': false,
-      'UseHighExpr': false,
-    },
-    'Comp': 'GELE',
-    'CompExpr': '',
-    'UseCompExpr': false,
-    'InBuf': '',
-    'DataSource': 'Step.Result.Numeric',
   }, testDblParamaterReturnResult);
   testDblParamaterReturnResult.Status = ts.checkLimits(testDblParamaterReturnResult.Numeric, 11, 9, 'GELE');
   run.record(testDblParamaterReturnResult.Status);

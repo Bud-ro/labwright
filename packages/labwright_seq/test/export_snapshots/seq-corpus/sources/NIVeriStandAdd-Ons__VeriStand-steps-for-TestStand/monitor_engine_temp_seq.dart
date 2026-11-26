@@ -33,42 +33,8 @@ Future<ts.Status> mainSequence() async {
     // Open and launch Engine Demo VeriStand project.
     await ts.stepType('InitializeVeriStand');
     // Create and initialize notification to stop temperature monitor
-    await ts.stepType('NI_Notification', {
-      'NameOrRefExpr': 'FileGlobals.ThermalNotification',
-      'LifetimeRefExpr': '',
-      'TimeoutEnabled': false,
-      'TimeoutExpr': '',
-      'ErrorOnTimeout': true,
-      'AlreadyExistsExpr': '',
-      'NumThreadsWaitingExpr': '',
-      'Operation': 0,
-      'Lifetime': 3,
-      'DataExpr': '',
-      'ByRef': false,
-      'WhichNotificationExpr': '',
-      'IsSetExpr': '',
-      'IsAutoClearExpr': '',
-      'AutoClear': true,
-      'PulseNotifyOpt': 1,
-    });
-    await ts.stepType('NI_Notification', {
-      'NameOrRefExpr': 'FileGlobals.ThermalNotification',
-      'LifetimeRefExpr': '',
-      'TimeoutEnabled': false,
-      'TimeoutExpr': '',
-      'ErrorOnTimeout': true,
-      'AlreadyExistsExpr': '',
-      'NumThreadsWaitingExpr': '',
-      'Operation': 2,
-      'Lifetime': 3,
-      'DataExpr': '',
-      'ByRef': false,
-      'WhichNotificationExpr': '',
-      'IsSetExpr': '',
-      'IsAutoClearExpr': '',
-      'AutoClear': true,
-      'PulseNotifyOpt': 1,
-    });
+    await ts.stepType('NI_Notification', {'NameOrRefExpr': 'FileGlobals.ThermalNotification'});
+    await ts.stepType('NI_Notification', {'NameOrRefExpr': 'FileGlobals.ThermalNotification', 'Operation': 2});
     // Asynchronously launch temperature monitor
     threads.start(
       'ID#:B+Ta6a1P6BGcPqRMyNgrgD',
@@ -88,10 +54,8 @@ Future<ts.Status> mainSequence() async {
     // Turn engine off and set RPM setpoint to 0
     await ts.stepType('SetMultipleChannelValues', {
       'VeriStand': {
-        'Timeout_ms': -1,
-        'BaseNodeArray': null,
-        'ValuesToSet': <dynamic>['0', '0'],
-        'ChannelNames': <dynamic>[
+        'ValuesToSet': ['0', '0'],
+        'ChannelNames': [
           'Targets/Controller/Simulation Models/Models/Engine Demo/Inports/command_EngineOn',
           'Targets/Controller/Simulation Models/Models/Engine Demo/Inports/command_RPM',
         ],
@@ -100,21 +64,8 @@ Future<ts.Status> mainSequence() async {
     // Send notifcation to temperature monitor and wait until thread stops
     await ts.stepType('NI_Notification', {
       'NameOrRefExpr': 'FileGlobals.ThermalNotification',
-      'LifetimeRefExpr': '',
-      'TimeoutEnabled': false,
-      'TimeoutExpr': '',
-      'ErrorOnTimeout': true,
-      'AlreadyExistsExpr': '',
-      'NumThreadsWaitingExpr': '',
       'Operation': 1,
-      'Lifetime': 3,
       'DataExpr': '1',
-      'ByRef': false,
-      'WhichNotificationExpr': '',
-      'IsSetExpr': '',
-      'IsAutoClearExpr': '',
-      'AutoClear': true,
-      'PulseNotifyOpt': 1,
     });
     if (locals.thermalMonitorThread != null) {
       await threads.wait('ID#:B+Ta6a1P6BGcPqRMyNgrgD'); // Wait
@@ -133,10 +84,7 @@ Future<void> monitorTemperature({double readWait = 0}) async {
       'locals.TemperatureValues.SetNumElements(locals.TemperatureValues.GetNumElements()+1)',
     ); // Add Array Element
     await ts.stepType('GetChannelValue', {
-      'Veristand': {
-        'ValueToSet': '0',
-        'ChannelName': '"Targets/Controller/Simulation Models/Models/Engine Demo/Outports/EngineTemp"',
-      },
+      'Veristand': {'ChannelName': '"Targets/Controller/Simulation Models/Models/Engine Demo/Outports/EngineTemp"'},
     });
     // Add recent temperature reading to the TemperatureValues result array
     ts.eval(
@@ -146,21 +94,8 @@ Future<void> monitorTemperature({double readWait = 0}) async {
     // Check to see if MainSequence has sent a notification to stop
     await ts.stepType('NI_Notification', {
       'NameOrRefExpr': 'FileGlobals.ThermalNotification',
-      'LifetimeRefExpr': '',
-      'TimeoutEnabled': false,
-      'TimeoutExpr': '',
-      'ErrorOnTimeout': true,
-      'AlreadyExistsExpr': '',
-      'NumThreadsWaitingExpr': '',
       'Operation': 5,
-      'Lifetime': 3,
-      'DataExpr': '',
-      'ByRef': false,
-      'WhichNotificationExpr': '',
       'IsSetExpr': 'Locals.Done',
-      'IsAutoClearExpr': '',
-      'AutoClear': true,
-      'PulseNotifyOpt': 1,
     });
   }
   // Add a graph of the TemperatureValues array to the report
@@ -182,7 +117,6 @@ Future<ts.Status> checkEngineRpm({double setpoint = 0, int settleTime = 0, int t
 
   await ts.stepType('SetChannelValue', {
     'Veristand': {
-      'Timeout_ms': -1,
       'ValueToSet': 'Parameters.Setpoint',
       'ChannelName': '"Targets/Controller/Simulation Models/Models/Engine Demo/Inports/command_RPM"',
     },
@@ -190,16 +124,11 @@ Future<ts.Status> checkEngineRpm({double setpoint = 0, int settleTime = 0, int t
   await Future<void>.delayed(Duration(microseconds: (settleTime * 1e6).round()));
   // Check to see if the actual RPM has settled between the Setpoint +/- Tolerance
   await ts.stepType('LimitTestChannelValue', {
-    'Veristand': {
-      'ValueToSet': '0',
-      'ChannelName': '"Targets/Controller/Simulation Models/Models/Engine Demo/Outports/RPM"',
-    },
+    'Veristand': {'ChannelName': '"Targets/Controller/Simulation Models/Models/Engine Demo/Outports/RPM"'},
     'Limits': {
       'UseNominalExpr': true,
-      'UseThresholdTypeExpr': false,
       'Nominal': 0,
       'NominalExpr': 'Parameters.Setpoint',
-      'ThresholdTypeExpr': '',
       'ThresholdType': 'DELTA',
       'Low': 0,
       'High': 0,
@@ -208,11 +137,6 @@ Future<ts.Status> checkEngineRpm({double setpoint = 0, int settleTime = 0, int t
       'UseLowExpr': true,
       'UseHighExpr': true,
     },
-    'Comp': 'GELE',
-    'CompExpr': '',
-    'UseCompExpr': false,
-    'InBuf': '',
-    'DataSource': 'Step.Result.Numeric',
   }, channelValueLimitTestResult);
   channelValueLimitTestResult.Status = ts.eval(
     'CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)',
@@ -240,7 +164,6 @@ Future<void> enginePower() async {
     'Veristand': {
       'FullChannelPath': '"Targets/Controller/Simulation Models/Models/Engine Demo/Parameters/idle speed (RPM)"',
       'TargetName': '"Controller"',
-      'ValueToSet': '',
       'ChannelName': '"idle speed (RPM)"',
     },
   });
@@ -248,7 +171,6 @@ Future<void> enginePower() async {
   // Turn the engine on
   await ts.stepType('SetChannelValue', {
     'Veristand': {
-      'Timeout_ms': -1,
       'ValueToSet': '1',
       'ChannelName': '"Targets/Controller/Simulation Models/Models/Engine Demo/Inports/command_EngineOn"',
     },
@@ -257,10 +179,7 @@ Future<void> enginePower() async {
   while (ts.cond('Locals.Settled == 0')) {
     ts.notExported('wait for timeMultiple'); // Wait
     await ts.stepType('GetChannelValue', {
-      'Veristand': {
-        'ValueToSet': '0',
-        'ChannelName': '"Targets/Controller/Simulation Models/Models/Engine Demo/Outports/RPM"',
-      },
+      'Veristand': {'ChannelName': '"Targets/Controller/Simulation Models/Models/Engine Demo/Outports/RPM"'},
     });
     ts.eval('Locals.CurrentRPM = RunState.PreviousStep.Result.Numeric'); // Set Current RPM
     locals.settled =

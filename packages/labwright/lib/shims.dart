@@ -449,8 +449,14 @@ Future<ModuleOutputs> callActiveX(Object? object, String member, {Map<String, Ob
 /// `ResStr` and `GetResourceString` translation.
 String resourceString(Object? category, Object? tag) => throw UnimplementedError('resource string $category/$tag');
 
+/// Stands for [length] characters of serialized data the export does not decode.
+final class Undecoded {
+  const Undecoded(this.length);
+  final int length;
+}
+
 /// Runs a step of [type], a step type this export does not translate, configured with [properties]: the values the
-/// step sets that differ from the type's defaults. A [result] receives what the step type records.
+/// step sets that differ from its type's defaults. A [result] receives what the step type records.
 Future<void> stepType(String type, [Map<String, Object?> properties = const {}, Object? result]) =>
     throw UnimplementedError('step type $type');
 

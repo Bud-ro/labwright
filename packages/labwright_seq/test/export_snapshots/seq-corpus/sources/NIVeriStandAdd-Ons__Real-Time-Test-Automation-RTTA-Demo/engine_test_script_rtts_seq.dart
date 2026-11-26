@@ -159,23 +159,17 @@ Future<ts.Status> mainSequence() async {
       },
     ); // Get log file path
     locals.logs[0] = outputs6['Latest File Saved'];
-    await ts.stepType('DIAdem_OpenReference', {
-      'HostNameExpr': '""',
-      'DIAdemRefExpr': 'Locals.DIAdemReference',
-      'ShowEnvironment': false,
-    });
+    await ts.stepType('DIAdem_OpenReference', {'DIAdemRefExpr': 'Locals.DIAdemReference'});
     await ts.stepType('DIAdem_ExportChannels', {
       'DIAdemRefExpr': 'Locals.DIAdemReference',
       'SourceDataExpr': 'Locals.Logs',
       'ChannelExpr': '"LogPaths"',
-      'UseName': true,
       'CreateChannel': true,
     });
     await ts.stepType('DIAdem_ExportChannels', {
       'DIAdemRefExpr': 'Locals.DIAdemReference',
       'SourceDataExpr': 'Locals.WorkDir',
       'ChannelExpr': '"WorkDir"',
-      'UseName': true,
       'CreateChannel': true,
     });
     await ts.stepType('DIAdem_RunScript', {
@@ -191,7 +185,6 @@ Future<ts.Status> mainSequence() async {
       'DataExpr': 'Locals.AnalysisResult',
       'FirstChannelExpr': '"Analysis Result"',
       'LastChannelExpr': '"Analysis Result"',
-      'UseName': true,
     });
     locals.testResult = passFailTestMaskAAnalysisVbsResult.PassFail as bool;
     passFailTestMaskAAnalysisVbsResult.PassFail = passFailTestMaskAAnalysisVbsResult.PassFail =

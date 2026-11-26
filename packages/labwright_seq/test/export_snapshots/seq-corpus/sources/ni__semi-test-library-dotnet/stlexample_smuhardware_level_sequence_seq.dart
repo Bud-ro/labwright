@@ -4,26 +4,7 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence` — Runs for each UUT.
 Future<void> mainSequence() async {
   // Forces a basic voltage ramp sequence on specified SMU pins.
-  await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.SMUHardwareLevelSequence.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.ForceVoltageRamp',
@@ -34,126 +15,11 @@ Future<void> mainSequence() async {
   ); // ForceVoltageRamp
   // Configures and initiates a voltage ramp sequence and publishes the max current measured during sequence execution.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'TestSettings': {
-      'OfflineModeMeasurementDataOption': 2,
-      'EnableAutoTestNumberGeneration': false,
-      'BaseTestNumber': 1,
-      'TestNumberIncrementPerTestIndex': 1,
-      'TestNumberIncrementPerLoopIteration': 1,
-    },
-    'DotNetRuntimeData': null,
-    'EvaluationFailureOption': 0,
-    'PerSiteInputs': <dynamic>[],
+    'TestSettings': {'OfflineModeMeasurementDataOption': 2},
     'Result': {
-      'Evaluations': <dynamic>[
-        ts.PropObj({
-          'EvaluationType': 0,
-          'Pin': 'Vdd',
-          'MeasurementId': 'MaxCurrent',
-          'TestNumberExpr': '',
-          'TestNumber': 1000,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
-          'TestName': 'MaxCurrentFromTheSequence',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
-            'LowLimitExpr': '',
-            'LowLimit': 0,
-            'HighLimitExpr': '',
-            'HighLimit': 0,
-            'ComparisonType': 'LOG',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
-        ts.PropObj({
-          'EvaluationType': 0,
-          'Pin': 'Vcc',
-          'MeasurementId': 'MaxCurrent',
-          'TestNumberExpr': '',
-          'TestNumber': 1005,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
-          'TestName': 'MaxCurrentFromTheSequence',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
-            'LowLimitExpr': '',
-            'LowLimit': 0,
-            'HighLimitExpr': '',
-            'HighLimit': 0,
-            'ComparisonType': 'LOG',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
+      'Evaluations': [
+        {'Pin': 'Vdd', 'MeasurementId': 'MaxCurrent', 'TestNumber': 1000, 'TestName': 'MaxCurrentFromTheSequence'},
+        {'Pin': 'Vcc', 'MeasurementId': 'MaxCurrent', 'TestNumber': 1005, 'TestName': 'MaxCurrentFromTheSequence'},
       ],
     },
   });
@@ -166,26 +32,7 @@ Future<void> mainSequence() async {
     },
   ); // ConfigureVoltageRampInitiateAndMeasureCurrent
   // Forces a voltage ramp sequence synchronized across pins.
-  await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.SMUHardwareLevelSequence.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.ForceSynchronizedVoltageRamp',
@@ -195,26 +42,7 @@ Future<void> mainSequence() async {
     },
   ); // ForceSynchronizedVoltageRamp
   // Initiates a previously configured advanced sequence for the specified SMU pins.
-  await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.SMUHardwareLevelSequence.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.InitiateSMUAdvancedSequence',
@@ -228,46 +56,10 @@ Future<void> mainSequence() async {
 
 /// Sequence `ProcessSetup` — Runs once at lot start.
 Future<void> processSetup() async {
-  await ts.stepType('NI_SemiconductorTest_SetupNIDCPowerInstrumentation', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorTest_SetupNIDCPowerInstrumentation');
   // This method call is necessary to ensure the cached instrument session information is consistent between the NationalInstruments.SemiconductorTestLibrary.TestStandSteps assembly and client assembly. as they may not share the same memory space if the client assembly is using a newer version of the NationalInstruments.SemiconductorTestLibrary.Abstractions.
   await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 1,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
+    'Multisite': {'SynchronizationOption': 1},
   });
   await ts.callDotNet(
     'Code Modules\\bin\\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll',
@@ -276,26 +68,7 @@ Future<void> processSetup() async {
   ); // Cache Session Mapping
 
   // Configures an advanced sequence upfront without initializing it, allowing later initiation in the test flow.
-  await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.SMUHardwareLevelSequence.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.ConfigureSMUAdvancedSequence',
@@ -308,26 +81,7 @@ Future<void> processSetup() async {
 
 /// Sequence `ProcessCleanup` — Runs once at lot end.
 Future<void> processCleanup() async {
-  await ts.stepType('NI_SemiconductorTest_CleanupInstrumentation', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorTest_CleanupInstrumentation');
   await ts.callDotNet(
     'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll',
     'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation',

@@ -21,9 +21,6 @@ Future<void> mainSequence({String gatewayIp = ''}) async {
 
   await ts.stepType('RunRTSequenceAction', {
     'Veristand': {
-      'SeqTimeout': -1,
-      'Target': '',
-      'Timeout': 10000,
       'SequenceFilePath':
           '"C:\\\\Tests\\\\veristand_steps\\\\Engine Demo\\\\RT Sequences\\\\Engine Demo Basic with Numeric Return Value.nivsseq"',
       'ParamValuesArray': '{"Aliases/EnginePower","Aliases/DesiredRPM"}',

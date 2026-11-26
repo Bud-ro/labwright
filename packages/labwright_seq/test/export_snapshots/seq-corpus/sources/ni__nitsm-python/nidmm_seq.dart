@@ -4,119 +4,15 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 1,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'EvaluationFailureOption': 0,
-    'PerSiteInputs': <dynamic>[],
+    'Multisite': {'SynchronizationOption': 1},
     'Result': {
-      'Evaluations': <dynamic>[
-        ts.PropObj({
-          'EvaluationType': 0,
+      'Evaluations': [
+        {
           'Pin': 'DUTPin1',
           'MeasurementId': 'NumMissing',
-          'TestNumberExpr': '',
-          'TestNumber': 0,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
-          'TestName': '',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
-            'LowLimitExpr': '0',
-            'LowLimit': 0,
-            'HighLimitExpr': '0',
-            'HighLimit': 0,
-            'ComparisonType': 'GELE',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
-        ts.PropObj({
-          'EvaluationType': 1,
-          'Pin': 'DUTPin1',
-          'MeasurementId': '',
-          'TestNumberExpr': '',
-          'TestNumber': 0,
-          'FailBinExpr': '',
-          'FailBin': -1,
-          'TestNameExpr': '',
-          'TestName': '',
-          'MeasurementSourceExpr': '',
-          'MeasurementDestinationExpr': '',
-          'Status': '',
-          'NumericLimit': ts.PropObj({
-            'Data': 0,
-            'LowLimitExpr': '',
-            'LowLimit': 0,
-            'HighLimitExpr': '',
-            'HighLimit': 0,
-            'ComparisonType': 'LOG',
-            'Units': '',
-            'LowLimitScalingExponent': 0,
-            'HighLimitScalingExponent': 0,
-            'DataScalingExponent': 0,
-            'CorrelationOffset': 0,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': 0, 'PerSite': <dynamic>[]}),
-          }),
-          'PassFail': ts.PropObj({
-            'Data': false,
-            'SimulatedData': ts.PropObj({'SimulatedDataUsageType': 'None', 'AllSites': false, 'PerSite': <dynamic>[]}),
-            'HistoryRAMCycleInformation': null,
-          }),
-          'PartAverageTesting': ts.PropObj({
-            'BaseTestNumber': 0,
-            'Dynamic': ts.PropObj({
-              'Enabled': false,
-              'TestNumber': 0,
-              'TestName': '',
-              'FailBin': -1,
-              'LowLimit': -6,
-              'HighLimit': 6,
-            }),
-            'Static': ts.PropObj({'Enabled': false, 'TestNumber': 0, 'TestName': '', 'FailBin': -1}),
-          }),
-          'RaisedAlarms': '',
-        }),
+          'NumericLimit': {'LowLimitExpr': '0', 'HighLimitExpr': '0', 'ComparisonType': 'GELE'},
+        },
+        {'EvaluationType': 1, 'Pin': 'DUTPin1'},
       ],
     },
   });
@@ -134,26 +30,7 @@ Future<void> mainSequence() async {
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
 Future<void> processSetup() async {
   ts.eval('RunState.Engine.StationOptions.RTEOption = RTEOption_Continue'); // Set run-time error option to avoid dialog
-  await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callPython(
     'nidmm_codemodules.py',
     'open_sessions',
@@ -163,26 +40,7 @@ Future<void> processSetup() async {
 
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
 Future<void> processCleanup() async {
-  await ts.stepType('NI_SemiconductorModule_Action', {
-    'SemiconductorModuleContext': null,
-    'Multisite': {
-      'SynchronizationOption': 2,
-      'SpecifyPinsAndRelaysOption': 0,
-      'PinsAndRelaysExpression': '',
-      'DUTPinFilterOption': 0,
-      'IncludedDUTPins': <dynamic>[],
-      'ExcludedDUTPins': <dynamic>[],
-      'IncludeSystemPins': false,
-      'IncludedPinGroups': <dynamic>[],
-      'SpecifySiteRelays': true,
-      'IncludedSiteRelays': <dynamic>[],
-      'IncludedRelayGroups': <dynamic>[],
-      'IncludedRelayConfigurations': <dynamic>[],
-      'IncludeSystemRelays': false,
-    },
-    'DotNetRuntimeData': null,
-    'PerSiteInputs': <dynamic>[],
-  });
+  await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callPython(
     'nidmm_codemodules.py',
     'close_sessions',

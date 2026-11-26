@@ -5,40 +5,15 @@ import 'package:labwright/shims.dart' as ts;
 Future<void> mainSequence() async {
   try {
     await ts.stepType('NI_VeriStand_OpenProject', {
-      'NI_StepTypeName': 'NI_VeriStand_OpenProject',
-      'VeriStand': {
-        'ProjectPath': 'engine-demo.nivsprj',
-        'ProjectPathExpression': '',
-        'SpecifyProjectPathByExpression': false,
-        'LaunchVeriStand': 'True',
-        'ShowWorkspace': false,
-        'Screens': <dynamic>[],
-      },
+      'VeriStand': {'ProjectPath': 'engine-demo.nivsprj'},
     });
     await ts.stepType('NI_VeriStand_Connect', {
-      'NI_StepTypeName': 'NI_VeriStand_Connect',
-      'VeriStand': {
-        'StepReferenceOutput': '',
-        'SystemDefinitionFilePathExpression': '',
-        'SystemDefinitionFilePath': 'Engine Demo.nivssdf',
-        'CalibrationFilePathExpression': '',
-        'CalibrationFilePath': 'Engine Demo.nivscf',
-        'SpecifyByExpression': false,
-        'GatewayAddress': '"localhost"',
-        'DeploySystemDefinition': 'True',
-        'Timeout': '120000',
-      },
+      'VeriStand': {'SystemDefinitionFilePath': 'Engine Demo.nivssdf', 'CalibrationFilePath': 'Engine Demo.nivscf'},
     });
   } finally {
     await ts.stepType('NI_VeriStand_Disconnect', {
-      'NI_StepTypeName': 'NI_VeriStand_Disconnect',
-      'VeriStand': {
-        'SpecifyDeploymentByExpression': false,
-        'DeploymentReference': '',
-        'ConnectStepId': 'ID#:yO/ZgRlL8RGf1Wz22jzkfC',
-        'UndeploySystemDefinition': 'True',
-      },
+      'VeriStand': {'ConnectStepId': 'ID#:yO/ZgRlL8RGf1Wz22jzkfC'},
     });
-    await ts.stepType('NI_VeriStand_Close', {'NI_StepTypeName': 'NI_VeriStand_Close'});
+    await ts.stepType('NI_VeriStand_Close');
   }
 }
