@@ -142,7 +142,7 @@ Future<void> monitorTemperature({double readWait = 0}) async {
     ts.eval(
       'Locals.TemperatureValues[Locals.TemperatureValues.GetNumElements()-1] = RunState.PreviousStep.Result.Numeric',
     ); // Insert Temperature Reading
-    // Wait: wait for timeMultiple not exported
+    ts.notExported('wait for timeMultiple'); // Wait
     // Check to see if MainSequence has sent a notification to stop
     await ts.stepType('NI_Notification', {
       'NameOrRefExpr': 'FileGlobals.ThermalNotification',
@@ -255,7 +255,7 @@ Future<void> enginePower() async {
   });
   // Wait until the actual RPM of the engine has reached the idle RPM
   while (ts.cond('Locals.Settled == 0')) {
-    // Wait: wait for timeMultiple not exported
+    ts.notExported('wait for timeMultiple'); // Wait
     await ts.stepType('GetChannelValue', {
       'Veristand': {
         'ValueToSet': '0',

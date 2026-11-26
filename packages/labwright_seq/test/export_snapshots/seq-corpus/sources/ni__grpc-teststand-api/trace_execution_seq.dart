@@ -125,7 +125,7 @@ Future<ts.Status> mainSequence() async {
     // sequence call spawns a new execution in the engine — exported as a plain awaited call
     await sequence2(); // Call Sequence 2 In A New Execution
     threads.start('ID#:tfAOLU4q7RGUKgANOl8gKA', sequence3(), waitAtEnd: true); // Call Sequence 3 In A New Thread
-    // Wait For Sequence2 Execution To Finish: wait for execution not exported
+    ts.notExported('wait for execution'); // Wait For Sequence2 Execution To Finish
     await threads.wait('ID#:tfAOLU4q7RGUKgANOl8gKA'); // Wait For Sequence3 Thread To Finish
   } finally {
     ts.eval('RunState.Engine.StationOptions.UIMessageDelay = Locals.OldTracingSpeed'); // Restore Tracing Speed

@@ -2261,7 +2261,7 @@ class _DartExporter {
           if (bind != null) {
             _line(bind);
           } else if (element != null) {
-            _line('// TODO: bind loop element: ${_comment(element)} = <element>');
+            _line("ts.notExported('${_escape('loop element -> $element')}');");
           }
           open.add(_openBlock(flow.kind));
         case FlowKind.selectBlock:
@@ -2303,7 +2303,7 @@ class _DartExporter {
         case FlowKind.sweepLoop:
           final levels = step.sweepLoop == null ? null : _sweepLevels(step.sweepLoop!);
           if (levels == null) {
-            _line('// TODO: ${_comment(flow.header)} not exported; the body runs once');
+            _line("ts.notExported('${_escape(flow.header)}');");
             _line('{$nameNote');
             _indent++;
             open.add(_openBlock(flow.kind));
@@ -2981,7 +2981,7 @@ class _DartExporter {
           _line("await $_asyncId.wait('${_escape(call.id ?? call.name)}'); // $name");
         } else {
           final what = target?.name ?? 'target ${step.waitForTargetCode}';
-          _line('// $name: wait for $what not exported');
+          _line("ts.notExported('${_escape('wait for $what')}'); // $name");
         }
         return;
       case StepType.wait:

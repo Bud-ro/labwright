@@ -360,7 +360,9 @@ Future<void> mainSequence() async {
       locals.waveFormConfigsIdx++;
     }
 
-    // TODO: sweep loop (FileGlobals.Configurations.Generator.RFSGConfig.CarrierFrequency_Hz, FileGlobals.Configurations.Generator.RFSGConfig.DutAverageInputPower_dBm, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Name) not exported; the body runs once
+    ts.notExported(
+      'sweep loop (FileGlobals.Configurations.Generator.RFSGConfig.CarrierFrequency_Hz, FileGlobals.Configurations.Generator.RFSGConfig.DutAverageInputPower_dBm, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Name)',
+    );
     {
       await configure(); // Apply Configurations
       await measure(); // Measure Results

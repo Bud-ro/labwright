@@ -247,7 +247,9 @@ Future<void> mainSequence() async {
       locals.waveFormConfigsIdx++;
     }
 
-    // TODO: sweep loop (FileGlobals.Configurations.Tuner.VSWR._VSWR_k__BackingField, FileGlobals.Configurations.Tuner.VSWR._DegreePhase_k__BackingField, FileGlobals.Configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_, FileGlobals.Configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Index) not exported; the body runs once
+    ts.notExported(
+      'sweep loop (FileGlobals.Configurations.Tuner.VSWR._VSWR_k__BackingField, FileGlobals.Configurations.Tuner.VSWR._DegreePhase_k__BackingField, FileGlobals.Configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_, FileGlobals.Configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Index)',
+    );
     {
       await configure(); // Apply Configurations
       await measure(); // Measure Results
