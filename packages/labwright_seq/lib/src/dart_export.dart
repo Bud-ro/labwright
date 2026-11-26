@@ -2760,7 +2760,16 @@ class _DartExporter {
     }
 
     final pre = settings.preExpression;
-    if (pre != null) _emitStmt(pre, '');
+    final buffered = step.module.legacyPassesInputBuffer == true ? _setsInputBuffer.firstMatch(pre ?? '') : null;
+    _inputBuffer = step.module.legacyPassesInputBuffer != true
+        ? null
+        : buffered != null
+        ? _expr(buffered[1]!)
+        : switch (step.raw.prop('InBuf')?.scalar) {
+            final text? when text.isNotEmpty => "'${_escape(text)}'",
+            _ => null,
+          };
+    if (pre != null && buffered == null) _emitStmt(pre, '');
 
     final hosted = _hostedPhases(step);
     _ownOutputs = {};
@@ -3375,6 +3384,11 @@ class _DartExporter {
   );
   static final _ownMember = RegExp(r'^Step\.\w+(\[\d+\])?$', caseSensitive: false);
 
+  static final _setsInputBuffer = RegExp(r'^\s*Step\.InBuf\s*=(?!=)\s*(.+?)\s*$', caseSensitive: false);
+
+  /// The input buffer a step passes to a VI with the legacy LabVIEW prototype, as Dart.
+  String? _inputBuffer;
+
   /// The step's own properties its code module wrote, by the expression naming them, as the Dart value written.
   Map<String, String> _ownOutputs = {};
   static final _ownError = RegExp(r'^(RunState\.)?Step\.Result\.Error(\.\w+)?$', caseSensitive: false);
@@ -3418,7 +3432,7 @@ class _DartExporter {
         p.prop('Name')?.scalar == 'Return Value' ? (input: false, output: true) : (input: true, output: false);
     void emit(String callee, List<String> positional, Iterable<_ModuleArg> args, {String? instance}) {
       var context = false;
-      final inputs = <String>[];
+      final inputs = <String>[if (_inputBuffer case final buffer?) "'InBuf': $buffer"];
       final outputs = <_ModuleArg>[];
       for (final arg in args) {
         if (_thisContext.hasMatch(arg.bound)) {

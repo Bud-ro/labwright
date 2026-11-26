@@ -72,428 +72,447 @@ Future<ts.Status> mainSequence() async {
   final dynamic tcA070061CastFromLabViewObjectResult = ts.StepResult({'PassFail': true});
   final dynamic tcA010111CloneObjectResult = ts.StepResult({'PassFail': true});
 
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA01-001_ObjectCreationAndDestructionOfBaseclass.vi',
+    inputs: {'InBuf': 1},
   ); // TcA01-001-1 Object creation base class 10 obj
   tcA010011ObjectCreationBaseClass10ObjResult.Status = ts.Status.passFail(
     ts.truthy(tcA010011ObjectCreationBaseClass10ObjResult.PassFail),
   );
   run.record(tcA010011ObjectCreationBaseClass10ObjResult.Status);
-  ts.eval('Step.InBuf=2');
   await ts.callVi(
     'TcA01-001_ObjectCreationAndDestructionOfBaseclass.vi',
+    inputs: {'InBuf': 2},
   ); // TcA01-001-2 Object creation base class 50 obj
   tcA010012ObjectCreationBaseClass50ObjResult.Status = ts.Status.passFail(
     ts.truthy(tcA010012ObjectCreationBaseClass50ObjResult.PassFail),
   );
   run.record(tcA010012ObjectCreationBaseClass50ObjResult.Status);
-  ts.eval('Step.InBuf=3');
   await ts.callVi(
     'TcA01-001_ObjectCreationAndDestructionOfBaseclass.vi',
+    inputs: {'InBuf': 3},
   ); // TcA01-001-3 Object creation base class 300 obj
   tcA010013ObjectCreationBaseClass300ObjResult.Status = ts.Status.passFail(
     ts.truthy(tcA010013ObjectCreationBaseClass300ObjResult.PassFail),
   );
   run.record(tcA010013ObjectCreationBaseClass300ObjResult.Status);
-  ts.eval('Step.InBuf=4');
   await ts.callVi(
     'TcA01-001_ObjectCreationAndDestructionOfBaseclass.vi',
+    inputs: {'InBuf': 4},
   ); // TcA01-001-4 Object creation base class 10 obj Ext Create
   tcA010014ObjectCreationBaseClass10ObjExtCreateResult.Status = ts.Status.passFail(
     ts.truthy(tcA010014ObjectCreationBaseClass10ObjExtCreateResult.PassFail),
   );
   run.record(tcA010014ObjectCreationBaseClass10ObjExtCreateResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA01-002_ObjectCreationAndDestructionOfSubclass.vi',
+    inputs: {'InBuf': 1},
   ); // TcA01-002-1 Object creation sub class 10 obj
   tcA010021ObjectCreationSubClass10ObjResult.Status = ts.Status.passFail(
     ts.truthy(tcA010021ObjectCreationSubClass10ObjResult.PassFail),
   );
   run.record(tcA010021ObjectCreationSubClass10ObjResult.Status);
-  ts.eval('Step.InBuf=2');
   await ts.callVi(
     'TcA01-002_ObjectCreationAndDestructionOfSubclass.vi',
+    inputs: {'InBuf': 2},
   ); // TcA01-002-2 Object creation sub class 50 obj
   tcA010022ObjectCreationSubClass50ObjResult.Status = ts.Status.passFail(
     ts.truthy(tcA010022ObjectCreationSubClass50ObjResult.PassFail),
   );
   run.record(tcA010022ObjectCreationSubClass50ObjResult.Status);
-  ts.eval('Step.InBuf=3');
   await ts.callVi(
     'TcA01-002_ObjectCreationAndDestructionOfSubclass.vi',
+    inputs: {'InBuf': 3},
   ); // TcA01-002-3 Object creation sub class 300 obj
   tcA010023ObjectCreationSubClass300ObjResult.Status = ts.Status.passFail(
     ts.truthy(tcA010023ObjectCreationSubClass300ObjResult.PassFail),
   );
   run.record(tcA010023ObjectCreationSubClass300ObjResult.Status);
-  ts.eval('Step.InBuf=4');
   await ts.callVi(
     'TcA01-002_ObjectCreationAndDestructionOfSubclass.vi',
+    inputs: {'InBuf': 4},
   ); // TcA01-002-4 Object creation sub class 10 obj Ext Create
   tcA010024ObjectCreationSubClass10ObjExtCreateResult.Status = ts.Status.passFail(
     ts.truthy(tcA010024ObjectCreationSubClass10ObjExtCreateResult.PassFail),
   );
   run.record(tcA010024ObjectCreationSubClass10ObjExtCreateResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA01-003_ObjectCreationAndDestructionOfMultipleClasses.vi',
+    inputs: {'InBuf': 1},
   ); // TcA01-003-1 Object creation multiple classes 1 obj
   tcA010031ObjectCreationMultipleClasses1ObjResult.Status = ts.Status.passFail(
     ts.truthy(tcA010031ObjectCreationMultipleClasses1ObjResult.PassFail),
   );
   run.record(tcA010031ObjectCreationMultipleClasses1ObjResult.Status);
-  ts.eval('Step.InBuf=2');
   await ts.callVi(
     'TcA01-003_ObjectCreationAndDestructionOfMultipleClasses.vi',
+    inputs: {'InBuf': 2},
   ); // TcA01-003-2 Object creation multiple classes 50 obj
   tcA010032ObjectCreationMultipleClasses50ObjResult.Status = ts.Status.passFail(
     ts.truthy(tcA010032ObjectCreationMultipleClasses50ObjResult.PassFail),
   );
   run.record(tcA010032ObjectCreationMultipleClasses50ObjResult.Status);
-  ts.eval('Step.InBuf=3');
   await ts.callVi(
     'TcA01-003_ObjectCreationAndDestructionOfMultipleClasses.vi',
+    inputs: {'InBuf': 3},
   ); // TcA01-003-3 Object creation multiple classes 100 ovj
   tcA010033ObjectCreationMultipleClasses100OvjResult.Status = ts.Status.passFail(
     ts.truthy(tcA010033ObjectCreationMultipleClasses100OvjResult.PassFail),
   );
   run.record(tcA010033ObjectCreationMultipleClasses100OvjResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA01-004_ObjectCreationAndDestructionWithDefaultConstructor.vi',
+    inputs: {'InBuf': 1},
   ); // TcA01-004-1 Object creation default constructor
   tcA010041ObjectCreationDefaultConstructorResult.Status = ts.Status.passFail(
     ts.truthy(tcA010041ObjectCreationDefaultConstructorResult.PassFail),
   );
   run.record(tcA010041ObjectCreationDefaultConstructorResult.Status);
-  ts.eval('Step.InBuf=2');
   await ts.callVi(
     'TcA01-004_ObjectCreationAndDestructionWithDefaultConstructor.vi',
+    inputs: {'InBuf': 2},
   ); // TcA01-004-2 Object creation default constructor Ext Create
   tcA010042ObjectCreationDefaultConstructorExtCreateResult.Status = ts.Status.passFail(
     ts.truthy(tcA010042ObjectCreationDefaultConstructorExtCreateResult.PassFail),
   );
   run.record(tcA010042ObjectCreationDefaultConstructorExtCreateResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA01-005_ObjectCreationAndDestructionWithGenericConstructor.vi',
+    inputs: {'InBuf': 1},
   ); // TcA01-005-1 Object creation generic create
   tcA010051ObjectCreationGenericCreateResult.Status = ts.Status.passFail(
     ts.truthy(tcA010051ObjectCreationGenericCreateResult.PassFail),
   );
   run.record(tcA010051ObjectCreationGenericCreateResult.Status);
-  ts.eval('Step.InBuf=2');
   await ts.callVi(
     'TcA01-005_ObjectCreationAndDestructionWithGenericConstructor.vi',
+    inputs: {'InBuf': 2},
   ); // TcA01-005-2 Object creation generic create Ext Create
   tcA010052ObjectCreationGenericCreateExtCreateResult.Status = ts.Status.passFail(
     ts.truthy(tcA010052ObjectCreationGenericCreateExtCreateResult.PassFail),
   );
   run.record(tcA010052ObjectCreationGenericCreateExtCreateResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA01-006_ObjectsCanBeNamedWhenCreated.vi'); // TcA01-006-1 Objects can be named when created
+  await ts.callVi(
+    'TcA01-006_ObjectsCanBeNamedWhenCreated.vi',
+    inputs: {'InBuf': 1},
+  ); // TcA01-006-1 Objects can be named when created
   tcA010061ObjectsCanBeNamedWhenCreatedResult.Status = ts.Status.passFail(
     ts.truthy(tcA010061ObjectsCanBeNamedWhenCreatedResult.PassFail),
   );
   run.record(tcA010061ObjectsCanBeNamedWhenCreatedResult.Status);
-  ts.eval('Step.InBuf=2');
-  await ts.callVi('TcA01-006_ObjectsCanBeNamedWhenCreated.vi'); // TcA01-006-2 Objects can be named when created
+  await ts.callVi(
+    'TcA01-006_ObjectsCanBeNamedWhenCreated.vi',
+    inputs: {'InBuf': 2},
+  ); // TcA01-006-2 Objects can be named when created
   tcA010062ObjectsCanBeNamedWhenCreatedResult.Status = ts.Status.passFail(
     ts.truthy(tcA010062ObjectsCanBeNamedWhenCreatedResult.PassFail),
   );
   run.record(tcA010062ObjectsCanBeNamedWhenCreatedResult.Status);
-  ts.eval('Step.InBuf=3');
-  await ts.callVi('TcA01-006_ObjectsCanBeNamedWhenCreated.vi'); // TcA01-006-3 Objects can be named when created
+  await ts.callVi(
+    'TcA01-006_ObjectsCanBeNamedWhenCreated.vi',
+    inputs: {'InBuf': 3},
+  ); // TcA01-006-3 Objects can be named when created
   tcA010063ObjectsCanBeNamedWhenCreatedResult.Status = ts.Status.passFail(
     ts.truthy(tcA010063ObjectsCanBeNamedWhenCreatedResult.PassFail),
   );
   run.record(tcA010063ObjectsCanBeNamedWhenCreatedResult.Status);
-  ts.eval('Step.InBuf=4');
-  await ts.callVi('TcA01-006_ObjectsCanBeNamedWhenCreated.vi'); // TcA01-006-4 Objects can be named when created
+  await ts.callVi(
+    'TcA01-006_ObjectsCanBeNamedWhenCreated.vi',
+    inputs: {'InBuf': 4},
+  ); // TcA01-006-4 Objects can be named when created
   tcA010064ObjectsCanBeNamedWhenCreatedResult.Status = ts.Status.passFail(
     ts.truthy(tcA010064ObjectsCanBeNamedWhenCreatedResult.PassFail),
   );
   run.record(tcA010064ObjectsCanBeNamedWhenCreatedResult.Status);
-  ts.eval('Step.InBuf=5');
-  await ts.callVi('TcA01-006_ObjectsCanBeNamedWhenCreated.vi'); // TcA01-006-5 Objects can be named when created
+  await ts.callVi(
+    'TcA01-006_ObjectsCanBeNamedWhenCreated.vi',
+    inputs: {'InBuf': 5},
+  ); // TcA01-006-5 Objects can be named when created
   tcA010065ObjectsCanBeNamedWhenCreatedResult.Status = ts.Status.passFail(
     ts.truthy(tcA010065ObjectsCanBeNamedWhenCreatedResult.PassFail),
   );
   run.record(tcA010065ObjectsCanBeNamedWhenCreatedResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA01-007_ObjectsCanBeLookedUpByName.vi'); // TcA01-007-1 Objects can be looked up by name
+  await ts.callVi(
+    'TcA01-007_ObjectsCanBeLookedUpByName.vi',
+    inputs: {'InBuf': 1},
+  ); // TcA01-007-1 Objects can be looked up by name
   tcA010071ObjectsCanBeLookedUpByNameResult.Status = ts.Status.passFail(
     ts.truthy(tcA010071ObjectsCanBeLookedUpByNameResult.PassFail),
   );
   run.record(tcA010071ObjectsCanBeLookedUpByNameResult.Status);
-  ts.eval('Step.InBuf=2');
-  await ts.callVi('TcA01-007_ObjectsCanBeLookedUpByName.vi'); // TcA01-007-2 Objects can be looked up by name Ext Create
+  await ts.callVi(
+    'TcA01-007_ObjectsCanBeLookedUpByName.vi',
+    inputs: {'InBuf': 2},
+  ); // TcA01-007-2 Objects can be looked up by name Ext Create
   tcA010072ObjectsCanBeLookedUpByNameExtCreateResult.Status = ts.Status.passFail(
     ts.truthy(tcA010072ObjectsCanBeLookedUpByNameExtCreateResult.PassFail),
   );
   run.record(tcA010072ObjectsCanBeLookedUpByNameExtCreateResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA01-008_NameObjectsWithUserCounter.vi'); // TcA01-008-1 Name Objects with User Counter
+  await ts.callVi(
+    'TcA01-008_NameObjectsWithUserCounter.vi',
+    inputs: {'InBuf': 1},
+  ); // TcA01-008-1 Name Objects with User Counter
   tcA010081NameObjectsWithUserCounterResult.Status = ts.Status.passFail(
     ts.truthy(tcA010081NameObjectsWithUserCounterResult.PassFail),
   );
   run.record(tcA010081NameObjectsWithUserCounterResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA01-009_ObjectCreationWithNoRegistration.vi',
+    inputs: {'InBuf': 1},
   ); // TcA01-009-1 Object creation with no registration 10 obj
   tcA010091ObjectCreationWithNoRegistration10ObjResult.Status = ts.Status.passFail(
     ts.truthy(tcA010091ObjectCreationWithNoRegistration10ObjResult.PassFail),
   );
   run.record(tcA010091ObjectCreationWithNoRegistration10ObjResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA01-010_GarbageCollectorWithSameOwner.vi'); // TcA01-010-1 Garbage Collector with same owner
+  await ts.callVi(
+    'TcA01-010_GarbageCollectorWithSameOwner.vi',
+    inputs: {'InBuf': 1},
+  ); // TcA01-010-1 Garbage Collector with same owner
   tcA010101GarbageCollectorWithSameOwnerResult.Status = ts.Status.passFail(
     ts.truthy(tcA010101GarbageCollectorWithSameOwnerResult.PassFail),
   );
   run.record(tcA010101GarbageCollectorWithSameOwnerResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA02-001_ReadingLockingAndSettingAnObjectsAttributes.vi',
+    inputs: {'InBuf': 1},
   ); // TcA02-001-1 Reading Locking Setting Attributes
   tcA020011ReadingLockingSettingAttributesResult.Status = ts.Status.passFail(
     ts.truthy(tcA020011ReadingLockingSettingAttributesResult.PassFail),
   );
   run.record(tcA020011ReadingLockingSettingAttributesResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA02-002_ModifyingObjectsAttributesFromInheritedMethods.vi',
+    inputs: {'InBuf': 1},
   ); // TcA02-002-1 Modifying attributes from inherited methods
   tcA020021ModifyingAttributesFromInheritedMethodsResult.Status = ts.Status.passFail(
     ts.truthy(tcA020021ModifyingAttributesFromInheritedMethodsResult.PassFail),
   );
   run.record(tcA020021ModifyingAttributesFromInheritedMethodsResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA02-003_ModifyingObjectAttributesMultipleTimes.vi',
+    inputs: {'InBuf': 1},
   ); // TcA02-003-1 Modifying object attributes multiple times 1 obj 100 times
   tcA020031ModifyingObjectAttributesMultipleTimes1Obj100TimesResult.Status = ts.Status.passFail(
     ts.truthy(tcA020031ModifyingObjectAttributesMultipleTimes1Obj100TimesResult.PassFail),
   );
   run.record(tcA020031ModifyingObjectAttributesMultipleTimes1Obj100TimesResult.Status);
-  ts.eval('Step.InBuf=2');
   await ts.callVi(
     'TcA02-003_ModifyingObjectAttributesMultipleTimes.vi',
+    inputs: {'InBuf': 2},
   ); // TcA02-003-2 Modifying object attributes multiple times 10 obj 10 times
   tcA020032ModifyingObjectAttributesMultipleTimes10Obj10TimesResult.Status = ts.Status.passFail(
     ts.truthy(tcA020032ModifyingObjectAttributesMultipleTimes10Obj10TimesResult.PassFail),
   );
   run.record(tcA020032ModifyingObjectAttributesMultipleTimes10Obj10TimesResult.Status);
-  ts.eval('Step.InBuf=3');
   await ts.callVi(
     'TcA02-004_AttributesCanBeModifiedFasterThanGOOP1.vi',
+    inputs: {'InBuf': 3},
   ); // TcA02-004-3 Attributes could be modified faster that GOOP1 100 obj 100 times
   tcA020043AttributesCouldBeModifiedFasterThatGoop1100Obj100TimesResult.Status = ts.Status.passFail(
     ts.truthy(tcA020043AttributesCouldBeModifiedFasterThatGoop1100Obj100TimesResult.PassFail),
   );
   run.record(tcA020043AttributesCouldBeModifiedFasterThatGoop1100Obj100TimesResult.Status);
-  ts.eval('Step.InBuf=2');
   await ts.callVi(
     'TcA02-005_ResizingAttributesCanBeModifiedFasterThanGOOP1.vi',
+    inputs: {'InBuf': 2},
   ); // TcA02-005-2 Attributes could be resized faster that GOOP1 10 obj 1000 times
   tcA020052AttributesCouldBeResizedFasterThatGoop110Obj1000TimesResult.Status = ts.Status.passFail(
     ts.truthy(tcA020052AttributesCouldBeResizedFasterThatGoop110Obj1000TimesResult.PassFail),
   );
   run.record(tcA020052AttributesCouldBeResizedFasterThatGoop110Obj1000TimesResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA02-007_AttributesCanBeUnlockedWithoutBeingModified.vi',
+    inputs: {'InBuf': 1},
   ); // TcA02-007-1 Attributes can be unlocked without being modified
   tcA020071AttributesCanBeUnlockedWithoutBeingModifiedResult.Status = ts.Status.passFail(
     ts.truthy(tcA020071AttributesCanBeUnlockedWithoutBeingModifiedResult.PassFail),
   );
   run.record(tcA020071AttributesCanBeUnlockedWithoutBeingModifiedResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA02-008_MutualExclusionWhenModifyingAttributes.vi',
+    inputs: {'InBuf': 1},
   ); // TcA02-008-1 Mutual exclusion when modifying attributes
   tcA020081MutualExclusionWhenModifyingAttributesResult.Status = ts.Status.passFail(
     ts.truthy(tcA020081MutualExclusionWhenModifyingAttributesResult.PassFail),
   );
   run.record(tcA020081MutualExclusionWhenModifyingAttributesResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA02-009_TimeoutWhenWaitingForModifyingAttributes.vi',
+    inputs: {'InBuf': 1},
   ); // TcA02-009-1 Timeout when waiting for modifying attributes
   tcA020091TimeoutWhenWaitingForModifyingAttributesResult.Status = ts.Status.passFail(
     ts.truthy(tcA020091TimeoutWhenWaitingForModifyingAttributesResult.PassFail),
   );
   run.record(tcA020091TimeoutWhenWaitingForModifyingAttributesResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA03-002_ReadingLockingAndSettingClassAttributes.vi',
+    inputs: {'InBuf': 1},
   ); // TcA03-002-1 Reading, locking and setting class attributes
   tcA030021ReadingLockingAndSettingClassAttributesResult.Status = ts.Status.passFail(
     ts.truthy(tcA030021ReadingLockingAndSettingClassAttributesResult.PassFail),
   );
   run.record(tcA030021ReadingLockingAndSettingClassAttributesResult.Status);
-  ts.eval('Step.InBuf=2');
   await ts.callVi(
     'TcA03-002_ReadingLockingAndSettingClassAttributes.vi',
+    inputs: {'InBuf': 2},
   ); // TcA03-002-2 Reading, locking and setting class attributes Ext Creator
   tcA030022ReadingLockingAndSettingClassAttributesExtCreatorResult.Status = ts.Status.passFail(
     ts.truthy(tcA030022ReadingLockingAndSettingClassAttributesExtCreatorResult.PassFail),
   );
   run.record(tcA030022ReadingLockingAndSettingClassAttributesExtCreatorResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA03-003_MutualExclusionWhenModifyingClassAttributes.vi',
+    inputs: {'InBuf': 1},
   ); // TcA03-003-1 Mutual exclustion when modifying class attributes
   tcA030031MutualExclustionWhenModifyingClassAttributesResult.Status = ts.Status.passFail(
     ts.truthy(tcA030031MutualExclustionWhenModifyingClassAttributesResult.PassFail),
   );
   run.record(tcA030031MutualExclustionWhenModifyingClassAttributesResult.Status);
-  ts.eval('Step.InBuf=2');
   await ts.callVi(
     'TcA03-003_MutualExclusionWhenModifyingClassAttributes.vi',
+    inputs: {'InBuf': 2},
   ); // TcA03-003-2 Mutual exclustion when modifying class attributes Ext Creator
   tcA030032MutualExclustionWhenModifyingClassAttributesExtCreatorResult.Status = ts.Status.passFail(
     ts.truthy(tcA030032MutualExclustionWhenModifyingClassAttributesExtCreatorResult.PassFail),
   );
   run.record(tcA030032MutualExclustionWhenModifyingClassAttributesExtCreatorResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA03-006_ClassAttributesCanBeUnlockedWithoutBeingModified.vi',
+    inputs: {'InBuf': 1},
   ); // TcA03-006-1 Class attributes can be unlocked without being modified
   tcA030061ClassAttributesCanBeUnlockedWithoutBeingModifiedResult.Status = ts.Status.passFail(
     ts.truthy(tcA030061ClassAttributesCanBeUnlockedWithoutBeingModifiedResult.PassFail),
   );
   run.record(tcA030061ClassAttributesCanBeUnlockedWithoutBeingModifiedResult.Status);
-  ts.eval('Step.InBuf=2');
   await ts.callVi(
     'TcA03-006_ClassAttributesCanBeUnlockedWithoutBeingModified.vi',
+    inputs: {'InBuf': 2},
   ); // TcA03-006-2 Class attributes can be unlocked without being modified Ext Creator
   tcA030062ClassAttributesCanBeUnlockedWithoutBeingModifiedExtCreatorResult.Status = ts.Status.passFail(
     ts.truthy(tcA030062ClassAttributesCanBeUnlockedWithoutBeingModifiedExtCreatorResult.PassFail),
   );
   run.record(tcA030062ClassAttributesCanBeUnlockedWithoutBeingModifiedExtCreatorResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA03-007_TimeoutWhenWaitingForModifyingClassAttributes.vi',
+    inputs: {'InBuf': 1},
   ); // TcA03-007-1 Timeout when waiting for modifying class attributes
   tcA030071TimeoutWhenWaitingForModifyingClassAttributesResult.Status = ts.Status.passFail(
     ts.truthy(tcA030071TimeoutWhenWaitingForModifyingClassAttributesResult.PassFail),
   );
   run.record(tcA030071TimeoutWhenWaitingForModifyingClassAttributesResult.Status);
-  ts.eval('Step.InBuf=2');
   await ts.callVi(
     'TcA04-001_DynamicallyCallSubClassMethods.vi',
+    inputs: {'InBuf': 2},
   ); // TcA04-001-2 Dynamically call sub class methods 10 obj
   tcA040012DynamicallyCallSubClassMethods10ObjResult.Status = ts.Status.passFail(
     ts.truthy(tcA040012DynamicallyCallSubClassMethods10ObjResult.PassFail),
   );
   run.record(tcA040012DynamicallyCallSubClassMethods10ObjResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA04-004_NestedObjectsCallsDynamicMethods.vi'); // TcA04-004-1 Nested objects calls dynamic methods
+  await ts.callVi(
+    'TcA04-004_NestedObjectsCallsDynamicMethods.vi',
+    inputs: {'InBuf': 1},
+  ); // TcA04-004-1 Nested objects calls dynamic methods
   tcA040041NestedObjectsCallsDynamicMethodsResult.Status = ts.Status.passFail(
     ts.truthy(tcA040041NestedObjectsCallsDynamicMethodsResult.PassFail),
   );
   run.record(tcA040041NestedObjectsCallsDynamicMethodsResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA05-001_ImplementingInterfaces.vi'); // TcA05-001-1 Implementing Interfaces
+  await ts.callVi('TcA05-001_ImplementingInterfaces.vi', inputs: {'InBuf': 1}); // TcA05-001-1 Implementing Interfaces
   tcA050011ImplementingInterfacesResult.Status = ts.Status.passFail(
     ts.truthy(tcA050011ImplementingInterfacesResult.PassFail),
   );
   run.record(tcA050011ImplementingInterfacesResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA06-002_DestroyedReferenceErrorHandling.vi'); // TcA06-002-1 Destroyed reference error handling
+  await ts.callVi(
+    'TcA06-002_DestroyedReferenceErrorHandling.vi',
+    inputs: {'InBuf': 1},
+  ); // TcA06-002-1 Destroyed reference error handling
   tcA060021DestroyedReferenceErrorHandlingResult.Status = ts.Status.passFail(
     ts.truthy(tcA060021DestroyedReferenceErrorHandlingResult.PassFail),
   );
   run.record(tcA060021DestroyedReferenceErrorHandlingResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA06-003_ConstructorErrorHandling.vi'); // TcA06-003-1 Constructor error handling
+  await ts.callVi(
+    'TcA06-003_ConstructorErrorHandling.vi',
+    inputs: {'InBuf': 1},
+  ); // TcA06-003-1 Constructor error handling
   tcA060031ConstructorErrorHandlingResult.Status = ts.Status.passFail(
     ts.truthy(tcA060031ConstructorErrorHandlingResult.PassFail),
   );
   run.record(tcA060031ConstructorErrorHandlingResult.Status);
-  ts.eval('Step.InBuf=1');
   await ts.callVi(
     'TcA06-004_ObjectsAreDestroyedEvenIfErrorIn.vi',
+    inputs: {'InBuf': 1},
   ); // TcA06-004-1 Objects are destroyed even if error in 1 obj
   tcA060041ObjectsAreDestroyedEvenIfErrorIn1ObjResult.Status = ts.Status.passFail(
     ts.truthy(tcA060041ObjectsAreDestroyedEvenIfErrorIn1ObjResult.PassFail),
   );
   run.record(tcA060041ObjectsAreDestroyedEvenIfErrorIn1ObjResult.Status);
-  ts.eval('Step.InBuf=2');
   await ts.callVi(
     'TcA06-004_ObjectsAreDestroyedEvenIfErrorIn.vi',
+    inputs: {'InBuf': 2},
   ); // TcA06-004-2 Objects are destroyed even if error in 10 obj
   tcA060042ObjectsAreDestroyedEvenIfErrorIn10ObjResult.Status = ts.Status.passFail(
     ts.truthy(tcA060042ObjectsAreDestroyedEvenIfErrorIn10ObjResult.PassFail),
   );
   run.record(tcA060042ObjectsAreDestroyedEvenIfErrorIn10ObjResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA06-005_MissingAbstractMethod.vi'); // TcA06-005-1 Missing abstract method
+  await ts.callVi('TcA06-005_MissingAbstractMethod.vi', inputs: {'InBuf': 1}); // TcA06-005-1 Missing abstract method
   tcA060051MissingAbstractMethodResult.Status = ts.Status.passFail(
     ts.truthy(tcA060051MissingAbstractMethodResult.PassFail),
   );
   run.record(tcA060051MissingAbstractMethodResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA07-001_ObjectStatusInformation.vi'); // TcA07-001-1 Object status information
+  await ts.callVi(
+    'TcA07-001_ObjectStatusInformation.vi',
+    inputs: {'InBuf': 1},
+  ); // TcA07-001-1 Object status information
   tcA070011ObjectStatusInformationResult.Status = ts.Status.passFail(
     ts.truthy(tcA070011ObjectStatusInformationResult.PassFail),
   );
   run.record(tcA070011ObjectStatusInformationResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA07-002_SupportMethods.vi'); // TcA07-002-1 Support methods
+  await ts.callVi('TcA07-002_SupportMethods.vi', inputs: {'InBuf': 1}); // TcA07-002-1 Support methods
   tcA070021SupportMethodsResult.Status = ts.Status.passFail(ts.truthy(tcA070021SupportMethodsResult.PassFail));
   run.record(tcA070021SupportMethodsResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA07-003_Serialization.vi'); // TcA07-003-1 Serialization
+  await ts.callVi('TcA07-003_Serialization.vi', inputs: {'InBuf': 1}); // TcA07-003-1 Serialization
   tcA070031SerializationResult.Status = ts.Status.passFail(ts.truthy(tcA070031SerializationResult.PassFail));
   run.record(tcA070031SerializationResult.Status);
-  ts.eval('Step.InBuf=2');
-  await ts.callVi('TcA07-003_Serialization.vi'); // TcA07-003-2 Serialization with file
+  await ts.callVi('TcA07-003_Serialization.vi', inputs: {'InBuf': 2}); // TcA07-003-2 Serialization with file
   tcA070032SerializationWithFileResult.Status = ts.Status.passFail(
     ts.truthy(tcA070032SerializationWithFileResult.PassFail),
   );
   run.record(tcA070032SerializationWithFileResult.Status);
-  ts.eval('Step.InBuf=3');
-  await ts.callVi('TcA07-003_Serialization.vi'); // TcA07-003-3 Serialization XML
+  await ts.callVi('TcA07-003_Serialization.vi', inputs: {'InBuf': 3}); // TcA07-003-3 Serialization XML
   tcA070033SerializationXmlResult.Status = ts.Status.passFail(ts.truthy(tcA070033SerializationXmlResult.PassFail));
   run.record(tcA070033SerializationXmlResult.Status);
-  ts.eval('Step.InBuf=4');
-  await ts.callVi('TcA07-003_Serialization.vi'); // TcA07-003-4 Serialization with file XML
+  await ts.callVi('TcA07-003_Serialization.vi', inputs: {'InBuf': 4}); // TcA07-003-4 Serialization with file XML
   tcA070034SerializationWithFileXmlResult.Status = ts.Status.passFail(
     ts.truthy(tcA070034SerializationWithFileXmlResult.PassFail),
   );
   run.record(tcA070034SerializationWithFileXmlResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA07-004_GenericOpen.vi'); // TcA07-004-1 Generic Open
+  await ts.callVi('TcA07-004_GenericOpen.vi', inputs: {'InBuf': 1}); // TcA07-004-1 Generic Open
   tcA070041GenericOpenResult.Status = ts.Status.passFail(ts.truthy(tcA070041GenericOpenResult.PassFail));
   run.record(tcA070041GenericOpenResult.Status);
-  ts.eval('Step.InBuf=2');
-  await ts.callVi('TcA07-004_GenericOpen.vi'); // TcA07-004-2 Generic Open Ext Creator
+  await ts.callVi('TcA07-004_GenericOpen.vi', inputs: {'InBuf': 2}); // TcA07-004-2 Generic Open Ext Creator
   tcA070042GenericOpenExtCreatorResult.Status = ts.Status.passFail(
     ts.truthy(tcA070042GenericOpenExtCreatorResult.PassFail),
   );
   run.record(tcA070042GenericOpenExtCreatorResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA07-005_InterfaceSupportMethods.vi'); // TcA07-005-1 Interface Support Methods
+  await ts.callVi(
+    'TcA07-005_InterfaceSupportMethods.vi',
+    inputs: {'InBuf': 1},
+  ); // TcA07-005-1 Interface Support Methods
   tcA070051InterfaceSupportMethodsResult.Status = ts.Status.passFail(
     ts.truthy(tcA070051InterfaceSupportMethodsResult.PassFail),
   );
   run.record(tcA070051InterfaceSupportMethodsResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA07-006_CastFromLabVIEWObject.vi'); // TcA07-006-1 Cast from LabVIEW Object
+  await ts.callVi('TcA07-006_CastFromLabVIEWObject.vi', inputs: {'InBuf': 1}); // TcA07-006-1 Cast from LabVIEW Object
   tcA070061CastFromLabViewObjectResult.Status = ts.Status.passFail(
     ts.truthy(tcA070061CastFromLabViewObjectResult.PassFail),
   );
   run.record(tcA070061CastFromLabViewObjectResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA01-011_CloneObject.vi'); // TcA01-011-1 Clone Object
+  await ts.callVi('TcA01-011_CloneObject.vi', inputs: {'InBuf': 1}); // TcA01-011-1 Clone Object
   tcA010111CloneObjectResult.Status = ts.Status.passFail(ts.truthy(tcA010111CloneObjectResult.PassFail));
   run.record(tcA010111CloneObjectResult.Status);
-  ts.eval('Step.InBuf=1');
-  await ts.callVi('TcA04-002_ForceParentCallMethods.vi'); // TcA04-002-1 Force Parent Call Methods.vi
+  await ts.callVi(
+    'TcA04-002_ForceParentCallMethods.vi',
+    inputs: {'InBuf': 1},
+  ); // TcA04-002-1 Force Parent Call Methods.vi
 
   return run.status;
 }
