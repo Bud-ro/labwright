@@ -38,7 +38,7 @@ Future<ts.Status> mainSequence() async {
     'Limits': {'Low': 1},
     'Comp': 'EQ',
   }, channelValueLimitTestResult);
-  channelValueLimitTestResult.Status = ts.checkLimits(channelValueLimitTestResult.Numeric, 11, 1, 'EQ');
+  channelValueLimitTestResult.Status = ts.checkLimits(channelValueLimitTestResult.Numeric, 'EQ', low: 1);
   run.record(channelValueLimitTestResult.Status);
   await ts.stepType('SetMultipleChannelValues', {
     'VeriStand': {
@@ -93,7 +93,7 @@ Future<ts.Status> mainSequence() async {
     'Limits': {'Low': 10, 'High': 1},
     'Comp': 'EQ',
   }, rtSequenceNumericLimitResult);
-  rtSequenceNumericLimitResult.Status = ts.checkLimits(rtSequenceNumericLimitResult.Numeric, 1, 10, 'EQ');
+  rtSequenceNumericLimitResult.Status = ts.checkLimits(rtSequenceNumericLimitResult.Numeric, 'EQ', low: 10);
   run.record(rtSequenceNumericLimitResult.Status);
   await ts.stepType('RunRTSequenceAction', {
     'Veristand': {

@@ -13,62 +13,37 @@ Future<ts.Status> mainSequence() async {
   while (ts.truthy(true)) {
     numericLimitTestResult = ts.StepResult({'Numeric': 0});
     await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test
-    numericLimitTestResult.Status = ts.checkLimits(
-      numericLimitTestResult.Numeric = 10,
-      11,
-      9,
-      'GELE',
-      true,
-      100,
-      'PERCENTAGE',
-    );
+    numericLimitTestResult.Status = ts.checkLimits(numericLimitTestResult.Numeric = 10, 'GELE', low: 9, high: 11);
     run.record(numericLimitTestResult.Status);
     numericLimitTest2Result = ts.StepResult({'Numeric': 0});
     await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test 2
-    numericLimitTest2Result.Status = ts.checkLimits(
-      numericLimitTest2Result.Numeric = 12,
-      11,
-      9,
-      'GELE',
-      true,
-      100,
-      'PERCENTAGE',
-    );
+    numericLimitTest2Result.Status = ts.checkLimits(numericLimitTest2Result.Numeric = 12, 'GELE', low: 9, high: 11);
     run.record(numericLimitTest2Result.Status);
     numericLimitTest3Result = ts.StepResult({'Numeric': 0});
     await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test 3
     numericLimitTest3Result.Status = ts.checkLimits(
       numericLimitTest3Result.Numeric = ts.rand(8, 12),
-      11,
-      9,
       'GELE',
-      true,
-      100,
-      'PERCENTAGE',
+      low: 9,
+      high: 11,
     );
     run.record(numericLimitTest3Result.Status);
     numericLimitTest4Result = ts.StepResult({'Numeric': 0});
     await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test 4
     numericLimitTest4Result.Status = ts.checkLimits(
       numericLimitTest4Result.Numeric = ts.rand(8, 12),
-      11,
-      9,
       'GELE',
-      true,
-      100,
-      'PERCENTAGE',
+      low: 9,
+      high: 11,
     );
     run.record(numericLimitTest4Result.Status);
     numericLimitTest5Result = ts.StepResult({'Numeric': 0});
     await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test 5
     numericLimitTest5Result.Status = ts.checkLimits(
       numericLimitTest5Result.Numeric = ts.rand(8, 12),
-      11,
-      9,
       'GELE',
-      true,
-      100,
-      'PERCENTAGE',
+      low: 9,
+      high: 11,
     );
     run.record(numericLimitTest5Result.Status);
     if (ts.cond('GetNumElements(Locals.ResultList) > 50')) {

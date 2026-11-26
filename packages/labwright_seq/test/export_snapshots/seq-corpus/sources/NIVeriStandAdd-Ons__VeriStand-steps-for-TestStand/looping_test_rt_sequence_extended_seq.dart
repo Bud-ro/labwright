@@ -39,7 +39,12 @@ Future<ts.Status> mainSequence() async {
       },
       'Limits': {'Low': 0, 'High': 100},
     }, rtSequenceNumericLimitTestResult);
-    rtSequenceNumericLimitTestResult.Status = ts.checkLimits(rtSequenceNumericLimitTestResult.Numeric, 100, 0, 'GELE');
+    rtSequenceNumericLimitTestResult.Status = ts.checkLimits(
+      rtSequenceNumericLimitTestResult.Numeric,
+      'GELE',
+      low: 0,
+      high: 100,
+    );
     run.record(rtSequenceNumericLimitTestResult.Status);
     rtSequencePassFailTestResult = ts.StepResult({
       'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),

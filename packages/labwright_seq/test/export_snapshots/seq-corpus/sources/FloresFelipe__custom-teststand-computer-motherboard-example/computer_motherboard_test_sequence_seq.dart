@@ -63,14 +63,14 @@ Future<ts.Status> mainSequence() async {
         inputs: {'VideoValue': locals.videoValue},
       ); // Video Test
       videoTestResult.Numeric = outputs5['Latency (µs)'];
-      videoTestResult.Status = ts.checkLimits(videoTestResult.Numeric, 10, 0, 'GTLT', true, 100, 'PERCENTAGE');
+      videoTestResult.Status = ts.checkLimits(videoTestResult.Numeric, 'GTLT', low: 0, high: 10);
       run.record(videoTestResult.Status);
       final outputs6 = await ts.callVi(
         'Modules\\Keyboard Test.vi',
         inputs: {'Number of Keystrokes': locals.keyboardValue},
       ); // Keyboard Test
       keyboardTestResult.Numeric = outputs6['Result'];
-      keyboardTestResult.Status = ts.checkLimits(keyboardTestResult.Numeric, 0, 5, 'GT', true, 100, 'PERCENTAGE');
+      keyboardTestResult.Status = ts.checkLimits(keyboardTestResult.Numeric, 'GT', low: 5);
       run.record(keyboardTestResult.Status);
       // If any of the preceding tests failed, perform diagnositcs on the failed component(s) to get more information on the mode of failure
       if (ts.cond('ThisContext.SequenceFailed')) {
@@ -96,15 +96,7 @@ Future<ts.Status> mainSequence() async {
         if (videoTestResult.Status == 'Failed') {
           final outputs9 = await ts.callVi('Modules\\Video Diagnostics.vi'); // Video Diagnostics
           videoDiagnosticsResult.Numeric = outputs9['Voltage'];
-          videoDiagnosticsResult.Status = ts.checkLimits(
-            videoDiagnosticsResult.Numeric,
-            10,
-            0,
-            'LT',
-            true,
-            100,
-            'PERCENTAGE',
-          );
+          videoDiagnosticsResult.Status = ts.checkLimits(videoDiagnosticsResult.Numeric, 'LT', low: 0);
           run.record(videoDiagnosticsResult.Status);
         } else {
           videoDiagnosticsResult.Status = ts.Status.skipped;
@@ -121,15 +113,7 @@ Future<ts.Status> mainSequence() async {
     } else {
       final outputs11 = await ts.callVi('Modules\\Powerup Diagnostics.vi'); // Powerup Diagnostics
       powerupDiagnosticsResult.Numeric = outputs11['Current'];
-      powerupDiagnosticsResult.Status = ts.checkLimits(
-        powerupDiagnosticsResult.Numeric,
-        10,
-        0,
-        'LOG',
-        true,
-        100,
-        'PERCENTAGE',
-      );
+      powerupDiagnosticsResult.Status = ts.checkLimits(powerupDiagnosticsResult.Numeric, 'LOG');
       run.record(powerupDiagnosticsResult.Status);
     }
   } finally {

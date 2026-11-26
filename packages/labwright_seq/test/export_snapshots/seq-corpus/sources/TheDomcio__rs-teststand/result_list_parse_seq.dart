@@ -12,15 +12,7 @@ Future<ts.Status> mainSequence() async {
   v1PassFailTestResult.Status = ts.truthy(v1PassFailTestResult.PassFail) ? 'Passed' : 'Failed';
   run.record(v1PassFailTestResult.Status);
   // Filler
-  v2NumericLimitTestResult.Status = ts.checkLimits(
-    v2NumericLimitTestResult.Numeric = 3,
-    10,
-    0,
-    'GELE',
-    true,
-    100,
-    'PERCENTAGE',
-  );
+  v2NumericLimitTestResult.Status = ts.checkLimits(v2NumericLimitTestResult.Numeric = 3, 'GELE', low: 0, high: 10);
   run.record(v2NumericLimitTestResult.Status);
   v3StringValueTestResult.String = 'Lorem ipsum';
   v3StringValueTestResult.Status = ts.checkStrLimit(v3StringValueTestResult.String, 'Lorem ipsum', 'IgnoreCase');

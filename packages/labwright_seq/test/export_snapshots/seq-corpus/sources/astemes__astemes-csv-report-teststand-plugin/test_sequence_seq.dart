@@ -8,27 +8,11 @@ Future<ts.Status> mainSequence() async {
   final dynamic stringValueTestResult = ts.StepResult({'String': ''});
   final dynamic numericLimitTestResult2 = ts.StepResult({'Numeric': 0});
 
-  numericLimitTestResult.Status = ts.checkLimits(
-    numericLimitTestResult.Numeric,
-    11,
-    9,
-    'GELE',
-    true,
-    100,
-    'PERCENTAGE',
-  );
+  numericLimitTestResult.Status = ts.checkLimits(numericLimitTestResult.Numeric, 'GELE', low: 9, high: 11);
   run.record(numericLimitTestResult.Status);
   stringValueTestResult.Status = ts.checkStrLimit(stringValueTestResult.String, 'String Limit', 'IgnoreCase');
   run.record(stringValueTestResult.Status);
-  numericLimitTestResult2.Status = ts.checkLimits(
-    numericLimitTestResult2.Numeric = 10,
-    11,
-    9,
-    'GELE',
-    true,
-    100,
-    'PERCENTAGE',
-  );
+  numericLimitTestResult2.Status = ts.checkLimits(numericLimitTestResult2.Numeric = 10, 'GELE', low: 9, high: 11);
   run.record(numericLimitTestResult2.Status);
 
   return run.status;

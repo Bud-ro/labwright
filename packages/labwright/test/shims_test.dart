@@ -100,14 +100,14 @@ void main() {
     expect(List.generate(8, (_) => lw.rand()).toSet().length, greaterThan(1));
   });
   test('checkLimits: the low limit alone for one-sided comparisons, both for ranges', () {
-    expect(ts.checkLimits(5, 0, 5, 'EQ'), ts.Status.passed);
-    expect(ts.checkLimits(6, 0, 5, 'GT'), ts.Status.passed);
-    expect(ts.checkLimits(5, 0, 5, 'GT'), ts.Status.failed);
-    expect(ts.checkLimits(10, 10, 0, 'GELE'), ts.Status.passed);
-    expect(ts.checkLimits(10, 10, 0, 'GELT'), ts.Status.failed);
-    expect(ts.checkLimits(11, 10, 0, 'LTGT'), ts.Status.passed);
-    expect(ts.checkLimits(-1, 1, 0, 'LOG'), ts.Status.passed);
-    expect(() => ts.checkLimits(1, 2, 0, 'EQT'), throwsUnimplementedError);
+    expect(ts.checkLimits(5, 'EQ', low: 5, high: 0), ts.Status.passed);
+    expect(ts.checkLimits(6, 'GT', low: 5, high: 0), ts.Status.passed);
+    expect(ts.checkLimits(5, 'GT', low: 5, high: 0), ts.Status.failed);
+    expect(ts.checkLimits(10, 'GELE', low: 0, high: 10), ts.Status.passed);
+    expect(ts.checkLimits(10, 'GELT', low: 0, high: 10), ts.Status.failed);
+    expect(ts.checkLimits(11, 'LTGT', low: 0, high: 10), ts.Status.passed);
+    expect(ts.checkLimits(-1, 'LOG', low: 0, high: 1), ts.Status.passed);
+    expect(() => ts.checkLimits(1, 'EQT', low: 0, high: 2), throwsUnimplementedError);
   });
   test('checkStrLimit compares with or without case', () {
     expect(ts.checkStrLimit('Abc', 'aBC', 'IgnoreCase'), ts.Status.passed);

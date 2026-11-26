@@ -6,15 +6,7 @@ Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic numericLimitTestResult = ts.StepResult({'Numeric': 0});
 
-  numericLimitTestResult.Status = ts.checkLimits(
-    numericLimitTestResult.Numeric = 10,
-    11,
-    9,
-    'GELE',
-    true,
-    100,
-    'PERCENTAGE',
-  );
+  numericLimitTestResult.Status = ts.checkLimits(numericLimitTestResult.Numeric = 10, 'GELE', low: 9, high: 11);
   run.record(numericLimitTestResult.Status);
   await ts.callDll('', ''); // Generates Load-Time Error
 

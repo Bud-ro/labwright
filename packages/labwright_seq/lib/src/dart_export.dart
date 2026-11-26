@@ -1777,12 +1777,34 @@ class _DartExporter {
     if (function == _SeqFunction.random && codes.any((c) => !_isNumeric(c.type) && c.type != _DartSlot.untyped)) {
       return null;
     }
-    final name = switch (function) {
-      _SeqFunction.resStr || _SeqFunction.getResourceString => 'ts.${function.dart}',
-      _ => 'ts.${function.dart}',
-    };
-    return (code: '$name(${codes.map((c) => c.code).join(', ')})', type: function.result, prec: _Prec.primary);
+    if (function == _SeqFunction.checkLimits) {
+      final [value, high, low, comparison, ...rest] = codes;
+      final known = RegExp(r"^'([A-Z]+)'$").firstMatch(comparison.code)?.group(1);
+      final thresholds = known == null || known == _thresholdComparison;
+      final named = [
+        if (known != _logComparison) 'low: ${low.code}',
+        if (known == null || known.length == 4 || thresholds) 'high: ${high.code}',
+        if (thresholds && rest.length > 1) 'nominal: ${rest[1].code}',
+        if (thresholds && rest.length > 2) 'thresholdType: ${rest[2].code}',
+      ];
+      return (
+        code: 'ts.checkLimits(${[value.code, comparison.code, ...named].join(', ')})',
+        type: function.result,
+        prec: _Prec.primary,
+      );
+    }
+    return (
+      code: 'ts.${function.dart}(${codes.map((c) => c.code).join(', ')})',
+      type: function.result,
+      prec: _Prec.primary,
+    );
   }
+
+  /// The comparison that records a value without judging it, so uses no limit.
+  static const _logComparison = 'LOG';
+
+  /// The comparison whose limits are a nominal value plus and minus thresholds; the only one that uses them.
+  static const _thresholdComparison = 'EQT';
 
   static bool _hasEffects(SeqExpr e) => switch (e) {
     SeqCall(:final callee, :final arguments) =>

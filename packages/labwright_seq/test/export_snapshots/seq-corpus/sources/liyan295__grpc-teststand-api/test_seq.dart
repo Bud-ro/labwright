@@ -7,25 +7,9 @@ Future<ts.Status> mainSequence() async {
   final dynamic numericLimitTestResult = ts.StepResult({'Numeric': 0});
   final dynamic numericLimitTestResult2 = ts.StepResult({'Numeric': 0});
 
-  numericLimitTestResult.Status = ts.checkLimits(
-    numericLimitTestResult.Numeric = 15,
-    20,
-    1,
-    'GELE',
-    true,
-    100,
-    'PERCENTAGE',
-  );
+  numericLimitTestResult.Status = ts.checkLimits(numericLimitTestResult.Numeric = 15, 'GELE', low: 1, high: 20);
   run.record(numericLimitTestResult.Status);
-  numericLimitTestResult2.Status = ts.checkLimits(
-    numericLimitTestResult2.Numeric = 9,
-    11,
-    9,
-    'GELE',
-    true,
-    100,
-    'PERCENTAGE',
-  );
+  numericLimitTestResult2.Status = ts.checkLimits(numericLimitTestResult2.Numeric = 9, 'GELE', low: 9, high: 11);
   run.record(numericLimitTestResult2.Status);
   await ts.messagePopup(
     'Message Popup',

@@ -39,7 +39,12 @@ Future<ts.Status> mainSequence() async {
     },
     'Limits': {'Low': 499, 'High': 501},
   }, testU32ParameterReturnResult);
-  testU32ParameterReturnResult.Status = ts.checkLimits(testU32ParameterReturnResult.Numeric, 501, 499, 'GELE');
+  testU32ParameterReturnResult.Status = ts.checkLimits(
+    testU32ParameterReturnResult.Numeric,
+    'GELE',
+    low: 499,
+    high: 501,
+  );
   run.record(testU32ParameterReturnResult.Status);
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {
@@ -51,7 +56,7 @@ Future<ts.Status> mainSequence() async {
       'NumericDataType': '"UInt64"',
     },
   }, testU64ParameterReturnResult);
-  testU64ParameterReturnResult.Status = ts.checkLimits(testU64ParameterReturnResult.Numeric, 11, 9, 'GELE');
+  testU64ParameterReturnResult.Status = ts.checkLimits(testU64ParameterReturnResult.Numeric, 'GELE', low: 9, high: 11);
   run.record(testU64ParameterReturnResult.Status);
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {
@@ -63,7 +68,7 @@ Future<ts.Status> mainSequence() async {
       'NumericDataType': '"Int32"',
     },
   }, testI32ParameterReturnResult);
-  testI32ParameterReturnResult.Status = ts.checkLimits(testI32ParameterReturnResult.Numeric, 11, 9, 'GELE');
+  testI32ParameterReturnResult.Status = ts.checkLimits(testI32ParameterReturnResult.Numeric, 'GELE', low: 9, high: 11);
   run.record(testI32ParameterReturnResult.Status);
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {
@@ -75,7 +80,7 @@ Future<ts.Status> mainSequence() async {
       'NumericDataType': '"Int64"',
     },
   }, testI64ParameterReturnResult);
-  testI64ParameterReturnResult.Status = ts.checkLimits(testI64ParameterReturnResult.Numeric, 11, 9, 'GELE');
+  testI64ParameterReturnResult.Status = ts.checkLimits(testI64ParameterReturnResult.Numeric, 'GELE', low: 9, high: 11);
   run.record(testI64ParameterReturnResult.Status);
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {
@@ -87,7 +92,7 @@ Future<ts.Status> mainSequence() async {
       'NumericDataType': '"Double"',
     },
   }, testDblParamaterReturnResult);
-  testDblParamaterReturnResult.Status = ts.checkLimits(testDblParamaterReturnResult.Numeric, 11, 9, 'GELE');
+  testDblParamaterReturnResult.Status = ts.checkLimits(testDblParamaterReturnResult.Numeric, 'GELE', low: 9, high: 11);
   run.record(testDblParamaterReturnResult.Status);
 
   return run.status;

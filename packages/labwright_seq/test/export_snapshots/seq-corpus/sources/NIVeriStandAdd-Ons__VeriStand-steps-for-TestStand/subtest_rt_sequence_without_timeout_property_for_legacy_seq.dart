@@ -41,7 +41,12 @@ Future<ts.Status> mainSequence() async {
       'NumericDataType': '"Void"',
     },
   }, rtSequenceNumericLimitTestResult);
-  rtSequenceNumericLimitTestResult.Status = ts.checkLimits(rtSequenceNumericLimitTestResult.Numeric, 11, 9, 'GELE');
+  rtSequenceNumericLimitTestResult.Status = ts.checkLimits(
+    rtSequenceNumericLimitTestResult.Numeric,
+    'GELE',
+    low: 9,
+    high: 11,
+  );
   run.record(rtSequenceNumericLimitTestResult.Status);
   await ts.stepType('RunRTSequencePassFail_2', {
     'VeriStand': {

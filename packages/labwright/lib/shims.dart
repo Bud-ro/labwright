@@ -285,22 +285,27 @@ extension type const Status(String text) implements String {
   static const terminated = Status('Terminated');
 }
 
+/// Judges [value] against [low] and [high] as [comparison], a [LimitComparison] code, says: a comparison named by
+/// one pair of letters uses [low] alone, and `LOG` uses neither.
+///
+/// `CheckLimits` translation, which a Numeric Limit Test's status expression calls. The `EQT` comparison, whose
+/// limits are [nominal] widened by [low] and [high] as [thresholdType] says, is not implemented.
 Status checkLimits(
   Object? value,
-  Object? high,
+  Object? comparison, {
   Object? low,
-  Object? comparison, [
-  Object? doNotCopyToResults,
+  Object? high,
   Object? nominal,
   Object? thresholdType,
-]) {
+}) {
   final judged = LimitComparison.byCode[comparison];
   if (judged == null) throw UnimplementedError('CheckLimits comparison $comparison');
   if (judged == LimitComparison.log) return Status.passed;
-  if (value is! num || low is! num || high is! num) {
+  final upper = high ?? low;
+  if (value is! num || low is! num || upper is! num) {
     throw UnimplementedError('CheckLimits of ${value.runtimeType} against ${low.runtimeType}..${high.runtimeType}');
   }
-  return judged.passes(value, low, high) ? Status.passed : Status.failed;
+  return judged.passes(value, low, upper) ? Status.passed : Status.failed;
 }
 
 Status checkStrLimit(Object? value, Object? limit, Object? comparison, [Object? maxChars]) {
@@ -369,7 +374,7 @@ typedef LimitMeasurement = ({Object? value, String comparison, Object? low, Obje
 ///
 /// `NI_MultipleNumericLimitTest` translation.
 Status multipleNumericLimitTest(List<LimitMeasurement> measurements) =>
-    measurements.every((m) => checkLimits(m.value, m.high, m.low, m.comparison) == Status.passed)
+    measurements.every((m) => checkLimits(m.value, m.comparison, low: m.low, high: m.high) == Status.passed)
     ? Status.passed
     : Status.failed;
 

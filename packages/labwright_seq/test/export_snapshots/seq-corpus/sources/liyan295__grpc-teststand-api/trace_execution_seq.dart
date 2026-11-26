@@ -13,15 +13,7 @@ Future<ts.Status> mainSequence() async {
     ts.eval('Locals.OldTracingSpeed = RunState.Engine.StationOptions.UIMessageDelay'); // Slow Down Tracing
     ts.eval('\r\nRunState.Engine.StationOptions.UIMessageDelay = 150');
 
-    numericLimitTestResult.Status = ts.checkLimits(
-      numericLimitTestResult.Numeric = 10,
-      11,
-      9,
-      'GELE',
-      true,
-      100,
-      'PERCENTAGE',
-    );
+    numericLimitTestResult.Status = ts.checkLimits(numericLimitTestResult.Numeric = 10, 'GELE', low: 9, high: 11);
     run.record(numericLimitTestResult.Status);
     multipleNumericLimitTestResult.Status = ts.multipleNumericLimitTest([
       (value: ts.eval('Step.NumericArray[0]'), comparison: 'GELE', low: 5, high: 11),
