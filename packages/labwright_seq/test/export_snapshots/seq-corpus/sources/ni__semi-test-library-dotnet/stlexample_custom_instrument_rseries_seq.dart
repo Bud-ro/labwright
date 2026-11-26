@@ -10,7 +10,7 @@ Future<void> processSetup() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.CustomInstrument.RSeries.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.SetupRSeries7822RInstrumentation',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Setup RSeries7822R Instrumentation
 }
 
@@ -57,11 +57,11 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.CustomInstrument.RSeries.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.TestStep.DigitalReadWriteTest',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'dutDigitalInputPorts': locals.dutDigitalInputPorts,
       'dutDigitalOutputPorts': locals.dutDigitalOutputPorts,
       'portData': locals.portData,
     },
+    passesContext: true,
   ); // Digital Read Write Test
 }
 
@@ -84,6 +84,6 @@ Future<void> processCleanup() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.CustomInstrument.RSeries.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.RSeries.SetupAndCleanupSteps.CleanupRSeries7822RInstrumentation',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Cleanup RSeries7822R Instrumentation
 }

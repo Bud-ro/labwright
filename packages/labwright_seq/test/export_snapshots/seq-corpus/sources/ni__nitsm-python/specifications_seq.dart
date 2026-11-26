@@ -20,11 +20,8 @@ Future<void> mainSequence() async {
   await ts.callPython(
     'specifications_codemodules.py',
     'measure',
-    inputs: {
-      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
-      'namespaced_symbols': 'DC.vcc_typ',
-      'expected_values': 3.3,
-    },
+    inputs: {'namespaced_symbols': 'DC.vcc_typ', 'expected_values': 3.3},
+    passesContext: true,
   ); // Measure Test
   // Sequence
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -39,10 +36,10 @@ Future<void> mainSequence() async {
     'specifications_codemodules.py',
     'measure',
     inputs: {
-      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
       'namespaced_symbols': <dynamic>['DC.gnd', 'DC.vcc_max', 'DC.vcc_typ'],
       'expected_values': locals.dc,
     },
+    passesContext: true,
   ); // Measure Test
 }
 

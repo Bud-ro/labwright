@@ -226,11 +226,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 21,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Continuity.ResistanceTest,
-      },
+      inputs: {'Relay Action': 21, 'Relays': locals.relays.Continuity.ResistanceTest},
+      passesContext: true,
     ); // Connect SMU0 and SMU1 to pin A and E
     //
     // Uses SMU resources.
@@ -263,11 +260,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Continuity\\VIs\\Continuity_SMUResistanceTest.vi',
-      inputs: {
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Pins': locals.pins.SMU,
-        'DCPower_Parameters': locals.parameters.Continuity.DCPower,
-      },
+      inputs: {'Pins': locals.pins.SMU, 'DCPower_Parameters': locals.parameters.Continuity.DCPower},
+      passesContext: true,
     ); // Continuity - Resistance Test
     //
     // Disconnect the resources from the pins
@@ -276,11 +270,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 20,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Continuity.ResistanceTest,
-      },
+      inputs: {'Relay Action': 20, 'Relays': locals.relays.Continuity.ResistanceTest},
+      passesContext: true,
     ); // Disconnect SMU0 and SMU1 from pin A and E
     //
     // In this example, for Continuity Diode test we test the voltage on hypothetical pin A,B,C,D.
@@ -290,11 +281,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 21,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Continuity.DiodeTest,
-      },
+      inputs: {'Relay Action': 21, 'Relays': locals.relays.Continuity.DiodeTest},
+      passesContext: true,
     ); // Connect PPMU to A,B,C,D
     //
     // Sinking 100uA and measuring Voltage.
@@ -374,11 +362,11 @@ Future<void> mainSequence() async {
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Continuity\\VIs\\Continuity_DiodeTest.vi',
       inputs: {
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
         'Pins': locals.pins.PPMU,
         'PPMU_Parameters': locals.parameters.Continuity.PPMU_GND,
         'Settling (s)': 0.01,
       },
+      passesContext: true,
     ); // Continuity - Diode Test through GND
     //
     // Sourcing 100uA and measuring Voltage.
@@ -458,11 +446,11 @@ Future<void> mainSequence() async {
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Continuity\\VIs\\Continuity_DiodeTest.vi',
       inputs: {
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
         'Pins': locals.pins.PPMU,
         'PPMU_Parameters': locals.parameters.Continuity.PPMU_VDD,
         'Settling (s)': 0.01,
       },
+      passesContext: true,
     ); // Continuity - Diode Test through VDD
     //
     // Disconnect the resources from the pins
@@ -471,11 +459,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 21,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Continuity.DiodeTest,
-      },
+      inputs: {'Relay Action': 21, 'Relays': locals.relays.Continuity.DiodeTest},
+      passesContext: true,
     ); // Disconnect PPMU from  A,B,C,D
     // ---------------------
     // Leakage Test - SMU to force and PPMU to measure
@@ -487,11 +472,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 21,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Leakage,
-      },
+      inputs: {'Relay Action': 21, 'Relays': locals.relays.Leakage},
+      passesContext: true,
     ); // Connect SMU1 to E and PPMU to A,B,C,D
     //
     // Forcing voltage on pin E via SMU0 and measuring leakage on pin A,B,C,D using PPMU.
@@ -571,13 +553,13 @@ Future<void> mainSequence() async {
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Leakage\\VIs\\Leakage_SMU_PPMU_Test.vi',
       inputs: {
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
         'Pin Force': locals.pins.SMU[0],
         'Pins Meas': locals.pins.PPMU,
         'DCPower_Parameters': locals.parameters.Leakage.DCPower_Force,
         'PPMU_Parameters': locals.parameters.Leakage.PPMU_Meas,
         'Settling (s)': 0.01,
       },
+      passesContext: true,
     ); // Leakage - Test
     //
     // Disconnect the resources from the pins
@@ -586,11 +568,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 20,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Leakage,
-      },
+      inputs: {'Relay Action': 20, 'Relays': locals.relays.Leakage},
+      passesContext: true,
     ); // Disconnect SMU1 from E and PPMU from A,B,C,D
     // ---------------------
     // Resistance Test
@@ -601,11 +580,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 21,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Resistance,
-      },
+      inputs: {'Relay Action': 21, 'Relays': locals.relays.Resistance},
+      passesContext: true,
     ); // Connect SMU0 to C and SMU1 to D
     //
     // Uses SMU resources.
@@ -654,11 +630,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Resistance\\VIs\\Resistance_SMUResistanceTest.vi',
-      inputs: {
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Pins': locals.pins.SMU,
-        'DCPower_Parameters': locals.parameters.Resistance,
-      },
+      inputs: {'Pins': locals.pins.SMU, 'DCPower_Parameters': locals.parameters.Resistance},
+      passesContext: true,
     ); // Resistance - Test
     //
     // Disconnect the resources from the pins
@@ -667,11 +640,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 20,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Resistance,
-      },
+      inputs: {'Relay Action': 20, 'Relays': locals.relays.Resistance},
+      passesContext: true,
     ); // Disconnect SMU0 from C and SMU1 from D
     // ---------------------
     // Offset Test- Static and Dynamic
@@ -683,11 +653,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 21,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Offset.Static,
-      },
+      inputs: {'Relay Action': 21, 'Relays': locals.relays.Offset.Static},
+      passesContext: true,
     ); // Connect SMU0 to A, SMU1 to B, V1 to A and V2 to B
     //
     // SCOPE is a shared resource every 2 sites, so this step will call 1 instance every 2 sites.
@@ -736,13 +703,13 @@ Future<void> mainSequence() async {
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Offset\\VIs\\Offset_Static_Dynamic_Test.vi',
       inputs: {
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
         'Pins Force': locals.pins.SMU,
         'Pins Meas': locals.pins.SCOPE,
         'DCPower_Parameters': locals.parameters.Offset.DCPower,
         'SCOPE_Parameters': locals.parameters.Offset.SCOPE,
         'Source Type': 0,
       },
+      passesContext: true,
     ); // Offset - Static Test
     //
     // Disconnect the resources from the pins
@@ -751,11 +718,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 20,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Offset.Static,
-      },
+      inputs: {'Relay Action': 20, 'Relays': locals.relays.Offset.Static},
+      passesContext: true,
     ); // Disconnect SMU0 from A, SMU1 from B, V1 from A and V2 from B
     //
     // For Dynamic measurement FGEN and SCOPE are used.
@@ -765,11 +729,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 21,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Offset.Dynamic,
-      },
+      inputs: {'Relay Action': 21, 'Relays': locals.relays.Offset.Dynamic},
+      passesContext: true,
     ); // Connect FGEN  to A and B, V1 to A and V2 to B
     //
     // SCOPE and FGEN are shared resources every 2 sites, so this step will call 1 instance every 2 sites.
@@ -818,13 +779,13 @@ Future<void> mainSequence() async {
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Offset\\VIs\\Offset_Static_Dynamic_Test.vi',
       inputs: {
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
         'Pins Force': <dynamic>[locals.pins.FGEN],
         'Pins Meas': locals.pins.SCOPE,
         'FGEN_Parameters': locals.parameters.Offset.FGEN,
         'SCOPE_Parameters': locals.parameters.Offset.SCOPE,
         'Source Type': 1,
       },
+      passesContext: true,
     ); // Offset - Dynamic Test
     //
     // Disconnect the resources from the pins
@@ -833,11 +794,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 20,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Offset.Dynamic,
-      },
+      inputs: {'Relay Action': 20, 'Relays': locals.relays.Offset.Dynamic},
+      passesContext: true,
     ); // Disconnect FGEN  from A and B, V1 from A and V2 from B
     // ---------------------
     // Capacitance Test - Voltage Ramp
@@ -848,11 +806,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 21,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Capacitance.VRamp,
-      },
+      inputs: {'Relay Action': 21, 'Relays': locals.relays.Capacitance.VRamp},
+      passesContext: true,
     ); // Connect SMU0 to A and SMU1 to B
     //
     // SMUs have independent sessions so this vi will run 1 instance per site in parallel
@@ -901,11 +856,11 @@ Future<void> mainSequence() async {
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_VoltageRampTest.vi',
       inputs: {
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
         'Pins': locals.pins.SMU,
         'DCPower_Sequence_Parameters': locals.parameters.Capacitance.VRamp,
         'Peak duration (s)': 0.02,
       },
+      passesContext: true,
     ); // Capacitance - Voltage Ramp Test
     //
     // Disconnect the resources from the pins
@@ -914,11 +869,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 20,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Capacitance.VRamp,
-      },
+      inputs: {'Relay Action': 20, 'Relays': locals.relays.Capacitance.VRamp},
+      passesContext: true,
     ); // Disconnect SMU0 from A and SMU1 from B
   }
   // ---------------------
@@ -930,11 +882,8 @@ Future<void> mainSequence() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-    inputs: {
-      'Relay Action': 21,
-      'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-      'Relays': locals.relays.Capacitance.IS,
-    },
+    inputs: {'Relay Action': 21, 'Relays': locals.relays.Capacitance.IS},
+    passesContext: true,
   ); // Connect SMU0, FGEN, V1 and V2 to A
   //
   // Configure the instrument sessions.
@@ -949,13 +898,13 @@ Future<void> mainSequence() async {
     '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_Configure.vi',
     inputs: {
       'DCPower_Parameters': locals.parameters.Capacitance.IS_Bias,
-      'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
       'DCPower Pin': locals.pins.SMU[0],
       'Scope Pins': locals.pins.SCOPE,
       'FGEN Pin': locals.pins.FGEN,
       'SCOPE Parameters': locals.parameters.Capacitance.IS_Meas,
       'FGEN Parameters': locals.parameters.Capacitance.IS_Force,
     },
+    passesContext: true,
   ))['FFT Subset Parameters']; // Capacitance - Impedance Spectroscopy Configure
   //
   // Runs in Calibration configuration performing the measurement and calculating ZRef using a known Capacitance
@@ -974,12 +923,12 @@ Future<void> mainSequence() async {
       '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_Measure.vi',
       inputs: {
         'Data Id': locals.parameters.Capacitance.DataId,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
         'FGEN Parameters': locals.parameters.Capacitance.IS_Force,
         'FGEN Pin': locals.pins.FGEN,
         'SCOPE Pins': locals.pins.SCOPE,
         'DCPower Pin': locals.pins.SMU[0],
       },
+      passesContext: true,
     ); // Capacitance - Impedance Spectroscopy Measure
     //
     // Calculate ZRef using ZCal and FFT of V1 and V2.
@@ -991,10 +940,10 @@ Future<void> mainSequence() async {
       '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_CalculateZRef.vi',
       inputs: {
         'Data Id': locals.parameters.Capacitance.DataId,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
         'FGEN Parameters': locals.parameters.Capacitance.IS_Force,
         'ZCal': 2e-8,
       },
+      passesContext: true,
     ); // Capacitance - Impedance Spectroscopy Calculate ZRef
     ts.notExported('output Frequencies -> StationGlobals.IS_ZRef_Frequencies');
     //
@@ -1014,12 +963,12 @@ Future<void> mainSequence() async {
       '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_Measure.vi',
       inputs: {
         'Data Id': locals.parameters.Capacitance.DataId,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
         'FGEN Parameters': locals.parameters.Capacitance.IS_Force,
         'FGEN Pin': locals.pins.FGEN,
         'SCOPE Pins': locals.pins.SCOPE,
         'DCPower Pin': locals.pins.SMU[0],
       },
+      passesContext: true,
     ); // Capacitance - Impedance Spectroscopy Measure
     //
     // Calculate ZDut using ZRef and FFT of V1 and V2.
@@ -1031,10 +980,10 @@ Future<void> mainSequence() async {
       '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_CalculateZDut.vi',
       inputs: {
         'Data Id': locals.parameters.Capacitance.DataId,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
         'ZRef Real': ts.eval('StationGlobals.IS_ZRef_Real[RunState.TestSockets.MyIndex]'),
         'ZRef Im': ts.eval('StationGlobals.IS_ZRef_Im[RunState.TestSockets.MyIndex]'),
       },
+      passesContext: true,
     ); // Capacitance - Impedance Spectroscopy Calculate ZDut
     //
     // Computes Capacitance and Resonant frequency values from ZDut using linear fitting.
@@ -1082,10 +1031,10 @@ Future<void> mainSequence() async {
       '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_Test.vi',
       inputs: {
         'Published Data Id': 'IS',
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
         'Data Id': locals.parameters.Capacitance.DataId,
         'Frequencies': ts.eval('StationGlobals.IS_ZRef_Frequencies'),
       },
+      passesContext: true,
     ); // Capacitance - Impedance Spectroscopy Test
   }
   //
@@ -1095,11 +1044,8 @@ Future<void> mainSequence() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-    inputs: {
-      'Relay Action': 20,
-      'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-      'Relays': locals.relays.Capacitance.IS,
-    },
+    inputs: {'Relay Action': 20, 'Relays': locals.relays.Capacitance.IS},
+    passesContext: true,
   ); // Disconnect SMU0, FGEN, V1 and V2 from A
   // Run the following tests when in Production configuration
   if (!ts.truthy(locals.parameters.Capacitance.IS_Calibration)) {
@@ -1112,11 +1058,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 21,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Resonance,
-      },
+      inputs: {'Relay Action': 21, 'Relays': locals.relays.Resonance},
+      passesContext: true,
     ); // Connect FGEN to A,B and V1 to A and V2 to B
     //
     // Applying chirp signal on A and B using FGEN and measuring with V1 and V2.
@@ -1195,12 +1138,12 @@ Future<void> mainSequence() async {
       '..\\CodeModules-LabVIEW\\Libraries\\Resonance\\VIs\\Resonance_Test.vi',
       inputs: {
         'Published Data Id': 'resonance',
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
         'FGEN Pin': locals.pins.FGEN,
         'SCOPE Pins': locals.pins.SCOPE,
         'FGEN_Parameters': locals.parameters.Resonance.Force,
         'SCOPE_Parameters': locals.parameters.Resonance.Meas,
       },
+      passesContext: true,
     ); // Resonance - Test
     //
     // Disconnect the resources from the pins
@@ -1209,11 +1152,8 @@ Future<void> mainSequence() async {
     });
     await ts.callVi(
       '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Relay_ConnectDisconnect.vi',
-      inputs: {
-        'Relay Action': 20,
-        'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-        'Relays': locals.relays.Resonance,
-      },
+      inputs: {'Relay Action': 20, 'Relays': locals.relays.Resonance},
+      passesContext: true,
     ); // Disconnect FGEN from A,B and V1 from A and V2 from B
   }
 }
@@ -1262,7 +1202,8 @@ Future<void> processSetup() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Initialize.vi',
-    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 0},
+    inputs: {'Driver': 0},
+    passesContext: true,
   ); // Initialize DCPower Resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'Multisite': {
@@ -1272,7 +1213,8 @@ Future<void> processSetup() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Initialize.vi',
-    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 4},
+    inputs: {'Driver': 4},
+    passesContext: true,
   ); // Initialize PPMU Resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'Multisite': {
@@ -1282,7 +1224,8 @@ Future<void> processSetup() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Initialize.vi',
-    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 1},
+    inputs: {'Driver': 1},
+    passesContext: true,
   ); // Initialize SCOPE Resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'Multisite': {
@@ -1292,14 +1235,16 @@ Future<void> processSetup() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Initialize.vi',
-    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 2},
+    inputs: {'Driver': 2},
+    passesContext: true,
   ); // Initialize FGEN Resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'Multisite': {'DUTPinFilterOption': 1, 'IncludeSystemRelays': true},
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Initialize.vi',
-    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 3},
+    inputs: {'Driver': 3},
+    passesContext: true,
   ); // Initialize Relays Resources
   // ---------------------
   // Configure System Power Supply for Relay Control and Start supplying
@@ -1308,18 +1253,16 @@ Future<void> processSetup() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_DCPower_Configure.vi',
-    inputs: {
-      'DCPower Parameters': locals.parametersRelayControl,
-      'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'),
-      'Pins': pinsRelayControl,
-    },
+    inputs: {'DCPower Parameters': locals.parametersRelayControl, 'Pins': pinsRelayControl},
+    passesContext: true,
   ); // Configure System Power Supply
   await ts.stepType('NI_SemiconductorModule_Action', {
     'Multisite': {'DUTPinFilterOption': 1, 'IncludeSystemPins': true},
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_DCPower_Start.vi',
-    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Pins': pinsRelayControl},
+    inputs: {'Pins': pinsRelayControl},
+    passesContext: true,
   ); // Start System Power Supply
 }
 
@@ -1332,7 +1275,8 @@ Future<void> processCleanup() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_DCPower_0V_Stop.vi',
-    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Pins': pinsRelayControl},
+    inputs: {'Pins': pinsRelayControl},
+    passesContext: true,
   ); // Stop System Power Supply
   // ---------------------
   // Close Hardware Sessions
@@ -1341,7 +1285,8 @@ Future<void> processCleanup() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Close.vi',
-    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 3},
+    inputs: {'Driver': 3},
+    passesContext: true,
   ); // Release Relays resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'Multisite': {
@@ -1351,7 +1296,8 @@ Future<void> processCleanup() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Close.vi',
-    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 2},
+    inputs: {'Driver': 2},
+    passesContext: true,
   ); // Release FGEN resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'Multisite': {
@@ -1361,7 +1307,8 @@ Future<void> processCleanup() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Close.vi',
-    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 1},
+    inputs: {'Driver': 1},
+    passesContext: true,
   ); // Release SCOPE  resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'Multisite': {
@@ -1371,7 +1318,8 @@ Future<void> processCleanup() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Close.vi',
-    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 4},
+    inputs: {'Driver': 4},
+    passesContext: true,
   ); // Release PPMU  resources
   await ts.stepType('NI_SemiconductorModule_Action', {
     'Multisite': {
@@ -1381,7 +1329,8 @@ Future<void> processCleanup() async {
   });
   await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Shared\\VIs\\Shared_Close.vi',
-    inputs: {'Semiconductor Module Context': ts.eval('Step.SemiconductorModuleContext'), 'Driver': 0},
+    inputs: {'Driver': 0},
+    passesContext: true,
   ); // Release DCPower  resources
 }
 

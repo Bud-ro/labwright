@@ -23,7 +23,7 @@ Future<void> processSetup() async {
   await ts.callDotNet(
     'Code Modules\\bin\\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll',
     'NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Cache Session Mapping
 
   // Place any steps here to run once at the start of a lot. |
@@ -32,29 +32,30 @@ Future<void> processSetup() async {
   await ts.callDotNet(
     'Code Modules\\bin\\Accelerometer.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.PowerToggle',
-    inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'), 'powerOn': true},
+    inputs: {'powerOn': true},
+    passesContext: true,
   ); // Power Toggle (on)
   await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(
     'Code Modules\\bin\\Accelerometer.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.SetupVcc',
     inputs: {
-      'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
       'pinsAndPinGroups': <dynamic>['Vcc', 'Gnd'],
     },
+    passesContext: true,
   ); // Setup Vcc
   await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(
     'Code Modules\\bin\\Accelerometer.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.SetupNIScopeForVref',
-    inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Setup NI-SCOPE for Vref
   if (testTemperature == 'Hot') {
     await ts.stepType('NI_SemiconductorModule_Action');
     await ts.callDotNet(
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConfigureTemperatureController',
-      inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext')},
+      passesContext: true,
     ); // Configure temperature controller
   }
 }
@@ -71,7 +72,7 @@ Future<void> mainSequence() async {
       await ts.callDotNet(
         'Code Modules\\bin\\Accelerometer.dll',
         'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.WaitForTemperature',
-        inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext')},
+        passesContext: true,
       ); // Wait for temperature controller to reach desired temp
     }
 
@@ -84,10 +85,8 @@ Future<void> mainSequence() async {
     await ts.callDotNet(
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConnectVRefPin',
-      inputs: {
-        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
-        'relayConfiguration': 'Connect VRef to DIO',
-      },
+      inputs: {'relayConfiguration': 'Connect VRef to DIO'},
+      passesContext: true,
     ); // Connect Vref pin to digital
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'Multisite': {
@@ -153,9 +152,9 @@ Future<void> mainSequence() async {
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestContinuity',
       inputs: {
-        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
         'pinsAndPinGroups': <dynamic>['Digital', 'Vcc', 'Gnd'],
       },
+      passesContext: true,
     ); // Test continuity on all pins
     await ts.stepType('NI_SemiconductorModule_Action', {
       'Multisite': {
@@ -167,9 +166,9 @@ Future<void> mainSequence() async {
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TurnOnPowerToDUT',
       inputs: {
-        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
         'powerSupplyPins': <dynamic>['Vcc'],
       },
+      passesContext: true,
     ); // Turn on power to DUT
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'Multisite': {
@@ -218,9 +217,9 @@ Future<void> mainSequence() async {
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestLeakage',
       inputs: {
-        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
         'pinsAndPinGroups': <dynamic>['Digital'],
       },
+      passesContext: true,
     ); // Test leakage on all digital pins
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'Multisite': {
@@ -266,11 +265,8 @@ Future<void> mainSequence() async {
     await ts.callDotNet(
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestIdlePowerConsumption',
-      inputs: {
-        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
-        'vccPin': 'Vcc',
-        'gndPin': 'Gnd',
-      },
+      inputs: {'vccPin': 'Vcc', 'gndPin': 'Gnd'},
+      passesContext: true,
     ); // Test idle power consumption
     await ts.stepType('NI_SemiconductorModule_Action', {
       'Multisite': {
@@ -281,11 +277,8 @@ Future<void> mainSequence() async {
     await ts.callDotNet(
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetDUTAndSetMode',
-      inputs: {
-        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
-        'rstPin': 'RST',
-        'modePin': 'MODE',
-      },
+      inputs: {'rstPin': 'RST', 'modePin': 'MODE'},
+      passesContext: true,
     ); // Reset DUT and set MODE pin
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'Multisite': {
@@ -308,11 +301,11 @@ Future<void> mainSequence() async {
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.BurstPattern',
       inputs: {
-        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
         'spiPortPins': <dynamic>['SPI_Port'],
         'patternName': 'SetTestMode',
         'publishDataId': 'TestModeVerified',
       },
+      passesContext: true,
     ); // Put DUT into test mode and verify
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'Multisite': {
@@ -335,11 +328,11 @@ Future<void> mainSequence() async {
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.BurstPattern',
       inputs: {
-        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
         'spiPortPins': <dynamic>['SPI_Port'],
         'patternName': 'ReadPartNumber',
         'publishDataId': 'Part Number Match',
       },
+      passesContext: true,
     ); // Test DUT part number register
     if (testFlowId == 'Quality') {
       // Place any test specific steps here to run for each unit under test.
@@ -373,11 +366,11 @@ Future<void> mainSequence() async {
         'Code Modules\\bin\\Accelerometer.dll',
         'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.CheckPartNumberRegisterWithMultipleVccValues',
         inputs: {
-          'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
           'spiPortPins': <dynamic>['SPI_Port'],
           'vccPin': 'Vcc',
           'vccVoltageSymbolsToTest': <dynamic>['DC.Vcc_Max', 'DC.Vcc_Min'],
         },
+        passesContext: true,
       ); // Test DUT part number register at different Vcc values
       await ts.stepType('NI_SemiconductorModule_Action', {
         'Multisite': {
@@ -389,9 +382,9 @@ Future<void> mainSequence() async {
         'Code Modules\\bin\\Accelerometer.dll',
         'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetPowerSupplyToVccTypical',
         inputs: {
-          'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
           'powerSupplyPins': <dynamic>['Vcc'],
         },
+        passesContext: true,
       ); // Reset Vcc to Vcc_Typical
     }
     await ts.stepType('NI_SemiconductorModule_Action', {
@@ -403,10 +396,8 @@ Future<void> mainSequence() async {
     await ts.callDotNet(
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConnectVRefPin',
-      inputs: {
-        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
-        'relayConfiguration': 'Connect VRef to Scope',
-      },
+      inputs: {'relayConfiguration': 'Connect VRef to Scope'},
+      passesContext: true,
     ); // Connect Vref pin to scope
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
       'Multisite': {
@@ -448,7 +439,7 @@ Future<void> mainSequence() async {
     await ts.callDotNet(
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.MeasureVref',
-      inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext')},
+      passesContext: true,
     ); // Measure and verify Vref voltage level
     // Trim each DUT using Vref from previous measurement
     await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -475,9 +466,9 @@ Future<void> mainSequence() async {
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TrimVrefValue',
       inputs: {
-        'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'),
         'spiPortPins': <dynamic>['SPI_Port'],
       },
+      passesContext: true,
     ); // Set Vref calibration register
   } finally {
     // Place any test flow agnostic setup steps here, to run after each unit, regardless of pass/failure results. |
@@ -486,7 +477,7 @@ Future<void> mainSequence() async {
     await ts.callDotNet(
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.DisableInstrumentOutputs',
-      inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext')},
+      passesContext: true,
     ); // Disable instrument outputs
   }
 }
@@ -500,14 +491,15 @@ Future<void> processCleanup() async {
     await ts.callDotNet(
       'Code Modules\\bin\\Accelerometer.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.PowerToggle',
-      inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext'), 'powerOn': false},
+      inputs: {'powerOn': false},
+      passesContext: true,
     ); // Power Toggle (off)
     if (testTemperature == 'Hot') {
       await ts.stepType('NI_SemiconductorModule_Action');
       await ts.callDotNet(
         'Code Modules\\bin\\Accelerometer.dll',
         'NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetAndCloseTemperatureController',
-        inputs: {'semiconductorModuleContext': ts.eval('Step.SemiconductorModuleContext')},
+        passesContext: true,
       ); // Reset and close temperature controller
     }
   } finally {

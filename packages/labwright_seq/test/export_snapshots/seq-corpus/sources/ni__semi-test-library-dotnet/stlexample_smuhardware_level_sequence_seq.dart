@@ -9,9 +9,9 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.SMUHardwareLevelSequence.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.ForceVoltageRamp',
     inputs: {
-      'tsmContext': ts.eval('step.SemiconductorModuleContext'),
       'smuPinNames': <dynamic>['Vdd', 'Vcc'],
     },
+    passesContext: true,
   ); // ForceVoltageRamp
   // Configures and initiates a voltage ramp sequence and publishes the max current measured during sequence execution.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -27,9 +27,9 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.SMUHardwareLevelSequence.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.ConfigureVoltageRampInitiateAndMeasureCurrent',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'smuPinNames': <dynamic>['Vcc', 'Vdd'],
     },
+    passesContext: true,
   ); // ConfigureVoltageRampInitiateAndMeasureCurrent
   // Forces a voltage ramp sequence synchronized across pins.
   await ts.stepType('NI_SemiconductorModule_Action');
@@ -37,9 +37,9 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.SMUHardwareLevelSequence.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.ForceSynchronizedVoltageRamp',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'smuPinNames': <dynamic>['Vcc', 'Vdd'],
     },
+    passesContext: true,
   ); // ForceSynchronizedVoltageRamp
   // Initiates a previously configured advanced sequence for the specified SMU pins.
   await ts.stepType('NI_SemiconductorModule_Action');
@@ -47,10 +47,10 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.SMUHardwareLevelSequence.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.InitiateSMUAdvancedSequence',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'smuPinNames': <dynamic>['Vin', 'Ven'],
       'advanceSequenceName': 'MyAdvancedSequence',
     },
+    passesContext: true,
   ); // InitiateSMUAdvancedSequence
 }
 
@@ -64,7 +64,7 @@ Future<void> processSetup() async {
   await ts.callDotNet(
     'Code Modules\\bin\\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll',
     'NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Cache Session Mapping
 
   // Configures an advanced sequence upfront without initializing it, allowing later initiation in the test flow.
@@ -73,9 +73,9 @@ Future<void> processSetup() async {
     'Code Modules\\bin\\STLExample.SMUHardwareLevelSequence.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUHardwareLevelSequence.TestSteps.ConfigureSMUAdvancedSequence',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'smuPinNames': <dynamic>['Vin', 'Ven'],
     },
+    passesContext: true,
   ); // ConfigureSMUAdvancedSequence
 }
 
@@ -85,7 +85,7 @@ Future<void> processCleanup() async {
   await ts.callDotNet(
     'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll',
     'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Cleanup Instrumentation
 }
 

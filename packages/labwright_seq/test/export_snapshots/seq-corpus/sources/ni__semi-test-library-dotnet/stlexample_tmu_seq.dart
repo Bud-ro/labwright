@@ -37,7 +37,7 @@ Future<void> mainSequence() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.TMU.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureRiseTimeWithSTL',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Measure Rise Time
   // Measure the fall time between a reference pin and a targt pin using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -61,7 +61,7 @@ Future<void> mainSequence() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.TMU.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureFallTimeWithSTL',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Measure Fall Time
   // Measure the period of a digital signal using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -85,7 +85,7 @@ Future<void> mainSequence() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.TMU.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasurePeriodWithSTL',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Measure Period
   // Measure the skew between a reference pin and a targt pin using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -109,7 +109,7 @@ Future<void> mainSequence() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.TMU.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureSkewWithSTL',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Measure Skew
   // Measure the duty cycle ratio of a digital signal using the PXIe-657x's TMU based on the time duration the signal spends in the high state.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -144,7 +144,7 @@ Future<void> mainSequence() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.TMU.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasureDutyCycleWithSTL',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Measure Duty Cycle
   // Measure the pulse width of a digital signal using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -168,7 +168,7 @@ Future<void> mainSequence() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.TMU.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.TMU.TestSteps.MeasurePulseWidthWithSTL',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Measure Pulse Width
 }
 
@@ -190,7 +190,7 @@ Future<void> processSetup() async {
   await ts.callDotNet(
     'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll',
     'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.SetupNIDigitalPatternInstrumentation',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Setup NI Digital Instrumentation
   // This method call is necessary to ensure the cached instrument session information is consistent between the NationalInstruments.SemiconductorTestLibrary.TestStandSteps assembly and client assembly. as they may not share the same memory space if the client assembly is using a newer version of the NationalInstruments.SemiconductorTestLibrary.Abstractions.
   await ts.stepType('NI_SemiconductorModule_Action', {
@@ -199,7 +199,7 @@ Future<void> processSetup() async {
   await ts.callDotNet(
     'Code Modules\\bin\\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll',
     'NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Cache Session Mapping
 }
 
@@ -209,7 +209,7 @@ Future<void> processCleanup() async {
   await ts.callDotNet(
     'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.dll',
     'NationalInstruments.SemiconductorTestLibrary.TestStandSteps.SetupAndCleanupSteps.CleanupInstrumentation',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Cleanup Instrumentation
 }
 

@@ -36,11 +36,11 @@ Future<void> mainSequence() async {
     'nidigital_codemodules.py',
     'measure_ppmu',
     inputs: {
-      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
       'pins': <dynamic>['DUTPin1', 'DUTPin2'],
       'expected_instrument_names': <dynamic>['DigitalPattern1', 'DigitalPattern2'],
       'expected_pin_set_strings': <dynamic>['site0/DUTPin1, site1/DUTPin1', 'site0/DUTPin2, site1/DUTPin2'],
     },
+    passesContext: true,
   ); // Measure PPMU Test
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'Multisite': {'SynchronizationOption': 1},
@@ -59,11 +59,11 @@ Future<void> mainSequence() async {
     'nidigital_codemodules.py',
     'measure_pattern',
     inputs: {
-      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
       'pins': <dynamic>['DUTPin1', 'DUTPin2'],
       'expected_instrument_names': <dynamic>['DigitalPattern1', 'DigitalPattern2'],
       'expected_site_lists': <dynamic>['site0, site1', 'site0, site1'],
     },
+    passesContext: true,
   ); // Measure Pattern Test
   await ts.stepType('NI_SemiconductorModule_Action');
   locals.specificationsPaths =
@@ -136,7 +136,6 @@ Future<void> mainSequence() async {
     'nidigital_codemodules.py',
     'check_project_paths',
     inputs: {
-      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
       'specifications_paths': locals.specificationsPaths,
       'levels_paths': locals.levelsPaths,
       'timing_paths': locals.timingPaths,
@@ -144,6 +143,7 @@ Future<void> mainSequence() async {
       'source_waveform_paths': locals.sourceWaveformPaths,
       'capture_waveform_paths': locals.captureWaveformPaths,
     },
+    passesContext: true,
   ); // Project Paths Test
 }
 
@@ -151,21 +151,13 @@ Future<void> mainSequence() async {
 Future<void> processSetup() async {
   ts.eval('RunState.Engine.StationOptions.RTEOption = RTEOption_Continue'); // Set run-time error option to avoid dialog
   await ts.stepType('NI_SemiconductorModule_Action');
-  await ts.callPython(
-    'nidigital_codemodules.py',
-    'open_sessions',
-    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext')},
-  ); // Open Sessions
+  await ts.callPython('nidigital_codemodules.py', 'open_sessions', passesContext: true); // Open Sessions
 }
 
 /// Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes.
 Future<void> processCleanup() async {
   await ts.stepType('NI_SemiconductorModule_Action');
-  await ts.callPython(
-    'nidigital_codemodules.py',
-    'close_sessions',
-    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext')},
-  ); // Close Sessions
+  await ts.callPython('nidigital_codemodules.py', 'close_sessions', passesContext: true); // Close Sessions
 }
 
 /// Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action.

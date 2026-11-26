@@ -36,12 +36,12 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.SMUMergePinGroup.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinsFIMVThenUnmerge',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'pinGroup': locals.vcc4ch,
       'currentLevel': 0.2,
       'connectedRelayConfiguration': '',
       'disconnectedRelayConfiguration': '',
     },
+    passesContext: true,
   ); // MergeAndFIMV - 4 Channels
   // Case B: pin group with two channels
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -66,13 +66,13 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.SMUMergePinGroup.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinsFIMVThenUnmerge',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'pinGroup': locals.vcc2ch,
       'currentLevel': 0.1,
       'voltageLimit': 4,
       'connectedRelayConfiguration': '',
       'disconnectedRelayConfiguration': '',
     },
+    passesContext: true,
   ); // MergeAndFIMV - 2 Channels
   // Case C: Dynamically Merge and Unmerge Around Steps
   // Merge pin group at sequence level
@@ -80,7 +80,8 @@ Future<void> mainSequence() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.SMUMergePinGroup.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinGroup',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext'), 'pinGroup': locals.vcc4ch},
+    inputs: {'pinGroup': locals.vcc4ch},
+    passesContext: true,
   ); // SMUMergePinGroup
   // This action will be performed on merged Pin Group
   await ts.stepType('NI_SemiconductorTest_ForceVoltageMeasureCurrent', {
@@ -105,18 +106,19 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.SMUMergePinGroup.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.ForceVoltageMeasureCurrent',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'pinsOrPinGroups': <dynamic>[locals.vcc4ch],
       'voltageLevel': 0.4,
       'currentLimit': 0.2,
     },
+    passesContext: true,
   ); // Force Voltage Measure Current (FVMI)
   // Unmerge pin group at sequence level
   await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.SMUMergePinGroup.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUPowerDownAndUnmergePinGroup',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext'), 'pinGroup': locals.vcc4ch},
+    inputs: {'pinGroup': locals.vcc4ch},
+    passesContext: true,
   ); // SMUPowerDownAndUnmergePinGroup
   // Case D: Perform Operation on Statically Merged Pin Group
   // This action will be performed on the merged pin group
@@ -144,11 +146,11 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.SMUMergePinGroup.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.ForceVoltageMeasureCurrent',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'pinsOrPinGroups': <dynamic>[vref],
       'voltageLevel': 0.4,
       'currentLimit': 0.2,
     },
+    passesContext: true,
   ); // Force Voltage Measure Current (FVMI)
 }
 
@@ -163,7 +165,7 @@ Future<void> processSetup() async {
   await ts.callDotNet(
     'Code Modules\\bin\\NationalInstruments.SemiconductorTestLibrary.Abstractions.dll',
     'NationalInstruments.SemiconductorTestLibrary.InstrumentAbstraction.Initialization.MapInitializedInstrumentSessions',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Cache Session Mapping
 
   // Static Merge
@@ -174,7 +176,8 @@ Future<void> processSetup() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.SMUMergePinGroup.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUMergePinGroup',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext'), 'pinGroup': vref},
+    inputs: {'pinGroup': vref},
+    passesContext: true,
   ); // SMUMergePinGroup
 }
 
@@ -186,7 +189,8 @@ Future<void> processCleanup() async {
     await ts.callDotNet(
       'Code Modules\\bin\\STLExample.SMUMergePinGroup.dll',
       'NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUPowerDownAndUnmergePinGroup',
-      inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext'), 'pinGroup': vref},
+      inputs: {'pinGroup': vref},
+      passesContext: true,
     ); // SMUPowerDownAndUnmergePinGroup
   } finally {
     // StaticUnmerge

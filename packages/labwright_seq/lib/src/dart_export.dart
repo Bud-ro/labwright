@@ -2763,6 +2763,7 @@ class _DartExporter {
     if (pre != null) _emitStmt(pre, '');
 
     final hosted = _hostedPhases(step);
+    _ownOutputs = {};
     if (hosted.contains(_SubstepKind.pre)) _emitHostedStep(step, result);
     _emitStepAction(step);
     if (hosted.isNotEmpty && !hosted.contains(_SubstepKind.pre)) _emitHostedStep(step, result);
@@ -3251,11 +3252,12 @@ class _DartExporter {
     String limit(SeqProperty? limits, String name) => prop(limits, 'Use${name}Expr')?.toLowerCase() == 'true'
         ? _expr(prop(limits, '${name}Expr') ?? '0')
         : _propValue(limits?.prop(name) ?? SeqProperty(name: name), {});
+    String value(String raw) => _ownOutputs[raw.trim()] ?? _expr(raw);
     final individual = prop(step.raw, 'UseIndividualDataSources')?.toLowerCase() == 'true';
     final sources = step.raw.prop('DataSourceArray')?.array ?? const <SeqProperty>[];
     final measurements = [
       for (final (i, m) in (step.raw.prop('Result')?.prop('Measurement')?.array ?? const <SeqProperty>[]).indexed)
-        '(value: ${_expr(individual && i < sources.length ? sources[i].scalar ?? '0' : '${prop(step.raw, 'DataSource') ?? 'Step.NumericArray'}[$i]')}, '
+        '(value: ${value(individual && i < sources.length ? sources[i].scalar ?? '0' : '${prop(step.raw, 'DataSource') ?? 'Step.NumericArray'}[$i]')}, '
             "comparison: ${prop(m, 'UseCompExpr')?.toLowerCase() == 'true' ? _text(prop(m, 'CompExpr')) : "'${_escape(prop(m, 'Comp') ?? 'LOG')}'"}, "
             'low: ${limit(m.prop('Limits'), 'Low')}, high: ${limit(m.prop('Limits'), 'High')})',
     ];
@@ -3367,7 +3369,14 @@ class _DartExporter {
     return (callee: stub.name, args: args, note: ': external sequence call', stub: true);
   }
 
-  static final _thisContext = RegExp(r'^(RunState\.)?(ThisContext|SequenceContext)$', caseSensitive: false);
+  static final _thisContext = RegExp(
+    r'^(RunState\.)?(ThisContext|SequenceContext|Step\.SemiconductorModuleContext)$',
+    caseSensitive: false,
+  );
+  static final _ownMember = RegExp(r'^Step\.\w+(\[\d+\])?$', caseSensitive: false);
+
+  /// The step's own properties its code module wrote, by the expression naming them, as the Dart value written.
+  Map<String, String> _ownOutputs = {};
   static final _ownError = RegExp(r'^(RunState\.)?Step\.Result\.Error(\.\w+)?$', caseSensitive: false);
 
   /// The name every adapter gives the parameter that receives a call's value.
@@ -3437,14 +3446,18 @@ class _DartExporter {
         }
       }
       const answer = '\u0000';
+      final own = <String, String>{};
       final stores = [
         for (final output in outputs)
           switch (_assignment(output.bound, "$answer['${_escape(output.name)}']")) {
             final store? when _variable.hasMatch(store.substring(0, store.indexOf(' = '))) => store,
+            _ when _ownMember.hasMatch(output.bound) => own[output.bound] = "$answer['${_escape(output.name)}']",
             _ => "ts.notExported('${_escape('output ${output.name} -> ${output.bound}')}');",
           },
       ];
       final id = stores.any((line) => line.contains(answer)) ? _claimId('outputs') : null;
+      _ownOutputs = {for (final MapEntry(:key, :value) in own.entries) key: value.replaceAll(answer, id!)};
+      stores.removeWhere(own.values.contains);
       _line(id == null ? 'await $call;$note' : 'final $id = await $call;$note');
       for (final line in stores) {
         _line(id == null ? line : line.replaceAll(answer, id));

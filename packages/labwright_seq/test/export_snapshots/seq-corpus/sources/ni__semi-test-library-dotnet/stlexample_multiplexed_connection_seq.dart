@@ -19,11 +19,11 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.MultiplexedConnection.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.TestStep.OneInstrumentChannelToManySitesForOneDutPin',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'dutPinName': 'A',
       'endOfTestingRelayConfigurationName': 'DisconnectDmmFromPinAOnAllSites',
       'multiplexerTypeId': 'NIGenericMultiplexer',
     },
+    passesContext: true,
   ); // Serial DMM Read - Multiplexed
 }
 
@@ -47,7 +47,8 @@ Future<void> processCleanup() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.MultiplexedConnection.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.CleanupGenericMultiplexerSession',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext'), 'multiplexerTypeId': 'NIGenericMultiplexer'},
+    inputs: {'multiplexerTypeId': 'NIGenericMultiplexer'},
+    passesContext: true,
   ); // Cleanup NI Generic Multiplexer
   // Clean Up Instrument Sessions
   await ts.stepType('NI_SemiconductorTest_CleanupInstrumentation');
@@ -64,6 +65,7 @@ Future<void> processSetup() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.MultiplexedConnection.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.MultiplexedConnection.SetupAndCleanupSteps.InitializeGenericMultiplexerSession',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext'), 'multiplexerTypeId': 'NIGenericMultiplexer'},
+    inputs: {'multiplexerTypeId': 'NIGenericMultiplexer'},
+    passesContext: true,
   ); // Setup NI Generic Multiplexer
 }

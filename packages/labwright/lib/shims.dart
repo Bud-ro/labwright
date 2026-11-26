@@ -413,8 +413,8 @@ extension ModuleReturn on Future<ModuleOutputs> {
 
 /// Runs the LabVIEW VI at [path] with [inputs] wired to its controls by label.
 ///
-/// LabVIEW adapter translation. A VI that [passesContext] receives the calling sequence's context and can read and
-/// write its variables. An error on the VI's error out raises [RunTimeError].
+/// LabVIEW adapter translation. A VI that [passesContext] receives the calling sequence's context, or the
+/// Semiconductor Module context made from it, and can read and write the sequence's variables. An error on the VI's error out raises [RunTimeError].
 Future<ModuleOutputs> callVi(String path, {Map<String, Object?> inputs = const {}, bool passesContext = false}) =>
     throw UnimplementedError('VI $path');
 

@@ -10,7 +10,7 @@ Future<void> processSetup() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.CustomInstrument.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.SetupMyCustomInstruments',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Setup Custom Instrument
 }
 
@@ -60,12 +60,12 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.CustomInstrument.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'digitalInputPins': locals.digitalInputPins,
       'analogOutputPins': locals.analogOutputPins,
       'pinData': <dynamic>[0, 0, 0, 0],
       'publishedDataID': locals.publishedDataId,
     },
+    passesContext: true,
   ); // Zero Scale Test
   // Provide '1' input to all digital pins (A, B, C, D) and measure voltage on analog pins (E, F). Then compare the measured values with expected FullScale voltage (VCC).
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -102,12 +102,12 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.CustomInstrument.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'digitalInputPins': locals.digitalInputPins,
       'analogOutputPins': locals.analogOutputPins,
       'pinData': <dynamic>[1, 1, 1, 1],
       'publishedDataID': locals.publishedDataId,
     },
+    passesContext: true,
   ); // Full Scale Test
   // Provide different test inputs on digital pins (A, B, C, D) for e.g  provide {0,1,0,1} and measure analog  pins (E, F). Then compare the measured values with equivalent analog values.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -144,12 +144,12 @@ Future<void> mainSequence() async {
     'Code Modules\\bin\\STLExample.CustomInstrument.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.TestStep.FunctionalTest',
     inputs: {
-      'tsmContext': ts.eval('Step.SemiconductorModuleContext'),
       'digitalInputPins': locals.digitalInputPins,
       'analogOutputPins': locals.analogOutputPins,
       'pinData': locals.pinData,
       'publishedDataID': locals.publishedDataId,
     },
+    passesContext: true,
   ); // Functional Test
 }
 
@@ -171,6 +171,6 @@ Future<void> processCleanup() async {
   await ts.callDotNet(
     'Code Modules\\bin\\STLExample.CustomInstrument.dll',
     'NationalInstruments.Examples.SemiconductorTestLibrary.CustomInstrument.SetupAndCleanupSteps.CleanupMyCustomInstruments',
-    inputs: {'tsmContext': ts.eval('Step.SemiconductorModuleContext')},
+    passesContext: true,
   ); // Cleanup Custom Instrument
 }

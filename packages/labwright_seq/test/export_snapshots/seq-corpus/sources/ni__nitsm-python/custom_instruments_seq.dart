@@ -19,13 +19,13 @@ Future<void> mainSequence() async {
     'custom_instruments_codemodules.py',
     'measure',
     inputs: {
-      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
       'instrument_type_id': 'Relay1_Id',
       'pins': <dynamic>['DUTPin1'],
       'expected_instrument_names': <dynamic>['PXI0::16'],
       'expected_channel_group_ids': <dynamic>['ChannelGroup'],
       'expected_channel_lists': <dynamic>['Ch0, Ch1'],
     },
+    passesContext: true,
   ); // Measure Test
 }
 
@@ -36,7 +36,8 @@ Future<void> processSetup() async {
   await ts.callPython(
     'custom_instruments_codemodules.py',
     'open_sessions',
-    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext'), 'instrument_type_id': 'Relay1_Id'},
+    inputs: {'instrument_type_id': 'Relay1_Id'},
+    passesContext: true,
   ); // Open Sessions
 }
 
@@ -46,7 +47,8 @@ Future<void> processCleanup() async {
   await ts.callPython(
     'custom_instruments_codemodules.py',
     'close_sessions',
-    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext'), 'instrument_type_id': 'Relay1_Id'},
+    inputs: {'instrument_type_id': 'Relay1_Id'},
+    passesContext: true,
   ); // Close Sessions
 }
 

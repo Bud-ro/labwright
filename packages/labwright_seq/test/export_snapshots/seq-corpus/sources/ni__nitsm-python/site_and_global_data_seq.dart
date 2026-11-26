@@ -8,7 +8,8 @@ Future<void> mainSequence() async {
   await ts.callPython(
     'site_and_global_data_codemodules.py',
     'set_global_data',
-    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext'), 'data_id': 'GlobalData', 'data': 'String'},
+    inputs: {'data_id': 'GlobalData', 'data': 'String'},
+    passesContext: true,
   ); // Set Global Data
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'Multisite': {'SynchronizationOption': 1},
@@ -22,7 +23,8 @@ Future<void> mainSequence() async {
   await ts.callPython(
     'site_and_global_data_codemodules.py',
     'check_global_data',
-    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext'), 'data_id': 'GlobalData', 'data': 'String'},
+    inputs: {'data_id': 'GlobalData', 'data': 'String'},
+    passesContext: true,
   ); // Global Data Test
   await ts.stepType('NI_SemiconductorModule_Action', {
     'Multisite': {'SynchronizationOption': 1},
@@ -31,10 +33,10 @@ Future<void> mainSequence() async {
     'site_and_global_data_codemodules.py',
     'set_site_data',
     inputs: {
-      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
       'data_id': 'SiteData',
       'data': <dynamic>['More', 'Cowbell'],
     },
+    passesContext: true,
   ); // Set Site Data
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'Multisite': {'SynchronizationOption': 1},
@@ -49,10 +51,10 @@ Future<void> mainSequence() async {
     'site_and_global_data_codemodules.py',
     'check_site_data',
     inputs: {
-      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
       'data_id': 'SiteData',
       'data': <dynamic>['More', 'Cowbell'],
     },
+    passesContext: true,
   ); // Site Data Test
   await ts.stepType('NI_SemiconductorModule_Action', {
     'Multisite': {'SynchronizationOption': 1},
@@ -60,7 +62,8 @@ Future<void> mainSequence() async {
   await ts.callPython(
     'site_and_global_data_codemodules.py',
     'clear_site_data',
-    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext'), 'data_id': 'SiteData'},
+    inputs: {'data_id': 'SiteData'},
+    passesContext: true,
   ); // Clear Site Data
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'Multisite': {'SynchronizationOption': 1},
@@ -73,7 +76,8 @@ Future<void> mainSequence() async {
   await ts.callPython(
     'site_and_global_data_codemodules.py',
     'check_site_data_cleared',
-    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext'), 'data_id': 'SiteData'},
+    inputs: {'data_id': 'SiteData'},
+    passesContext: true,
   ); // Site Data Cleared Test
 }
 

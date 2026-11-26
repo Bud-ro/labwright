@@ -31,12 +31,10 @@ Future<ts.Status> mainSequence() async {
       'My Computer\\Charge and Discharge.vi',
       inputs: {'Cycle': locals.cycle, 'Initial Capacity  (mAh)': locals.capacity, 'TDMS File Path In': locals.filePath},
     ); // Charge and Discharge
-    ts.notExported('output Capacity (mAh) -> Step.NumericArray[0]');
-    ts.notExported('output Energy (Wh) -> Step.NumericArray[1]');
     locals.filePath = outputs['TDMS File Path'] as String;
     chargeAndDischargeResult.Status = ts.multipleNumericLimitTest([
-      (value: ts.eval('Step.NumericArray[0]'), comparison: 'GT', low: 100, high: 11),
-      (value: ts.eval('Step.NumericArray[1]'), comparison: 'GT', low: 100, high: 11),
+      (value: outputs['Capacity (mAh)'], comparison: 'GT', low: 100, high: 11),
+      (value: outputs['Energy (Wh)'], comparison: 'GT', low: 100, high: 11),
     ]);
     run.record(chargeAndDischargeResult.Status);
   }

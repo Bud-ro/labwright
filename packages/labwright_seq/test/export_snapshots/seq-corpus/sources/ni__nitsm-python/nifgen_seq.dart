@@ -19,11 +19,11 @@ Future<void> mainSequence() async {
     'nifgen_codemodules.py',
     'measure',
     inputs: {
-      'tsm_context': ts.eval('Step.SemiconductorModuleContext'),
       'pins': <dynamic>['DUTPin1'],
       'expected_instrument_names': <dynamic>['FGEN1', 'FGEN2'],
       'expected_channel_lists': <dynamic>['0', '1'],
     },
+    passesContext: true,
   ); // Measure Test
 }
 
@@ -31,21 +31,13 @@ Future<void> mainSequence() async {
 Future<void> processSetup() async {
   ts.eval('RunState.Engine.StationOptions.RTEOption = RTEOption_Continue'); // Set run-time error option to avoid dialog
   await ts.stepType('NI_SemiconductorModule_Action');
-  await ts.callPython(
-    'nifgen_codemodules.py',
-    'open_sessions',
-    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext')},
-  ); // Open Sessions
+  await ts.callPython('nifgen_codemodules.py', 'open_sessions', passesContext: true); // Open Sessions
 }
 
 /// Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes.
 Future<void> processCleanup() async {
   await ts.stepType('NI_SemiconductorModule_Action');
-  await ts.callPython(
-    'nifgen_codemodules.py',
-    'close_sessions',
-    inputs: {'tsm_context': ts.eval('Step.SemiconductorModuleContext')},
-  ); // Close Sessions
+  await ts.callPython('nifgen_codemodules.py', 'close_sessions', passesContext: true); // Close Sessions
 }
 
 /// Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action.
