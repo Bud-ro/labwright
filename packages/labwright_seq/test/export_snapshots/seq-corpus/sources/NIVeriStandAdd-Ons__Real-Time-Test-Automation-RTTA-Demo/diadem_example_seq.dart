@@ -5,7 +5,6 @@ class _MainSequenceLocals {
   List<dynamic> dataReturned = <dynamic>[];
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -39,7 +38,6 @@ Future<void> mainSequence() async {
   await ts.stepType('DIAdem_Close_Reference', {'DIAdemRefExpr': 'Locals.DIAdemReference', 'Substeps': ts.PropObj()});
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'Example Information',

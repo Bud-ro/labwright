@@ -3,7 +3,6 @@ import 'package:labwright/shims.dart' as ts;
 
 dynamic measurementLink = ts.PropObj({'EnableMonitoring': false});
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('..\\..\\..\\src\\NIScopeDigitalMeasurement\\NIScopeDigitalMeasurement.pinmap');

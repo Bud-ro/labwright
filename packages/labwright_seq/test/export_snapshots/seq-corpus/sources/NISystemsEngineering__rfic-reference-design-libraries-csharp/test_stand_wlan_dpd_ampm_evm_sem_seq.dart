@@ -237,7 +237,6 @@ class _MainSequenceLocals {
   dynamic currentRFmxSpecAnSignal;
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -356,7 +355,6 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `Configure`.
 Future<void> configure() async {
   // Applies all configurations that are dependent upon calculated or previous values to the correct variables
   configurations.Analyzer.Measurements.SpecAn_AMPM_Config.DutAverageInputPower_dBm =
@@ -559,7 +557,6 @@ class _MeasureLocals {
   List<dynamic> measurementNames = <dynamic>['EVM', 'SEM'];
 }
 
-/// Sequence `Measure`.
 Future<void> measure() async {
   final locals = _MeasureLocals();
 
@@ -585,7 +582,7 @@ Future<void> measure() async {
         },
       ); // Select Single DPD measurement
       // Starts all measurements configured for the signal
-      final outputs = await ts.callDotNet(
+      currentSweepStep.Results.RFmxDPD_MP_Results.DPD_Poly = (await ts.callDotNet(
         '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll',
         'NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.PerformMemoryPolynomial',
         inputs: {
@@ -595,8 +592,7 @@ Future<void> measure() async {
           'referenceWaveform': currentSweepStep.Loaded_Waveform,
           'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
         },
-      ); // Perform Memory Polynomial
-      currentSweepStep.Results.RFmxDPD_MP_Results.DPD_Poly = outputs['Return Value.Polynomial'];
+      ))['Return Value.Polynomial']; // Perform Memory Polynomial
       // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
       // Map Results
     }
@@ -653,7 +649,7 @@ Future<void> measure() async {
               'resultName': '',
             },
           ); // WLAN Initiate SEM
-          final outputs2 = await ts.callDotNet(
+          final outputs = await ts.callDotNet(
             '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll',
             'NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.FetchSEM',
             inputs: {
@@ -661,29 +657,29 @@ Future<void> measure() async {
               'selectorString': configurations.Analyzer.RFmx_Selector_String,
             },
           ); // WLAN Fetch SEM
-          currentSweepStep.Results.RFmxWLAN_SEM_Results.measurementStatus = outputs2['Return Value.measurementStatus'];
-          currentSweepStep.Results.RFmxWLAN_SEM_Results.AbsolutePower_dBm = outputs2['Return Value.AbsolutePower_dBm'];
-          currentSweepStep.Results.RFmxWLAN_SEM_Results.RelativePower_dB = outputs2['Return Value.RelativePower_dB'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.measurementStatus = outputs['Return Value.measurementStatus'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.AbsolutePower_dBm = outputs['Return Value.AbsolutePower_dBm'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.RelativePower_dB = outputs['Return Value.RelativePower_dB'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.upperOffsetMeasurementStatus =
-              outputs2['Return Value.upperOffsetMeasurementStatus'];
+              outputs['Return Value.upperOffsetMeasurementStatus'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.UpperOffsetMargin_dB =
-              outputs2['Return Value.UpperOffsetMargin_dB'];
+              outputs['Return Value.UpperOffsetMargin_dB'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.UpperOffsetMarginFrequency_Hz =
-              outputs2['Return Value.UpperOffsetMarginFrequency_Hz'];
+              outputs['Return Value.UpperOffsetMarginFrequency_Hz'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.UpperOffsetMarginAbsolutePower_dBm =
-              outputs2['Return Value.UpperOffsetMarginAbsolutePower_dBm'];
+              outputs['Return Value.UpperOffsetMarginAbsolutePower_dBm'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.UpperOffsetMarginRelativePower_dB =
-              outputs2['Return Value.UpperOffsetMarginRelativePower_dB'];
+              outputs['Return Value.UpperOffsetMarginRelativePower_dB'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMeasurementStatus =
-              outputs2['Return Value.lowerOffsetMeasurementStatus'];
+              outputs['Return Value.lowerOffsetMeasurementStatus'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMargin_dB =
-              outputs2['Return Value.LowerOffsetMargin_dB'];
+              outputs['Return Value.LowerOffsetMargin_dB'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMarginFrequency_Hz =
-              outputs2['Return Value.LowerOffsetMarginFrequency_Hz'];
+              outputs['Return Value.LowerOffsetMarginFrequency_Hz'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMarginAbsolutePower_dBm =
-              outputs2['Return Value.LowerOffsetMarginAbsolutePower_dBm'];
+              outputs['Return Value.LowerOffsetMarginAbsolutePower_dBm'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMarginRelativePower_dB =
-              outputs2['Return Value.LowerOffsetMarginRelativePower_dB'];
+              outputs['Return Value.LowerOffsetMarginRelativePower_dB'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.SEMMeasurementStatus =
               currentSweepStep.Results.RFmxWLAN_SEM_Results.measurementStatus; // Map Results
@@ -705,7 +701,7 @@ Future<void> measure() async {
               'resultName': '',
             },
           ); // WLAN Initiate ModAcc
-          final outputs3 = await ts.callDotNet(
+          final outputs2 = await ts.callDotNet(
             '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll',
             'NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.FetchOFDMModAcc',
             inputs: {
@@ -714,13 +710,13 @@ Future<void> measure() async {
             },
           ); // WLAN Fetch OFDM ModAcc
           currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositeRMSEVMMean_dB =
-              outputs3['Return Value.CompositeRMSEVMMean_dB'];
+              outputs2['Return Value.CompositeRMSEVMMean_dB'];
           currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositeDataRMSEVMMean_dB =
-              outputs3['Return Value.CompositeDataRMSEVMMean_dB'];
+              outputs2['Return Value.CompositeDataRMSEVMMean_dB'];
           currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositePilotRMSEVMMean_dB =
-              outputs3['Return Value.CompositePilotRMSEVMMean_dB'];
+              outputs2['Return Value.CompositePilotRMSEVMMean_dB'];
           currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.NumberOfSymbolsUsed =
-              outputs3['Return Value.NumberOfSymbolsUsed'];
+              outputs2['Return Value.NumberOfSymbolsUsed'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.RMS_EVM_Average_dB =
               currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositeRMSEVMMean_dB; // Map Results
@@ -738,7 +734,6 @@ Future<void> measure() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'First Launch Message',

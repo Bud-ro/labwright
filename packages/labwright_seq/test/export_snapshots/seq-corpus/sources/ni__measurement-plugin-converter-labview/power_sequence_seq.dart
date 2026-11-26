@@ -14,7 +14,6 @@ class _MainSequenceLocals {
   String operation = 'Configure and Measure';
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 

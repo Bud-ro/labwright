@@ -5,7 +5,6 @@ class _MainSequenceLocals {
   String hardwareConfigPath = '';
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -27,7 +26,6 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `-------Examples------`.
 Future<void> examples() async {
   // (no steps in the source sequence)
 }
@@ -42,7 +40,6 @@ class _ActionButtonTestLocals {
   });
 }
 
-/// Sequence `Action Button Test`.
 Future<void> actionButtonTest() async {
   final locals = _ActionButtonTestLocals();
 
@@ -50,49 +47,45 @@ Future<void> actionButtonTest() async {
     // Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     // Initializes the configured Physical/Virtual channels of Analog Output module to perform Action Button functionality
-    final outputs = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TS_ButtonEnable0', 'Global Channels.SessionNumber': 0},
-    ); // DC Voltage Generation - Initialize Action Button
-    locals.dcVoltageGenTask = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Initialize Action Button
     // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform DC-RMS Voltage Measurement
     //
-    final outputs2 = await ts.callVi(
+    locals.dcVoltageMeasTask = (await ts.callVi(
       'DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_LineOut0:1', 'Global Channels.SessionNumber': 0},
-    ); // DC-RMS Voltage Measurement - Initialize TP
-    locals.dcVoltageMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC-RMS Voltage Measurement - Initialize TP
 
     // Button ON Action
     // Note to run with Hardware: Update DC Voltage for Action Button ON condition
     // Note: This Step can be replaced with actual button action
-    final outputs3 = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Configure and Generate.vi',
       inputs: {'DAQmx Task In': locals.dcVoltageGenTask, 'Output Voltages (V).[0]': 3.3},
-    ); // DC Voltage Generation - Action Button ON State
-    locals.dcVoltageGenTask = outputs3['DAQmx Task Out'];
-    final outputs4 = await ts.callVi(
+    ))['DAQmx Task Out']; // DC Voltage Generation - Action Button ON State
+    final outputs = await ts.callVi(
       'DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Configure and Measure.vi',
       inputs: {'DAQmx Task In': locals.dcVoltageMeasTask},
     ); // DC-RMS Voltage Measurement - Measure TP
-    locals.dcVoltageMeasTask = outputs4['DAQmx Task Out'];
-    locals.measurementData.Average_DC_Voltage__V_ = outputs4['DC and RMS Voltage Measurements.Average DC Voltage (V)'];
-    locals.measurementData.RMS_DC_Voltage__V_ = outputs4['DC and RMS Voltage Measurements.RMS Voltage (V)'];
+    locals.dcVoltageMeasTask = outputs['DAQmx Task Out'];
+    locals.measurementData.Average_DC_Voltage__V_ = outputs['DC and RMS Voltage Measurements.Average DC Voltage (V)'];
+    locals.measurementData.RMS_DC_Voltage__V_ = outputs['DC and RMS Voltage Measurements.RMS Voltage (V)'];
     // Button OFF Action
     // Note to run with Hardware: Update DC Voltage for Action Button OFF condition
     // Note: This Step can be replaced with actual button action
-    final outputs5 = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Configure and Generate.vi',
       inputs: {'DAQmx Task In': locals.dcVoltageGenTask, 'Output Voltages (V).[0]': 0},
-    ); // DC Voltage Generation - Action Button OFF State
-    locals.dcVoltageGenTask = outputs5['DAQmx Task Out'];
-    final outputs6 = await ts.callVi(
+    ))['DAQmx Task Out']; // DC Voltage Generation - Action Button OFF State
+    final outputs2 = await ts.callVi(
       'DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Configure and Measure.vi',
       inputs: {'DAQmx Task In': locals.dcVoltageMeasTask},
     ); // DC-RMS Voltage Measurement - Measure TP
-    locals.dcVoltageMeasTask = outputs6['DAQmx Task Out'];
-    locals.measurementData.Average_DC_Voltage__V_ = outputs6['DC and RMS Voltage Measurements.Average DC Voltage (V)'];
-    locals.measurementData.RMS_DC_Voltage__V_ = outputs6['DC and RMS Voltage Measurements.RMS Voltage (V)'];
+    locals.dcVoltageMeasTask = outputs2['DAQmx Task Out'];
+    locals.measurementData.Average_DC_Voltage__V_ = outputs2['DC and RMS Voltage Measurements.Average DC Voltage (V)'];
+    locals.measurementData.RMS_DC_Voltage__V_ = outputs2['DC and RMS Voltage Measurements.RMS Voltage (V)'];
   } finally {
     // Close all Tasks
     await ts.callVi(
@@ -106,7 +99,6 @@ Future<void> actionButtonTest() async {
   }
 }
 
-/// Sequence `-------Reusable Sequences------`.
 Future<void> reusableSequences() async {
   // (no steps in the source sequence)
 }
@@ -116,7 +108,6 @@ class _TurnOffAllAoChannelsLocals {
   List<dynamic> outputVoltagesV = <dynamic>[]; // Update the Array based on AO Channels to Turn OFF
 }
 
-/// Sequence `Turn Off all AO Channels`.
 Future<void> turnOffAllAoChannels() async {
   final locals = _TurnOffAllAoChannelsLocals();
 
@@ -124,19 +115,17 @@ Future<void> turnOffAllAoChannels() async {
     // This example resets all configured Analog output channels voltage to 0 Volts
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     // Initializes the configured Physical/Virtual channels of Analog Output module
-    final outputs = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Initialize.vi',
       inputs: {'Physical Channels': 'Simulated_DAQ/ao0:3'},
-    ); // DC Voltage Generation - Initialize AO Channels
-    locals.dcVoltageGenTask = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Initialize AO Channels
     locals.outputVoltagesV = <dynamic>[0, 0, 0, 0]; // Assign the Output Voltage for all configured AO Channels
 
     // Sources DC Voltage at 0V to Analog Ouput channels
-    final outputs2 = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Configure and Generate.vi',
       inputs: {'DAQmx Task In': locals.dcVoltageGenTask, 'Output Voltages (V)': locals.outputVoltagesV},
-    ); // DC Voltage Generation - Configure, Initiate and Sources DC voltage
-    locals.dcVoltageGenTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Configure, Initiate and Sources DC voltage
   } finally {
     // Closes the DC Voltage Generation Task for Analog output module
     await ts.callVi(
@@ -146,7 +135,6 @@ Future<void> turnOffAllAoChannels() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'About This Example',

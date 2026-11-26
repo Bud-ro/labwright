@@ -8,7 +8,6 @@ class _LoginLogoutLocals {
   dynamic user;
 }
 
-/// Sequence `LoginLogout`.
 Future<void> loginLogout({bool logout = false, bool isInitialLogin = false}) async {
   final locals = _LoginLogoutLocals();
 
@@ -44,7 +43,6 @@ class _GroupMembershipLocals {
   List<dynamic> teststandGroups = List<dynamic>.filled(10, '', growable: true);
 }
 
-/// Sequence `GroupMembership`.
 Future<void> groupMembership({List<dynamic>? groups, dynamic user}) async {
   groups ??= <dynamic>[];
 
@@ -85,7 +83,6 @@ class _UpdateGroupMembershipLocals {
   bool fileChanged = false;
 }
 
-/// Sequence `UpdateGroupMembership`.
 Future<void> updateGroupMembership({String groupName = '', dynamic user, List<dynamic>? userGroups}) async {
   userGroups ??= List<dynamic>.filled(10, '', growable: true);
 
@@ -142,7 +139,6 @@ Future<void> updateGroupMembership({String groupName = '', dynamic user, List<dy
   }
 }
 
-/// Sequence `Create User`.
 Future<void> createUser({dynamic user, String username = ''}) async {
   ts.eval('Parameters.User = RunState.Engine.NewUser(Nothing)'); // Create New User
   user.AsUser.LoginName = username; // Set Login Name

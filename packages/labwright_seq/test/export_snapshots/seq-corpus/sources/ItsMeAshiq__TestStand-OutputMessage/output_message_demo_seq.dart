@@ -5,7 +5,6 @@ class _MainSequenceLocals {
   int i = 0;
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 

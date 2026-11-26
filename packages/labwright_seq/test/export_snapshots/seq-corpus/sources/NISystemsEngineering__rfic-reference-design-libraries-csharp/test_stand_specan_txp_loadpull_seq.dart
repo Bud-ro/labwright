@@ -161,7 +161,6 @@ class _MainSequenceLocals {
   int waveFormConfigsIdx = 0;
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -287,7 +286,6 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `Configure`.
 Future<void> configure() async {
   // Applies all configurations that are dependent upon calculated or previous values to the correct variables
   currentSweepStep.Loaded_Waveform =
@@ -403,7 +401,6 @@ Future<void> configure() async {
   currentSweepStep.Input_and_Output.PARAMS.WaveformName = currentSweepStep.Loaded_Waveform.Name; // Map Results
 }
 
-/// Sequence `Measure`.
 Future<void> measure() async {
   try {
     currentSweepStep.Results.VSWR_and_Phase = await ts
@@ -453,7 +450,6 @@ Future<void> measure() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'First Launch Message',

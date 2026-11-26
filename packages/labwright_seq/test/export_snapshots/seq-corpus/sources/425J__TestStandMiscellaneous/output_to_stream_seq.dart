@@ -15,7 +15,6 @@ class _OutputToStreamLocals {
   });
 }
 
-/// Sequence `Output to Stream`.
 Future<ts.Status> outputToStream() async {
   final locals = _OutputToStreamLocals();
   final run = ts.SequenceRun();
@@ -65,7 +64,6 @@ Future<ts.Status> outputToStream() async {
   return run.status;
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'How to use this example',

@@ -5,7 +5,6 @@ class _MainSequenceLocals {
   String hardwareConfigPath = '';
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
@@ -32,7 +31,6 @@ Future<ts.Status> mainSequence() async {
   return run.status;
 }
 
-/// Sequence `---------------Tests---------------------`.
 Future<void> tests() async {
   // (no steps in the source sequence)
 }
@@ -61,7 +59,6 @@ class _PowerDiagnosticsLocals {
   dynamic dcMeasData = ts.PropObj({'Voltage_Waveform': <dynamic>[], 'Avg_Voltage': <dynamic>[]});
 }
 
-/// Sequence `Power Diagnostics`.
 Future<ts.Status> powerDiagnostics() async {
   final locals = _PowerDiagnosticsLocals();
   final run = ts.SequenceRun();
@@ -72,19 +69,17 @@ Future<ts.Status> powerDiagnostics() async {
   try {
     // Power Supply test demonstrates Powering up and Validation of Start-up Transition Max pic Current, Idle Power Consumption and DC Regulators
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-    final outputs = await ts.callVi(
+    locals.psTask = (await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Initialize.vi',
       inputs: {'Physical channels': 'Simulated_Power/power'},
-    ); // Power Supply Source and Measure - Initialize Power Supply
-    locals.psTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // Power Supply Source and Measure - Initialize Power Supply
+    locals.dcVoltageMeasTask = (await ts.callVi(
       'DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_REG0:2', 'Global Channels.SessionNumber': 0},
-    ); // DC-RMS Voltage Measurement - Initialize DC Regulator TPs
-    locals.dcVoltageMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC-RMS Voltage Measurement - Initialize DC Regulator TPs
 
     // Note to run with Hardware: Review the Configurations for the intended use case
-    final outputs3 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Configure and Measure.vi',
       inputs: {
         'DAQmx Task In': locals.psTask,
@@ -94,17 +89,17 @@ Future<ts.Status> powerDiagnostics() async {
         'Channel Settings.Idle Output Behavior': 12528,
       },
     ); // Power Supply Source and Measure - Power On & Measure startup max pic current
-    locals.psTask = outputs3['DAQmx Task Out'];
-    locals.psMeasData.Voltage_Waveform = outputs3['Voltage Waveforms'];
-    locals.psMeasData.Current_Waveform = outputs3['Current Waveforms'];
-    locals.psMeasData.Max_Voltage = outputs3['Power Measurements.Max Voltage Level(V)'];
-    locals.psMeasData.Max_Current = outputs3['Power Measurements.Max Current Level(A)'];
-    locals.psMeasData.Max_Power = outputs3['Power Measurements.Max Power(W)'];
+    locals.psTask = outputs['DAQmx Task Out'];
+    locals.psMeasData.Voltage_Waveform = outputs['Voltage Waveforms'];
+    locals.psMeasData.Current_Waveform = outputs['Current Waveforms'];
+    locals.psMeasData.Max_Voltage = outputs['Power Measurements.Max Voltage Level(V)'];
+    locals.psMeasData.Max_Current = outputs['Power Measurements.Max Current Level(A)'];
+    locals.psMeasData.Max_Power = outputs['Power Measurements.Max Power(W)'];
     powerSupplySourceAndMeasurePowerOnMeasureStartupMaxPicCurrentResult.Status = ts.multipleNumericLimitTest([
       (value: locals.psMeasData.Max_Current, comparison: 'GELE', low: 0, high: 1),
     ]);
     run.record(powerSupplySourceAndMeasurePowerOnMeasureStartupMaxPicCurrentResult.Status);
-    final outputs4 = await ts.callVi(
+    final outputs2 = await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Configure and Measure.vi',
       inputs: {
         'DAQmx Task In': locals.psTask,
@@ -114,27 +109,27 @@ Future<ts.Status> powerDiagnostics() async {
         'Channel Settings.Idle Output Behavior': 12528,
       },
     ); // Power Supply Source and Measure - Measure Idle power consumption
-    locals.psTask = outputs4['DAQmx Task Out'];
-    locals.psMeasData.Voltage_Waveform.t0 = outputs4['Voltage Waveforms.t0'];
-    locals.psMeasData.Voltage_Waveform.dt = outputs4['Voltage Waveforms.dt'];
-    locals.psMeasData.Voltage_Waveform.Y = outputs4['Voltage Waveforms.Y'];
-    locals.psMeasData.Voltage_Waveform.attributes = outputs4['Voltage Waveforms.attributes'];
-    locals.psMeasData.Current_Waveform.t0 = outputs4['Current Waveforms.t0'];
-    locals.psMeasData.Current_Waveform.dt = outputs4['Current Waveforms.dt'];
-    locals.psMeasData.Current_Waveform.Y = outputs4['Current Waveforms.Y'];
-    locals.psMeasData.Current_Waveform.attributes = outputs4['Current Waveforms.attributes'];
-    locals.psMeasData.Avg_Power = outputs4['Power Measurements.Average Power (W)'];
+    locals.psTask = outputs2['DAQmx Task Out'];
+    locals.psMeasData.Voltage_Waveform.t0 = outputs2['Voltage Waveforms.t0'];
+    locals.psMeasData.Voltage_Waveform.dt = outputs2['Voltage Waveforms.dt'];
+    locals.psMeasData.Voltage_Waveform.Y = outputs2['Voltage Waveforms.Y'];
+    locals.psMeasData.Voltage_Waveform.attributes = outputs2['Voltage Waveforms.attributes'];
+    locals.psMeasData.Current_Waveform.t0 = outputs2['Current Waveforms.t0'];
+    locals.psMeasData.Current_Waveform.dt = outputs2['Current Waveforms.dt'];
+    locals.psMeasData.Current_Waveform.Y = outputs2['Current Waveforms.Y'];
+    locals.psMeasData.Current_Waveform.attributes = outputs2['Current Waveforms.attributes'];
+    locals.psMeasData.Avg_Power = outputs2['Power Measurements.Average Power (W)'];
     powerSupplySourceAndMeasureMeasureIdlePowerConsumptionResult.Status = ts.multipleNumericLimitTest([
       (value: locals.psMeasData.Avg_Power, comparison: 'GELE', low: 4.5, high: 5.5),
     ]);
     run.record(powerSupplySourceAndMeasureMeasureIdlePowerConsumptionResult.Status);
-    final outputs5 = await ts.callVi(
+    final outputs3 = await ts.callVi(
       'DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Configure and Measure.vi',
       inputs: {'DAQmx Task In': locals.dcVoltageMeasTask},
     ); // DC-RMS Voltage Measurement - Measure DC Regulator Voltages
-    locals.dcVoltageMeasTask = outputs5['DAQmx Task Out'];
-    locals.dcMeasData.Voltage_Waveform = outputs5['Voltage Waveforms'];
-    locals.dcMeasData.Avg_Voltage = outputs5['DC and RMS Voltage Measurements.Average DC Voltage (V)'];
+    locals.dcVoltageMeasTask = outputs3['DAQmx Task Out'];
+    locals.dcMeasData.Voltage_Waveform = outputs3['Voltage Waveforms'];
+    locals.dcMeasData.Avg_Voltage = outputs3['DC and RMS Voltage Measurements.Average DC Voltage (V)'];
     dcRmsVoltageMeasurementMeasureDcRegulatorVoltagesResult.Status = ts.multipleNumericLimitTest([
       (value: locals.dcMeasData.Avg_Voltage[0], comparison: 'GELE', low: 0.9, high: 1.1),
       (value: locals.dcMeasData.Avg_Voltage[1], comparison: 'GELE', low: 3.1, high: 3.4),
@@ -174,7 +169,6 @@ class _BatteryChargerVoltageAndCurrentSleepModeLocals {
   ];
 }
 
-/// Sequence `Battery/Charger Voltage and Current Sleep Mode`.
 Future<ts.Status> batteryChargerVoltageAndCurrentSleepMode() async {
   final locals = _BatteryChargerVoltageAndCurrentSleepModeLocals();
   final run = ts.SequenceRun();
@@ -182,7 +176,7 @@ Future<ts.Status> batteryChargerVoltageAndCurrentSleepMode() async {
   final dynamic dmmScanSleepModeVoltageCurrentResult = ts.StepResult();
 
   try {
-    final outputs = await ts.callVi(
+    locals.resourceHandles = (await ts.callVi(
       'DMM SCAN PMPS 16V-15C\\DMM_Scan PMPS 16V-15C Initialize.vi',
       inputs: {
         'Scan Resources Names.DMM Resource Name.DeviceName': 'Sim_DMM',
@@ -192,11 +186,10 @@ Future<ts.Status> batteryChargerVoltageAndCurrentSleepMode() async {
         'Scan Resources Names.Shunt Resource Name.DeviceName': 'Sim_SHUNT',
         'Scan Resources Names.Shunt Resource Name.SessionNumber': 0,
       },
-    ); // DMM Scan - Initialize Scan TPs
-    locals.resourceHandles = outputs['Scan Resource Handles Out'];
+    ))['Scan Resource Handles Out']; // DMM Scan - Initialize Scan TPs
 
     // Close all current shunts to power DUT, then scan ch0, ch1, ch16, ch17
-    final outputs2 = await ts.callVi(
+    final outputs = await ts.callVi(
       'DMM SCAN PMPS 16V-15C\\DMM_Scan PMPS 16V-15C Configure and Measure.vi',
       inputs: {
         'Scan Resources Handles In': locals.resourceHandles,
@@ -214,8 +207,8 @@ Future<ts.Status> batteryChargerVoltageAndCurrentSleepMode() async {
         'Scan Configuration.[3].Range and Function': 26,
       },
     ); // DMM Scan - Active Mode Voltage & Current
-    locals.resourceHandles = outputs2['Scan Resources Handles Out'];
-    locals.rawMeasurementsActive = outputs2['Raw Measurements'] as List<dynamic>;
+    locals.resourceHandles = outputs['Scan Resources Handles Out'];
+    locals.rawMeasurementsActive = outputs['Raw Measurements'] as List<dynamic>;
     dmmScanActiveModeVoltageCurrentResult.Status = ts.multipleNumericLimitTest([
       (value: locals.rawMeasurementsActive[0]._Value, comparison: 'GELE', low: 4.75, high: 5.25),
       (value: locals.rawMeasurementsActive[1]._Value, comparison: 'GELE', low: 2.5, high: 4.25),
@@ -224,19 +217,20 @@ Future<ts.Status> batteryChargerVoltageAndCurrentSleepMode() async {
     ]);
     run.record(dmmScanActiveModeVoltageCurrentResult.Status);
     await Future<void>.delayed(const Duration(seconds: 2)); // Wait for 2 seconds of inactivity, then scan ch1, ch17
-    final outputs3 = await ts.callVi(
-      'DMM SCAN PMPS 16V-15C\\DMM_Scan PMPS 16V-15C Configure and Measure.vi',
-      inputs: {
-        'Scan Resources Handles In': locals.resourceHandles,
-        'Scan Configuration.[0].Channel': 'ch1',
-        'Scan Configuration.[0].Resolution in Digits': 5.5,
-        'Scan Configuration.[0].Range and Function': 3,
-        'Scan Configuration.[1].Channel': 'ch17',
-        'Scan Configuration.[1].Resolution in Digits': 6.5,
-        'Scan Configuration.[1].Range and Function': 20,
-      },
-    ); // DMM Scan - Sleep Mode Voltage & Current
-    locals.rawMeasurementsSleep = outputs3['Raw Measurements'] as List<dynamic>;
+    locals.rawMeasurementsSleep =
+        (await ts.callVi(
+              'DMM SCAN PMPS 16V-15C\\DMM_Scan PMPS 16V-15C Configure and Measure.vi',
+              inputs: {
+                'Scan Resources Handles In': locals.resourceHandles,
+                'Scan Configuration.[0].Channel': 'ch1',
+                'Scan Configuration.[0].Resolution in Digits': 5.5,
+                'Scan Configuration.[0].Range and Function': 3,
+                'Scan Configuration.[1].Channel': 'ch17',
+                'Scan Configuration.[1].Resolution in Digits': 6.5,
+                'Scan Configuration.[1].Range and Function': 20,
+              },
+            ))['Raw Measurements']
+            as List<dynamic>; // DMM Scan - Sleep Mode Voltage & Current
     dmmScanSleepModeVoltageCurrentResult.Status = ts.multipleNumericLimitTest([
       (value: locals.rawMeasurementsSleep[0]._Value, comparison: 'GELE', low: 2.5, high: 4.25),
       (value: locals.rawMeasurementsSleep[1]._Value, comparison: 'GELE', low: 0.000005, high: 0.000015),
@@ -262,7 +256,6 @@ class _ResetAndSelfTestLocals {
   ];
 }
 
-/// Sequence `Reset and Self-Test`.
 Future<ts.Status> resetAndSelfTest() async {
   final locals = _ResetAndSelfTestLocals();
   final run = ts.SequenceRun();
@@ -271,43 +264,41 @@ Future<ts.Status> resetAndSelfTest() async {
   try {
     // Power On Self Test demonstrates Switching of Push Reset Button and Verifies the LEDs state
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-    final outputs = await ts.callVi(
+    locals.digitalStateGenTask = (await ts.callVi(
       'Static Digital State Generation\\DAQ_Static Dig Gen Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TS_RESET0', 'Global Channels.SessionNumber': 0},
-    ); // Static Digital State Generation - Initialize
-    locals.digitalStateGenTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // Static Digital State Generation - Initialize
+    locals.dcVoltageMeasTask = (await ts.callVi(
       'DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_LED0:1', 'Global Channels.SessionNumber': 0},
-    ); // DC-RMS Voltage Measurement - Initialize LED TPs
-    locals.dcVoltageMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC-RMS Voltage Measurement - Initialize LED TPs
 
     // Note to run with Hardware: Review the Configurations for the intended use case
-    final outputs3 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Static Digital State Generation\\DAQ_Static Dig Gen Configure and Generate.vi',
       inputs: {'DAQmx Task In': locals.digitalStateGenTask, 'Data to Write.[0]': true},
     ); // Static Digital State Generation - Turn ON Push Reset Button
-    locals.digitalStateGenTask = outputs3['DAQmx Task Out'];
-    locals.doChannelIDs = outputs3['Channel Identifiers'] as List<dynamic>;
+    locals.digitalStateGenTask = outputs['DAQmx Task Out'];
+    locals.doChannelIDs = outputs['Channel Identifiers'] as List<dynamic>;
     await Future<void>.delayed(const Duration(milliseconds: 100)); // Wait for 0.1 seconds in Reset enabled state
     // Note to run with Hardware: Review the Configurations for the intended use case
-    final outputs4 = await ts.callVi(
+    final outputs2 = await ts.callVi(
       'Static Digital State Generation\\DAQ_Static Dig Gen Configure and Generate.vi',
       inputs: {'DAQmx Task In': locals.digitalStateGenTask, 'Data to Write.[0]': false},
     ); // Static Digital State Generation - Turn OFF Push Reset Button
-    locals.digitalStateGenTask = outputs4['DAQmx Task Out'];
-    locals.doChannelIDs = outputs4['Channel Identifiers'] as List<dynamic>;
+    locals.digitalStateGenTask = outputs2['DAQmx Task Out'];
+    locals.doChannelIDs = outputs2['Channel Identifiers'] as List<dynamic>;
     await Future<void>.delayed(const Duration(seconds: 5)); // Wait for 5 seconds in Reset disabled state
-    final outputs5 = await ts.callVi(
+    final outputs3 = await ts.callVi(
       'DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Configure and Measure.vi',
       inputs: {
         'DAQmx Task In': locals.dcVoltageMeasTask,
         'Range and Terminal Settings.Global Settings.Terminal Configuration': 10106,
       },
     ); // DC-RMS Voltage Measurement - Measure LED states
-    locals.dcVoltageMeasTask = outputs5['DAQmx Task Out'];
-    locals.dcMeasData.Voltage_Waveform = outputs5['Voltage Waveforms'];
-    locals.dcMeasData.Avg_Voltage = outputs5['DC and RMS Voltage Measurements.Average DC Voltage (V)'];
+    locals.dcVoltageMeasTask = outputs3['DAQmx Task Out'];
+    locals.dcMeasData.Voltage_Waveform = outputs3['Voltage Waveforms'];
+    locals.dcMeasData.Avg_Voltage = outputs3['DC and RMS Voltage Measurements.Average DC Voltage (V)'];
     dcRmsVoltageMeasurementMeasureLedStatesResult.Status = ts.multipleNumericLimitTest([
       (value: locals.dcMeasData.Avg_Voltage[0], comparison: 'GELE', low: 1.8, high: 2.2),
       (value: locals.dcMeasData.Avg_Voltage[1], comparison: 'GELE', low: 2.6, high: 3.2),
@@ -340,7 +331,6 @@ class _AnimationAndSoundUserInputTestLocals {
   });
 }
 
-/// Sequence `Animation and Sound User Input Test`.
 Future<ts.Status> animationAndSoundUserInputTest() async {
   final locals = _AnimationAndSoundUserInputTestLocals();
   final run = ts.SequenceRun();
@@ -349,20 +339,18 @@ Future<ts.Status> animationAndSoundUserInputTest() async {
   try {
     // Action Button Test demonstrates Button Switch and validates Dutycycle of PWM signal on Volume LED and Frequency on Tweeter
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-    final outputs = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TS_Button0', 'Global Channels.SessionNumber': 0},
-    ); // DC Voltage Generation - Initialize Push Action Button
-    locals.dcVoltageGenTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // DC Voltage Generation - Initialize Push Action Button
+    locals.timeDomainMeasTask = (await ts.callVi(
       'Time Domain Measurement\\DAQ_TDV Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_VOL_LED0,TP_TWEET0', 'Global Channels.SessionNumber': 0},
-    ); // Time Domain Measurement - Initialize TP
-    locals.timeDomainMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Time Domain Measurement - Initialize TP
 
     // Note to run with Hardware: Review the Configurations & update the Digital Start Trigger Settings based on NI MAX
     // Configure Time Domain Measurement settings to wait for Hardware Trigger from Button action
-    final outputs3 = await ts.callVi(
+    locals.timeDomainMeasTask = (await ts.callVi(
       'Time Domain Measurement\\DAQ_TDV Meas Configure and Measure.vi',
       inputs: {
         'Execution Settings.Execution option': 1,
@@ -373,29 +361,27 @@ Future<ts.Status> animationAndSoundUserInputTest() async {
         'Timing and Trigger Settings.Trigger Settings.Digital Start Trigger Source': '/Simulated_DAQ/ao/StartTrigger',
         'Timing and Trigger Settings.Trigger Settings.Digital Start Trigger Edge': 10280,
       },
-    ); // Time Domain Measurement - Configure TP
-    locals.timeDomainMeasTask = outputs3['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Time Domain Measurement - Configure TP
     // Note: To simulate the push on a volume button to generate a sound and a light animation to the LED
-    final outputs4 = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Configure and Generate.vi',
       inputs: {'DAQmx Task In': locals.dcVoltageGenTask, 'Output Voltages (V).[0]': 3.3},
-    ); // DC Voltage Generation - Action Button ON State
-    locals.dcVoltageGenTask = outputs4['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Action Button ON State
     // Note to run with Hardware: Review the step settings configurations to handle Run-Time Errors
     // Fetches the measured DC Voltage (measured when Button action sends Trigger after source) and returns Time Domain Analysis.
     // NOTE: This Step errors outs for non-periodic waveform captures.
     try {
-      final outputs5 = await ts.callVi(
+      final outputs = await ts.callVi(
         'Time Domain Measurement\\DAQ_TDV Meas Configure and Measure.vi',
         inputs: {'Execution Settings.Execution option': 2, 'DAQmx Task In': locals.timeDomainMeasTask},
       ); // Time Domain Measurement - Fetch Volume LED Dutycycle and Tweeter Frequency
-      locals.timeDomainMeasTask = outputs5['DAQmx Task Out'];
-      locals.measData.Voltage_Waveform = outputs5['Voltage Waveforms'];
-      locals.measData.Mean_Voltage = outputs5['Time Domain Measurements.Mean DC Voltage (V)'];
-      locals.measData.VPP_Amplitude = outputs5['Time Domain Measurements.Vpp Amplitude(V)'];
-      locals.measData.Frequency = outputs5['Time Domain Measurements.Voltage Frequency(Hz)'];
-      locals.measData.Period = outputs5['Time Domain Measurements.Voltage Waveform Period (s)'];
-      locals.measData.Dutycycle = outputs5['Time Domain Measurements.Voltage Waveform duty cycle (%)'];
+      locals.timeDomainMeasTask = outputs['DAQmx Task Out'];
+      locals.measData.Voltage_Waveform = outputs['Voltage Waveforms'];
+      locals.measData.Mean_Voltage = outputs['Time Domain Measurements.Mean DC Voltage (V)'];
+      locals.measData.VPP_Amplitude = outputs['Time Domain Measurements.Vpp Amplitude(V)'];
+      locals.measData.Frequency = outputs['Time Domain Measurements.Voltage Frequency(Hz)'];
+      locals.measData.Period = outputs['Time Domain Measurements.Voltage Waveform Period (s)'];
+      locals.measData.Dutycycle = outputs['Time Domain Measurements.Voltage Waveform duty cycle (%)'];
       timeDomainMeasurementFetchVolumeLedDutycycleAndTweeterFrequencyResult.Status = ts.multipleNumericLimitTest([
         (value: locals.measData.Dutycycle[0], comparison: 'GELE', low: 25, high: 35),
         (value: locals.measData.Frequency[1], comparison: 'GELE', low: 990, high: 1010),
@@ -404,11 +390,10 @@ Future<ts.Status> animationAndSoundUserInputTest() async {
     } on ts.RunTimeError catch (_) {}
     // Note to run with Hardware: Review the Configurations for the intended use case
     // Note: To simulate the push on a volume button to generate a sound and a light animation to the LED
-    final outputs6 = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Configure and Generate.vi',
       inputs: {'DAQmx Task In': locals.dcVoltageGenTask, 'Output Voltages (V).[0]': 0},
-    ); // DC Voltage Generation - Action Button OFF State
-    locals.dcVoltageGenTask = outputs6['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Action Button OFF State
   } finally {
     // Close all Tasks
     await ts.callVi(
@@ -432,7 +417,6 @@ class _AudioFilterTestLocals {
   int ampTolerancePercentage = 10;
 }
 
-/// Sequence `Audio Filter Test`.
 Future<ts.Status> audioFilterTest() async {
   final locals = _AudioFilterTestLocals();
   final run = ts.SequenceRun();
@@ -441,20 +425,18 @@ Future<ts.Status> audioFilterTest() async {
   try {
     // Audio Test demonstrates Audio Filter Check, sends multi-tone Audio signal and validates the frequency and Amplitude of measured Tones
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-    final outputs = await ts.callVi(
+    locals.signalVoltageGenTask = (await ts.callVi(
       'Signal Voltage Generation\\DAQ_SV Gen Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TS_LineIn', 'Global Channels.SessionNumber': 0},
-    ); // Signal Voltage Generation - Initialize Multi Tone Audio Signal Gen
-    locals.signalVoltageGenTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // Signal Voltage Generation - Initialize Multi Tone Audio Signal Gen
+    locals.freqDomainMeasTask = (await ts.callVi(
       'Frequency Domain Measurement\\DAQ_FDV Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_LineOut', 'Global Channels.SessionNumber': 0},
-    ); // Frequency Domain Measurement - Initialize TP
-    locals.freqDomainMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Frequency Domain Measurement - Initialize TP
 
     // Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
     // Configure Freq Domain Measurement settings to wait for Hardware Trigger from Audio Signal Generation
-    final outputs3 = await ts.callVi(
+    locals.freqDomainMeasTask = (await ts.callVi(
       'Frequency Domain Measurement\\DAQ_FDV Meas Configure and Measure.vi',
       inputs: {
         'Execution Settings.Execution option': 1,
@@ -465,11 +447,10 @@ Future<ts.Status> audioFilterTest() async {
         'Timing and Trigger Settings.Trigger Settings.Digital Start Trigger Source': '/Simulated_DAQ/ao/StartTrigger',
         'Timing and Trigger Settings.Trigger Settings.Digital Start Trigger Edge': 10280,
       },
-    ); // Frequency Domain Measurement - Configure TP
-    locals.freqDomainMeasTask = outputs3['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Frequency Domain Measurement - Configure TP
     //
     //
-    final outputs4 = await ts.callVi(
+    locals.signalVoltageGenTask = (await ts.callVi(
       'Signal Voltage Generation\\DAQ_SV Gen Configure and Generate.vi',
       inputs: {
         'DAQmx Task In': locals.signalVoltageGenTask,
@@ -483,17 +464,16 @@ Future<ts.Status> audioFilterTest() async {
         'Signal Generation Settings.Multi Tone Settings.[3].Frequency (Hz)': 10000,
         'Signal Generation Settings.Multi Tone Settings.[3].Amplitude (V)': 1,
       },
-    ); // Signal Voltage Generation -Send Multi Tone Audio Sine Signal
-    locals.signalVoltageGenTask = outputs4['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Signal Voltage Generation -Send Multi Tone Audio Sine Signal
     //
     // Fetches the Analog Input voltage waveforms (Started measure when Signal Voltage generation sends Trigger) and returns Freq Domain Analysis
-    final outputs5 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Frequency Domain Measurement\\DAQ_FDV Meas Configure and Measure.vi',
       inputs: {'Execution Settings.Execution option': 2, 'DAQmx Task In': locals.freqDomainMeasTask},
     ); // Freq Domain Measurement - Measure Tone
-    locals.freqDomainMeasTask = outputs5['DAQmx Task Out'];
-    locals.measData.Voltage_Waveform = outputs5['Voltage Waveforms'];
-    locals.measData.Detected_Tones = outputs5['Frequency Domain Measurements.Detected Tones'];
+    locals.freqDomainMeasTask = outputs['DAQmx Task Out'];
+    locals.measData.Voltage_Waveform = outputs['Voltage Waveforms'];
+    locals.measData.Detected_Tones = outputs['Frequency Domain Measurements.Detected Tones'];
     freqDomainMeasurementMeasureToneResult.Status = ts.multipleNumericLimitTest([
       (
         value: locals.measData.Detected_Tones[0].Frequencies__Hz_[0],
@@ -560,7 +540,6 @@ Future<ts.Status> audioFilterTest() async {
   return run.status;
 }
 
-/// Sequence `----------Other Sequences--------`.
 Future<void> otherSequences() async {
   // (no steps in the source sequence)
 }
@@ -570,7 +549,6 @@ class _TurnOffAllAoChannelsLocals {
   List<dynamic> outputVoltagesV = <dynamic>[]; // Update the Array based on AO Channels to Turn OFF
 }
 
-/// Sequence `Turn Off all AO Channels`.
 Future<void> turnOffAllAoChannels() async {
   final locals = _TurnOffAllAoChannelsLocals();
 
@@ -578,19 +556,17 @@ Future<void> turnOffAllAoChannels() async {
     // This example resets all configured Analog output channels voltage to 0 Volts
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     // Initializes the configured Physical/Virtual channels of Analog Output module
-    final outputs = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Initialize.vi',
       inputs: {'Physical Channels': 'Simulated_DAQ/ao0:3'},
-    ); // DC Voltage Generation - Initialize AO Channels
-    locals.dcVoltageGenTask = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Initialize AO Channels
     locals.outputVoltagesV = <dynamic>[0, 0, 0, 0]; // Assign the Output Voltage for all configured AO Channels
 
     // Sources DC Voltage at 0V to Analog Ouput channels
-    final outputs2 = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Configure and Generate.vi',
       inputs: {'DAQmx Task In': locals.dcVoltageGenTask, 'Output Voltages (V)': locals.outputVoltagesV},
-    ); // DC Voltage Generation - Configure, Initiate and Sources DC voltage
-    locals.dcVoltageGenTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Configure, Initiate and Sources DC voltage
   } finally {
     // Closes the DC Voltage Generation Task for Analog output module
     await ts.callVi(
@@ -604,29 +580,26 @@ class _PowerDownSupplyLocals {
   dynamic psTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
 }
 
-/// Sequence `Power Down Supply`.
 Future<void> powerDownSupply() async {
   final locals = _PowerDownSupplyLocals();
 
   try {
     // Powers down the output of power supply module
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-    final outputs = await ts.callVi(
+    locals.psTask = (await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Initialize.vi',
       inputs: {'Physical channels': 'Simulated_Power/power'},
-    ); // Power Supply Source and Measure - Initialize
-    locals.psTask = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Power Supply Source and Measure - Initialize
 
     // Configures the power supply source to disable output after close to make it to "Idle" state
-    final outputs2 = await ts.callVi(
+    locals.psTask = (await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Configure and Measure.vi',
       inputs: {
         'DAQmx Task In': locals.psTask,
         'Channel Settings.Voltage Setpoint(V)': 0,
         'Channel Settings.Idle Output Behavior': 15503,
       },
-    ); // Power Supply - Set to 0V
-    locals.psTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Power Supply - Set to 0V
   } finally {
     await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Close.vi',
@@ -635,7 +608,6 @@ Future<void> powerDownSupply() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'About This Example',

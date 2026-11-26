@@ -3,7 +3,6 @@ import 'package:labwright/shims.dart' as ts;
 
 String userToAutoLogin = 'administrator';
 
-/// Sequence `LoginLogout`.
 Future<ts.Status> loginLogout() async {
   final run = ts.SequenceRun();
   final dynamic autoLoginIfInitialLoginResult = ts.StepResult();
@@ -31,7 +30,6 @@ class _AutoLoginLocals {
   dynamic userToLogin;
 }
 
-/// Sequence `AutoLogin`.
 Future<ts.Status> autoLogin() async {
   final locals = _AutoLoginLocals();
   final run = ts.SequenceRun();
@@ -41,7 +39,7 @@ Future<ts.Status> autoLogin() async {
       .callActiveX(ts.eval('RunState.Engine'), 'IEngine.GetUser', inputs: {'LoginName': userToAutoLogin})
       .returnValue; // Get User To Login
   ts.eval('Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False');
-  getUserToLoginResult.Status = ts.truthy(getUserToLoginResult.PassFail) ? 'Passed' : 'Failed';
+  getUserToLoginResult.Status = ts.Status.passFail(ts.truthy(getUserToLoginResult.PassFail));
   run.record(getUserToLoginResult.Status);
   if (getUserToLoginResult.Status == 'Passed') {
     await ts.callActiveX(
@@ -54,7 +52,6 @@ Future<ts.Status> autoLogin() async {
   return run.status;
 }
 
-/// Sequence `Logout`.
 Future<void> logout() async {
   // (no steps in the source sequence)
 }

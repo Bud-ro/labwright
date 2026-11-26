@@ -13,7 +13,7 @@ dynamic expectedValues = ts.PropObj({
 bool isOfflineMode = false;
 double tolerence = 1;
 
-/// Sequence `MainSequence` — Runs for each UUT.
+/// Runs for each UUT.
 Future<void> mainSequence() async {
   // Measure the rise time of a digital signal using the PXIe-657x's TMU.
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
@@ -172,7 +172,7 @@ Future<void> mainSequence() async {
   ); // Measure Pulse Width
 }
 
-/// Sequence `ProcessSetup` — Runs once at lot start.
+/// Runs once at lot start.
 Future<void> processSetup() async {
   await ts.stepType('NI_SemiconductorModule_GetTestSettings', {
     'SettingAssignments': [
@@ -203,7 +203,7 @@ Future<void> processSetup() async {
   ); // Cache Session Mapping
 }
 
-/// Sequence `ProcessCleanup` — Runs once at lot end.
+/// Runs once at lot end.
 Future<void> processCleanup() async {
   await ts.stepType('NI_SemiconductorTest_CleanupInstrumentation');
   await ts.callDotNet(
@@ -213,7 +213,6 @@ Future<void> processCleanup() async {
   ); // Cleanup Instrumentation
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'About This Example',

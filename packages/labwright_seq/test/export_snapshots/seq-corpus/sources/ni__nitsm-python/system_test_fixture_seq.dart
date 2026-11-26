@@ -16,7 +16,6 @@ class _MainSequenceLocals {
   String commandLinePythonEnvironmentPath = '';
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 

@@ -1579,6 +1579,9 @@ class _DartExporter {
         if (cb == null || t == null || f == null) return null;
         if (cb.code == 'true') return t;
         if (cb.code == 'false') return f;
+        if (whenTrue case SeqString(value: 'Passed') when whenFalse is SeqString && whenFalse.value == 'Failed') {
+          return (code: 'ts.Status.passFail(${cb.code})', type: _DartSlot.text, prec: _Prec.primary);
+        }
         _DartSlot type;
         if (t.type == f.type) {
           type = t.type;
@@ -1887,15 +1890,16 @@ class _DartExporter {
         ..writeln('}')
         ..writeln();
     }
-    _out
-      ..writeln(
-        '/// Sequence `${_comment(sequence.name)}`'
-        '${sequence.comment != null ? ' — ${_comment(sequence.comment!)}' : ''}.',
-      )
-      ..writeln(
-        '${fails ? 'Future<ts.Status>' : 'Future<void>'} $fnName('
-        '${scope.emittedParams.isEmpty ? '' : '{${[for (final p in scope.emittedParams) _boxedParams.containsKey(_paramIds[p.name]) ? 'ts.Ref<${_idTypes[_paramIds[p.name]]!.source}>? ${_paramIds[p.name]}' : _paramDecl(p, _paramIds[p.name]!)].join(', ')}}'}) async {',
-      );
+    final renamed = sequence.name.replaceAll(RegExp('[^A-Za-z0-9]'), '').toLowerCase() != fnName.toLowerCase();
+    final about = [
+      if (renamed) 'Sequence `${_comment(sequence.name)}`',
+      if (sequence.comment case final comment?) _comment(comment),
+    ].join(' — ');
+    if (about.isNotEmpty) _out.writeln('/// $about${about.endsWith('.') ? '' : '.'}');
+    _out.writeln(
+      '${fails ? 'Future<ts.Status>' : 'Future<void>'} $fnName('
+      '${scope.emittedParams.isEmpty ? '' : '{${[for (final p in scope.emittedParams) _boxedParams.containsKey(_paramIds[p.name]) ? 'ts.Ref<${_idTypes[_paramIds[p.name]]!.source}>? ${_paramIds[p.name]}' : _paramDecl(p, _paramIds[p.name]!)].join(', ')}}'}) async {',
+    );
     final preamble = [
       for (final p in scope.emittedParams) ...[
         if (_scalarType(p) == null && _isArrayVar(p)) '${_paramIds[p.name]!} ??= ${_arrayInit(p)};${_typeComment(p)}',
@@ -3422,8 +3426,11 @@ class _DartExporter {
         _line('await $call;$note');
         return;
       }
-      if (outputs case [final only] when only.name == _returnValue) {
-        final store = _assignment(only.bound, 'await $call.returnValue');
+      if (outputs case [final only]) {
+        final store = _assignment(
+          only.bound,
+          only.name == _returnValue ? 'await $call.returnValue' : "(await $call)['${_escape(only.name)}']",
+        );
         if (store != null && _variable.hasMatch(store.substring(0, store.indexOf(' = ')))) {
           _line('$store$note');
           return;

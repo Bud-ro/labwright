@@ -32,7 +32,6 @@ class _SequenceFileDocLocals {
   double totalNumSteps = 0;
 }
 
-/// Sequence `Sequence File Doc`.
 Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
   final locals = _SequenceFileDocLocals();
   final run = ts.SequenceRun();
@@ -48,12 +47,13 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
   {
     skipToEndSeqFileGlobals:
     {
-      final outputs = await ts.callDll(
-        '\$(Platform)\\DocSupport.dll',
-        'GetCharsetHTMLMetaString',
-        inputs: {'resultBuf': locals.charsetMetaTag},
-      ); // GetCharsetMetaTag
-      locals.charsetMetaTag = outputs['resultBuf'] as String;
+      locals.charsetMetaTag =
+          (await ts.callDll(
+                '\$(Platform)\\DocSupport.dll',
+                'GetCharsetHTMLMetaString',
+                inputs: {'resultBuf': locals.charsetMetaTag},
+              ))['resultBuf']
+              as String; // GetCharsetMetaTag
       locals.docResult +=
           '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN"><HTML><HEAD> ${locals.charsetMetaTag} <TITLE>${ts.resourceString('SEQ_FILE_DOC', 'DOC_TITLE')}</TITLE></HEAD><BODY><FONT FACE = "VERDANA">'; // Begin HTML
       locals.docResult +=
@@ -209,7 +209,7 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
     },
     passesContext: true,
   ); // Save Doc To File
-  saveDocToFileResult.Status = ts.truthy(saveDocToFileResult.PassFail) ? 'Passed' : 'Failed';
+  saveDocToFileResult.Status = ts.Status.passFail(ts.truthy(saveDocToFileResult.PassFail));
   run.record(saveDocToFileResult.Status);
 
   return run.status;
@@ -227,7 +227,6 @@ class _SequenceDocLocals {
   int previousBlockLevel = 0;
 }
 
-/// Sequence `Sequence Doc`.
 Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dynamic docOptions}) async {
   final docResultRef = docResult ?? ts.Ref<String>('');
   final locals = _SequenceDocLocals();
@@ -447,7 +446,6 @@ class _StepDocLocals {
   int blockLevel = 0;
 }
 
-/// Sequence `Step Doc`.
 Future<ts.Status> stepDoc({
   dynamic step,
   ts.Ref<String>? docResult,
@@ -481,13 +479,18 @@ Future<ts.Status> stepDoc({
     ts.eval(
       'Parameters.DocResult += "<BLOCKQUOTE>" + Locals.TableHTML + Locals.RowHTML + Locals.TitleColHTML +\n	"<FONT COLOR=WHITE SIZE=+2><B>" +\n	GetResourceString("SEQ_FILE_DOC", "DOC_STEP_NAME") +\n	NameOf(Parameters.Step) + "</B></FONT>\\n"\n',
     ); // Step Header
-    final outputs = await ts.callDll(
-      '\$(Platform)\\DocSupport.dll',
-      'GetStepTypeName',
-      inputs: {'step': step, 'stringObjToStoreResult': locals.stepTypeName, 'isNIStepType': locals.isNiStepType},
-    ); // Get StepType Name
-    locals.isNiStepType = outputs['isNIStepType'] as bool;
-    getStepTypeNameResult.Status = ts.truthy(getStepTypeNameResult.PassFail) ? 'Passed' : 'Failed';
+    locals.isNiStepType =
+        (await ts.callDll(
+              '\$(Platform)\\DocSupport.dll',
+              'GetStepTypeName',
+              inputs: {
+                'step': step,
+                'stringObjToStoreResult': locals.stepTypeName,
+                'isNIStepType': locals.isNiStepType,
+              },
+            ))['isNIStepType']
+            as bool; // Get StepType Name
+    getStepTypeNameResult.Status = ts.Status.passFail(ts.truthy(getStepTypeNameResult.PassFail));
     run.record(getStepTypeNameResult.Status);
     locals.stepKeyName = await ts.callActiveX(step, 'Step.AdapterKeyName').returnValue as String; // GetStepKeyName
     locals.tmpString = ts.resourceString('Adapter Names', locals.stepKeyName); // Process Adapter Name
@@ -594,7 +597,6 @@ class _WriteSubpropertiesLocals {
   int subpropFlags = 0;
 }
 
-/// Sequence `Write Subproperties`.
 Future<void> writeSubproperties({
   dynamic root,
   String docResult = '',
@@ -665,7 +667,6 @@ class _WriteArrayElementsLocals {
   String colHtml = '<TD WIDTH=33% colspan=3 NOWRAP=NOWRAP BGCOLOR=LIGHTBLUE>';
 }
 
-/// Sequence `Write Array Elements`.
 Future<void> writeArrayElements({
   dynamic root,
   ts.Ref<String>? docResult,
@@ -679,12 +680,13 @@ Future<void> writeArrayElements({
   {
     skipToMaxNumArrayElementsMsg:
     {
-      final outputs = await ts.callActiveX(
-        root,
-        'PropertyObject.GetDimensions',
-        inputs: {'lookupString': arrayPropLookupStr, 'options': 0},
-      ); // GetNumElements
-      locals.numElements = outputs['numElements'] as int;
+      locals.numElements =
+          (await ts.callActiveX(
+                root,
+                'PropertyObject.GetDimensions',
+                inputs: {'lookupString': arrayPropLookupStr, 'options': 0},
+              ))['numElements']
+              as int; // GetNumElements
       backToStartOfLoop:
       while (true) {
         // --- Start of Loop ---
@@ -730,7 +732,6 @@ class _WritePropertyDetailsLocals {
   String valColHtml = '<TD WIDTH=33% BGCOLOR=LIGHTGREEN>';
 }
 
-/// Sequence `Write Property Details`.
 Future<void> writePropertyDetails({
   ts.Ref<String>? docResult,
   dynamic root,
@@ -819,19 +820,19 @@ class _WriteMultipleNumericLimitLimitsLocals {
   String highLimitFmt = '';
 }
 
-/// Sequence `Write Multiple Numeric Limit Limits`.
 Future<void> writeMultipleNumericLimitLimits({dynamic step, ts.Ref<String>? docResult}) async {
   final docResultRef = docResult ?? ts.Ref<String>('');
   final locals = _WriteMultipleNumericLimitLimitsLocals();
 
   skipToAfterLoop:
   {
-    final outputs = await ts.callActiveX(
-      step.Result.Measurement,
-      'PropertyObject.GetDimensions',
-      inputs: {'lookupString': '', 'options': 0},
-    ); // GetNumElements
-    locals.numElements = outputs['numElements'] as int;
+    locals.numElements =
+        (await ts.callActiveX(
+              step.Result.Measurement,
+              'PropertyObject.GetDimensions',
+              inputs: {'lookupString': '', 'options': 0},
+            ))['numElements']
+            as int; // GetNumElements
     backToStartOfLoop:
     while (true) {
       // --- Start of Loop ---
@@ -926,7 +927,6 @@ class _WriteRequirementsElementsLocals {
   String valColHtml = '<TD WIDTH=70% BGCOLOR=LIGHTGREEN>';
 }
 
-/// Sequence `Write Requirements Elements`.
 Future<void> writeRequirementsElements({dynamic requirements, ts.Ref<String>? docResult}) async {
   final docResultRef = docResult ?? ts.Ref<String>('');
   final locals = _WriteRequirementsElementsLocals();

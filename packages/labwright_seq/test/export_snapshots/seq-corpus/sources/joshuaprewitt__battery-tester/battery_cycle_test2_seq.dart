@@ -9,7 +9,6 @@ class _MainSequenceLocals {
   String filePath = '';
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
@@ -46,7 +45,7 @@ Future<ts.Status> mainSequence() async {
   return run.status;
 }
 
-/// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
+/// Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes.
 Future<void> processSetup() async {
   // skipped: Update Saved File Global Cache
   // skipped: Update Runtime File Global

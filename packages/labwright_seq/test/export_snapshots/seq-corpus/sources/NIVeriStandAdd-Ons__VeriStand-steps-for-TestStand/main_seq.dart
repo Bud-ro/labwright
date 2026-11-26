@@ -17,7 +17,6 @@ dynamic veristand = ts.PropObj({
   'GatewayIP': '"localhost"',
 });
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic channelValueLimitTestResult = ts.StepResult({'Numeric': 0});
@@ -80,9 +79,9 @@ Future<ts.Status> mainSequence() async {
         'ParamNamesArray': '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
       },
     }, rtSequencePassFailTestResult);
-    rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
-        ? 'Passed'
-        : 'Failed';
+    rtSequencePassFailTestResult.Status = ts.Status.passFail(
+      ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail),
+    );
     await ts.stepType('RunRTSequenceNumericLimit', {
       'VeriStand': {
         'Target': 'Controller',
@@ -217,7 +216,7 @@ Future<ts.Status> mainSequence() async {
   return run.status;
 }
 
-/// Sequence `PreUUT` — Displays a dialog box in which the operator enters the UUTserial number.  Override this in client file to change or replace this action..
+/// Displays a dialog box in which the operator enters the UUTserial number.  Override this in client file to change or replace this action.
 Future<void> preUut({
   bool continueTesting = true,
   dynamic uut,
@@ -229,7 +228,7 @@ Future<void> preUut({
   // skipped: Call DoPreUUT
 }
 
-/// Sequence `PostUUT` — Displays a pass, fail, error, or terminated banner. Override this in client file to change or replace this action..
+/// Displays a pass, fail, error, or terminated banner. Override this in client file to change or replace this action.
 Future<void> postUut({
   dynamic result,
   dynamic uut,
@@ -241,7 +240,6 @@ Future<void> postUut({
   // skipped: Call DoPostUUT
 }
 
-/// Sequence `Subsequence`.
 Future<ts.Status> subsequence() async {
   final run = ts.SequenceRun();
   final dynamic channelValueLimitTestResult = ts.StepResult({'Numeric': 0});
@@ -301,9 +299,7 @@ Future<ts.Status> subsequence() async {
       'ParamNamesArray': '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
     },
   }, rtSequencePassFailTestResult);
-  rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
-      ? 'Passed'
-      : 'Failed';
+  rtSequencePassFailTestResult.Status = ts.Status.passFail(ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail));
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {
       'Target': 'Controller',

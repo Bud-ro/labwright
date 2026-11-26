@@ -67,7 +67,6 @@ dynamic modelPluginComponentDescription = ts.PropObj({
 });
 String simpleTextReportLocalizedStringSection = 'STS_LiveTestResultViewer';
 
-/// Sequence `Model Plugin - Configure Standard Options`.
 Future<void> modelPluginConfigureStandardOptions({
   bool changed = false,
   dynamic processModel,
@@ -87,12 +86,10 @@ Future<void> modelPluginConfigureStandardOptions({
   changed = outputs['Changed'] as bool;
 }
 
-/// Sequence `Model Plugin - Initialize`.
 Future<void> modelPluginInitialize({dynamic modelPlugin, dynamic modelPluginConfiguration}) async {
   // (no steps in the source sequence)
 }
 
-/// Sequence `Model Plugin - Begin`.
 Future<void> modelPluginBegin({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -144,7 +141,7 @@ Future<void> modelPluginBegin({
   }
 }
 
-/// Sequence `Model Plugin - End` — This plug-in does nothing in the "Model Plugin - End" callback.  It could be deleted..
+/// This plug-in does nothing in the "Model Plugin - End" callback.  It could be deleted.
 Future<void> modelPluginEnd({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -156,7 +153,6 @@ Future<void> modelPluginEnd({
   }
 }
 
-/// Sequence `Model Plugin - UUT Start`.
 Future<void> modelPluginUutStart({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -170,7 +166,6 @@ Future<void> modelPluginUutStart({
   // (no steps in the source sequence)
 }
 
-/// Sequence `Model Plugin - UUT Done`.
 Future<void> modelPluginUutDone({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -194,7 +189,6 @@ Future<void> modelPluginUutDone({
   // (no steps in the source sequence)
 }
 
-/// Sequence `Model Plugin - OnTheFly Step Results`.
 Future<void> modelPluginOnTheFlyStepResults({
   dynamic modelPlugin,
   dynamic modelData,
@@ -218,7 +212,7 @@ Future<void> modelPluginOnTheFlyStepResults({
   ); // Action
 }
 
-/// Sequence `Create Header` — Create the report header, appending to Parameters.ReportSection..
+/// Create the report header, appending to Parameters.ReportSection.
 Future<void> createHeader({
   String partNumber = '',
   String stationId = '',
@@ -234,12 +228,12 @@ Future<void> createHeader({
   // (no steps in the source sequence)
 }
 
-/// Sequence `Create Column Headers` — Create the column headings for the report body, appending to Parameters.ReportSection..
+/// Create the column headings for the report body, appending to Parameters.ReportSection.
 Future<void> createColumnHeaders({dynamic options, dynamic reportSection}) async {
   // (no steps in the source sequence)
 }
 
-/// Sequence `Create Footer` — Create the report footer, appending to Parameters.ReportSection..
+/// Create the report footer, appending to Parameters.ReportSection.
 Future<void> createFooter({
   String status = '',
   String errorMessage = '',
@@ -250,7 +244,7 @@ Future<void> createFooter({
   // (no steps in the source sequence)
 }
 
-/// Sequence `Generate Report Path` — Create the full report path, constructing the file name of the form "[Station ID][Sequence File][Date][Time][Batch Serial Number (if needed)][UUT Serial Number][Test Socket Index (if needed)].log", and combining with Parameters.Options.ResultDirectory..
+/// Create the full report path, constructing the file name of the form "[Station ID][Sequence File][Date][Time][Batch Serial Number (if needed)][UUT Serial Number][Test Socket Index (if needed)].log", and combining with Parameters.Options.ResultDirectory.
 Future<void> generateReportPath({
   String stationId = '',
   String sequenceFilePath = '',

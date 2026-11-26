@@ -3,7 +3,6 @@ import 'package:labwright/shims.dart' as ts;
 
 dynamic veristand = ts.PropObj({'GatewayIP': '"localhost"'});
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   await ts.stepType('SetChannelFaultValue', {
     'Veristand': {'ChannelName': '"Aliases/EnginePower"'},

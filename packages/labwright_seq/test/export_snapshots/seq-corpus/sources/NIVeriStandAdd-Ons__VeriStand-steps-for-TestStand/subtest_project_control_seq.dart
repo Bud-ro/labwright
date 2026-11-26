@@ -17,7 +17,6 @@ dynamic veristand = ts.PropObj({
   'GatewayIP': '"localhost"',
 });
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   try {
     ts.eval('RunState.Main.Locals.NewSubProperty("VSDialogs",PropValType_Container,False,"",0)');

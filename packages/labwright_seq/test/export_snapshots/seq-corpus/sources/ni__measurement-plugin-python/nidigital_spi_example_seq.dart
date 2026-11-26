@@ -10,7 +10,6 @@ dynamic measurementPlugIns = ts.PropObj({
   'PatternFilePaths': <dynamic>['Pattern.digipat'],
 });
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap(measurementPlugIns.PinMapPath as String);

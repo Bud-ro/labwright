@@ -5,7 +5,6 @@ class _MainSequenceLocals {
   String hardwareConfigPath = '';
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -30,7 +29,6 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `-------Examples------`.
 Future<void> examples() async {
   // (no steps in the source sequence)
 }
@@ -41,23 +39,20 @@ class _SendAndValidatePwmAnalogBufferLocals {
   List<dynamic> pwmDutycycle = <dynamic>[];
 }
 
-/// Sequence `Send and Validate PWM(Analog Buffer)`.
 Future<void> sendAndValidatePwmAnalogBuffer() async {
   final locals = _SendAndValidatePwmAnalogBufferLocals();
 
   try {
     // This example demonstrates the LED test where PWM commands are sent to LEDs and PWM response is captured at TestPoint via analog buffer to validate Dutycycle
     // Note to run with Hardware: Update the Global Channel based on NI Max in the below Initialize Steps
-    final outputs = await ts.callVi(
+    locals.signalGenTask = (await ts.callVi(
       'Signal Voltage Generation\\DAQ_SV Gen Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TS_PWM_LED0', 'Global Channels.SessionNumber': 0},
-    ); // Signal Voltage Generation - Initialize PWM Source
-    locals.signalGenTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // Signal Voltage Generation - Initialize PWM Source
+    locals.timeDomainMeasTask = (await ts.callVi(
       'Time Domain Measurement\\DAQ_TDV Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_PWM_LED0', 'Global Channels.SessionNumber': 0},
-    ); // Time Domain Measurement - Initialize LED Measure
-    locals.timeDomainMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Time Domain Measurement - Initialize LED Measure
 
     // Note to run with Hardware: Review the Configurations & update the Digital Start Trigger Settings based on NI MAX
     // Configure Time Domain Measurement settings to wait for Hardware Trigger from PWM generation
@@ -87,16 +82,17 @@ Future<void> sendAndValidatePwmAnalogBuffer() async {
     //
     // Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
     // Fetch and Validate PWM value via analog buffer
-    final outputs3 = await ts.callVi(
-      'Time Domain Measurement\\DAQ_TDV Meas Configure and Measure.vi',
-      inputs: {
-        'Execution Settings.Execution option': 2,
-        'Execution Settings.Skip Analysis?': false,
-        'DAQmx Task In': locals.timeDomainMeasTask,
-        'Periodic Waveform \nMeasurements?': false,
-      },
-    ); // Time Domain Measurement - Fetch captured LED Measurements
-    locals.pwmDutycycle = outputs3['Time Domain Measurements.Voltage Waveform duty cycle (%)'] as List<dynamic>;
+    locals.pwmDutycycle =
+        (await ts.callVi(
+              'Time Domain Measurement\\DAQ_TDV Meas Configure and Measure.vi',
+              inputs: {
+                'Execution Settings.Execution option': 2,
+                'Execution Settings.Skip Analysis?': false,
+                'DAQmx Task In': locals.timeDomainMeasTask,
+                'Periodic Waveform \nMeasurements?': false,
+              },
+            ))['Time Domain Measurements.Voltage Waveform duty cycle (%)']
+            as List<dynamic>; // Time Domain Measurement - Fetch captured LED Measurements
   } finally {
     // Close all Tasks
     await ts.callVi(
@@ -119,7 +115,6 @@ class _ValidateDcLevelLocals {
   });
 }
 
-/// Sequence `Validate DC Level`.
 Future<void> validateDcLevel() async {
   final locals = _ValidateDcLevelLocals();
 
@@ -128,23 +123,22 @@ Future<void> validateDcLevel() async {
     // Note to run with Hardware: Update the Global Channel based on NI Max in the below Initialize Step
     //
     // Initialize DC-RMS Voltage Meas to validate DC levels at Anode(TP_LED0+) and Cathode(TP_LED0-) of LED
-    final outputs = await ts.callVi(
+    locals.dcVoltageMeasTask = (await ts.callVi(
       'DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_LED0', 'Global Channels.SessionNumber': 0},
-    ); // DC-RMS Voltage Measurement - Initialize LED DC Measurements
-    locals.dcVoltageMeasTask = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC-RMS Voltage Measurement - Initialize LED DC Measurements
 
     // Note to run with Hardware: Review the Configurations for the intended use case
-    final outputs2 = await ts.callVi(
+    final outputs = await ts.callVi(
       'DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Configure and Measure.vi',
       inputs: {
         'DAQmx Task In': locals.dcVoltageMeasTask,
         'Range and Terminal Settings.Global Settings.Terminal Configuration': 10106,
       },
     ); // DC-RMS Voltage Measurement - Measure Anode and Cathode of LED
-    locals.measurementData.Voltage_Waveform = outputs2['Voltage Waveforms'];
-    locals.measurementData.Avg_Voltage = outputs2['DC and RMS Voltage Measurements.Average DC Voltage (V)'];
-    locals.measurementData.RMS_Voltage = outputs2['DC and RMS Voltage Measurements.RMS Voltage (V)'];
+    locals.measurementData.Voltage_Waveform = outputs['Voltage Waveforms'];
+    locals.measurementData.Avg_Voltage = outputs['DC and RMS Voltage Measurements.Average DC Voltage (V)'];
+    locals.measurementData.RMS_Voltage = outputs['DC and RMS Voltage Measurements.RMS Voltage (V)'];
   } finally {
     await ts.callVi(
       'DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Close.vi',
@@ -153,7 +147,6 @@ Future<void> validateDcLevel() async {
   }
 }
 
-/// Sequence `-------Reusable Sequences------`.
 Future<void> reusableSequences() async {
   // (no steps in the source sequence)
 }
@@ -162,7 +155,6 @@ class _TurnOffAllAoChannelsLocals {
   dynamic dcVoltageGenTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
 }
 
-/// Sequence `Turn Off all AO Channels`.
 Future<void> turnOffAllAoChannels() async {
   final locals = _TurnOffAllAoChannelsLocals();
 
@@ -170,14 +162,13 @@ Future<void> turnOffAllAoChannels() async {
     // This example resets all configured Analog output channels voltage to 0 Volts
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     // Initializes the configured Physical/Virtual channels of Analog Output module
-    final outputs = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Initialize.vi',
       inputs: {'Physical Channels': 'Simulated_DAQ/ao0:3'},
-    ); // DC Voltage Generation - Initialize AO Channels
-    locals.dcVoltageGenTask = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Initialize AO Channels
 
     // Sources DC Voltage at 0V to Analog Ouput channels
-    final outputs2 = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Configure and Generate.vi',
       inputs: {
         'DAQmx Task In': locals.dcVoltageGenTask,
@@ -186,8 +177,7 @@ Future<void> turnOffAllAoChannels() async {
         'Output Voltages (V).[2]': 0,
         'Output Voltages (V).[3]': 0,
       },
-    ); // DC Voltage Generation - Set 0V
-    locals.dcVoltageGenTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Set 0V
   } finally {
     // Closes the DC Voltage Generation Task for Analog output module
     await ts.callVi(
@@ -197,7 +187,6 @@ Future<void> turnOffAllAoChannels() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'About This Example',

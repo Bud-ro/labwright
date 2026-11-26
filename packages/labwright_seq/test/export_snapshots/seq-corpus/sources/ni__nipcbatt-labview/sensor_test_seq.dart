@@ -5,7 +5,6 @@ class _MainSequenceLocals {
   String hardwareConfigPath = '';
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -35,7 +34,6 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `-------Examples------`.
 Future<void> examples() async {
   // (no steps in the source sequence)
 }
@@ -246,35 +244,31 @@ class _ThermistorTestCDaqLocals {
   dynamic dcTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
 }
 
-/// Sequence `Thermistor Test - cDAQ`.
 Future<void> thermistorTestCDaq() async {
   final locals = _ThermistorTestCDaqLocals();
 
   try {
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     // Initialize DC Voltage Generation to generate DC Voltage to excite Thermistor
-    final outputs = await ts.callVi(
+    locals.dcTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TS_THEX', 'Global Channels.SessionNumber': 0},
-    ); // DC Voltage Generation - Initialize
-    locals.dcTask = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Initialize
     // Initializes the configured Physical/Virtual Channels of cDAQ Analog input module to perform Thermimstor Temperature Measurement
     //
-    final outputs2 = await ts.callVi(
+    locals.thermistorTempMeas.Task = (await ts.callVi(
       'Temperature Thermistor Measurement\\DAQ_TTR Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_TH0', 'Global Channels.SessionNumber': 0},
-    ); // Temperature Thermistor Measurement - Initialize
-    locals.thermistorTempMeas.Task = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Temperature Thermistor Measurement - Initialize
 
     // Generate DC Voltage of 5V to excite the Thermistor.
-    final outputs3 = await ts.callVi(
+    locals.dcTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Configure and Generate.vi',
       inputs: {'DAQmx Task In': locals.dcTask, 'Output Voltages (V).[0]': 5},
-    ); // DC Voltage Generation - Configure and Generate
-    locals.dcTask = outputs3['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Configure and Generate
     // Note: For more details on Thermistor Parameter, refer the Temperature Thermistor Library documentation
     // Note to run with Hardware: Update "Thermistor Parameter" and "Terminal Configuration" based on the thermistor settings for accurate temperature measurements.
-    final outputs4 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Temperature Thermistor Measurement\\DAQ_TTR Meas Configure and Measure.vi',
       inputs: {
         'DAQmx Task In': locals.thermistorTempMeas.Task,
@@ -287,13 +281,13 @@ Future<void> thermistorTestCDaq() async {
         'Range and Terminal Settings.Global Settings.Thermistor Parameters.ABC Parameters.C': 1.018703e-7,
       },
     ); // Temperature Thermistor Measurement - Configure & Measure
-    locals.thermistorTempMeas.Task = outputs4['DAQmx Task Out'];
-    locals.thermistorTempMeas.MeasuredWaveform = outputs4['Temperature Waveforms'];
+    locals.thermistorTempMeas.Task = outputs['DAQmx Task Out'];
+    locals.thermistorTempMeas.MeasuredWaveform = outputs['Temperature Waveforms'];
     locals.thermistorTempMeas.MeasurementResults.AverageTemp_C =
-        outputs4['Temperature Measurements.Averaged Temperature (degC)'];
+        outputs['Temperature Measurements.Averaged Temperature (degC)'];
     locals.thermistorTempMeas.MeasurementResults.AverageTemp_K =
-        outputs4['Temperature Measurements.Averaged Temperature (K)'];
-    locals.thermistorTempMeas.AcqTime = outputs4['Acquisition Time (s)'];
+        outputs['Temperature Measurements.Averaged Temperature (K)'];
+    locals.thermistorTempMeas.AcqTime = outputs['Acquisition Time (s)'];
   } finally {
     // Close all Tasks
     // Close DC Voltage Generation
@@ -533,28 +527,25 @@ class _ThermistorTestDaqLocals {
   });
 }
 
-/// Sequence `Thermistor Test - DAQ`.
 Future<void> thermistorTestDaq() async {
   final locals = _ThermistorTestDaqLocals();
 
   try {
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     // Initialize Power Supply Source and Measure to generate DC Voltage to excite Thermistor
-    final outputs = await ts.callVi(
+    locals.psTask = (await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Initialize.vi',
       inputs: {'Physical channels': 'Simulated_Power/power'},
-    ); // Power Supply Source and Measure - Initialize
-    locals.psTask = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Power Supply Source and Measure - Initialize
     // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform Thermistor Temperature Measurement
     //
-    final outputs2 = await ts.callVi(
+    locals.thermistorTempMeas.Task = (await ts.callVi(
       'Temperature Thermistor Measurement\\DAQ_TTR Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_TH1 ', 'Global Channels.SessionNumber': 0},
-    ); // Temperature Thermistor Measurement - Initialize
-    locals.thermistorTempMeas.Task = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Temperature Thermistor Measurement - Initialize
 
     // Generate DC Voltage of 5V to excite Thermistor.
-    final outputs3 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Configure and Measure.vi',
       inputs: {
         'DAQmx Task In': locals.psTask,
@@ -562,17 +553,17 @@ Future<void> thermistorTestDaq() async {
         'Channel Settings.Idle Output Behavior': 12528,
       },
     ); // Power Supply Source and Measure - Configure and Generate
-    locals.psTask = outputs3['DAQmx Task Out'];
-    locals.psMeasData.Voltage_Waveform = outputs3['Voltage Waveforms'];
-    locals.psMeasData.Current_Waveform = outputs3['Current Waveforms'];
-    locals.psMeasData.Max_Voltage = outputs3['Power Measurements.Max Voltage Level(V)'];
-    locals.psMeasData.Max_Current = outputs3['Power Measurements.Max Current Level(A)'];
-    locals.psMeasData.Max_Power = outputs3['Power Measurements.Max Power(W)'];
-    locals.psMeasData.Avg_Power = outputs3['Power Measurements.Average Power (W)'];
+    locals.psTask = outputs['DAQmx Task Out'];
+    locals.psMeasData.Voltage_Waveform = outputs['Voltage Waveforms'];
+    locals.psMeasData.Current_Waveform = outputs['Current Waveforms'];
+    locals.psMeasData.Max_Voltage = outputs['Power Measurements.Max Voltage Level(V)'];
+    locals.psMeasData.Max_Current = outputs['Power Measurements.Max Current Level(A)'];
+    locals.psMeasData.Max_Power = outputs['Power Measurements.Max Power(W)'];
+    locals.psMeasData.Avg_Power = outputs['Power Measurements.Average Power (W)'];
     // Note: For more details on Thermistor Parameter, refer the Temperature Thermistor Library documentation
     // Note to run with Hardware: Update "Thermistor Parameter" and "Terminal Configuration" based on the thermistor settings for accurate temperature measurements. For more details on Thermistor Parameter, refer the Temperature Thermistor Library documentation
     // Capture Thermistor Temperature measurements
-    final outputs4 = await ts.callVi(
+    final outputs2 = await ts.callVi(
       'Temperature Thermistor Measurement\\DAQ_TTR Meas Configure and Measure.vi',
       inputs: {
         'DAQmx Task In': locals.thermistorTempMeas.Task,
@@ -585,13 +576,13 @@ Future<void> thermistorTestDaq() async {
         'Range and Terminal Settings.Global Settings.Thermistor Parameters.ABC Parameters.C': 1.018703e-7,
       },
     ); // Temperature Thermistor Measurement- Configure & Measure
-    locals.thermistorTempMeas.Task = outputs4['DAQmx Task Out'];
-    locals.thermistorTempMeas.MeasuredWaveform = outputs4['Temperature Waveforms'];
+    locals.thermistorTempMeas.Task = outputs2['DAQmx Task Out'];
+    locals.thermistorTempMeas.MeasuredWaveform = outputs2['Temperature Waveforms'];
     locals.thermistorTempMeas.MeasurementResults.AverageTemp_C =
-        outputs4['Temperature Measurements.Averaged Temperature (degC)'];
+        outputs2['Temperature Measurements.Averaged Temperature (degC)'];
     locals.thermistorTempMeas.MeasurementResults.AverageTemp_K =
-        outputs4['Temperature Measurements.Averaged Temperature (K)'];
-    locals.thermistorTempMeas.AcqTime = outputs4['Acquisition Time (s)'];
+        outputs2['Temperature Measurements.Averaged Temperature (K)'];
+    locals.thermistorTempMeas.AcqTime = outputs2['Acquisition Time (s)'];
   } finally {
     // Close all Tasks
     // Close Power Supply and Measure
@@ -611,27 +602,24 @@ class _RtdTestLocals {
   dynamic rtdTempMeasTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
 }
 
-/// Sequence `RTD Test`.
 Future<void> rtdTest() async {
   final locals = _RtdTestLocals();
 
   try {
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     // Initializes the configured Physical/Virtual Channels of Anlaog input module to measure RTD Temperature
-    final outputs = await ts.callVi(
+    locals.rtdTempMeasTask = (await ts.callVi(
       'Temperature RTD Measurement\\DAQ_TRTD Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_RTD', 'Global Channels.SessionNumber': 0},
-    ); // Temperature RTD Measurement - Initialize
-    locals.rtdTempMeasTask = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Temperature RTD Measurement - Initialize
 
     // Note: For more details on RTD parameters, refer the Temperature RTD Library documentation.
     // Note to run with Hardware: Update the RTD specific parameters namely “RTD Type”, “Sensor Resistance at 0 deg C (ohm)”, “Resistance Configuration”, “Current Excitation Source”, Current Excitation (A)”, “ADC Timing Mode” based on the RTD settings for accurate temperature measurements.
     // Applies RTD Temperature Measurement configurations and starts measurement
-    final outputs2 = await ts.callVi(
+    locals.rtdTempMeasTask = (await ts.callVi(
       'Temperature RTD Measurement\\DAQ_TRTD Meas Configure and Measure.vi',
       inputs: {'DAQmx Task In': locals.rtdTempMeasTask},
-    ); // Temperature RTD Measurement - Configure & Measure
-    locals.rtdTempMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Temperature RTD Measurement - Configure & Measure
   } finally {
     // Close all Tasks
     // Aborts and clears the RTD Temperature Measurement task
@@ -847,7 +835,6 @@ class _ThermocoupleTestLocals {
   });
 }
 
-/// Sequence `Thermocouple Test`.
 Future<void> thermocoupleTest() async {
   final locals = _ThermocoupleTestLocals();
 
@@ -855,26 +842,25 @@ Future<void> thermocoupleTest() async {
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform Thermocouple Temperature Measurement
     //
-    final outputs = await ts.callVi(
+    locals.thermocoupleTempMeas.Task = (await ts.callVi(
       'Temperature Thermocouple Measurement\\DAQ_TTC Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_TC', 'Global Channels.SessionNumber': 0, 'CJC Source': 10200},
-    ); // Temperature Thermocouple Measurement - Initialize
-    locals.thermocoupleTempMeas.Task = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Temperature Thermocouple Measurement - Initialize
 
     // For more details on Thermocouple Parameter, refer the Temperature Thermocouple Library documentation.
     // Note to run with Hardware: Update the Thermocouple specific parameters namely “Thermocouple Type”, “CJC Temp (deg C)”, “Enable Autozero” and “Auto Zero Mode” based on the thermocouple settings for accurate temperature measurements.
     // Capture Temperature Thermocouple measurements
-    final outputs2 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Temperature Thermocouple Measurement\\DAQ_TTC Meas Configure and Measure.vi',
       inputs: {'DAQmx Task In': locals.thermocoupleTempMeas.Task},
     ); // Temperature Thermocouple Measurement - Configure & Measure
-    locals.thermocoupleTempMeas.Task = outputs2['DAQmx Task Out'];
-    locals.thermocoupleTempMeas.MeasuredWaveform = outputs2['Temperature Waveforms'];
+    locals.thermocoupleTempMeas.Task = outputs['DAQmx Task Out'];
+    locals.thermocoupleTempMeas.MeasuredWaveform = outputs['Temperature Waveforms'];
     locals.thermocoupleTempMeas.MeasurementResults.AverageTemp_C =
-        outputs2['Temperature Measurements.Average Temperature(deg C)'];
+        outputs['Temperature Measurements.Average Temperature(deg C)'];
     locals.thermocoupleTempMeas.MeasurementResults.AverageTemp_K =
-        outputs2['Temperature Measurements.Average Temperature(K)'];
-    locals.thermocoupleTempMeas.AcqTime = outputs2['Acquisition Time (s)'];
+        outputs['Temperature Measurements.Average Temperature(K)'];
+    locals.thermocoupleTempMeas.AcqTime = outputs['Acquisition Time (s)'];
   } finally {
     // Close all Tasks
     // Aborts and clears the ThermocoupleTemperature Measurement task
@@ -885,7 +871,6 @@ Future<void> thermocoupleTest() async {
   }
 }
 
-/// Sequence `-------Reusable Sequences------`.
 Future<void> reusableSequences() async {
   // (no steps in the source sequence)
 }
@@ -895,7 +880,6 @@ class _TurnOffAllAoChannelsLocals {
   List<dynamic> outputVoltagesV = <dynamic>[]; // Update the Array based on AO Channels to Turn OFF
 }
 
-/// Sequence `Turn Off all AO Channels`.
 Future<void> turnOffAllAoChannels() async {
   final locals = _TurnOffAllAoChannelsLocals();
 
@@ -904,18 +888,16 @@ Future<void> turnOffAllAoChannels() async {
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     locals.outputVoltagesV = <dynamic>[0, 0, 0, 0]; // Assign the Output Voltage for all configured AO Channels
     // Initializes the configured Physical/Virtual channels of Analog Output module
-    final outputs = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Initialize.vi',
       inputs: {'Physical Channels': 'Simulated_cDAQ_9263/ao0:3'},
-    ); // DC Voltage Generation - Initialize AO Channels
-    locals.dcVoltageGenTask = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Initialize AO Channels
 
     // Sources DC Voltage at 0V to Analog Ouput channels
-    final outputs2 = await ts.callVi(
+    locals.dcVoltageGenTask = (await ts.callVi(
       'DC Voltage Generation\\DAQ_DC Voltage Gen Configure and Generate.vi',
       inputs: {'DAQmx Task In': locals.dcVoltageGenTask, 'Output Voltages (V)': locals.outputVoltagesV},
-    ); // DC Voltage Generation - Configure & Generate, Initiate and Sources DC voltage
-    locals.dcVoltageGenTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC Voltage Generation - Configure & Generate, Initiate and Sources DC voltage
   } finally {
     // Close all Tasks
     // Closes the DC Voltage Generation Task for Analog output module
@@ -930,7 +912,6 @@ class _TurnOffPowerChannelLocals {
   dynamic psTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
 }
 
-/// Sequence `Turn Off Power Channel`.
 Future<void> turnOffPowerChannel() async {
   final locals = _TurnOffPowerChannelLocals();
 
@@ -938,18 +919,16 @@ Future<void> turnOffPowerChannel() async {
     // This example resets configured Power channel voltage to 0.1 Volt
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
     // Initializes the configured Physical/Virtual channels of Power module
-    final outputs = await ts.callVi(
+    locals.psTask = (await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Initialize.vi',
       inputs: {'Physical channels': 'Simulated_Power/power'},
-    ); // Power Supply Source and Measure - Initialize
-    locals.psTask = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Power Supply Source and Measure - Initialize
 
     // Sources DC Voltage at 0.1V and 0.1A on Power channel.
-    final outputs2 = await ts.callVi(
+    locals.psTask = (await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Configure and Measure.vi',
       inputs: {'DAQmx Task In': locals.psTask, 'Channel Settings.Voltage Setpoint(V)': 0.1},
-    ); // Power Supply Source and Measure - Disable Output
-    locals.psTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Power Supply Source and Measure - Disable Output
   } finally {
     // Close all Tasks
     // Closes the Power Supply Source and Measure Task for Power module and disables the output.
@@ -960,7 +939,6 @@ Future<void> turnOffPowerChannel() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'About This Example',

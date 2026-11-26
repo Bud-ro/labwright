@@ -6,7 +6,6 @@ class _MainSequenceLocals {
   dynamic mySimpleContainer = ts.PropObj({'MyNum1': 0, 'MyStr1': '', 'EmptyNumArray': <dynamic>[]});
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 

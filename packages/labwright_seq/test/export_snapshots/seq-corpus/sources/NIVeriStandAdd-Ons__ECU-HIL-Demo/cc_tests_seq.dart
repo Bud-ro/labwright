@@ -21,7 +21,6 @@ class _MainSequenceLocals {
   List<dynamic> tdmsFile = <dynamic>[''];
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
@@ -77,7 +76,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, getToKnownStateResult);
-  getToKnownStateResult.Status = ts.truthy(getToKnownStateResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  getToKnownStateResult.Status = ts.Status.passFail(ts.truthy(getToKnownStateResult.VeriStand.PassFail));
   run.record(getToKnownStateResult.Status);
 
   await ts.stepType('StartLogging', {
@@ -116,7 +115,7 @@ Future<ts.Status> mainSequence() async {
           '{"Cruise_Control_Enable","Cruise_Control_Accel","Cruise_Control_Decel","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal"}',
     },
   }, ccRampUpResult);
-  ccRampUpResult.Status = ts.truthy(ccRampUpResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  ccRampUpResult.Status = ts.Status.passFail(ts.truthy(ccRampUpResult.VeriStand.PassFail));
   run.record(ccRampUpResult.Status);
   // Get to around 70 mph at 3rd gear
   await ts.stepType('RunRTSequencePassFail', {
@@ -129,7 +128,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, getToKnownStateResult2);
-  getToKnownStateResult2.Status = ts.truthy(getToKnownStateResult2.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  getToKnownStateResult2.Status = ts.Status.passFail(ts.truthy(getToKnownStateResult2.VeriStand.PassFail));
   run.record(getToKnownStateResult2.Status);
   // Ramp down the set speed. Check if actual speed stays within 5 kmph of set speed throughout.
   await ts.stepType('RunRTSequencePassFail', {
@@ -143,7 +142,7 @@ Future<ts.Status> mainSequence() async {
           '{"Cruise_Control_Enable","Cruise_Control_Accel","Cruise_Control_Decel","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal"}',
     },
   }, ccRampDownResult);
-  ccRampDownResult.Status = ts.truthy(ccRampDownResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  ccRampDownResult.Status = ts.Status.passFail(ts.truthy(ccRampDownResult.VeriStand.PassFail));
   run.record(ccRampDownResult.Status);
   // Get to around 70 mph at 3rd gear
   await ts.stepType('RunRTSequencePassFail', {
@@ -156,7 +155,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, getToKnownStateResult3);
-  getToKnownStateResult3.Status = ts.truthy(getToKnownStateResult3.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  getToKnownStateResult3.Status = ts.Status.passFail(ts.truthy(getToKnownStateResult3.VeriStand.PassFail));
   run.record(getToKnownStateResult3.Status);
   // Ramp up the set speed and then ramp down. Check if actual speed stays within 5 kmph of set speed throughout.
   await ts.stepType('RunRTSequencePassFail', {
@@ -170,7 +169,7 @@ Future<ts.Status> mainSequence() async {
           '{"Cruise_Control_Enable","Cruise_Control_Accel","Cruise_Control_Decel","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal"}',
     },
   }, ccRampUpAndDownResult);
-  ccRampUpAndDownResult.Status = ts.truthy(ccRampUpAndDownResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  ccRampUpAndDownResult.Status = ts.Status.passFail(ts.truthy(ccRampUpAndDownResult.VeriStand.PassFail));
   run.record(ccRampUpAndDownResult.Status);
   // Get to around 70 mph at 3rd gear
   await ts.stepType('RunRTSequencePassFail', {
@@ -183,7 +182,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, getToKnownStateResult4);
-  getToKnownStateResult4.Status = ts.truthy(getToKnownStateResult4.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  getToKnownStateResult4.Status = ts.Status.passFail(ts.truthy(getToKnownStateResult4.VeriStand.PassFail));
   run.record(getToKnownStateResult4.Status);
   // Set Enable Cruise Control to false. Verify that cruise control is turned off. Check ECU status over XCP/CCP
   await ts.stepType('RunRTSequencePassFail', {
@@ -197,7 +196,7 @@ Future<ts.Status> mainSequence() async {
           '{"Cruise_Control_Enable","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal"}',
     },
   }, ccDisableResult);
-  ccDisableResult.Status = ts.truthy(ccDisableResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  ccDisableResult.Status = ts.Status.passFail(ts.truthy(ccDisableResult.VeriStand.PassFail));
   run.record(ccDisableResult.Status);
   // Get to around 70 mph at 3rd gear
   await ts.stepType('RunRTSequencePassFail', {
@@ -210,7 +209,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, getToKnownStateResult5);
-  getToKnownStateResult5.Status = ts.truthy(getToKnownStateResult5.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  getToKnownStateResult5.Status = ts.Status.passFail(ts.truthy(getToKnownStateResult5.VeriStand.PassFail));
   run.record(getToKnownStateResult5.Status);
   // Tap on the brakes. Check if cruise control turns off.
   await ts.stepType('RunRTSequencePassFail', {
@@ -224,7 +223,7 @@ Future<ts.Status> mainSequence() async {
           '{"Cruise_Control_Enable","Brake","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal"}',
     },
   }, exitCcWithBrakeResult);
-  exitCcWithBrakeResult.Status = ts.truthy(exitCcWithBrakeResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  exitCcWithBrakeResult.Status = ts.Status.passFail(ts.truthy(exitCcWithBrakeResult.VeriStand.PassFail));
   run.record(exitCcWithBrakeResult.Status);
   // Get to around 70 mph at 3rd gear
   await ts.stepType('RunRTSequencePassFail', {
@@ -237,7 +236,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, getToKnownStateResult6);
-  getToKnownStateResult6.Status = ts.truthy(getToKnownStateResult6.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  getToKnownStateResult6.Status = ts.Status.passFail(ts.truthy(getToKnownStateResult6.VeriStand.PassFail));
   run.record(getToKnownStateResult6.Status);
   // Tap on brake to disable Cruise Control. Tap Resume Cruise Control switch. Verify that cruise control is back on.
   await ts.stepType('RunRTSequencePassFail', {
@@ -251,7 +250,7 @@ Future<ts.Status> mainSequence() async {
           '{"Cruise_Control_Enable","Brake","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal","Cruise_Control_Resume"}',
     },
   }, resumeCcResult);
-  resumeCcResult.Status = ts.truthy(resumeCcResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  resumeCcResult.Status = ts.Status.passFail(ts.truthy(resumeCcResult.VeriStand.PassFail));
   run.record(resumeCcResult.Status);
   await ts.stepType('StopLogging', {}, stopVsLoggingResult);
   locals.tdmsFile = stopVsLoggingResult.Veristand.Location as List<dynamic>;

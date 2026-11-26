@@ -10,7 +10,7 @@ class _MainSequenceLocals {
   int videoValue = 0;
 }
 
-/// Sequence `MainSequence` — Simulates testing a computer motherboard. | Tests Power On, ROM, RAM, Video, and Keyboard. | Then runs diagnostics for any areas which fail. | Sequence File:   Version 1.2 |                  Revision C | Test Fixture:    Part Number 3244.23 |                  Revision N |.
+/// Simulates testing a computer motherboard. | Tests Power On, ROM, RAM, Video, and Keyboard. | Then runs diagnostics for any areas which fail. | Sequence File:   Version 1.2 |                  Revision C | Test Fixture:    Part Number 3244.23 |                  Revision N |.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
@@ -39,37 +39,38 @@ Future<ts.Status> mainSequence() async {
     locals.keyboardValue = outputs['Simulation Settings.KeyboardValue'] as int;
     await ts.callVi('Modules\\Vacuum On.vi'); // Turn Vacuum Table On
 
-    final outputs2 = await ts.callVi(
+    powerupTestResult.PassFail = (await ts.callVi(
       'Modules\\Powerup Test.vi',
       inputs: {'PowerFail': locals.powerFail},
-    ); // Powerup Test
-    powerupTestResult.PassFail = outputs2['Result'];
-    powerupTestResult.Status = ts.truthy(powerupTestResult.PassFail) ? 'Passed' : 'Failed';
+    ))['Result']; // Powerup Test
+    powerupTestResult.Status = ts.Status.passFail(ts.truthy(powerupTestResult.PassFail));
     run.record(powerupTestResult.Status);
     // If the Powerup Test fails, do not test any additional components.
     if (ts.truthy(powerupTestResult.PassFail)) {
       cpuTestResult.Status = await cpuTest(cpuFail: locals.cpuFail); // CPU Test
       run.record(cpuTestResult.Status);
-      final outputs3 = await ts.callVi('Modules\\ROM Test.vi', inputs: {'ROMFail': locals.romFail}); // ROM Test
-      romTestResult.PassFail = outputs3['Result'];
-      romTestResult.Status = ts.truthy(romTestResult.PassFail) ? 'Passed' : 'Failed';
+      romTestResult.PassFail = (await ts.callVi(
+        'Modules\\ROM Test.vi',
+        inputs: {'ROMFail': locals.romFail},
+      ))['Result']; // ROM Test
+      romTestResult.Status = ts.Status.passFail(ts.truthy(romTestResult.PassFail));
       run.record(romTestResult.Status);
-      final outputs4 = await ts.callVi('Modules\\RAM Test.vi', inputs: {'RAMFail': locals.ramFail}); // RAM Test
-      ramTestResult.PassFail = outputs4['Result'];
-      ramTestResult.Status = ts.truthy(ramTestResult.PassFail) ? 'Passed' : 'Failed';
+      ramTestResult.PassFail = (await ts.callVi(
+        'Modules\\RAM Test.vi',
+        inputs: {'RAMFail': locals.ramFail},
+      ))['Result']; // RAM Test
+      ramTestResult.Status = ts.Status.passFail(ts.truthy(ramTestResult.PassFail));
       run.record(ramTestResult.Status);
-      final outputs5 = await ts.callVi(
+      videoTestResult.Numeric = (await ts.callVi(
         'Modules\\Video Test.vi',
         inputs: {'VideoValue': locals.videoValue},
-      ); // Video Test
-      videoTestResult.Numeric = outputs5['Latency (µs)'];
+      ))['Latency (µs)']; // Video Test
       videoTestResult.Status = ts.checkLimits(videoTestResult.Numeric, 'GTLT', low: 0, high: 10);
       run.record(videoTestResult.Status);
-      final outputs6 = await ts.callVi(
+      keyboardTestResult.Numeric = (await ts.callVi(
         'Modules\\Keyboard Test.vi',
         inputs: {'Number of Keystrokes': locals.keyboardValue},
-      ); // Keyboard Test
-      keyboardTestResult.Numeric = outputs6['Result'];
+      ))['Result']; // Keyboard Test
       keyboardTestResult.Status = ts.checkLimits(keyboardTestResult.Numeric, 'GT', low: 5);
       run.record(keyboardTestResult.Status);
       // If any of the preceding tests failed, perform diagnositcs on the failed component(s) to get more information on the mode of failure
@@ -78,41 +79,42 @@ Future<ts.Status> mainSequence() async {
           run.record(await cpuDiagnostics(cpuFail: locals.cpuFail)); // CPU Diagnostics
         }
         if (romTestResult.Status == 'Failed') {
-          final outputs7 = await ts.callVi('Modules\\ROM Diagnostics.vi'); // ROM Diagnostics
-          romDiagnosticsResult.PassFail = outputs7['Result'];
-          romDiagnosticsResult.Status = ts.truthy(romDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
+          romDiagnosticsResult.PassFail = (await ts.callVi('Modules\\ROM Diagnostics.vi'))['Result']; // ROM Diagnostics
+          romDiagnosticsResult.Status = ts.Status.passFail(ts.truthy(romDiagnosticsResult.PassFail));
           run.record(romDiagnosticsResult.Status);
         } else {
           romDiagnosticsResult.Status = ts.Status.skipped;
         }
         if (ramTestResult.Status == 'Failed') {
-          final outputs8 = await ts.callVi('Modules\\RAM Diagnostics.vi'); // RAM Diagnostics
-          ramDiagnosticsResult.PassFail = outputs8['Result'];
-          ramDiagnosticsResult.Status = ts.truthy(ramDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
+          ramDiagnosticsResult.PassFail = (await ts.callVi('Modules\\RAM Diagnostics.vi'))['Result']; // RAM Diagnostics
+          ramDiagnosticsResult.Status = ts.Status.passFail(ts.truthy(ramDiagnosticsResult.PassFail));
           run.record(ramDiagnosticsResult.Status);
         } else {
           ramDiagnosticsResult.Status = ts.Status.skipped;
         }
         if (videoTestResult.Status == 'Failed') {
-          final outputs9 = await ts.callVi('Modules\\Video Diagnostics.vi'); // Video Diagnostics
-          videoDiagnosticsResult.Numeric = outputs9['Voltage'];
+          videoDiagnosticsResult.Numeric = (await ts.callVi(
+            'Modules\\Video Diagnostics.vi',
+          ))['Voltage']; // Video Diagnostics
           videoDiagnosticsResult.Status = ts.checkLimits(videoDiagnosticsResult.Numeric, 'LT', low: 0);
           run.record(videoDiagnosticsResult.Status);
         } else {
           videoDiagnosticsResult.Status = ts.Status.skipped;
         }
         if (keyboardTestResult.Status == 'Failed') {
-          final outputs10 = await ts.callVi('Modules\\Keyboard Diagnostics.vi'); // Keyboard Diagnostics
-          keyboardDiagnosticsResult.PassFail = outputs10['Result'];
-          keyboardDiagnosticsResult.Status = ts.truthy(keyboardDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
+          keyboardDiagnosticsResult.PassFail = (await ts.callVi(
+            'Modules\\Keyboard Diagnostics.vi',
+          ))['Result']; // Keyboard Diagnostics
+          keyboardDiagnosticsResult.Status = ts.Status.passFail(ts.truthy(keyboardDiagnosticsResult.PassFail));
           run.record(keyboardDiagnosticsResult.Status);
         } else {
           keyboardDiagnosticsResult.Status = ts.Status.skipped;
         }
       }
     } else {
-      final outputs11 = await ts.callVi('Modules\\Powerup Diagnostics.vi'); // Powerup Diagnostics
-      powerupDiagnosticsResult.Numeric = outputs11['Current'];
+      powerupDiagnosticsResult.Numeric = (await ts.callVi(
+        'Modules\\Powerup Diagnostics.vi',
+      ))['Current']; // Powerup Diagnostics
       powerupDiagnosticsResult.Status = ts.checkLimits(powerupDiagnosticsResult.Numeric, 'LOG');
       run.record(powerupDiagnosticsResult.Status);
     }
@@ -123,7 +125,6 @@ Future<ts.Status> mainSequence() async {
   return run.status;
 }
 
-/// Sequence `CPU Test`.
 Future<ts.Status> cpuTest({bool cpuFail = false}) async {
   final run = ts.SequenceRun();
   final dynamic registerTestResult = ts.StepResult({'PassFail': false});
@@ -131,30 +132,25 @@ Future<ts.Status> cpuTest({bool cpuFail = false}) async {
   final dynamic cacheTestResult = ts.StepResult({'PassFail': false});
   final dynamic fpuTestResult = ts.StepResult({'PassFail': false});
 
-  final outputs = await ts.callVi('Modules\\Register Test.vi'); // Register Test
-  registerTestResult.PassFail = outputs['Result'];
-  registerTestResult.Status = ts.truthy(registerTestResult.PassFail) ? 'Passed' : 'Failed';
+  registerTestResult.PassFail = (await ts.callVi('Modules\\Register Test.vi'))['Result']; // Register Test
+  registerTestResult.Status = ts.Status.passFail(ts.truthy(registerTestResult.PassFail));
   run.record(registerTestResult.Status);
-  final outputs2 = await ts.callVi(
+  instructionSetTestResult.PassFail = (await ts.callVi(
     'Modules\\Instruction Set Test.vi',
     inputs: {'CPUFail': cpuFail},
-  ); // Instruction Set Test
-  instructionSetTestResult.PassFail = outputs2['Result'];
-  instructionSetTestResult.Status = ts.truthy(instructionSetTestResult.PassFail) ? 'Passed' : 'Failed';
+  ))['Result']; // Instruction Set Test
+  instructionSetTestResult.Status = ts.Status.passFail(ts.truthy(instructionSetTestResult.PassFail));
   run.record(instructionSetTestResult.Status);
-  final outputs3 = await ts.callVi('Modules\\Cache Test.vi'); // Cache Test
-  cacheTestResult.PassFail = outputs3['Result'];
-  cacheTestResult.Status = ts.truthy(cacheTestResult.PassFail) ? 'Passed' : 'Failed';
+  cacheTestResult.PassFail = (await ts.callVi('Modules\\Cache Test.vi'))['Result']; // Cache Test
+  cacheTestResult.Status = ts.Status.passFail(ts.truthy(cacheTestResult.PassFail));
   run.record(cacheTestResult.Status);
-  final outputs4 = await ts.callVi('Modules\\FPU Test.vi'); // FPU Test
-  fpuTestResult.PassFail = outputs4['Result'];
-  fpuTestResult.Status = ts.truthy(fpuTestResult.PassFail) ? 'Passed' : 'Failed';
+  fpuTestResult.PassFail = (await ts.callVi('Modules\\FPU Test.vi'))['Result']; // FPU Test
+  fpuTestResult.Status = ts.Status.passFail(ts.truthy(fpuTestResult.PassFail));
   run.record(fpuTestResult.Status);
 
   return run.status;
 }
 
-/// Sequence `CPU Diagnostics`.
 Future<ts.Status> cpuDiagnostics({bool cpuFail = false}) async {
   final run = ts.SequenceRun();
   final dynamic registerDiagnosticsResult = ts.StepResult({'PassFail': false});
@@ -162,44 +158,39 @@ Future<ts.Status> cpuDiagnostics({bool cpuFail = false}) async {
   final dynamic cacheDiagnosticsResult = ts.StepResult({'PassFail': false});
   final dynamic fpuDiagnosticsResult = ts.StepResult({'PassFail': false});
 
-  final outputs = await ts.callVi('Modules\\Register Diagnostics.vi'); // Register Diagnostics
-  registerDiagnosticsResult.PassFail = outputs['Result'];
-  registerDiagnosticsResult.Status = ts.truthy(registerDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
+  registerDiagnosticsResult.PassFail = (await ts.callVi(
+    'Modules\\Register Diagnostics.vi',
+  ))['Result']; // Register Diagnostics
+  registerDiagnosticsResult.Status = ts.Status.passFail(ts.truthy(registerDiagnosticsResult.PassFail));
   run.record(registerDiagnosticsResult.Status);
-  final outputs2 = await ts.callVi(
+  instructionSetDiagnosticsResult.PassFail = (await ts.callVi(
     'Modules\\Instruction Set Diagnostics.vi',
     inputs: {'CPUFail': cpuFail},
-  ); // Instruction Set Diagnostics
-  instructionSetDiagnosticsResult.PassFail = outputs2['Result'];
-  instructionSetDiagnosticsResult.Status = ts.truthy(instructionSetDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
+  ))['Result']; // Instruction Set Diagnostics
+  instructionSetDiagnosticsResult.Status = ts.Status.passFail(ts.truthy(instructionSetDiagnosticsResult.PassFail));
   run.record(instructionSetDiagnosticsResult.Status);
-  final outputs3 = await ts.callVi('Modules\\Cache Diagnostics.vi'); // Cache Diagnostics
-  cacheDiagnosticsResult.PassFail = outputs3['Result'];
-  cacheDiagnosticsResult.Status = ts.truthy(cacheDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
+  cacheDiagnosticsResult.PassFail = (await ts.callVi('Modules\\Cache Diagnostics.vi'))['Result']; // Cache Diagnostics
+  cacheDiagnosticsResult.Status = ts.Status.passFail(ts.truthy(cacheDiagnosticsResult.PassFail));
   run.record(cacheDiagnosticsResult.Status);
-  final outputs4 = await ts.callVi('Modules\\FPU Diagnostics.vi'); // FPU Diagnostics
-  fpuDiagnosticsResult.PassFail = outputs4['Result'];
-  fpuDiagnosticsResult.Status = ts.truthy(fpuDiagnosticsResult.PassFail) ? 'Passed' : 'Failed';
+  fpuDiagnosticsResult.PassFail = (await ts.callVi('Modules\\FPU Diagnostics.vi'))['Result']; // FPU Diagnostics
+  fpuDiagnosticsResult.Status = ts.Status.passFail(ts.truthy(fpuDiagnosticsResult.PassFail));
   run.record(fpuDiagnosticsResult.Status);
 
   return run.status;
 }
 
-/// Sequence `SequenceFilePreStep`.
 Future<void> sequenceFilePreStep({dynamic step, dynamic result}) async {
   ts.eval(
     'RunState.Thread.PostUIMessageEx(UIMsg_ProgressText, 0, Parameters.Step.Name + "," + Parameters.Step.Result.Status, "", False)\n',
   ); // PreStep Message
 }
 
-/// Sequence `SequenceFilePostStep`.
 Future<void> sequenceFilePostStep({dynamic step, dynamic result}) async {
   ts.eval(
     'RunState.Thread.PostUIMessageEx(UIMsg_ProgressText, 0, Parameters.Step.Name + "," + Parameters.Step.Result.Status, "", False)\n',
   ); // PostStep Message
 }
 
-/// Sequence `SequenceFileUnload`.
 Future<void> sequenceFileUnload() async {
   ts.eval(
     'RunState.Thread.PostUIMessageEx(UIMsg_UserMessageBase + 10, 0, "Uloading File", Nothing, False)',

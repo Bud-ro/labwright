@@ -16,7 +16,6 @@ dynamic veristand = ts.PropObj({
   'GatewayIP': '"localhost"',
 });
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic rtSequencePassFailTestResult = ts.StepResult({
@@ -42,9 +41,9 @@ Future<ts.Status> mainSequence() async {
         'ParamNamesArray': '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
       },
     }, rtSequencePassFailTestResult);
-    rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
-        ? 'Passed'
-        : 'Failed';
+    rtSequencePassFailTestResult.Status = ts.Status.passFail(
+      ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail),
+    );
     run.record(rtSequencePassFailTestResult.Status);
     // The step is used to run the Get Rise Time RT sequence.
     // Run Get Rise Time RT Sequence

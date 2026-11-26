@@ -6,7 +6,6 @@ class _IsProcessRunningLocals {
   String description = '';
 }
 
-/// Sequence `Is Process Running`.
 Future<ts.Status> isProcessRunning({
   String processName = 'LabVIEW',
   String descriptionToSearch = 'LabVIEW 18.*',

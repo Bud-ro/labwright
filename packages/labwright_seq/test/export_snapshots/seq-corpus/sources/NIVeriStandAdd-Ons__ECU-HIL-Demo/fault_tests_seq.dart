@@ -16,7 +16,6 @@ dynamic veristand = ts.PropObj({
   'GatewayIP': '"localhost"',
 });
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic getToKnownStateResult = ts.StepResult({
@@ -74,7 +73,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, getToKnownStateResult);
-  getToKnownStateResult.Status = ts.truthy(getToKnownStateResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  getToKnownStateResult.Status = ts.Status.passFail(ts.truthy(getToKnownStateResult.VeriStand.PassFail));
   run.record(getToKnownStateResult.Status);
 
   await ts.stepType('StartLogging', {
@@ -101,7 +100,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"APP_Low","APP_Fault"}',
     },
   }, appFaultDetectionTestResult);
-  appFaultDetectionTestResult.Status = ts.truthy(appFaultDetectionTestResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  appFaultDetectionTestResult.Status = ts.Status.passFail(ts.truthy(appFaultDetectionTestResult.VeriStand.PassFail));
   run.record(appFaultDetectionTestResult.Status);
   // Get to around 70 mph at 3rd gear
   await ts.stepType('RunRTSequencePassFail', {
@@ -114,7 +113,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, getToKnownStateResult2);
-  getToKnownStateResult2.Status = ts.truthy(getToKnownStateResult2.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  getToKnownStateResult2.Status = ts.Status.passFail(ts.truthy(getToKnownStateResult2.VeriStand.PassFail));
   run.record(getToKnownStateResult2.Status);
   // Create Open circuit fault on the APP line to the ECU. Verify over XCP/CCP that ECU detects the fault. verify that the throttle is cut off by the ECU in response to the fault.
   await ts.stepType('RunRTSequencePassFail', {
@@ -127,7 +126,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"APP_Low","APP_Fault","Gas_Pedal","Throttle_Position"}',
     },
   }, appFaultClearTestResult);
-  appFaultClearTestResult.Status = ts.truthy(appFaultClearTestResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  appFaultClearTestResult.Status = ts.Status.passFail(ts.truthy(appFaultClearTestResult.VeriStand.PassFail));
   run.record(appFaultClearTestResult.Status);
   // Get to around 70 mph at 3rd gear
   await ts.stepType('RunRTSequencePassFail', {
@@ -140,7 +139,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, getToKnownStateResult3);
-  getToKnownStateResult3.Status = ts.truthy(getToKnownStateResult3.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  getToKnownStateResult3.Status = ts.Status.passFail(ts.truthy(getToKnownStateResult3.VeriStand.PassFail));
   run.record(getToKnownStateResult3.Status);
   // Create Open circuit fault on the APP line to the ECU. Verify over XCP/CCP that ECU detects the fault. verify that the throttle is cut off by the ECU in response to the fault.
   await ts.stepType('RunRTSequencePassFail', {
@@ -153,7 +152,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"APP_Low","APP_Fault","Gas_Pedal","Throttle_Position"}',
     },
   }, appFaultResponseTestResult);
-  appFaultResponseTestResult.Status = ts.truthy(appFaultResponseTestResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  appFaultResponseTestResult.Status = ts.Status.passFail(ts.truthy(appFaultResponseTestResult.VeriStand.PassFail));
   run.record(appFaultResponseTestResult.Status);
   // Get to around 70 mph at 3rd gear
   await ts.stepType('RunRTSequencePassFail', {
@@ -166,7 +165,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, getToKnownStateResult4);
-  getToKnownStateResult4.Status = ts.truthy(getToKnownStateResult4.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  getToKnownStateResult4.Status = ts.Status.passFail(ts.truthy(getToKnownStateResult4.VeriStand.PassFail));
   run.record(getToKnownStateResult4.Status);
   // Create Open circuit fault on the IMP line to the ECU. Verify over XCP/CCP that ECU detects the fault.
   await ts.stepType('RunRTSequencePassFail', {
@@ -178,7 +177,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"IMP_Low","IMP_Fault"}',
     },
   }, impFaultDetectionTestResult);
-  impFaultDetectionTestResult.Status = ts.truthy(impFaultDetectionTestResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  impFaultDetectionTestResult.Status = ts.Status.passFail(ts.truthy(impFaultDetectionTestResult.VeriStand.PassFail));
   run.record(impFaultDetectionTestResult.Status);
   // Get to around 70 mph at 3rd gear
   await ts.stepType('RunRTSequencePassFail', {
@@ -191,7 +190,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, getToKnownStateResult5);
-  getToKnownStateResult5.Status = ts.truthy(getToKnownStateResult5.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  getToKnownStateResult5.Status = ts.Status.passFail(ts.truthy(getToKnownStateResult5.VeriStand.PassFail));
   run.record(getToKnownStateResult5.Status);
   // Create Open circuit fault on the IMP line to the ECU. Verify over XCP/CCP that ECU detects the fault. verify that the throttle is cut off by the ECU in response to the fault.
   // Rmove fault. Verify that the fault is cleared in the ECU.
@@ -205,7 +204,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"IMP_Low","IMP_Fault","Gas_Pedal","Throttle_Position"}',
     },
   }, impFaultClearTestResult);
-  impFaultClearTestResult.Status = ts.truthy(impFaultClearTestResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  impFaultClearTestResult.Status = ts.Status.passFail(ts.truthy(impFaultClearTestResult.VeriStand.PassFail));
   run.record(impFaultClearTestResult.Status);
   // Get to around 70 mph at 3rd gear
   await ts.stepType('RunRTSequencePassFail', {
@@ -218,7 +217,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, getToKnownStateResult6);
-  getToKnownStateResult6.Status = ts.truthy(getToKnownStateResult6.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  getToKnownStateResult6.Status = ts.Status.passFail(ts.truthy(getToKnownStateResult6.VeriStand.PassFail));
   run.record(getToKnownStateResult6.Status);
   // Create Open circuit fault on the IMP line to the ECU. Verify over XCP/CCP that ECU detects the fault. verify that the throttle is cut off by the ECU in response to the fault.
   await ts.stepType('RunRTSequencePassFail', {
@@ -231,7 +230,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"IMP_Low","IMP_Fault","Gas_Pedal","Throttle_Position"}',
     },
   }, impFaultResponseTestResult);
-  impFaultResponseTestResult.Status = ts.truthy(impFaultResponseTestResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  impFaultResponseTestResult.Status = ts.Status.passFail(ts.truthy(impFaultResponseTestResult.VeriStand.PassFail));
   run.record(impFaultResponseTestResult.Status);
   await ts.stepType('StopLogging');
 

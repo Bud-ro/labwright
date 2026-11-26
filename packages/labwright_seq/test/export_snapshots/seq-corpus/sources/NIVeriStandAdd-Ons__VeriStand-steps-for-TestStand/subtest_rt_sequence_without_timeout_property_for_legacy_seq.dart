@@ -14,7 +14,6 @@ dynamic veristand = ts.PropObj({
   'GatewayIP': '"localhost"',
 });
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic rtSequenceNumericLimitTestResult = ts.StepResult({'Numeric': 0});
@@ -57,9 +56,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
     },
   }, rtSequencePassFailTestResult);
-  rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
-      ? 'Passed'
-      : 'Failed';
+  rtSequencePassFailTestResult.Status = ts.Status.passFail(ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail));
   run.record(rtSequencePassFailTestResult.Status);
 
   return run.status;

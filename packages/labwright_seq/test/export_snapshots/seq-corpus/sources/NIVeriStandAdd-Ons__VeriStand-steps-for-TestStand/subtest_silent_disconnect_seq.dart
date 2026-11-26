@@ -16,7 +16,6 @@ dynamic veristand = ts.PropObj({
   'GatewayIP': '"localhost"',
 });
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   await ts.stepType('InitializeVeriStand');
 

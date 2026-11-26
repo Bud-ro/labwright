@@ -16,7 +16,6 @@ dynamic veristand = ts.PropObj({
   'GatewayIP': '"localhost"',
 });
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic rtSequencePassFailTestResult = ts.StepResult({
@@ -44,9 +43,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, rtSequencePassFailTestResult);
-  rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
-      ? 'Passed'
-      : 'Failed';
+  rtSequencePassFailTestResult.Status = ts.Status.passFail(ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail));
   run.record(rtSequencePassFailTestResult.Status);
 
   await ts.stepType('StartLogging', {
@@ -74,7 +71,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"APP_Low","APP_Fault","Gas_Pedal","Throttle_Position"}',
     },
   }, appFaultResponseTestResult);
-  appFaultResponseTestResult.Status = ts.truthy(appFaultResponseTestResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  appFaultResponseTestResult.Status = ts.Status.passFail(ts.truthy(appFaultResponseTestResult.VeriStand.PassFail));
   run.record(appFaultResponseTestResult.Status);
   await ts.stepType('StopLogging');
 

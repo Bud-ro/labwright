@@ -8,7 +8,7 @@ class _StationPostResultsLocals {
   String icon = '';
 }
 
-/// Sequence `StationPostResults` — This callback can be used instead of ResultListEntry and PreStep, however, it requires enabled OTF result processing..
+/// This callback can be used instead of ResultListEntry and PreStep, however, it requires enabled OTF result processing.
 Future<ts.Status> stationPostResults({
   List<dynamic>? steps,
   List<dynamic>? results,
@@ -61,7 +61,6 @@ class _StationPostResultListEntryLocals {
   String icon = '';
 }
 
-/// Sequence `StationPostResultListEntry`.
 Future<void> stationPostResultListEntry({dynamic step, dynamic result, bool discardResult = false}) async {
   final locals = _StationPostResultListEntryLocals();
 
@@ -88,7 +87,6 @@ class _StationPreStepLocals {
   String icon = '';
 }
 
-/// Sequence `StationPreStep`.
 Future<void> stationPreStep({dynamic step, dynamic result}) async {
   final locals = _StationPreStepLocals();
 

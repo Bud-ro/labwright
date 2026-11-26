@@ -14,7 +14,6 @@ dynamic veristand = ts.PropObj({
   'GatewayIP': '"localhost"',
 });
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence({String gatewayIp = ''}) async {
   veristand.GatewayIP = gatewayIp; // Assign GatewayIP from Calling Sequence
   await ts.stepType('OpenReferences');

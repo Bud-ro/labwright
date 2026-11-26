@@ -16,7 +16,6 @@ dynamic veristand = ts.PropObj({
   'SystemDefinitionPath': 'C:\\Tests\\veristand_steps\\Engine Demo\\Engine Demo.nivssdf',
 });
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic channelValueLimitTestResult = ts.StepResult({'Numeric': 0});
@@ -77,9 +76,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
     },
   }, rtSequencePassFailTestResult);
-  rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
-      ? 'Passed'
-      : 'Failed';
+  rtSequencePassFailTestResult.Status = ts.Status.passFail(ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail));
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {
       'Target': 'Controller',

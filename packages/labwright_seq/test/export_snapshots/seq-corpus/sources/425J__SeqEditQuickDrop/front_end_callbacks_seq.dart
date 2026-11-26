@@ -6,7 +6,6 @@ class _LoginLogoutLocals {
   bool quickDropRunning = false;
 }
 
-/// Sequence `LoginLogout`.
 Future<void> loginLogout({bool logout = false, bool isInitialLogin = false}) async {
   final locals = _LoginLogoutLocals();
 

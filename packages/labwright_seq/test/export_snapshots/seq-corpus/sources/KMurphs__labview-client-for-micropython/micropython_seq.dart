@@ -13,7 +13,6 @@ class _MainSequenceLocals {
   String reply = '';
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
@@ -21,39 +20,38 @@ Future<ts.Status> mainSequence() async {
   final dynamic interactWithDeviceResult = ts.StepResult({'PassFail': false});
 
   try {
-    final outputs = await ts.callVi(
+    uut.Serial.SessionReference = (await ts.callVi(
       '..\\..\\MicroPythonClient\\Public\\Initialize.vi',
       inputs: {
         'Comport.DeviceName': uut.Serial.Comport,
         'Comport.SessionNumber': -1026555904,
         'Serial Settings.baud rate': uut.Serial.BaudRate,
       },
-    ); // Initialize Connection
-    uut.Serial.SessionReference = outputs['Comport Out'];
+    ))['Comport Out']; // Initialize Connection
     // Provide a script with a set of (test) functions, so these can be invoked as needed using SendCommand.vi
-    final outputs2 = await ts.callVi(
+    final outputs = await ts.callVi(
       '..\\..\\MicroPythonClient\\Public\\UploadScript.vi',
       inputs: {'Comport': uut.Serial.SessionReference},
     ); // Download Test Functions / Script
-    uut.Serial.SessionReference = outputs2['Comport Out'];
-    downloadTestFunctionsScriptResult.ReportText = outputs2['Reply'];
-    downloadTestFunctionsScriptResult.PassFail = outputs2['DownloadSuccessful'];
-    downloadTestFunctionsScriptResult.Status = ts.truthy(downloadTestFunctionsScriptResult.PassFail)
-        ? 'Passed'
-        : 'Failed';
+    uut.Serial.SessionReference = outputs['Comport Out'];
+    downloadTestFunctionsScriptResult.ReportText = outputs['Reply'];
+    downloadTestFunctionsScriptResult.PassFail = outputs['DownloadSuccessful'];
+    downloadTestFunctionsScriptResult.Status = ts.Status.passFail(
+      ts.truthy(downloadTestFunctionsScriptResult.PassFail),
+    );
     run.record(downloadTestFunctionsScriptResult.Status);
 
     // Invoke one of these previously test functions and assess the response.
     // This might be the state of some Pin, the content of the EEPROM, ...
-    final outputs3 = await ts.callVi(
+    final outputs2 = await ts.callVi(
       '..\\..\\MicroPythonClient\\Public\\SendCommand.vi',
       inputs: {'Comport': uut.Serial.SessionReference, 'Command': 'help()'},
     ); // Interact with Device
-    uut.Serial.SessionReference = outputs3['Comport Out'];
-    interactWithDeviceResult.ReportText = outputs3['Reply'];
-    locals.reply = outputs3['Last Reply Entry'] as String;
+    uut.Serial.SessionReference = outputs2['Comport Out'];
+    interactWithDeviceResult.ReportText = outputs2['Reply'];
+    locals.reply = outputs2['Last Reply Entry'] as String;
     ts.eval('Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False');
-    interactWithDeviceResult.Status = ts.truthy(interactWithDeviceResult.PassFail) ? 'Passed' : 'Failed';
+    interactWithDeviceResult.Status = ts.Status.passFail(ts.truthy(interactWithDeviceResult.PassFail));
     run.record(interactWithDeviceResult.Status);
   } finally {
     await ts.callVi(

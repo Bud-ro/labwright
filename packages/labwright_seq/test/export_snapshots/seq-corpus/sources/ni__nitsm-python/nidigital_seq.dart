@@ -10,7 +10,6 @@ class _MainSequenceLocals {
   List<dynamic> captureWaveformPaths = <dynamic>[];
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -148,7 +147,7 @@ Future<void> mainSequence() async {
   ); // Project Paths Test
 }
 
-/// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
+/// Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes.
 Future<void> processSetup() async {
   ts.eval('RunState.Engine.StationOptions.RTEOption = RTEOption_Continue'); // Set run-time error option to avoid dialog
   await ts.stepType('NI_SemiconductorModule_Action');
@@ -159,7 +158,7 @@ Future<void> processSetup() async {
   ); // Open Sessions
 }
 
-/// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
+/// Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes.
 Future<void> processCleanup() async {
   await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callPython(
@@ -169,7 +168,7 @@ Future<void> processCleanup() async {
   ); // Close Sessions
 }
 
-/// Sequence `PreBatch` — Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action..
+/// Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action.
 Future<void> preBatch({ts.Ref<bool>? continueTesting, dynamic modelData, dynamic modelPluginConfiguration}) async {
   final continueTestingRef = continueTesting ?? ts.Ref<bool>(true);
 

@@ -20,7 +20,6 @@ class _MainSequenceLocals {
   List<dynamic> tdmsFile = <dynamic>[''];
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
@@ -52,9 +51,7 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"Gas_Pedal","Key","Starter","RPM","Gear","Brake","Vehicle_Speed","Cruise_Control_Enable"}',
     },
   }, rtSequencePassFailTestResult);
-  rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
-      ? 'Passed'
-      : 'Failed';
+  rtSequencePassFailTestResult.Status = ts.Status.passFail(ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail));
   run.record(rtSequencePassFailTestResult.Status);
 
   await ts.stepType('StartLogging', {
@@ -93,7 +90,7 @@ Future<ts.Status> mainSequence() async {
           '{"Cruise_Control_Enable","Brake","Cruise_Control_Set","Cruise_Active","Cruise_Set_Speed","Vehicle_Speed","Gas_Pedal"}',
     },
   }, exitCcWithBrakeResult);
-  exitCcWithBrakeResult.Status = ts.truthy(exitCcWithBrakeResult.VeriStand.PassFail) ? 'Passed' : 'Failed';
+  exitCcWithBrakeResult.Status = ts.Status.passFail(ts.truthy(exitCcWithBrakeResult.VeriStand.PassFail));
   run.record(exitCcWithBrakeResult.Status);
   await ts.stepType('StopLogging', {}, stopVsLoggingResult);
   locals.tdmsFile = stopVsLoggingResult.Veristand.Location as List<dynamic>;

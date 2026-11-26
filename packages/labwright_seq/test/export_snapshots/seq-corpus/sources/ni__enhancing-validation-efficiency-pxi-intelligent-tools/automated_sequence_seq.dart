@@ -14,7 +14,6 @@ class _MainSequenceLocals {
   List<dynamic> y = <dynamic>[];
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
@@ -152,7 +151,7 @@ Future<ts.Status> mainSequence() async {
     });
     locals.atsSettings.stabilized = outputs['stabilized'];
     testTemperatureStabilizedResult.PassFail = locals.atsSettings.stabilized;
-    testTemperatureStabilizedResult.Status = ts.truthy(testTemperatureStabilizedResult.PassFail) ? 'Passed' : 'Failed';
+    testTemperatureStabilizedResult.Status = ts.Status.passFail(ts.truthy(testTemperatureStabilizedResult.PassFail));
     run.record(testTemperatureStabilizedResult.Status);
     final outputs2 = await ts.measurement('DAQ_FiniteAI_LabVIEW', {
       'Physical_Channel': 'DAQ_4309_C1_S04/ai0',

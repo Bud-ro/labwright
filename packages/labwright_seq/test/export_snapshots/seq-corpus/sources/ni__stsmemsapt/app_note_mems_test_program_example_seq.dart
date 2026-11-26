@@ -200,7 +200,6 @@ class _MainSequenceLocals {
   });
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -946,7 +945,7 @@ Future<void> mainSequence() async {
       'IncludedDUTPins': ['FGEN', 'SMU0', 'V1', 'V2'],
     },
   });
-  final outputs = await ts.callVi(
+  locals.parameters.Capacitance.FFTSubset = (await ts.callVi(
     '..\\CodeModules-LabVIEW\\Libraries\\Capacitance\\VIs\\Capacitance_IS_Configure.vi',
     inputs: {
       'DCPower_Parameters': locals.parameters.Capacitance.IS_Bias,
@@ -957,8 +956,7 @@ Future<void> mainSequence() async {
       'SCOPE Parameters': locals.parameters.Capacitance.IS_Meas,
       'FGEN Parameters': locals.parameters.Capacitance.IS_Force,
     },
-  ); // Capacitance - Impedance Spectroscopy Configure
-  locals.parameters.Capacitance.FFTSubset = outputs['FFT Subset Parameters'];
+  ))['FFT Subset Parameters']; // Capacitance - Impedance Spectroscopy Configure
   //
   // Runs in Calibration configuration performing the measurement and calculating ZRef using a known Capacitance
   if (ts.truthy(locals.parameters.Capacitance.IS_Calibration)) {
@@ -1235,7 +1233,7 @@ class _ProcessSetupLocals {
   ];
 }
 
-/// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
+/// Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes.
 Future<void> processSetup() async {
   final locals = _ProcessSetupLocals();
 
@@ -1325,7 +1323,7 @@ Future<void> processSetup() async {
   ); // Start System Power Supply
 }
 
-/// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
+/// Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes.
 Future<void> processCleanup() async {
   // ---------------------
   // Set System Power Supply to 0V and Stop it
@@ -1387,7 +1385,6 @@ Future<void> processCleanup() async {
   ); // Release DCPower  resources
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'Example explanation',

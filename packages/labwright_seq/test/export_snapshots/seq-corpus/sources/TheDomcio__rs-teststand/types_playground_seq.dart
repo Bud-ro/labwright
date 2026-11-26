@@ -52,7 +52,6 @@ dynamic viParamterElement = ts.PropObj({
   'AdditionalResult': ts.PropObj({'Condition': '', 'Flags': 8192, 'CheckedState': 1}),
 });
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence({bool test = false}) async {
   // Statement
 }

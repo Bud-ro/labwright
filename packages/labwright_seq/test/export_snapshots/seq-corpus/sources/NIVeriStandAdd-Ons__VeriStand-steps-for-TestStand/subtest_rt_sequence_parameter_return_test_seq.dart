@@ -3,7 +3,6 @@ import 'package:labwright/shims.dart' as ts;
 
 dynamic veristand = ts.PropObj({'GatewayIP': '"localhost"'});
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic testBoolParameterReturnResult = ts.StepResult({
@@ -24,9 +23,9 @@ Future<ts.Status> mainSequence() async {
       'ParamNamesArray': '{"TestInput","I32Variable","I64Variable","U32Variable","U64Variable","DoubleVariable"}',
     },
   }, testBoolParameterReturnResult);
-  testBoolParameterReturnResult.Status = ts.truthy(testBoolParameterReturnResult.VeriStand.PassFail)
-      ? 'Passed'
-      : 'Failed';
+  testBoolParameterReturnResult.Status = ts.Status.passFail(
+    ts.truthy(testBoolParameterReturnResult.VeriStand.PassFail),
+  );
   run.record(testBoolParameterReturnResult.Status);
   await ts.stepType('RunRTSequenceNumericLimit', {
     'VeriStand': {

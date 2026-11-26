@@ -5,7 +5,6 @@ class _StartLocals {
   bool running = false;
 }
 
-/// Sequence `Start`.
 Future<void> start() async {
   final locals = _StartLocals();
 
@@ -24,7 +23,6 @@ Future<void> start() async {
   }
 }
 
-/// Sequence `Stop`.
 Future<void> stop() async {
   ts.eval('OutputMessage("Quick Drop stoped.")');
   await ts.callVi(
@@ -33,11 +31,11 @@ Future<void> stop() async {
   ); // Stop
 }
 
-/// Sequence `IsRunning`.
 Future<void> isRunning({bool running = false}) async {
-  final outputs = await ts.callVi(
-    'Resources\\Seq Edit Quick Drop.lvlibp\\Sources\\Is Running.vi',
-    inputs: {'Engine': ts.eval('RunState.Engine')},
-  ); // Is already running?
-  running = outputs['Running'] as bool;
+  running =
+      (await ts.callVi(
+            'Resources\\Seq Edit Quick Drop.lvlibp\\Sources\\Is Running.vi',
+            inputs: {'Engine': ts.eval('RunState.Engine')},
+          ))['Running']
+          as bool; // Is already running?
 }

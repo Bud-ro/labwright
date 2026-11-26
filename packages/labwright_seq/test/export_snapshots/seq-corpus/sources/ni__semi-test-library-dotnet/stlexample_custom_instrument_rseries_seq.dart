@@ -4,7 +4,7 @@ import 'package:labwright/shims.dart' as ts;
 String testTemperature = '';
 String testFlowId = '';
 
-/// Sequence `ProcessSetup` — Runs once at lot start.
+/// Runs once at lot start.
 Future<void> processSetup() async {
   await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(
@@ -20,7 +20,7 @@ class _MainSequenceLocals {
   List<dynamic> portData = <dynamic>['127', '255'];
 }
 
-/// Sequence `MainSequence` — Runs for each UUT.
+/// Runs for each UUT.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -65,7 +65,6 @@ Future<void> mainSequence() async {
   ); // Digital Read Write Test
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   // This example demonstrates using the STL's custom instrument feature to perform digital read write operations with an RSeries device.
   await ts.messagePopup(
@@ -79,7 +78,7 @@ Future<void> sequenceFileLoad() async {
   }
 }
 
-/// Sequence `ProcessCleanup` — Runs once at lot end.
+/// Runs once at lot end.
 Future<void> processCleanup() async {
   await ts.stepType('NI_SemiconductorModule_Action');
   await ts.callDotNet(

@@ -277,7 +277,6 @@ class _MainSequenceLocals {
   dynamic currentRFmxSpecAnSignal;
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -395,7 +394,6 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `Configure`.
 Future<void> configure() async {
   // Applies all configurations that are dependent upon calculated or previous values to the correct variables
   configurations.Analyzer.Measurements.SpecAn_AMPM_Config.DutAverageInputPower_dBm =
@@ -593,7 +591,6 @@ class _MeasureLocals {
   List<dynamic> measurementNames = <dynamic>['EVM', 'SEM'];
 }
 
-/// Sequence `Measure`.
 Future<void> measure() async {
   final locals = _MeasureLocals();
 
@@ -619,7 +616,7 @@ Future<void> measure() async {
         },
       ); // Select Single DPD measurement
       // Starts all measurements configured for the signal
-      final outputs = await ts.callDotNet(
+      currentSweepStep.Results.RFmxDPD_MP_Results.DPD_Poly = (await ts.callDotNet(
         '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.Methods.DPD.dll',
         'NationalInstruments.ReferenceDesignLibraries.Methods.RFmxDPD.PerformMemoryPolynomial',
         inputs: {
@@ -629,8 +626,7 @@ Future<void> measure() async {
           'referenceWaveform': currentSweepStep.Loaded_Waveform,
           'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
         },
-      ); // Perform Memory Polynomial
-      currentSweepStep.Results.RFmxDPD_MP_Results.DPD_Poly = outputs['Return Value.Polynomial'];
+      ))['Return Value.Polynomial']; // Perform Memory Polynomial
       // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
       // Map Results
     }
@@ -687,7 +683,7 @@ Future<void> measure() async {
               'resultName': '',
             },
           ); // Initiate NR ACP measurement
-          final outputs2 = await ts.callDotNet(
+          final outputs = await ts.callDotNet(
             '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll',
             'NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.FetchAcp',
             inputs: {
@@ -695,9 +691,9 @@ Future<void> measure() async {
               'selectorString': configurations.Analyzer.RFmx_Selector_String,
             },
           ); // NR Fetch ACP Results
-          currentSweepStep.Results.RFmxNR_ACP_Results.Offset_Results = outputs2['Return Value.OffsetResults'];
+          currentSweepStep.Results.RFmxNR_ACP_Results.Offset_Results = outputs['Return Value.OffsetResults'];
           currentSweepStep.Results.RFmxNR_ACP_Results.Component_Carrier_Results =
-              outputs2['Return Value.ComponentCarrierResults'];
+              outputs['Return Value.ComponentCarrierResults'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.ACP_CC0_Absolute_Power_dBm =
               currentSweepStep.Results.RFmxNR_ACP_Results.Component_Carrier_Results[0].AbsolutePower_dBm; // Map Results
@@ -725,16 +721,14 @@ Future<void> measure() async {
               'resultName': '',
             },
           ); // Initiate NR ModAcc measurement
-          final outputs3 = await ts.callDotNet(
+          currentSweepStep.Results.RFmxNR_ModAcc_Results.Component_Carrier_Results = (await ts.callDotNet(
             '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll',
             'NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.FetchModAcc',
             inputs: {
               'nr': deviceHandles.RFmx_NR_Signal_Session,
               'selectorString': configurations.Analyzer.RFmx_Selector_String,
             },
-          ); // NR Fetch ModAcc Results
-          currentSweepStep.Results.RFmxNR_ModAcc_Results.Component_Carrier_Results =
-              outputs3['Return Value.ComponentCarrierResults'];
+          ))['Return Value.ComponentCarrierResults']; // NR Fetch ModAcc Results
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.RMS_Composite_EVM_Percent = currentSweepStep
               .Results
@@ -753,7 +747,6 @@ Future<void> measure() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'First Launch Message',

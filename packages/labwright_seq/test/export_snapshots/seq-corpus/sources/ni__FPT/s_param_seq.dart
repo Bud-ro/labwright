@@ -11,7 +11,6 @@ class _MainSequenceLocals {
   int rxSParamS21Mean = 0;
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();

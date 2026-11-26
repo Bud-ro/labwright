@@ -5,7 +5,6 @@ class _MainSequenceLocals {
   int sequencesToRun = 500;
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
@@ -59,9 +58,9 @@ Future<ts.Status> mainSequence() async {
         'ParamNamesArray': '{"EnginePower","DesiredRPM","ActualRPM","EngineTemperature"}',
       },
     }, rtSequencePassFailTestResult);
-    rtSequencePassFailTestResult.Status = ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
-        ? 'Passed'
-        : 'Failed';
+    rtSequencePassFailTestResult.Status = ts.Status.passFail(
+      ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail),
+    );
     run.record(rtSequencePassFailTestResult.Status);
   }
 

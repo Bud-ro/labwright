@@ -20,7 +20,6 @@ class _MainSequenceLocals {
   List<dynamic> rxCompPoutVsPinFull = <dynamic>[];
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();

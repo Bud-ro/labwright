@@ -5,7 +5,6 @@ class _MainSequenceLocals {
   String hardwareConfigPath = '';
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -49,7 +48,6 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `-------Examples------`.
 Future<void> examples() async {
   // (no steps in the source sequence)
 }
@@ -70,30 +68,44 @@ class _DigitalStateTestLocals {
   });
 }
 
-/// Sequence `Digital State Test`.
 Future<void> digitalStateTest() async {
   final locals = _DigitalStateTestLocals();
 
   try {
     // This example demonstrates how to set Digital High & Low states using DIO modules and Measure the digital states of test points using DIO modules
     // Note to run with Hardware: Update the Global Channel based on NI Max in the below initialize step
-    final outputs = await ts.callVi(
+    locals.digitalStateGenTask = (await ts.callVi(
       'Static Digital State Generation\\DAQ_Static Dig Gen Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TS_DIn0,TS_DIn1', 'Global Channels.SessionNumber': 0},
-    ); // Static Digital State Generation - Initialize
-    locals.digitalStateGenTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // Static Digital State Generation - Initialize
+    locals.digitalStateMeasTask = (await ts.callVi(
       'Static Digital State Measurement\\DAQ_Static Dig Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_DOut0,TP_DOut1', 'Global Channels.SessionNumber': 0},
-    ); // Static Digital State Measurement- Initialize
-    locals.digitalStateMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Static Digital State Measurement- Initialize
 
     // Note to run with Hardware: Review the Configurations for intended use case
     // Set Static State HIGH and measure the test points
-    final outputs3 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Static Digital State Generation\\DAQ_Static Dig Gen Configure and Generate.vi',
       inputs: {'DAQmx Task In': locals.digitalStateGenTask, 'Data to Write.[0]': true, 'Data to Write.[1]': true},
     ); // Static Digital State Generation - Configure Digital High
+    locals.digitalStateGenTask = outputs['DAQmx Task Out'];
+    locals.measurementData.DOChannel_IDs = outputs['Channel Identifiers'];
+    final outputs2 = await ts.callVi(
+      'Static Digital State Measurement\\DAQ_Static Dig Meas Configure and Measure.vi',
+      inputs: {'DAQmx Task In': locals.digitalStateMeasTask},
+    ); // Static Digital State Measurement- Read Digital State
+    locals.digitalStateMeasTask = outputs2['DAQmx Task Out'];
+    locals.measurementData.DIChannel_IDs = outputs2['Channel Line Identifiers'];
+    locals.measurementData.DigitalStatesRead = outputs2['Line States'];
+    //
+    //
+    // |
+    // Set Static State LOW and measure the test points
+    final outputs3 = await ts.callVi(
+      'Static Digital State Generation\\DAQ_Static Dig Gen Configure and Generate.vi',
+      inputs: {'DAQmx Task In': locals.digitalStateGenTask, 'Data to Write.[0]': false, 'Data to Write.[1]': false},
+    ); // Static Digital State Generation - Configure Digital Low
     locals.digitalStateGenTask = outputs3['DAQmx Task Out'];
     locals.measurementData.DOChannel_IDs = outputs3['Channel Identifiers'];
     final outputs4 = await ts.callVi(
@@ -103,23 +115,6 @@ Future<void> digitalStateTest() async {
     locals.digitalStateMeasTask = outputs4['DAQmx Task Out'];
     locals.measurementData.DIChannel_IDs = outputs4['Channel Line Identifiers'];
     locals.measurementData.DigitalStatesRead = outputs4['Line States'];
-    //
-    //
-    // |
-    // Set Static State LOW and measure the test points
-    final outputs5 = await ts.callVi(
-      'Static Digital State Generation\\DAQ_Static Dig Gen Configure and Generate.vi',
-      inputs: {'DAQmx Task In': locals.digitalStateGenTask, 'Data to Write.[0]': false, 'Data to Write.[1]': false},
-    ); // Static Digital State Generation - Configure Digital Low
-    locals.digitalStateGenTask = outputs5['DAQmx Task Out'];
-    locals.measurementData.DOChannel_IDs = outputs5['Channel Identifiers'];
-    final outputs6 = await ts.callVi(
-      'Static Digital State Measurement\\DAQ_Static Dig Meas Configure and Measure.vi',
-      inputs: {'DAQmx Task In': locals.digitalStateMeasTask},
-    ); // Static Digital State Measurement- Read Digital State
-    locals.digitalStateMeasTask = outputs6['DAQmx Task Out'];
-    locals.measurementData.DIChannel_IDs = outputs6['Channel Line Identifiers'];
-    locals.measurementData.DigitalStatesRead = outputs6['Line States'];
   } finally {
     // Close all Tasks
     await ts.callVi(
@@ -151,7 +146,6 @@ class _DigitalPatternTestWithTriggerLocals {
   });
 }
 
-/// Sequence `Digital Pattern Test (With Trigger)`.
 Future<void> digitalPatternTestWithTrigger() async {
   final locals = _DigitalPatternTestWithTriggerLocals();
 
@@ -160,21 +154,19 @@ Future<void> digitalPatternTestWithTrigger() async {
     //
     //
     // Note to run with Hardware: Update the Global Channel based on NI Max in the below initialize step
-    final outputs = await ts.callVi(
+    locals.digitalPatternGenTask = (await ts.callVi(
       'Dynamic Digital Pattern Generation\\DAQ_Dyn Dig Gen Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TS_DIn0,TS_DIn1', 'Global Channels.SessionNumber': 0},
-    ); // Dynamic Digital Pattern Generation - Initialize
-    locals.digitalPatternGenTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // Dynamic Digital Pattern Generation - Initialize
+    locals.digitalPatternMeasTask = (await ts.callVi(
       'Dynamic Digital Pattern Measurement\\DAQ_Dyn Dig Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_DOut0,TP_DOut1', 'Global Channels.SessionNumber': 0},
-    ); // Dynamic Digital Pattern Measurement - Initialize
-    locals.digitalPatternMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Dynamic Digital Pattern Measurement - Initialize
 
     // Note to run with Hardware: Review the Configurations and update the Trigger configurations
     // Note to run with Hardware: Sampling rate at measurement end should be same as the sampling rate at generation end (Onboard Clock for same Backplane or external PFI signals)
     // Configures and Arms Digital Pattern Measurement to wait for Start trigger
-    final outputs3 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Dynamic Digital Pattern Measurement\\DAQ_Dyn Dig Meas Configure and Measure.vi',
       inputs: {
         'Execution Option': 1,
@@ -186,25 +178,26 @@ Future<void> digitalPatternTestWithTrigger() async {
         'Timing and Trigger Settings.Trigger Settings.Digital Start Trigger Edge': 10280,
       },
     ); // Dynamic Digital Pattern Measurement - Configure TP
-    locals.digitalPatternMeasTask = outputs3['DAQmx Task Out'];
-    locals.measurementData.Digital_Pattern.t0 = outputs3['Measured Digital Patterns.t0'];
-    locals.measurementData.Digital_Pattern.dt = outputs3['Measured Digital Patterns.dt'];
-    locals.measurementData.Digital_Pattern.Y = outputs3['Measured Digital Patterns.Y'];
-    locals.measurementData.Digital_Pattern.attributes = outputs3['Measured Digital Patterns.attributes'];
+    locals.digitalPatternMeasTask = outputs['DAQmx Task Out'];
+    locals.measurementData.Digital_Pattern.t0 = outputs['Measured Digital Patterns.t0'];
+    locals.measurementData.Digital_Pattern.dt = outputs['Measured Digital Patterns.dt'];
+    locals.measurementData.Digital_Pattern.Y = outputs['Measured Digital Patterns.Y'];
+    locals.measurementData.Digital_Pattern.attributes = outputs['Measured Digital Patterns.attributes'];
     //
     //
     // Note to run with Hardware: Review & update the "Number of Digital Lines" and "Number of Samples" required to be generated
     // Generates Digital ramp pattern for the configured digital lines in Port Digital Data Format
-    final outputs4 = await ts.callVi(
-      '..\\_Common\\SubVIs\\Digital Ramp Pattern Generator.vi',
-      inputs: {'Number of Digital Lines': 2, 'Number of Samples': 1000},
-    ); // Generate Port Digital Data
-    locals.portDigitalData = outputs4['Port Digital Data'] as List<dynamic>;
+    locals.portDigitalData =
+        (await ts.callVi(
+              '..\\_Common\\SubVIs\\Digital Ramp Pattern Generator.vi',
+              inputs: {'Number of Digital Lines': 2, 'Number of Samples': 1000},
+            ))['Port Digital Data']
+            as List<dynamic>; // Generate Port Digital Data
     //
     //
     // Note to run with Hardware: Sampling rate at generation and measurement should be same (Onboard Clock for same Backplane or external PFI signals)
     // Generate the configured Digital Pattern from digital module
-    final outputs5 = await ts.callVi(
+    locals.digitalPatternGenTask = (await ts.callVi(
       'Dynamic Digital Pattern Generation\\DAQ_Dyn Dig Gen Configure and Generate.vi',
       inputs: {
         'DAQmx Task In': locals.digitalPatternGenTask,
@@ -212,17 +205,16 @@ Future<void> digitalPatternTestWithTrigger() async {
         'Timing & Trigger Settings.Timing Settings.Sample Rate (Hz)': 10000,
         'Port Digital Data': locals.portDigitalData,
       },
-    ); // Dynamic Digital Pattern Generation - Generate Digital Pattern
-    locals.digitalPatternGenTask = outputs5['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Dynamic Digital Pattern Generation - Generate Digital Pattern
     //
     // Read Digital Pattern Stored in buffer (Capture starts as soon as start trigger received from the DIO module)
-    final outputs6 = await ts.callVi(
+    final outputs2 = await ts.callVi(
       'Dynamic Digital Pattern Measurement\\DAQ_Dyn Dig Meas Configure and Measure.vi',
       inputs: {'Execution Option': 2, 'DAQmx Task In': locals.digitalPatternMeasTask},
     ); // Dynamic Digital Pattern Measurement - Read Captured Waveform
-    locals.digitalPatternMeasTask = outputs6['DAQmx Task Out'];
-    locals.measurementData.Digital_Pattern = outputs6['Measured Digital Patterns'];
-    locals.measurementData.Port_Digital_Data = outputs6['Port Digital Data'];
+    locals.digitalPatternMeasTask = outputs2['DAQmx Task Out'];
+    locals.measurementData.Digital_Pattern = outputs2['Measured Digital Patterns'];
+    locals.measurementData.Port_Digital_Data = outputs2['Port Digital Data'];
   } finally {
     // Close all Tasks
     await ts.callVi(
@@ -242,7 +234,6 @@ class _DigitalClockTestLocals {
   dynamic measurementData = ts.PropObj({'DetectedFrequency_Hz': 0});
 }
 
-/// Sequence `Digital Clock Test`.
 Future<void> digitalClockTest() async {
   final locals = _DigitalClockTestLocals();
 
@@ -253,20 +244,18 @@ Future<void> digitalClockTest() async {
     //
     // Refer to the provided link on DAQ module (PXIe-6363) for more information - https://www.ni.com/docs/en-US/bundle/pxie-6363-specs/page/specs.html
     // Note to run with Hardware: Update the Terminal and Physical Counter Channels based on NI MAX in the below initialize step
-    final outputs = await ts.callVi(
+    locals.digitalClkGenTask = (await ts.callVi(
       'Digital Clock Generation\\DAQ_Digital Clk Gen Initialize.vi',
       inputs: {'Output Terminal': '/Simulated_DAQ/PFI7', 'Physical Channel (Counter)': 'Simulated_DAQ/ctr3'},
-    ); // Digital Clock Generation - Initialize
-    locals.digitalClkGenTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // Digital Clock Generation - Initialize
+    locals.digitalFreqMeasTask = (await ts.callVi(
       'Digital Frequency Measurement\\DAQ_Dig Freq Meas Initialize.vi',
       inputs: {'Input Terminal': '/Simulated_DAQ/PFI3', 'Physical Channel (counter)': 'Simulated_DAQ/ctr1'},
-    ); // Digital Frequency Measurement - Initialize
-    locals.digitalFreqMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Digital Frequency Measurement - Initialize
 
     // Note to run with Hardware: Update the Digital clock settings based on the required pulse train to be generated in the below step
     // Generate specified digital clock on configured digital line
-    final outputs3 = await ts.callVi(
+    locals.digitalClkGenTask = (await ts.callVi(
       'Digital Clock Generation\\DAQ_Digital Clk Gen Configure and Generate.vi',
       inputs: {
         'DAQmx Task In': locals.digitalClkGenTask,
@@ -274,15 +263,14 @@ Future<void> digitalClockTest() async {
         'Digital Clock Settings.Duty Cycle(%)': 50,
         'Digital Clock Settings.Generation Time (s)': 0.5,
       },
-    ); // Digital Clock Generation - Configure and generate Digital clock
-    locals.digitalClkGenTask = outputs3['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Digital Clock Generation - Configure and generate Digital clock
     // Measures the digital clock generated on the configured digital line
-    final outputs4 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Digital Frequency Measurement\\DAQ_Dig Freq Meas Configure and Measure.vi',
       inputs: {'DAQmx Task In': locals.digitalFreqMeasTask},
     ); // Digital Frequency Measurement - Capture and measure Frequency
-    locals.digitalFreqMeasTask = outputs4['DAQmx Task Out'];
-    locals.measurementData.DetectedFrequency_Hz = outputs4['Detected Frequency (Hz)'];
+    locals.digitalFreqMeasTask = outputs['DAQmx Task Out'];
+    locals.measurementData.DetectedFrequency_Hz = outputs['Detected Frequency (Hz)'];
   } finally {
     // Close all Tasks
     await ts.callVi(
@@ -308,7 +296,6 @@ class _DigitalPwmTestLocals {
   });
 }
 
-/// Sequence `Digital PWM Test`.
 Future<void> digitalPwmTest() async {
   final locals = _DigitalPwmTestLocals();
 
@@ -317,29 +304,26 @@ Future<void> digitalPwmTest() async {
     //
     //
     // Note to run with Hardware: Update the Terminal and Physical Counter Channels based on NI MAX in the below initialize step
-    final outputs = await ts.callVi(
+    locals.digitalPulseGenTask = (await ts.callVi(
       'Digital Pulse Generation\\DAQ_Digital Pulse Gen Initialize.vi',
       inputs: {'Output Terminal': '/Simulated_DAQ/PFI7', 'Physical Channel (Counter)': 'Simulated_DAQ/ctr3'},
-    ); // Digital Pulse Generation - Initialize
-    locals.digitalPulseGenTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // Digital Pulse Generation - Initialize
+    locals.digitalPwmMeasTask = (await ts.callVi(
       'Digital PWM Measurement\\DAQ_Dig PWM Meas Initialize.vi',
       inputs: {'Input Terminal ': '/Simulated_DAQ/PFI3', 'Physical Channel (counter)': 'Simulated_DAQ/ctr1'},
-    ); // Digital PWM Measurement - Initialize
-    locals.digitalPwmMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Digital PWM Measurement - Initialize
 
     // Note to run with Hardware: Update the Cycles to capture value in the below step based on the digital signals to be measured
     // Configures to capture digital PWM signals
-    final outputs3 = await ts.callVi(
+    locals.digitalPwmMeasTask = (await ts.callVi(
       'Digital PWM Measurement\\DAQ_Dig PWM Meas Configure and Measure.vi',
       inputs: {'Execution Option': 1, 'DAQmx Task In': locals.digitalPwmMeasTask, 'Cycles to capture': 100},
-    ); // Digital PWM Measurement - Configure only
-    locals.digitalPwmMeasTask = outputs3['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Digital PWM Measurement - Configure only
     //
     //
     // Note to run with Hardware: Update the Digital pulse settings in the below step based on the required digital signal to be generated
     // Generate specified digital pulses on configured digital line
-    final outputs4 = await ts.callVi(
+    locals.digitalPulseGenTask = (await ts.callVi(
       'Digital Pulse Generation\\DAQ_Digital Pulse Gen Configure and Generate.vi',
       inputs: {
         'DAQmx Task In': locals.digitalPulseGenTask,
@@ -347,19 +331,18 @@ Future<void> digitalPwmTest() async {
         'Digital Pulse Settings.Low Time (s)': 0.003,
         'Digital Pulse Settings.Number of Pulses': 100,
       },
-    ); // Digital Pulse Generation - Generate Digital pulse signals
-    locals.digitalPulseGenTask = outputs4['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Digital Pulse Generation - Generate Digital pulse signals
     // Measures the digital PWM signal on the configured digital line
-    final outputs5 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Digital PWM Measurement\\DAQ_Dig PWM Meas Configure and Measure.vi',
       inputs: {'Execution Option': 2, 'DAQmx Task In': locals.digitalPwmMeasTask},
     ); // Digital PWM Measurement - Measure PWM Signals
-    locals.digitalPwmMeasTask = outputs5['DAQmx Task Out'];
-    locals.measurementData.High_Time_s_ = outputs5['Digital PWM Measurements.High Time (s)'];
-    locals.measurementData.Low_Time_s_ = outputs5['Digital PWM Measurements.Low Time (s)'];
-    locals.measurementData.Duty_Cycle = outputs5['Digital PWM Measurements.Duty Cycle (%)'];
-    locals.measurementData.Frequency_Hz_ = outputs5['Digital PWM Measurements.Frequency (Hz)'];
-    locals.measurementData.Actual_Cycles_Captured = outputs5['Actual Cycles Captured'];
+    locals.digitalPwmMeasTask = outputs['DAQmx Task Out'];
+    locals.measurementData.High_Time_s_ = outputs['Digital PWM Measurements.High Time (s)'];
+    locals.measurementData.Low_Time_s_ = outputs['Digital PWM Measurements.Low Time (s)'];
+    locals.measurementData.Duty_Cycle = outputs['Digital PWM Measurements.Duty Cycle (%)'];
+    locals.measurementData.Frequency_Hz_ = outputs['Digital PWM Measurements.Frequency (Hz)'];
+    locals.measurementData.Actual_Cycles_Captured = outputs['Actual Cycles Captured'];
   } finally {
     // Close all Tasks
     await ts.callVi(
@@ -382,7 +365,6 @@ class _DigitalCountEventTestsSwTimedExternalWaitLocals {
   dynamic measurementData = ts.PropObj({'Edge_Counts': 0});
 }
 
-/// Sequence `Digital Count Event Tests - SW Timed (External Wait)`.
 Future<void> digitalCountEventTestsSwTimedExternalWait() async {
   final locals = _DigitalCountEventTestsSwTimedExternalWaitLocals();
 
@@ -391,36 +373,33 @@ Future<void> digitalCountEventTestsSwTimedExternalWait() async {
     //
     //
     // Note to run with Hardware: Update the Terminal and Physical Counter Channels based on NI MAX in the below initialize step
-    final outputs = await ts.callVi(
+    locals.digitalPulseGenTask = (await ts.callVi(
       'Digital Pulse Generation\\DAQ_Digital Pulse Gen Initialize.vi',
       inputs: {'Output Terminal': '/Simulated_DAQ/PFI7', 'Physical Channel (Counter)': 'Simulated_DAQ/ctr3'},
-    ); // Digital Pulse Generation - Initialize
-    locals.digitalPulseGenTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // Digital Pulse Generation - Initialize
+    locals.digitalEdgeCountMeasTask = (await ts.callVi(
       'Digital Edge Count Measurement\\DAQ_DECM Initialize.vi',
       inputs: {
         'Input Terminal': '/Simulated_DAQ/PFI3',
         'Counter - Edge Counting': 'Simulated_DAQ/ctr1',
         'Counter - Timer': '',
       },
-    ); // Digital Edge Count Measurement - Initialize
-    locals.digitalEdgeCountMeasTask = outputs2['DAQmx Tasks'];
+    ))['DAQmx Tasks']; // Digital Edge Count Measurement - Initialize
 
     // Configures to measure digital edges
-    final outputs3 = await ts.callVi(
+    locals.digitalEdgeCountMeasTask = (await ts.callVi(
       'Digital Edge Count Measurement\\DAQ_DECM Configure and Measure.vi',
       inputs: {
         'Execution Option': 1,
         'DAQmx Tasks In': locals.digitalEdgeCountMeasTask,
         'Counter Settings.Wait Type': 1,
       },
-    ); // Digital Edge Count Measurement - Configure TP
-    locals.digitalEdgeCountMeasTask = outputs3['DAQmx Tasks Out'];
+    ))['DAQmx Tasks Out']; // Digital Edge Count Measurement - Configure TP
     //
     //
     // Note to run with Hardware: Update the Digital pulse settings in the below step based on the required digital signal to be generated
     // Generates Digital pulse signals
-    final outputs4 = await ts.callVi(
+    locals.digitalPulseGenTask = (await ts.callVi(
       'Digital Pulse Generation\\DAQ_Digital Pulse Gen Configure and Generate.vi',
       inputs: {
         'DAQmx Task In': locals.digitalPulseGenTask,
@@ -428,20 +407,19 @@ Future<void> digitalCountEventTestsSwTimedExternalWait() async {
         'Digital Pulse Settings.Low Time (s)': 0.0003,
         'Digital Pulse Settings.Number of Pulses': 2000,
       },
-    ); // Digital Pulse Generation - Configure & Generate Digital pulse signals
-    locals.digitalPulseGenTask = outputs4['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Digital Pulse Generation - Configure & Generate Digital pulse signals
     //
     //
     // Note to run with Hardware: Update the external software wait time in the below step based on the measurement window to be captured
     await Future<void>.delayed(Duration(microseconds: (2 * 1e6).round())); // External Software Wait
     //
     // Reads the Digital edge counts
-    final outputs5 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Digital Edge Count Measurement\\DAQ_DECM Configure and Measure.vi',
       inputs: {'Execution Option': 2, 'DAQmx Tasks In': locals.digitalEdgeCountMeasTask},
     ); // Digital Edge Count Measurement - Read digital edges
-    locals.digitalEdgeCountMeasTask = outputs5['DAQmx Tasks Out'];
-    locals.measurementData.Edge_Counts = outputs5['Edge Counts'];
+    locals.digitalEdgeCountMeasTask = outputs['DAQmx Tasks Out'];
+    locals.measurementData.Edge_Counts = outputs['Edge Counts'];
   } finally {
     // Close all Tasks
     await ts.callVi(
@@ -465,7 +443,6 @@ class _DigitalCountEventTestsHwTimedWithTriggerLocals {
   dynamic measurementData = ts.PropObj({'Edge_Counts': 0});
 }
 
-/// Sequence `Digital Count Event Tests - HW Timed (With Trigger)`.
 Future<void> digitalCountEventTestsHwTimedWithTrigger() async {
   final locals = _DigitalCountEventTestsHwTimedWithTriggerLocals();
 
@@ -474,24 +451,22 @@ Future<void> digitalCountEventTestsHwTimedWithTrigger() async {
     //
     //
     // Note to run with Hardware: Update the Terminals and Global/Physical Channels based on NI MAX in the below initialize step
-    final outputs = await ts.callVi(
+    locals.digitalPatternGenTask = (await ts.callVi(
       'Dynamic Digital Pattern Generation\\DAQ_Dyn Dig Gen Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TS_DIn0', 'Global Channels.SessionNumber': 0},
-    ); // Dynamic Digital Pattern Generation - Initialize
-    locals.digitalPatternGenTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // Dynamic Digital Pattern Generation - Initialize
+    locals.digitalEdgeCountMeasTask = (await ts.callVi(
       'Digital Edge Count Measurement\\DAQ_DECM Initialize.vi',
       inputs: {
         'Input Terminal': '/Simulated_DAQ/PFI0',
         'Counter - Edge Counting': 'Simulated_DAQ/ctr0',
         'Counter - Timer': 'Simulated_DAQ/ctr1',
       },
-    ); // Digital Edge Count Measurement - Initialize
-    locals.digitalEdgeCountMeasTask = outputs2['DAQmx Tasks'];
+    ))['DAQmx Tasks']; // Digital Edge Count Measurement - Initialize
 
     // Note to run with Hardware: Review the Configurations and update the Trigger & Counter configurations
     // Configures and arms to measure digital edges based on Start trigger
-    final outputs3 = await ts.callVi(
+    locals.digitalEdgeCountMeasTask = (await ts.callVi(
       'Digital Edge Count Measurement\\DAQ_DECM Configure and Measure.vi',
       inputs: {
         'Execution Option': 1,
@@ -503,31 +478,30 @@ Future<void> digitalCountEventTestsHwTimedWithTrigger() async {
         'Timer - Trigger Settings.Digital Start Trigger Source': '/Simulated_DAQ/do/StartTrigger',
         'Timer - Trigger Settings.Digital Start Trigger Edge': 10280,
       },
-    ); // Digital Edge Count Measurement - Configure TP
-    locals.digitalEdgeCountMeasTask = outputs3['DAQmx Tasks Out'];
+    ))['DAQmx Tasks Out']; // Digital Edge Count Measurement - Configure TP
     //
     //
     // Note to run with Hardware: Review & update the "Number of Digital Lines" and "Number of Samples" required to be generated
     // Generates Digital ramp pattern for the configured digital lines in Port Digital Data Format
-    final outputs4 = await ts.callVi(
-      '..\\_Common\\SubVIs\\Digital Ramp Pattern Generator.vi',
-      inputs: {'Number of Digital Lines': 1, 'Number of Samples': 1000},
-    ); // Generate Port Digital Data
-    locals.portDigitalData = outputs4['Port Digital Data'] as List<dynamic>;
+    locals.portDigitalData =
+        (await ts.callVi(
+              '..\\_Common\\SubVIs\\Digital Ramp Pattern Generator.vi',
+              inputs: {'Number of Digital Lines': 1, 'Number of Samples': 1000},
+            ))['Port Digital Data']
+            as List<dynamic>; // Generate Port Digital Data
     // Generates digital pattern signals
-    final outputs5 = await ts.callVi(
+    locals.digitalPatternGenTask = (await ts.callVi(
       'Dynamic Digital Pattern Generation\\DAQ_Dyn Dig Gen Configure and Generate.vi',
       inputs: {'DAQmx Task In': locals.digitalPatternGenTask, 'Port Digital Data': locals.portDigitalData},
-    ); // Dynamic Digital Pattern Generation - Configure & Generate Digital patterns
-    locals.digitalPatternGenTask = outputs5['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Dynamic Digital Pattern Generation - Configure & Generate Digital patterns
     //
     // Reads the Digital edge counts
-    final outputs6 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Digital Edge Count Measurement\\DAQ_DECM Configure and Measure.vi',
       inputs: {'Execution Option': 2, 'DAQmx Tasks In': locals.digitalEdgeCountMeasTask},
     ); // Digital Edge Count Measurement - Read digital edges
-    locals.digitalEdgeCountMeasTask = outputs6['DAQmx Tasks Out'];
-    locals.measurementData.Edge_Counts = outputs6['Edge Counts'];
+    locals.digitalEdgeCountMeasTask = outputs['DAQmx Tasks Out'];
+    locals.measurementData.Edge_Counts = outputs['Edge Counts'];
   } finally {
     // Close all Tasks
     await ts.callVi(
@@ -546,25 +520,22 @@ class _TurnOffAllDoChannelsLocals {
   List<dynamic> offStateToWrite = List<dynamic>.filled(32, 'false', growable: true);
 }
 
-/// Sequence `Turn Off all DO Channels`.
 Future<void> turnOffAllDoChannels() async {
   final locals = _TurnOffAllDoChannelsLocals();
 
   // This example resets all configured Digital output channels voltage to 0 Volts
   // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
   // Initializes the configured Physical/Virtual channels of Digital Output module
-  final outputs = await ts.callVi(
+  locals.digitalIoGenTask = (await ts.callVi(
     'Static Digital State Generation\\DAQ_Static Dig Gen Initialize.vi',
     inputs: {'Physical Channels': 'Simulated_DAQ/port0/line0:31'},
-  ); // Static Digital State Generation - Initialize DO Channels
-  locals.digitalIoGenTask = outputs['DAQmx Task Out'];
+  ))['DAQmx Task Out']; // Static Digital State Generation - Initialize DO Channels
 
   // Set Digital state LOW to all Digital Ouput channels
-  final outputs2 = await ts.callVi(
+  locals.digitalIoGenTask = (await ts.callVi(
     'Static Digital State Generation\\DAQ_Static Dig Gen Configure and Generate.vi',
     inputs: {'DAQmx Task In': locals.digitalIoGenTask, 'Data to Write': locals.offStateToWrite},
-  ); // Static Digital State Generation - Configure State LOW
-  locals.digitalIoGenTask = outputs2['DAQmx Task Out'];
+  ))['DAQmx Task Out']; // Static Digital State Generation - Configure State LOW
   // Closes the Static Digital State Generation Task for Digital output module
   await ts.callVi(
     'Static Digital State Generation\\DAQ_Static Dig Gen Close.vi',
@@ -572,7 +543,6 @@ Future<void> turnOffAllDoChannels() async {
   ); // Static Digital State Generation - Close DO Channels
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'About This Example',

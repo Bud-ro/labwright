@@ -11,7 +11,6 @@ class _MainSequenceLocals {
   int loopingVariable = 0;
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 

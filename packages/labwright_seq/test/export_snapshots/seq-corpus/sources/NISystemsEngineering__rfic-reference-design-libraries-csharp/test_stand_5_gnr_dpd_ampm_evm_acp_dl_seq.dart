@@ -277,7 +277,6 @@ class _MainSequenceLocals {
   dynamic currentRFmxSpecAnSignal;
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -395,7 +394,6 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `Configure`.
 Future<void> configure() async {
   // Applies all configurations that are dependent upon calculated or previous values to the correct variables
   configurations.Analyzer.Measurements.SpecAn_AMPM_Config.DutAverageInputPower_dBm =
@@ -590,7 +588,6 @@ class _MeasureLocals {
   List<dynamic> measurementNames = <dynamic>['EVM', 'SEM'];
 }
 
-/// Sequence `Measure`.
 Future<void> measure() async {
   final locals = _MeasureLocals();
 
@@ -723,16 +720,14 @@ Future<void> measure() async {
               'resultName': '',
             },
           ); // Initiate NR ModAcc measurement
-          final outputs3 = await ts.callDotNet(
+          currentSweepStep.Results.RFmxNR_ModAcc_Results.Component_Carrier_Results = (await ts.callDotNet(
             '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxNR.dll',
             'NationalInstruments.ReferenceDesignLibraries.SA.RFmxNR.FetchModAcc',
             inputs: {
               'nr': deviceHandles.RFmx_NR_Signal_Session,
               'selectorString': configurations.Analyzer.RFmx_Selector_String,
             },
-          ); // NR Fetch ModAcc Results
-          currentSweepStep.Results.RFmxNR_ModAcc_Results.Component_Carrier_Results =
-              outputs3['Return Value.ComponentCarrierResults'];
+          ))['Return Value.ComponentCarrierResults']; // NR Fetch ModAcc Results
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.RMS_Composite_EVM_Percent = currentSweepStep
               .Results
@@ -751,7 +746,6 @@ Future<void> measure() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'First Launch Message',

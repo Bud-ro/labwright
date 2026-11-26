@@ -3,7 +3,6 @@ import 'package:labwright/shims.dart' as ts;
 
 dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': true});
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   try {
     await ts.stepType('NI_CreateAndRegisterSessions');
@@ -29,7 +28,7 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `ReportOptions` — The report generator result processing component calls this from its Begin sequence.  Override it to modify the options..
+/// The report generator result processing component calls this from its Begin sequence.  Override it to modify the options.
 Future<void> reportOptions({dynamic reportOptions2, dynamic modelPlugin, dynamic modelPluginConfiguration}) async {
   reportOptions2.GeneratePDFReport = true; // Update Report Options
   reportOptions2.SaveTransformedHtmlForXmlReport = false;

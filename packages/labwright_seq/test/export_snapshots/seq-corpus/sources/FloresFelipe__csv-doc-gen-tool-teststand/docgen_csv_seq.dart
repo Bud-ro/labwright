@@ -11,7 +11,7 @@ class _SequenceFileDocLocals {
   dynamic currentSequence;
 }
 
-/// Sequence `Sequence File Doc` — (Main Entry Point) Parses the target seqeunce file, builds the tab delimited string, and saves it to a file..
+/// (Main Entry Point) Parses the target seqeunce file, builds the tab delimited string, and saves it to a file.
 Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
   final locals = _SequenceFileDocLocals();
   final run = ts.SequenceRun();
@@ -39,7 +39,7 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
       },
       passesContext: true,
     ); // Save Doc To File
-    saveDocToFileResult.Status = ts.truthy(saveDocToFileResult.PassFail) ? 'Passed' : 'Failed';
+    saveDocToFileResult.Status = ts.Status.passFail(ts.truthy(saveDocToFileResult.PassFail));
     run.record(saveDocToFileResult.Status);
   } finally {
     // Enable this step to test this sequence in isolation.
@@ -54,7 +54,7 @@ class _ParseSequenceLocals {
   dynamic currentStep;
 }
 
-/// Sequence `Parse Sequence` — Loops through the steps in a sequence to obtain their information..
+/// Loops through the steps in a sequence to obtain their information.
 Future<void> parseSequence({dynamic sequence, String seqDocString = ''}) async {
   final locals = _ParseSequenceLocals();
 
@@ -109,7 +109,7 @@ class _ParseStepLocals {
   String parametersList = '';
 }
 
-/// Sequence `Parse Step` — This string can extract properties of a step and return them as a tab-demilited string.
+/// This string can extract properties of a step and return them as a tab-demilited string.
 Future<void> parseStep({ts.Ref<String>? seqDocString, dynamic currentStep}) async {
   final seqDocStringRef = seqDocString ?? ts.Ref<String>('');
   final locals = _ParseStepLocals();
@@ -155,7 +155,7 @@ class _BuildDocStringLocals {
   String parametersHeader = '';
 }
 
-/// Sequence `Build Doc String` — Concatenates the header parts and the body to produce the final delimited text..
+/// Concatenates the header parts and the body to produce the final delimited text.
 Future<ts.Status> buildDocString({ts.Ref<String>? seqDocString}) async {
   final seqDocStringRef = seqDocString ?? ts.Ref<String>('');
   final locals = _BuildDocStringLocals();
@@ -190,7 +190,7 @@ class _GetSubSequenceParametersLocals {
   int x = 0;
 }
 
-/// Sequence `Get SubSequence Parameters` — Extracts parameters of a SubSequence call and return them as a tab-separated string..
+/// Extracts parameters of a SubSequence call and return them as a tab-separated string.
 Future<void> getSubSequenceParameters({
   ts.Ref<int>? numberOfParameters,
   dynamic currentStep,
@@ -224,7 +224,7 @@ class _GetLabViewModuleParametersLocals {
   dynamic currentParameter;
 }
 
-/// Sequence `Get LabVIEW Module Parameters` — Extracts parameters of a LabVIEW Code Module and return them as a tab-separated string..
+/// Extracts parameters of a LabVIEW Code Module and return them as a tab-separated string.
 Future<void> getLabViewModuleParameters({
   ts.Ref<int>? numberOfParameters,
   dynamic currentStep,

@@ -22,7 +22,6 @@ class _MainSequenceLocals {
   });
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -59,18 +58,17 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
+/// Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes.
 Future<void> processSetup() async {
   // Registering Active Pinmap
 
   ts.eval(
     'FindFile(FileGlobals.MeasurementLink.PinMapFileName,True,FileGlobals.MeasurementLink.PinMapPath)',
   ); // Get absolute path to pinmap file
-  final outputs = await ts.callVi(
+  measurementLink.PinMapId = (await ts.callVi(
     'TestStand Code Modules\\Update Pin Map.vi',
     inputs: {'Pin Map Path': measurementLink.PinMapPath},
-  ); // Update pin map
-  measurementLink.PinMapId = outputs['Pin Map Id Out'];
+  ))['Pin Map Id Out']; // Update pin map
   // --- Optional Open Scope Session
   // skipped: Register Sessions
   ts.eval(
@@ -78,7 +76,7 @@ Future<void> processSetup() async {
   ); // Register active PinMapId
 }
 
-/// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
+/// Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes.
 Future<void> processCleanup() async {
   ts.eval(
     'RunState.Engine.TemporaryGlobals.DeleteSubProperty("NI.MeasurementLink.PinMapId", 0x2)',

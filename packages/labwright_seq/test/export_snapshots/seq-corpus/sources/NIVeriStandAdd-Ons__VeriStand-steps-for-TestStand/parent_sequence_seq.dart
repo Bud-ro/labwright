@@ -15,7 +15,6 @@ dynamic veristand = ts.PropObj({
   'GatewayIP': '"localhost"',
 });
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final threads = ts.AsyncCalls();
 
@@ -47,7 +46,6 @@ Future<void> mainSequence() async {
   await threads.waitAtEnd();
 }
 
-/// Sequence `ChildSequence_SameFile`.
 Future<void> childSequenceSameFile() async {
   await ts.stepType('RunRTSequenceAction', {
     'Veristand': {

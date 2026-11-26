@@ -10,7 +10,6 @@ class _MainSequenceLocals {
   String groupName = '';
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
@@ -23,11 +22,10 @@ Future<ts.Status> mainSequence() async {
     // Initialize EasyUserManager object using the VI "Initialize from Teststand.vi". This VI duplicates the engine reference to avoid automatic closing when the VI finishes execution.
     //
     // Save the EasyUserManager object to a local variable (object reference) for further use.
-    final outputs = await ts.callVi(
+    locals.eum = (await ts.callVi(
       'Initialize from Teststand.vi',
       inputs: {'Engine Reference': ts.eval('RunState.Engine')},
-    ); // Initialize EasyUserManager
-    locals.eum = outputs['EasyUserManager out'];
+    ))['EasyUserManager out']; // Initialize EasyUserManager
     while (ts.checkStrLimit(locals.newUserName, '', 'CaseSensitive') == 'Passed') {
       enterANewUserNameResult = ts.StepResult({'ButtonHit': 0, 'Response': ''});
       final popup = await ts.messagePopup(
@@ -44,11 +42,12 @@ Future<ts.Status> mainSequence() async {
       if (ts.cond('RunState.PreviousStep.Result.ButtonHit==2')) {
         ts.eval('RunState.Execution.Terminate()'); // Terminate execution if user cancels
       }
-      final outputs2 = await ts.callVi(
-        'User Exists.vi',
-        inputs: {'EasyUserManager in': locals.eum, 'LoginName': locals.newUserName},
-      ); // Check if user already exists
-      locals.userExists = outputs2['User Exists'] as bool;
+      locals.userExists =
+          (await ts.callVi(
+                'User Exists.vi',
+                inputs: {'EasyUserManager in': locals.eum, 'LoginName': locals.newUserName},
+              ))['User Exists']
+              as bool; // Check if user already exists
       if (locals.userExists) {
         await ts.messagePopup(
           'Warning user already exists',
@@ -82,11 +81,12 @@ Future<ts.Status> mainSequence() async {
       if (ts.cond('RunState.PreviousStep.Result.ButtonHit==2')) {
         ts.eval('RunState.Execution.Terminate()'); // Terminate execution if user cancels
       }
-      final outputs3 = await ts.callVi(
-        'Group Exists.vi',
-        inputs: {'EasyUserManager in': locals.eum, 'Group Name': locals.groupName},
-      ); // Check if group exists
-      locals.groupExists = outputs3['Group Exists'] as bool;
+      locals.groupExists =
+          (await ts.callVi(
+                'Group Exists.vi',
+                inputs: {'EasyUserManager in': locals.eum, 'Group Name': locals.groupName},
+              ))['Group Exists']
+              as bool; // Check if group exists
       if (!locals.groupExists) {
         await ts.messagePopup(
           'Warning group will be created',
@@ -130,23 +130,21 @@ Future<ts.Status> mainSequence() async {
       },
     ); // Set user privilege Configure.ConfigAdapter to True
 
-    final outputs4 = await ts.callVi(
+    userInGroupResult.PassFail = (await ts.callVi(
       'User in Group.vi',
       inputs: {'EasyUserManager in': locals.eum, 'LoginName': locals.newUserName, 'Group Name': locals.groupName},
-    ); // User in group?
-    userInGroupResult.PassFail = outputs4['User in Group'];
-    userInGroupResult.Status = ts.truthy(userInGroupResult.PassFail) ? 'Passed' : 'Failed';
+    ))['User in Group']; // User in group?
+    userInGroupResult.Status = ts.Status.passFail(ts.truthy(userInGroupResult.PassFail));
     run.record(userInGroupResult.Status);
-    final outputs5 = await ts.callVi(
+    userHasPrivilegeResult.PassFail = (await ts.callVi(
       'Check User Has Privilege.vi',
       inputs: {
         'EasyUserManager in': locals.eum,
         'LoginName': locals.newUserName,
         'Privilege': 'Configure.ConfigAdapter',
       },
-    ); // User has privilege?
-    userHasPrivilegeResult.PassFail = outputs5['User Has Privilege'];
-    userHasPrivilegeResult.Status = ts.truthy(userHasPrivilegeResult.PassFail) ? 'Passed' : 'Failed';
+    ))['User Has Privilege']; // User has privilege?
+    userHasPrivilegeResult.Status = ts.Status.passFail(ts.truthy(userHasPrivilegeResult.PassFail));
     run.record(userHasPrivilegeResult.Status);
   } finally {
     // As the engine reference was duplicated you need to close it in the clean up process.
@@ -159,7 +157,6 @@ Future<ts.Status> mainSequence() async {
   return run.status;
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'Show Instructions to user',

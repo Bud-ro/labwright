@@ -58,7 +58,6 @@ dynamic modelPluginComponentDescription = ts.PropObj({
   'DisplayNameExpression': '"Astemes_CSVReportGenerator"',
 });
 
-/// Sequence `Model Plugin - Configure Standard Options`.
 Future<void> modelPluginConfigureStandardOptions({
   bool changed = false,
   dynamic processModel,
@@ -74,7 +73,6 @@ Future<void> modelPluginConfigureStandardOptions({
   ); // Show Options Dialog
 }
 
-/// Sequence `_Model Plugin - Configure Additional Options`.
 Future<void> modelPluginConfigureAdditionalOptions({
   bool changed = false,
   dynamic processModel,
@@ -90,12 +88,10 @@ Future<void> modelPluginConfigureAdditionalOptions({
   );
 }
 
-/// Sequence `Model Plugin - Initialize`.
 Future<void> modelPluginInitialize({dynamic modelPlugin, dynamic modelPluginConfiguration, dynamic modelData}) async {
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
 
-/// Sequence `Model Plugin - Begin`.
 Future<void> modelPluginBegin({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -116,7 +112,6 @@ Future<void> modelPluginBegin({
   }
 }
 
-/// Sequence `Model Plugin - Pre Batch`.
 Future<void> modelPluginPreBatch({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -133,7 +128,6 @@ Future<void> modelPluginPreBatch({
   if (continueTesting) {}
 }
 
-/// Sequence `Model Plugin - Pre UUT`.
 Future<void> modelPluginPreUut({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -154,7 +148,6 @@ class _ModelPluginBatchStartLocals {
   dynamic controllerAndSocketSynchronizationManager;
 }
 
-/// Sequence `Model Plugin - Batch Start`.
 Future<void> modelPluginBatchStart({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -179,7 +172,6 @@ class _ModelPluginUutStartLocals {
   dynamic controllerAndSocketSynchronizationManager;
 }
 
-/// Sequence `Model Plugin - UUT Start`.
 Future<void> modelPluginUutStart({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -200,7 +192,6 @@ Future<void> modelPluginUutStart({
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
 
-/// Sequence `Model Plugin - OnTheFly Step Results`.
 Future<void> modelPluginOnTheFlyStepResults({
   dynamic modelPlugin,
   dynamic modelData,
@@ -229,7 +220,6 @@ class _ModelPluginUutDoneLocals {
   String reportName = '';
 }
 
-/// Sequence `Model Plugin - UUT Done`.
 Future<void> modelPluginUutDone({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -285,7 +275,6 @@ class _ModelPluginBatchDoneLocals {
   dynamic controllerAndSocketSynchronizationManager;
 }
 
-/// Sequence `Model Plugin - Batch Done`.
 Future<void> modelPluginBatchDone({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -327,7 +316,6 @@ Future<void> modelPluginBatchDone({
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
 
-/// Sequence `Model Plugin - Post UUT`.
 Future<void> modelPluginPostUut({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -345,7 +333,6 @@ Future<void> modelPluginPostUut({
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
 
-/// Sequence `Model Plugin - Post Batch`.
 Future<void> modelPluginPostBatch({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -363,7 +350,6 @@ Future<void> modelPluginPostBatch({
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
 
-/// Sequence `Model Plugin - End`.
 Future<void> modelPluginEnd({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -394,7 +380,6 @@ class _AddResultLocals {
   });
 }
 
-/// Sequence `Add Result`.
 Future<void> addResult({List<dynamic>? resultList}) async {
   resultList ??= <dynamic>[];
   resultList = ts.copy(resultList);

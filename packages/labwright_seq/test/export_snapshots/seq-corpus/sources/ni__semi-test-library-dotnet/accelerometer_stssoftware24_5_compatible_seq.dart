@@ -4,7 +4,7 @@ import 'package:labwright/shims.dart' as ts;
 String testTemperature = '';
 String testFlowId = '';
 
-/// Sequence `ProcessSetup` — Runs once at lot start.
+/// Runs once at lot start.
 Future<void> processSetup() async {
   await ts.stepType('NI_SemiconductorModule_GetTestSettings', {
     'SettingAssignments': [
@@ -59,7 +59,7 @@ Future<void> processSetup() async {
   }
 }
 
-/// Sequence `MainSequence` — Runs for each UUT.
+/// Runs for each UUT.
 Future<void> mainSequence() async {
   try {
     // Place any test flow agnostic setup steps here, to run before the test flow, for each unit under test.
@@ -491,7 +491,7 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `ProcessCleanup` — Runs once at lot end.
+/// Runs once at lot end.
 Future<void> processCleanup() async {
   try {
     // Place any steps here to run once at the end of a lot.
@@ -516,7 +516,6 @@ Future<void> processCleanup() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'About This Example',

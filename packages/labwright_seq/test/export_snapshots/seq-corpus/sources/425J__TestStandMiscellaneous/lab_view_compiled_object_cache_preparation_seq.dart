@@ -5,7 +5,6 @@ class _CreateCompiledObjectCacheLocals {
   String cliErrorText = '';
 }
 
-/// Sequence `Create Compiled Object Cache`.
 Future<void> createCompiledObjectCache({
   dynamic error,
   String labviewProjectPath = '',
@@ -50,7 +49,6 @@ class _EnableLabViewTcpServerLocals {
   String labviewIniText = '';
 }
 
-/// Sequence `Enable LabVIEW TCP Server`.
 Future<void> enableLabViewTcpServer({
   dynamic error,
   String labviewDirectory = 'C:\\Program Files (x86)\\National Instruments\\LabVIEW 2018',
@@ -120,7 +118,6 @@ class _SequenceFileLoadLocals {
   int timeout = 30; // sec
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   final locals = _SequenceFileLoadLocals();
   final dynamic prepareLabViewProjectCompiledObjectCacheResult = ts.StepResult({'ButtonHit': 0, 'Response': ''});

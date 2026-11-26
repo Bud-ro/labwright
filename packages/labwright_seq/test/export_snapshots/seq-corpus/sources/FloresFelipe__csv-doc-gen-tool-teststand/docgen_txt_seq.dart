@@ -29,7 +29,6 @@ class _SequenceFileDocLocals {
   double totalNumSteps = 0;
 }
 
-/// Sequence `Sequence File Doc`.
 Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
   final locals = _SequenceFileDocLocals();
   final run = ts.SequenceRun();
@@ -53,18 +52,19 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
       ); // By Operator
       locals.docResult += '${ts.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR')}\n'; // Sequence File Header
       if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
-        final outputs = await ts.callDll(
-          '\$(Platform)\\DocSupport.dll',
-          'WordWrapString',
-          inputs: {
-            'maxLineLen': locals.maxWwLineLength,
-            'numIndentChars': locals.wwIndentNum,
-            'srcString': ts.eval('CommentOf(Parameters.SequenceFile.Data)'),
-            'stringObjToStoreResult': locals.tmpString,
-            'numLines': locals.tmpNum,
-          },
-        ); // WordWrapComment
-        locals.tmpNum = outputs['numLines'] as int;
+        locals.tmpNum =
+            (await ts.callDll(
+                  '\$(Platform)\\DocSupport.dll',
+                  'WordWrapString',
+                  inputs: {
+                    'maxLineLen': locals.maxWwLineLength,
+                    'numIndentChars': locals.wwIndentNum,
+                    'srcString': ts.eval('CommentOf(Parameters.SequenceFile.Data)'),
+                    'stringObjToStoreResult': locals.tmpString,
+                    'numLines': locals.tmpNum,
+                  },
+                ))['numLines']
+                as int; // WordWrapComment
       }
       if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
         locals.docResult += '${ts.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_COMMENT')}\n${locals.tmpString}\n'; // Comment
@@ -203,7 +203,7 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
     },
     passesContext: true,
   ); // Save Doc To File
-  saveDocToFileResult.Status = ts.truthy(saveDocToFileResult.PassFail) ? 'Passed' : 'Failed';
+  saveDocToFileResult.Status = ts.Status.passFail(ts.truthy(saveDocToFileResult.PassFail));
   run.record(saveDocToFileResult.Status);
 
   return run.status;
@@ -217,7 +217,6 @@ class _SequenceDocLocals {
   double totalNumSteps = 0;
 }
 
-/// Sequence `Sequence Doc`.
 Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dynamic docOptions}) async {
   final docResultRef = docResult ?? ts.Ref<String>('');
   final locals = _SequenceDocLocals();
@@ -234,18 +233,19 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
         'Parameters.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NAME") +\n	"\\"" + NameOf( Parameters.Sequence) + "\\"\\n" +\n	GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"\n',
       ); // Sequence Header
       if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
-        final outputs = await ts.callDll(
-          '\$(Platform)\\DocSupport.dll',
-          'WordWrapString',
-          inputs: {
-            'maxLineLen': locals.maxWwLineLength,
-            'numIndentChars': locals.wwIndentNum,
-            'srcString': ts.eval('CommentOf(Parameters.Sequence)'),
-            'stringObjToStoreResult': locals.tmpString,
-            'numLines': locals.tmpNum,
-          },
-        ); // WordWrapComment
-        locals.tmpNum = outputs['numLines'] as int;
+        locals.tmpNum =
+            (await ts.callDll(
+                  '\$(Platform)\\DocSupport.dll',
+                  'WordWrapString',
+                  inputs: {
+                    'maxLineLen': locals.maxWwLineLength,
+                    'numIndentChars': locals.wwIndentNum,
+                    'srcString': ts.eval('CommentOf(Parameters.Sequence)'),
+                    'stringObjToStoreResult': locals.tmpString,
+                    'numLines': locals.tmpNum,
+                  },
+                ))['numLines']
+                as int; // WordWrapComment
       }
       if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
         docResultRef.value +=
@@ -413,7 +413,6 @@ class _StepDocLocals {
   String doubleIndent = '';
 }
 
-/// Sequence `Step Doc`.
 Future<ts.Status> stepDoc({
   dynamic step,
   ts.Ref<String>? docResult,
@@ -442,13 +441,18 @@ Future<ts.Status> stepDoc({
     ts.eval(
       'Locals.StepDocs += Locals.Indent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_NAME") + "\\"" + NameOf(Parameters.Step) + "\\"\\n"\n',
     ); // Step Header
-    final outputs = await ts.callDll(
-      '\$(Platform)\\DocSupport.dll',
-      'GetStepTypeName',
-      inputs: {'step': step, 'stringObjToStoreResult': locals.stepTypeName, 'isNIStepType': locals.isNiStepType},
-    ); // Get StepType Name
-    locals.isNiStepType = outputs['isNIStepType'] as bool;
-    getStepTypeNameResult.Status = ts.truthy(getStepTypeNameResult.PassFail) ? 'Passed' : 'Failed';
+    locals.isNiStepType =
+        (await ts.callDll(
+              '\$(Platform)\\DocSupport.dll',
+              'GetStepTypeName',
+              inputs: {
+                'step': step,
+                'stringObjToStoreResult': locals.stepTypeName,
+                'isNIStepType': locals.isNiStepType,
+              },
+            ))['isNIStepType']
+            as bool; // Get StepType Name
+    getStepTypeNameResult.Status = ts.Status.passFail(ts.truthy(getStepTypeNameResult.PassFail));
     run.record(getStepTypeNameResult.Status);
     locals.stepKeyName = await ts.callActiveX(step, 'Step.AdapterKeyName').returnValue as String; // GetStepKeyName
     locals.tmpString = ts.resourceString('Adapter Names', locals.stepKeyName); // Process Adapter Name
@@ -460,33 +464,35 @@ Future<ts.Status> stepDoc({
                 .callActiveX(step, 'Step.GetDescriptionEx', inputs: {'options': ts.eval('1 \' long description')})
                 .returnValue
             as String; // Get Step Desc
-    final outputs2 = await ts.callDll(
-      '\$(Platform)\\DocSupport.dll',
-      'WordWrapString',
-      inputs: {
-        'maxLineLen': locals.maxWwLineLength,
-        'numIndentChars': locals.wwIndentNum,
-        'srcString': locals.tmpString,
-        'stringObjToStoreResult': locals.tmpString,
-        'numLines': locals.tmpNum,
-      },
-    ); // WordWrapDesc
-    locals.tmpNum = outputs2['numLines'] as int;
+    locals.tmpNum =
+        (await ts.callDll(
+              '\$(Platform)\\DocSupport.dll',
+              'WordWrapString',
+              inputs: {
+                'maxLineLen': locals.maxWwLineLength,
+                'numIndentChars': locals.wwIndentNum,
+                'srcString': locals.tmpString,
+                'stringObjToStoreResult': locals.tmpString,
+                'numLines': locals.tmpNum,
+              },
+            ))['numLines']
+            as int; // WordWrapDesc
     locals.stepDocs +=
         '${locals.doubleIndent + ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_DESC')}\n${locals.tmpString}\n'; // Step Description
     if (ts.cond('CommentOf(Parameters.Step) != ""')) {
-      final outputs3 = await ts.callDll(
-        '\$(Platform)\\DocSupport.dll',
-        'WordWrapString',
-        inputs: {
-          'maxLineLen': locals.maxWwLineLength,
-          'numIndentChars': locals.wwIndentNum,
-          'srcString': ts.eval('CommentOf(Parameters.Step)'),
-          'stringObjToStoreResult': locals.tmpString,
-          'numLines': locals.tmpNum,
-        },
-      ); // WordWrapComment
-      locals.tmpNum = outputs3['numLines'] as int;
+      locals.tmpNum =
+          (await ts.callDll(
+                '\$(Platform)\\DocSupport.dll',
+                'WordWrapString',
+                inputs: {
+                  'maxLineLen': locals.maxWwLineLength,
+                  'numIndentChars': locals.wwIndentNum,
+                  'srcString': ts.eval('CommentOf(Parameters.Step)'),
+                  'stringObjToStoreResult': locals.tmpString,
+                  'numLines': locals.tmpNum,
+                },
+              ))['numLines']
+              as int; // WordWrapComment
     }
     if (ts.cond('CommentOf(Parameters.Step) != ""')) {
       locals.stepDocs +=
@@ -503,18 +509,19 @@ Future<ts.Status> stepDoc({
     ); // Add Requirements
     locals.stepDocs = docResultRef2.value;
     if (ts.cond('PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False')) {
-      final outputs4 = await ts.callDll(
-        '\$(Platform)\\DocSupport.dll',
-        'WordWrapString',
-        inputs: {
-          'maxLineLen': locals.maxWwLineLength,
-          'numIndentChars': locals.wwIndentNum,
-          'srcString': step.InBuf,
-          'stringObjToStoreResult': locals.tmpString,
-          'numLines': locals.tmpNum,
-        },
-      ); // WordWrapInBuf
-      locals.tmpNum = outputs4['numLines'] as int;
+      locals.tmpNum =
+          (await ts.callDll(
+                '\$(Platform)\\DocSupport.dll',
+                'WordWrapString',
+                inputs: {
+                  'maxLineLen': locals.maxWwLineLength,
+                  'numIndentChars': locals.wwIndentNum,
+                  'srcString': step.InBuf,
+                  'stringObjToStoreResult': locals.tmpString,
+                  'numLines': locals.tmpNum,
+                },
+              ))['numLines']
+              as int; // WordWrapInBuf
     }
     if (ts.cond('PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False')) {
       locals.stepDocs +=
@@ -540,18 +547,19 @@ Future<ts.Status> stepDoc({
       break skipToBeginOfMultipleLimits;
     }
     if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
-      final outputs5 = await ts.callDll(
-        '\$(Platform)\\DocSupport.dll',
-        'WordWrapString',
-        inputs: {
-          'maxLineLen': locals.maxWwLineLength,
-          'numIndentChars': locals.wwIndentNum,
-          'srcString': step.Limits.String,
-          'stringObjToStoreResult': locals.tmpString,
-          'numLines': locals.tmpNum,
-        },
-      ); // WordWrapStringLimit
-      locals.tmpNum = outputs5['numLines'] as int;
+      locals.tmpNum =
+          (await ts.callDll(
+                '\$(Platform)\\DocSupport.dll',
+                'WordWrapString',
+                inputs: {
+                  'maxLineLen': locals.maxWwLineLength,
+                  'numIndentChars': locals.wwIndentNum,
+                  'srcString': step.Limits.String,
+                  'stringObjToStoreResult': locals.tmpString,
+                  'numLines': locals.tmpNum,
+                },
+              ))['numLines']
+              as int; // WordWrapStringLimit
     }
     if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
       locals.stepDocs +=
@@ -585,18 +593,19 @@ Future<ts.Status> stepDoc({
               .returnValue
           as String; // Get Execution Flow
   if (locals.execFlow != '') {
-    final outputs6 = await ts.callDll(
-      '\$(Platform)\\DocSupport.dll',
-      'WordWrapString',
-      inputs: {
-        'maxLineLen': locals.maxWwLineLength,
-        'numIndentChars': locals.wwIndentNum,
-        'srcString': locals.execFlow,
-        'stringObjToStoreResult': locals.tmpString,
-        'numLines': locals.tmpNum,
-      },
-    ); // WordWrapExecFlow
-    locals.tmpNum = outputs6['numLines'] as int;
+    locals.tmpNum =
+        (await ts.callDll(
+              '\$(Platform)\\DocSupport.dll',
+              'WordWrapString',
+              inputs: {
+                'maxLineLen': locals.maxWwLineLength,
+                'numIndentChars': locals.wwIndentNum,
+                'srcString': locals.execFlow,
+                'stringObjToStoreResult': locals.tmpString,
+                'numLines': locals.tmpNum,
+              },
+            ))['numLines']
+            as int; // WordWrapExecFlow
   }
   if (locals.execFlow != '') {
     locals.stepDocs +=
@@ -617,7 +626,6 @@ class _WriteSubpropertiesLocals {
   int subpropFlags = 0;
 }
 
-/// Sequence `Write Subproperties`.
 Future<void> writeSubproperties({
   dynamic root,
   String docResult = '',
@@ -686,7 +694,6 @@ class _WriteArrayElementsLocals {
   int numElements = 0;
 }
 
-/// Sequence `Write Array Elements`.
 Future<void> writeArrayElements({
   dynamic root,
   ts.Ref<String>? docResult,
@@ -700,12 +707,13 @@ Future<void> writeArrayElements({
   {
     skipToMaxNumArrayElementsMsg:
     {
-      final outputs = await ts.callActiveX(
-        root,
-        'PropertyObject.GetDimensions',
-        inputs: {'lookupString': arrayPropLookupStr, 'options': 0},
-      ); // GetNumElements
-      locals.numElements = outputs['numElements'] as int;
+      locals.numElements =
+          (await ts.callActiveX(
+                root,
+                'PropertyObject.GetDimensions',
+                inputs: {'lookupString': arrayPropLookupStr, 'options': 0},
+              ))['numElements']
+              as int; // GetNumElements
       backToStartOfLoop:
       while (true) {
         // --- Start of Loop ---
@@ -750,7 +758,6 @@ class _WritePropertyDetailsLocals {
   int tmpNum = 0;
 }
 
-/// Sequence `Write Property Details`.
 Future<void> writePropertyDetails({
   ts.Ref<String>? docResult,
   dynamic root,
@@ -782,18 +789,19 @@ Future<void> writePropertyDetails({
       locals.subpropValue = '\n${tryToEvaluateResult.Error.Msg as String}'; // Document Error
     }
     if (tryToEvaluateResult.Status == 'Error') {
-      final outputs2 = await ts.callDll(
-        '\$(Platform)\\DocSupport.dll',
-        'WordWrapString',
-        inputs: {
-          'maxLineLen': locals.maxWwLineLength,
-          'numIndentChars': locals.wwIndentNum,
-          'srcString': locals.subpropValue,
-          'stringObjToStoreResult': locals.subpropValue,
-          'numLines': locals.tmpNum,
-        },
-      ); // WordWrapStringValue_Copy
-      locals.tmpNum = outputs2['numLines'] as int;
+      locals.tmpNum =
+          (await ts.callDll(
+                '\$(Platform)\\DocSupport.dll',
+                'WordWrapString',
+                inputs: {
+                  'maxLineLen': locals.maxWwLineLength,
+                  'numIndentChars': locals.wwIndentNum,
+                  'srcString': locals.subpropValue,
+                  'stringObjToStoreResult': locals.subpropValue,
+                  'numLines': locals.tmpNum,
+                },
+              ))['numLines']
+              as int; // WordWrapStringValue_Copy
     }
     if (tryToEvaluateResult.Status == 'Error') {
       break skipToSkipEvaluate;
@@ -819,18 +827,19 @@ Future<void> writePropertyDetails({
       ); // GetSubPropValue7
     }
     if (locals.valueType == 1) {
-      final outputs3 = await ts.callDll(
-        '\$(Platform)\\DocSupport.dll',
-        'WordWrapString',
-        inputs: {
-          'maxLineLen': locals.maxWwLineLength,
-          'numIndentChars': locals.wwIndentNum,
-          'srcString': locals.subpropValue,
-          'stringObjToStoreResult': locals.subpropValue,
-          'numLines': locals.tmpNum,
-        },
-      ); // WordWrapStringValue
-      locals.tmpNum = outputs3['numLines'] as int;
+      locals.tmpNum =
+          (await ts.callDll(
+                '\$(Platform)\\DocSupport.dll',
+                'WordWrapString',
+                inputs: {
+                  'maxLineLen': locals.maxWwLineLength,
+                  'numIndentChars': locals.wwIndentNum,
+                  'srcString': locals.subpropValue,
+                  'stringObjToStoreResult': locals.subpropValue,
+                  'numLines': locals.tmpNum,
+                },
+              ))['numLines']
+              as int; // WordWrapStringValue
     }
   }
   // --- Skip Evaluate ---
@@ -861,7 +870,6 @@ class _WriteMultipleNumericLimitLimitsLocals {
   String highLimitFmt = '';
 }
 
-/// Sequence `Write Multiple Numeric Limit Limits`.
 Future<void> writeMultipleNumericLimitLimits({
   dynamic step,
   ts.Ref<String>? docResult,
@@ -872,12 +880,13 @@ Future<void> writeMultipleNumericLimitLimits({
 
   skipToAfterLoop:
   {
-    final outputs = await ts.callActiveX(
-      step.Result.Measurement,
-      'PropertyObject.GetDimensions',
-      inputs: {'lookupString': '', 'options': 0},
-    ); // GetNumElements
-    locals.numElements = outputs['numElements'] as int;
+    locals.numElements =
+        (await ts.callActiveX(
+              step.Result.Measurement,
+              'PropertyObject.GetDimensions',
+              inputs: {'lookupString': '', 'options': 0},
+            ))['numElements']
+            as int; // GetNumElements
     backToStartOfLoop:
     while (true) {
       // --- Start of Loop ---
@@ -969,7 +978,6 @@ class _WriteRequirementsElementsLocals {
   String tmpString = '';
 }
 
-/// Sequence `Write Requirements Elements`.
 Future<void> writeRequirementsElements({
   dynamic requirements,
   ts.Ref<String>? docResult,
@@ -987,18 +995,19 @@ Future<void> writeRequirementsElements({
     locals.tmpString += '${locals.currentReqElement}\n'; // Get Requirments
   }
   if (ts.len(locals.tmpString) > 0) {
-    final outputs = await ts.callDll(
-      '\$(Platform)\\DocSupport.dll',
-      'WordWrapString',
-      inputs: {
-        'maxLineLen': maxWwLineLength,
-        'numIndentChars': wwIndentNum,
-        'srcString': ts.left(locals.tmpString, ts.len(locals.tmpString) - 1),
-        'stringObjToStoreResult': locals.tmpString,
-        'numLines': tmpNum,
-      },
-    ); // WordWrapInBuf
-    tmpNum = outputs['numLines'] as int;
+    tmpNum =
+        (await ts.callDll(
+              '\$(Platform)\\DocSupport.dll',
+              'WordWrapString',
+              inputs: {
+                'maxLineLen': maxWwLineLength,
+                'numIndentChars': wwIndentNum,
+                'srcString': ts.left(locals.tmpString, ts.len(locals.tmpString) - 1),
+                'stringObjToStoreResult': locals.tmpString,
+                'numLines': tmpNum,
+              },
+            ))['numLines']
+            as int; // WordWrapInBuf
     docResultRef.value +=
         '${doubleIndent + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_REQUIREMENTS'), '%-30s')}\n${locals.tmpString}\n'; // Requirements
   }

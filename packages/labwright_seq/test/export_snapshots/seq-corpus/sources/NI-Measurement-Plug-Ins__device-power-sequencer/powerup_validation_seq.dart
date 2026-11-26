@@ -9,7 +9,6 @@ dynamic measurementLink = ts.PropObj({
   'PinMapFileName': 'PinMap.pinmap',
 });
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   // Power up the DUT
   await ts.measurement('devicePowerSequencingModule_LabVIEW', {
@@ -47,24 +46,23 @@ Future<void> mainSequence() async {
   });
 }
 
-/// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
+/// Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes.
 Future<void> processSetup() async {
   ts.eval(
     'FileGlobals.FolderPath =Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True))',
   ); // Get Sequence Directory
   measurementLink.PinMapPath =
       '$folderPath\\InstrumentStudio Proj\\${measurementLink.PinMapFileName as String}'; // Get absolute path to pinmap file and SDC config file
-  final outputs = await ts.callVi(
+  measurementLink.PinMapId = (await ts.callVi(
     'VIs\\Update Pin Map.vi',
     inputs: {'Pin Map Path': measurementLink.PinMapPath},
-  ); // Update Pinmap
-  measurementLink.PinMapId = outputs['Pin Map Id Out'];
+  ))['Pin Map Id Out']; // Update Pinmap
   ts.eval(
     'RunState.Engine.TemporaryGlobals.SetValString("NI.MeasurementLink.PinMapId", 0x1, FileGlobals.MeasurementLink.PinMapId)',
   ); // Register active PinMapId
 }
 
-/// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
+/// Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes.
 Future<void> processCleanup() async {
   ts.eval(
     'RunState.Engine.TemporaryGlobals.DeleteSubProperty("NI.MeasurementLink.PinMapId", 0x2)',

@@ -10,7 +10,6 @@ class _MainSequenceLocals {
   List<dynamic> crosstalk = List<dynamic>.filled(10, '0', growable: true);
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 

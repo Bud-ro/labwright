@@ -10,7 +10,6 @@ class _MainSequenceLocals {
   int rxSParamVstS21Mean = 0;
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();

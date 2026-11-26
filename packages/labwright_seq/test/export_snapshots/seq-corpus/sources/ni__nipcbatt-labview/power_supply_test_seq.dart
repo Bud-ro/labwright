@@ -5,7 +5,6 @@ class _MainSequenceLocals {
   String hardwareConfigPath = '';
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -30,7 +29,6 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `-------Examples------`.
 Future<void> examples() async {
   // (no steps in the source sequence)
 }
@@ -66,27 +64,24 @@ class _PowerSupplyAndMeasureWithTriggerLocals {
   });
 }
 
-/// Sequence `Power Supply and Measure (with Trigger)`.
 Future<void> powerSupplyAndMeasureWithTrigger() async {
   final locals = _PowerSupplyAndMeasureWithTriggerLocals();
 
   try {
     // This example demostrates Power Supply Source(VDD) and Time Domain Analysis of Measured Analog input voltage in TestPoints. Data capture in Analog Input(TP) starts when the Trigger is sent from Power Supply after starting the source.
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-    final outputs = await ts.callVi(
+    locals.psTask = (await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Initialize.vi',
       inputs: {'Physical channels': 'Simulated_Power/power'},
-    ); // Power Supply Source and Measure - Initialize VDD
-    locals.psTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // Power Supply Source and Measure - Initialize VDD
+    locals.timeDomainMeasTask = (await ts.callVi(
       'Time Domain Measurement\\DAQ_TDV Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_Power0:2', 'Global Channels.SessionNumber': 0},
-    ); // Time Domain Measurement - Initialize TP
-    locals.timeDomainMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Time Domain Measurement - Initialize TP
 
     // Note to run with Hardware: Review the configurations & update the Digital Start Trigger Settings based on NI MAX
     // Configure Time Domain Measurement settings to wait for Hardware Trigger from Power
-    final outputs3 = await ts.callVi(
+    locals.timeDomainMeasTask = (await ts.callVi(
       'Time Domain Measurement\\DAQ_TDV Meas Configure and Measure.vi',
       inputs: {
         'Execution Settings.Execution option': 1,
@@ -99,11 +94,10 @@ Future<void> powerSupplyAndMeasureWithTrigger() async {
         'Timing and Trigger Settings.Trigger Settings.Digital Start Trigger Source': '/Sim_TS/te0/StartTrigger',
         'Timing and Trigger Settings.Trigger Settings.Digital Start Trigger Edge': 10280,
       },
-    ); // Time Domain Measurement - Configure TP
-    locals.timeDomainMeasTask = outputs3['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Time Domain Measurement - Configure TP
     //
     // Timing engine should match with configured Hardware trigger line for Time Domain Measurement
-    final outputs4 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Configure and Measure.vi',
       inputs: {
         'DAQmx Task In': locals.psTask,
@@ -117,18 +111,18 @@ Future<void> powerSupplyAndMeasureWithTrigger() async {
         'Timing and Trigger Settings.Timing Settings.Sample Timing Engine': 0,
       },
     ); // Power Supply Source and Measure - Configure and Measure VDD
-    locals.psTask = outputs4['DAQmx Task Out'];
-    locals.psMeasurementData.Voltage_Waveform = outputs4['Voltage Waveforms'];
-    locals.psMeasurementData.Current_Waveform = outputs4['Current Waveforms'];
-    locals.psMeasurementData.Max_Voltage = outputs4['Power Measurements.Max Voltage Level(V)'];
-    locals.psMeasurementData.Max_Current = outputs4['Power Measurements.Max Current Level(A)'];
-    locals.psMeasurementData.Max_Power = outputs4['Power Measurements.Max Power(W)'];
-    locals.psMeasurementData.Avg_Power = outputs4['Power Measurements.Average Power (W)'];
+    locals.psTask = outputs['DAQmx Task Out'];
+    locals.psMeasurementData.Voltage_Waveform = outputs['Voltage Waveforms'];
+    locals.psMeasurementData.Current_Waveform = outputs['Current Waveforms'];
+    locals.psMeasurementData.Max_Voltage = outputs['Power Measurements.Max Voltage Level(V)'];
+    locals.psMeasurementData.Max_Current = outputs['Power Measurements.Max Current Level(A)'];
+    locals.psMeasurementData.Max_Power = outputs['Power Measurements.Max Power(W)'];
+    locals.psMeasurementData.Avg_Power = outputs['Power Measurements.Average Power (W)'];
     //
     //
     // Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
     // Fetches the measured DC Voltage (measured when Power Supply sends Trigger after source) and returns Time Domain Analysis
-    final outputs5 = await ts.callVi(
+    final outputs2 = await ts.callVi(
       'Time Domain Measurement\\DAQ_TDV Meas Configure and Measure.vi',
       inputs: {
         'Execution Settings.Execution option': 2,
@@ -136,13 +130,13 @@ Future<void> powerSupplyAndMeasureWithTrigger() async {
         'Periodic Waveform \nMeasurements?': false,
       },
     ); // Time Domain Measurement - Fetch TP
-    locals.timeDomainMeasTask = outputs5['DAQmx Task Out'];
-    locals.timeDomainMeasData.Voltage_Waveform = outputs5['Voltage Waveforms'];
-    locals.timeDomainMeasData.Mean_Voltage = outputs5['Time Domain Measurements.Mean DC Voltage (V)'];
-    locals.timeDomainMeasData.VPP_Amplitude = outputs5['Time Domain Measurements.Vpp Amplitude(V)'];
-    locals.timeDomainMeasData.Frequency = outputs5['Time Domain Measurements.Voltage Frequency(Hz)'];
-    locals.timeDomainMeasData.Period = outputs5['Time Domain Measurements.Voltage Waveform Period (s)'];
-    locals.timeDomainMeasData.Dutycycle = outputs5['Time Domain Measurements.Voltage Waveform duty cycle (%)'];
+    locals.timeDomainMeasTask = outputs2['DAQmx Task Out'];
+    locals.timeDomainMeasData.Voltage_Waveform = outputs2['Voltage Waveforms'];
+    locals.timeDomainMeasData.Mean_Voltage = outputs2['Time Domain Measurements.Mean DC Voltage (V)'];
+    locals.timeDomainMeasData.VPP_Amplitude = outputs2['Time Domain Measurements.Vpp Amplitude(V)'];
+    locals.timeDomainMeasData.Frequency = outputs2['Time Domain Measurements.Voltage Frequency(Hz)'];
+    locals.timeDomainMeasData.Period = outputs2['Time Domain Measurements.Voltage Waveform Period (s)'];
+    locals.timeDomainMeasData.Dutycycle = outputs2['Time Domain Measurements.Voltage Waveform duty cycle (%)'];
   } finally {
     // Close all Tasks
     await ts.callVi(
@@ -180,26 +174,23 @@ class _PowerSupplyAndMeasureWithoutTriggerLocals {
   dynamic measurementData = ts.PropObj({'Voltage_Waveform': <dynamic>[]});
 }
 
-/// Sequence `Power Supply and Measure (without Trigger)`.
 Future<void> powerSupplyAndMeasureWithoutTrigger() async {
   final locals = _PowerSupplyAndMeasureWithoutTriggerLocals();
 
   try {
     // This example demonstrates Power Supply source and Voltage Measurement without trigger
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-    final outputs = await ts.callVi(
+    locals.psTask = (await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Initialize.vi',
       inputs: {'Physical channels': 'Simulated_Power/power'},
-    ); // Power Supply Source and Measure - Initialize VDD
-    locals.psTask = outputs['DAQmx Task Out'];
-    final outputs2 = await ts.callVi(
+    ))['DAQmx Task Out']; // Power Supply Source and Measure - Initialize VDD
+    locals.dcVoltageMeasTask = (await ts.callVi(
       'DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Initialize.vi',
       inputs: {'Global Channels.DeviceName': 'TP_Power0:2', 'Global Channels.SessionNumber': 0},
-    ); // DC-RMS Voltage Measurement - Initialize TP
-    locals.dcVoltageMeasTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // DC-RMS Voltage Measurement - Initialize TP
 
     // Note to run with Hardware: Review the Configurations for the intended use case
-    final outputs3 = await ts.callVi(
+    final outputs = await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Configure and Measure.vi',
       inputs: {
         'DAQmx Task In': locals.psTask,
@@ -209,19 +200,19 @@ Future<void> powerSupplyAndMeasureWithoutTrigger() async {
         'Channel Settings.Idle Output Behavior': 12528,
       },
     ); // Power Supply Source and Measure - Configure and Measure VDD
-    locals.psTask = outputs3['DAQmx Task Out'];
-    locals.psMeasurementData.Voltage_Waveform = outputs3['Voltage Waveforms'];
-    locals.psMeasurementData.Current_Waveform = outputs3['Current Waveforms'];
-    locals.psMeasurementData.Max_Voltage = outputs3['Power Measurements.Max Voltage Level(V)'];
-    locals.psMeasurementData.Max_Current = outputs3['Power Measurements.Max Current Level(A)'];
-    locals.psMeasurementData.Max_Power = outputs3['Power Measurements.Max Power(W)'];
-    locals.psMeasurementData.Avg_Power = outputs3['Power Measurements.Average Power (W)'];
-    final outputs4 = await ts.callVi(
+    locals.psTask = outputs['DAQmx Task Out'];
+    locals.psMeasurementData.Voltage_Waveform = outputs['Voltage Waveforms'];
+    locals.psMeasurementData.Current_Waveform = outputs['Current Waveforms'];
+    locals.psMeasurementData.Max_Voltage = outputs['Power Measurements.Max Voltage Level(V)'];
+    locals.psMeasurementData.Max_Current = outputs['Power Measurements.Max Current Level(A)'];
+    locals.psMeasurementData.Max_Power = outputs['Power Measurements.Max Power(W)'];
+    locals.psMeasurementData.Avg_Power = outputs['Power Measurements.Average Power (W)'];
+    final outputs2 = await ts.callVi(
       'DC-RMS Voltage Measurement\\DAQ_DC-RMS Voltage Meas Configure and Measure.vi',
       inputs: {'DAQmx Task In': locals.dcVoltageMeasTask},
     ); // DC-RMS Voltage Measurement - Measure DC Voltage in TP
-    locals.dcVoltageMeasTask = outputs4['DAQmx Task Out'];
-    locals.measurementData.Voltage_Waveform = outputs4['Voltage Waveforms'];
+    locals.dcVoltageMeasTask = outputs2['DAQmx Task Out'];
+    locals.measurementData.Voltage_Waveform = outputs2['Voltage Waveforms'];
   } finally {
     await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Close.vi',
@@ -238,29 +229,26 @@ class _DmmDcRmsVoltageMeasurementLocals {
   dynamic dmmResource = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
 }
 
-/// Sequence `DMM DC-RMS Voltage Measurement`.
 Future<void> dmmDcRmsVoltageMeasurement() async {
   final locals = _DmmDcRmsVoltageMeasurementLocals();
 
   try {
     // This example demonstrates how to configure and use a DMM to make a DC-RMS Voltage measurement
     // Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-    final outputs = await ts.callVi(
+    locals.dmmResource = (await ts.callVi(
       'DMM_DC-RMS Voltage Measurement\\DMM_DC-RMS Voltage Meas Initialize.vi',
       inputs: {'DMM Resource Name.DeviceName': 'Sim_DMM', 'DMM Resource Name.SessionNumber': 0},
-    ); // Initialize DMM for DC-RMS Voltage Measurement
-    locals.dmmResource = outputs['DMM Handle Out'];
+    ))['DMM Handle Out']; // Initialize DMM for DC-RMS Voltage Measurement
 
     // Note to run with Hardware: Review the Configurations for the intended use case
-    final outputs2 = await ts.callVi(
+    locals.dmmResource = (await ts.callVi(
       'DMM_DC-RMS Voltage Measurement\\DMM_DC-RMS Voltage Meas Configure and Measure.vi',
       inputs: {
         'DMM Handle In': locals.dmmResource,
         'Function Settings.Range and Function': 1,
         'Function Settings.Resolution in Digits': 6.5,
       },
-    ); // Measure DC-RMS Voltage with DMM - Using range DC 100 mV at 6 1/2 digits of resolution
-    locals.dmmResource = outputs2['DMM Handle Out'];
+    ))['DMM Handle Out']; // Measure DC-RMS Voltage with DMM - Using range DC 100 mV at 6 1/2 digits of resolution
   } finally {
     // Release DMM hardware resource
     await ts.callVi(
@@ -270,7 +258,6 @@ Future<void> dmmDcRmsVoltageMeasurement() async {
   }
 }
 
-/// Sequence `-------Reusable Sequences------`.
 Future<void> reusableSequences() async {
   // (no steps in the source sequence)
 }
@@ -279,28 +266,25 @@ class _PowerDownAllPowerSuppliesLocals {
   dynamic psTask = ts.PropObj({'DeviceName': '', 'SessionNumber': 0});
 }
 
-/// Sequence `Power down all Power Supplies`.
 Future<void> powerDownAllPowerSupplies() async {
   final locals = _PowerDownAllPowerSuppliesLocals();
 
   try {
     // Note to run with Hardware: Update Physical Channels Info based on NI MAX in the below Initialize Step
-    final outputs = await ts.callVi(
+    locals.psTask = (await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Initialize.vi',
       inputs: {'Physical channels': 'Simulated_Power/power'},
-    ); // Power Supply Source and Measure - Initialize
-    locals.psTask = outputs['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Power Supply Source and Measure - Initialize
 
     // Configures the power supply source to disable output after close to make it to "Idle" state
-    final outputs2 = await ts.callVi(
+    locals.psTask = (await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Configure and Measure.vi',
       inputs: {
         'DAQmx Task In': locals.psTask,
         'Channel Settings.Voltage Setpoint(V)': 0,
         'Channel Settings.Idle Output Behavior': 15503,
       },
-    ); // Power Supply - Set to 0V
-    locals.psTask = outputs2['DAQmx Task Out'];
+    ))['DAQmx Task Out']; // Power Supply - Set to 0V
   } finally {
     await ts.callVi(
       'Power Supply Source and Measure\\DAQ_PS Close.vi',
@@ -309,7 +293,6 @@ Future<void> powerDownAllPowerSupplies() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'About This Example',

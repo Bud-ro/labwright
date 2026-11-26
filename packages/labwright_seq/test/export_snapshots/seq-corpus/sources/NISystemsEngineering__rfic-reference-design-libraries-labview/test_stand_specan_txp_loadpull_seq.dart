@@ -158,7 +158,6 @@ class _MainSequenceLocals {
   int waveformConfigsIdx = 0;
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -187,30 +186,27 @@ Future<void> mainSequence() async {
     ); // Initialize Waveform Arrays
     ts.setNumElements(loadedWaveforms, ts.getNumElements(staticStationConfigs.Waveform_Configs));
     // Initialize Instruments
-    final outputs = await ts.callVi(
+    deviceHandles.iTunerReference = (await ts.callVi(
       'Public\\Initialize.vi',
       inputs: {
         'IP Address': staticStationConfigs.Device_Names.Tuner_IP,
         'Verify Communication (True)': true,
         'Reset (True)': false,
       },
-    ); // Init Tuner
-    deviceHandles.iTunerReference = outputs['iTuner reference out'];
-    final outputs2 = await ts.callVi(
+    ))['iTuner reference out']; // Init Tuner
+    deviceHandles.RFSG = (await ts.callVi(
       'niRFSG.llb\\niRFSG Initialize.vi',
       inputs: {'resource name.DeviceName': staticStationConfigs.Device_Names.SG_Name, 'resource name.SessionNumber': 0},
-    ); // Init RFSG
-    deviceHandles.RFSG = outputs2['instrument handle'];
-    final outputs3 = await ts.callVi(
+    ))['instrument handle']; // Init RFSG
+    deviceHandles.RFmx = (await ts.callVi(
       'RFInstr\\mx\\RFmxInstr.llb\\RFmxInstr Initialize NIRFSA.vi',
       inputs: {'Resource Name.DeviceName': staticStationConfigs.Device_Names.SA_Name, 'Resource Name.SessionNumber': 0},
-    ); // RFmx Initialize
-    deviceHandles.RFmx = outputs3['Instrument Handle Out'];
+    ))['Instrument Handle Out']; // RFmx Initialize
     // Load Waveforms and Create Signals
     locals.waveformConfigsIdx = 0; // Reset Wfm config index
     for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
       locals.currentWaveformConfig = element;
-      final outputs4 = await ts.callVi(
+      locals.currentWaveform = (await ts.callVi(
         '..\\..\\Source\\SG\\Load Waveform From TDMS.vi',
         inputs: {
           'TDMS File Path': locals.currentWaveformConfig.Absolute_Disk_Path,
@@ -218,20 +214,20 @@ Future<void> mainSequence() async {
           'error in (no error).code': 0,
           'error in (no error).source': '',
         },
-      ); // Load Waveform from TDMS
-      locals.currentWaveform = outputs4['Waveform'];
+      ))['Waveform']; // Load Waveform from TDMS
       await ts.callVi(
         '..\\..\\Source\\SG\\Download Waveform.vi',
         inputs: {'RFSG handle': deviceHandles.RFSG, 'Waveform In': locals.currentWaveform},
       ); // Download Waveform to Generator
-      final outputs5 = await ts.callVi(
-        'SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Create Signal Configuration.vi',
-        inputs: {
-          'Signal Name': '${locals.currentWaveform.Name as String}SpecAn',
-          'Instrument Handle In': deviceHandles.RFmx,
-        },
-      ); // Create SpecAn Signal Configuration
-      locals.currentRFmxSpecAnSignal = outputs5['Selector String Out'] as String;
+      locals.currentRFmxSpecAnSignal =
+          (await ts.callVi(
+                'SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Create Signal Configuration.vi',
+                inputs: {
+                  'Signal Name': '${locals.currentWaveform.Name as String}SpecAn',
+                  'Instrument Handle In': deviceHandles.RFmx,
+                },
+              ))['Selector String Out']
+              as String; // Create SpecAn Signal Configuration
       loadedWaveformIndexes[locals.waveformConfigsIdx] = locals.waveformConfigsIdx; // Store Loaded Waveforms
       loadedWaveforms[locals.waveformConfigsIdx] = locals.currentWaveform;
       locals.waveformConfigsIdx++;
@@ -268,7 +264,6 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `Configure`.
 Future<void> configure() async {
   // Applies all configurations that are dependent upon calculated or previous values to the correct variables
   currentSweepStep.Loaded_Waveform =
@@ -291,11 +286,10 @@ Future<void> configure() async {
       staticStationConfigs.DUT_Params.Gain_dB; // Calculate Reference Level
   configurations.Analyzer.SpecAn_Common_Config.Reference_Level__dBm_ =
       currentSweepStep.Calculated_Parameters.SA_Ref_Level;
-  final outputs = await ts.callVi(
+  configurations.Analyzer.RFmxSpecAn_Selector_String = (await ts.callVi(
     'SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Build Signal String.vi',
     inputs: {'Signal Name': '${currentSweepStep.Loaded_Waveform.Name as String}SpecAn'},
-  ); // Build SpecAn Signal String
-  configurations.Analyzer.RFmxSpecAn_Selector_String = outputs['Selector String'];
+  ))['Selector String']; // Build SpecAn Signal String
 
   // Configure Generator
   // Configure continuous generation and software triggers.
@@ -336,7 +330,7 @@ Future<void> configure() async {
   // Average input power is set to the applied value from the sweep file
   currentSweepStep.Input_and_Output.MEAS.Avg_Input_Power_dBm =
       configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_; // Map Input Power
-  final outputs2 = await ts.callVi(
+  currentSweepStep.Results.Tuner_Primary_Frequency_GHz = (await ts.callVi(
     '..\\..\\Source\\FocusTuner\\Methods\\Configure Common.vi',
     inputs: {
       'iTuner reference in': deviceHandles.iTunerReference,
@@ -344,24 +338,21 @@ Future<void> configure() async {
       'Common Configuration.Calibration ID': configurations.Tuner.Tuner_Config.Calibration_ID,
       'Common Configuration.DUT to Tuner S-parameters': configurations.Tuner.Tuner_Config.DUT_to_Tuner_S_parameters,
     },
-  ); // Configure Tuner
-  currentSweepStep.Results.Tuner_Primary_Frequency_GHz = outputs2['Primary Frequency (GHz)'];
+  ))['Primary Frequency (GHz)']; // Configure Tuner
   // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
   currentSweepStep.Input_and_Output.PARAMS.WaveformName = currentSweepStep.Loaded_Waveform.Name; // Map Results
 }
 
-/// Sequence `Measure`.
 Future<void> measure() async {
   try {
-    final outputs = await ts.callVi(
+    currentSweepStep.Results.VSWR_and_Phase = (await ts.callVi(
       '..\\..\\Source\\FocusTuner\\Methods\\Move Tuner per VSWR.vi',
       inputs: {
         'iTuner reference in': deviceHandles.iTunerReference,
         'VSWR and Phase.VSWR': configurations.Tuner.VSWR_And_Phase.VSWR,
         'VSWR and Phase.Phase': configurations.Tuner.VSWR_And_Phase.Phase,
       },
-    ); // Move Tuner
-    currentSweepStep.Results.VSWR_and_Phase = outputs['Current VSWR and Phase'];
+    ))['Current VSWR and Phase']; // Move Tuner
     await ts.callVi(
       '..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Select and Initiate Measurements.vi',
       inputs: {
@@ -372,14 +363,13 @@ Future<void> measure() async {
         'Auto Level Bandwidth (Hz)': 400000000,
       },
     ); // Select and Initiate SpecAn TxP Measurement
-    final outputs2 = await ts.callVi(
+    currentSweepStep.Results.TxP_Results = (await ts.callVi(
       '..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Fetch TxP.vi',
       inputs: {
         'Selector String': configurations.Analyzer.RFmxSpecAn_Selector_String,
         'Instrument Handle In': deviceHandles.RFmx,
       },
-    ); // SpecAn Fetch TxP
-    currentSweepStep.Results.TxP_Results = outputs2['TxP Results'];
+    ))['TxP Results']; // SpecAn Fetch TxP
     // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
     currentSweepStep.Input_and_Output.MEAS.Avg_Mean_Power_dBm =
         currentSweepStep.Results.TxP_Results.Average_Mean_Power__dBm_; // Map Results
@@ -395,7 +385,6 @@ Future<void> measure() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'First Launch Message',

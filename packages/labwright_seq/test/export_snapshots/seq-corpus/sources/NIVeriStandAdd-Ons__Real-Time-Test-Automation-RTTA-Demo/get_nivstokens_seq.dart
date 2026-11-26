@@ -5,7 +5,6 @@ class _MainSequenceLocals {
   dynamic temp;
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 

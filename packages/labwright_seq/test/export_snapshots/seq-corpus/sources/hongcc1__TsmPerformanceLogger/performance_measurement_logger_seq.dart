@@ -67,7 +67,6 @@ dynamic modelPluginComponentDescription = ts.PropObj({
   'DisplayNameExpression': '"Performance Measurement Logger"',
 });
 
-/// Sequence `Model Plugin - Configure Standard Options`.
 Future<void> modelPluginConfigureStandardOptions({
   ts.Ref<bool>? changed,
   dynamic processModel,
@@ -105,7 +104,6 @@ Future<void> modelPluginConfigureStandardOptions({
   }
 }
 
-/// Sequence `Model Plugin - Initialize`.
 Future<void> modelPluginInitialize({dynamic modelPlugin, dynamic modelPluginConfiguration, dynamic modelData}) async {
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
@@ -117,7 +115,6 @@ class _ModelPluginBeginLocals {
   String timeString = '';
 }
 
-/// Sequence `Model Plugin - Begin`.
 Future<void> modelPluginBegin({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -196,7 +193,6 @@ class _ModelPluginPostUutLocals {
   int numberOfSites = 0;
 }
 
-/// Sequence `Model Plugin - Post UUT`.
 Future<void> modelPluginPostUut({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -276,7 +272,6 @@ Future<void> modelPluginPostUut({
   }
 }
 
-/// Sequence `Model Plugin - Post Batch`.
 Future<void> modelPluginPostBatch({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -305,7 +300,6 @@ class _LogDataToFileLocals {
   int socketTime = 0;
 }
 
-/// Sequence `Log Data to File`.
 Future<void> logDataToFile({dynamic performanceMeasurementLogger}) async {
   performanceMeasurementLogger = ts.copy(performanceMeasurementLogger);
 
@@ -349,7 +343,6 @@ Future<void> logDataToFile({dynamic performanceMeasurementLogger}) async {
   ); // Log to File
 }
 
-/// Sequence `(Reserved) Model Plugin - Pre Batch`.
 Future<void> reservedModelPluginPreBatch({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -364,7 +357,6 @@ Future<void> reservedModelPluginPreBatch({
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
 
-/// Sequence `(Reserved) Model Plugin - End`.
 Future<void> reservedModelPluginEnd({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -374,7 +366,6 @@ Future<void> reservedModelPluginEnd({
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
 
-/// Sequence `(Reserved) Model Plugin - Configure Additional Options`.
 Future<void> reservedModelPluginConfigureAdditionalOptions({
   bool changed = false,
   dynamic processModel,
@@ -390,7 +381,6 @@ Future<void> reservedModelPluginConfigureAdditionalOptions({
   );
 }
 
-/// Sequence `(Reserved) Model Plugin - Pre UUT`.
 Future<void> reservedModelPluginPreUut({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -411,7 +401,6 @@ class _ReservedModelPluginBatchStartLocals {
   dynamic controllerAndSocketSynchronizationManager;
 }
 
-/// Sequence `(Reserved) Model Plugin - Batch Start`.
 Future<void> reservedModelPluginBatchStart({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -436,7 +425,6 @@ class _ReservedModelPluginUutStartLocals {
   dynamic controllerAndSocketSynchronizationManager;
 }
 
-/// Sequence `(Reserved) Model Plugin - UUT Start`.
 Future<void> reservedModelPluginUutStart({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -457,7 +445,6 @@ Future<void> reservedModelPluginUutStart({
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
 
-/// Sequence `(Reserved) Model Plugin - OnTheFly Step Results`.
 Future<void> reservedModelPluginOnTheFlyStepResults({
   dynamic modelPlugin,
   dynamic modelData,
@@ -485,7 +472,6 @@ class _ReservedModelPluginUutDoneLocals {
   dynamic controllerAndSocketSynchronizationManager;
 }
 
-/// Sequence `(Reserved) Model Plugin - UUT Done`.
 Future<void> reservedModelPluginUutDone({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,
@@ -532,7 +518,6 @@ class _ReservedModelPluginBatchDoneLocals {
   dynamic controllerAndSocketSynchronizationManager;
 }
 
-/// Sequence `(Reserved) Model Plugin - Batch Done`.
 Future<void> reservedModelPluginBatchDone({
   dynamic modelPlugin,
   dynamic modelPluginConfiguration,

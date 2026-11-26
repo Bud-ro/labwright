@@ -20,7 +20,6 @@ class _MainSequenceLocals {
   int timesToRun = 500;
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 

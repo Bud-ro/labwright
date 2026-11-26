@@ -17,7 +17,6 @@ class _MainSequenceLocals {
   });
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 

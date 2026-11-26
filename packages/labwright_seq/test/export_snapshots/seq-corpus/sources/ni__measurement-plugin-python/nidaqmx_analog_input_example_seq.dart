@@ -3,7 +3,6 @@ import 'package:labwright/shims.dart' as ts;
 
 dynamic measurementPlugIns = ts.PropObj({'EnableMonitoring': false});
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   try {
     await ts.updatePinMap('NIDAQmxAnalogInput.pinmap');

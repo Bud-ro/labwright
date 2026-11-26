@@ -7,7 +7,7 @@ String endTime = '';
 double testResult = 0;
 String failStringDataToSend = '';
 
-/// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
+/// Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes.
 Future<void> processSetup() async {
   await loadVariables(variableList: 'Init'); // Load var init
   ts.eval('StationGlobals.isTraceEnable = FileGlobals.isTraceEnable'); // Assign TraceabilityEnabled Var
@@ -21,7 +21,7 @@ class _PreUutLocals {
   String replyBackCheck = '';
 }
 
-/// Sequence `PreUUT` — Displays a dialog box in which the operator enters the UUTserial number.  Override this in client file to change or replace this action..
+/// Displays a dialog box in which the operator enters the UUTserial number.  Override this in client file to change or replace this action.
 Future<void> preUut({
   bool continueTesting = true,
   dynamic uut,
@@ -39,25 +39,24 @@ Future<void> preUut({
 
   skipToEndOfTraceabilitySection:
   {
-    final outputs = await ts.callVi('..\\LabVIEW_VIs\\Traceability\\WSP2_GetDateTimeStr.vi'); // Get Entry Time
-    entTime = outputs['Time'] as String;
+    entTime =
+        (await ts.callVi('..\\LabVIEW_VIs\\Traceability\\WSP2_GetDateTimeStr.vi'))['Time'] as String; // Get Entry Time
     testResult = 0; // Init TestResult
     failStringDataToSend = ''; // Init FailString
     if (station.isTraceEnable == 'False') {
       break skipToEndOfTraceabilitySection;
     }
     // Start Traceability Section
-    final outputs2 = await ts.callVi(
+    uut.PartNumber = (await ts.callVi(
       '..\\LabVIEW_VIs\\Traceability\\WSP2_PartNumberRef.vi',
       inputs: {' SerialNumber': uut.SerialNumber},
-    ); // Get_PartNumber
-    uut.PartNumber = outputs2['AssemblyPartNumber'];
-    final outputs3 = await ts.callVi(
+    ))['AssemblyPartNumber']; // Get_PartNumber
+    final outputs = await ts.callVi(
       '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
       inputs: {'serialNumber': uut.SerialNumber, 'stationName': station.stationName},
     ); // Get_BackCheck
-    locals.backCheck = outputs3['Status'] as int;
-    locals.replyBackCheck = outputs3['ReplyTracMex'] as String;
+    locals.backCheck = outputs['Status'] as int;
+    locals.replyBackCheck = outputs['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk = true; // Set Backcheck OK
     } else {
@@ -71,7 +70,6 @@ Future<void> preUut({
   }
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic uutNotForThisProcessResult = ts.StepResult({'PassFail': false});
@@ -81,7 +79,7 @@ Future<ts.Status> mainSequence() async {
     ts.eval('RunState.Engine.StationOptions.AlwaysGotoCleanupOnFailure == True'); // Go to cleanup on failure
     if (station.isBackcheckOk == false && station.isTraceEnable == 'True') {
       uutNotForThisProcessResult.PassFail = false;
-      uutNotForThisProcessResult.Status = ts.truthy(uutNotForThisProcessResult.PassFail) ? 'Passed' : 'Failed';
+      uutNotForThisProcessResult.Status = ts.Status.passFail(ts.truthy(uutNotForThisProcessResult.PassFail));
       run.record(uutNotForThisProcessResult.Status);
       break body;
     }
@@ -92,7 +90,7 @@ Future<ts.Status> mainSequence() async {
   return run.status;
 }
 
-/// Sequence `PostUUT` — Displays a pass, fail, error, or terminated banner. Override this in client file to change or replace this action..
+/// Displays a pass, fail, error, or terminated banner. Override this in client file to change or replace this action.
 Future<void> postUut({
   dynamic result,
   dynamic uut,
@@ -156,7 +154,6 @@ class _LoadVariablesLocals {
   int tempLoop = 0;
 }
 
-/// Sequence `Load_Variables`.
 Future<void> loadVariables({String variableList = ''}) async {
   final locals = _LoadVariablesLocals();
 

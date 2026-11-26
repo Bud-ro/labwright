@@ -14,7 +14,6 @@ class _MainSequenceLocals {
   List<dynamic> analysisResult = <dynamic>['0'];
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
@@ -152,13 +151,12 @@ Future<ts.Status> mainSequence() async {
       ); // Check if Stimulus is done
       await Future<void>.delayed(const Duration(milliseconds: 500));
     } while (locals.stimState == 2);
-    final outputs = await ts.callVi(
+    locals.logs[0] = (await ts.callVi(
       'C:\\SE\\Demos and POCs\\RTTA\\Source\\Executable\\Support Files\\LastTDMSfile.vi',
       inputs: {
         'Logs Folder': 'C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\Working Directory\\VSLogs',
       },
-    ); // Get log file path
-    locals.logs[0] = outputs['Latest File Saved'];
+    ))['Latest File Saved']; // Get log file path
     await ts.stepType('DIAdem_OpenReference', {'DIAdemRefExpr': 'Locals.DIAdemReference'});
     await ts.stepType('DIAdem_ExportChannels', {
       'DIAdemRefExpr': 'Locals.DIAdemReference',
@@ -189,9 +187,9 @@ Future<ts.Status> mainSequence() async {
     locals.testResult = passFailTestMaskAAnalysisVbsResult.PassFail as bool;
     passFailTestMaskAAnalysisVbsResult.PassFail = passFailTestMaskAAnalysisVbsResult.PassFail =
         locals.analysisResult[0] == 1;
-    passFailTestMaskAAnalysisVbsResult.Status = ts.truthy(passFailTestMaskAAnalysisVbsResult.PassFail)
-        ? 'Passed'
-        : 'Failed';
+    passFailTestMaskAAnalysisVbsResult.Status = ts.Status.passFail(
+      ts.truthy(passFailTestMaskAAnalysisVbsResult.PassFail),
+    );
     run.record(passFailTestMaskAAnalysisVbsResult.Status);
     await ts.stepType('DIAdem_Close_Reference', {'DIAdemRefExpr': 'Locals.DIAdemReference'});
   } finally {

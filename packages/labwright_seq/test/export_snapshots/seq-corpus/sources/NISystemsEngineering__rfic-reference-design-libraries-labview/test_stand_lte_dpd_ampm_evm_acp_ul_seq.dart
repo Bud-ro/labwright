@@ -230,7 +230,6 @@ class _MainSequenceLocals {
   int waveformConfigsIdx = 0;
 }
 
-/// Sequence `MainSequence`.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -259,21 +258,19 @@ Future<void> mainSequence() async {
     ); // Initialize Waveform Arrays
     ts.setNumElements(loadedWaveforms, ts.getNumElements(staticStationConfigs.Waveform_Configs));
     // Initialize Instruments
-    final outputs = await ts.callVi(
+    deviceHandles.RFSG = (await ts.callVi(
       'niRFSG.llb\\niRFSG Initialize.vi',
       inputs: {'resource name.DeviceName': staticStationConfigs.Device_Names.SG_Name, 'resource name.SessionNumber': 0},
-    ); // Init RFSG
-    deviceHandles.RFSG = outputs['instrument handle'];
-    final outputs2 = await ts.callVi(
+    ))['instrument handle']; // Init RFSG
+    deviceHandles.RFmx = (await ts.callVi(
       'RFInstr\\mx\\RFmxInstr.llb\\RFmxInstr Initialize NIRFSA.vi',
       inputs: {'Resource Name.DeviceName': staticStationConfigs.Device_Names.SA_Name, 'Resource Name.SessionNumber': 0},
-    ); // RFmx Initialize
-    deviceHandles.RFmx = outputs2['Instrument Handle Out'];
+    ))['Instrument Handle Out']; // RFmx Initialize
     // Load Waveforms and Create Signals
     locals.waveformConfigsIdx = 0; // Reset Wfm config index
     for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
       locals.currentWaveformConfig = element;
-      final outputs3 = await ts.callVi(
+      locals.currentWaveform = (await ts.callVi(
         '..\\..\\Source\\SG\\Load Waveform From TDMS.vi',
         inputs: {
           'TDMS File Path': locals.currentWaveformConfig.Absolute_Disk_Path,
@@ -281,27 +278,28 @@ Future<void> mainSequence() async {
           'error in (no error).code': 0,
           'error in (no error).source': '',
         },
-      ); // Load Waveform from TDMS
-      locals.currentWaveform = outputs3['Waveform'];
+      ))['Waveform']; // Load Waveform from TDMS
       configurations.Analyzer.LTE_Standard_Config =
           locals.currentWaveformConfig.LTE_Signal_Configuration; // Map Loaded Parameters
       await ts.callVi(
         '..\\..\\Source\\SG\\Download Waveform.vi',
         inputs: {'RFSG handle': deviceHandles.RFSG, 'Waveform In': locals.currentWaveform},
       ); // Download Waveform to Generator
-      final outputs4 = await ts.callVi(
-        'LTE\\mx\\RFmxLTE.llb\\RFmxLTE Create Signal Configuration.vi',
-        inputs: {'Signal Name': locals.currentWaveform.Name, 'Instrument Handle In': deviceHandles.RFmx},
-      ); // Create LTE Signal Configuration
-      locals.currentRFmx5GnrSignal = outputs4['Selector String Out'] as String;
-      final outputs5 = await ts.callVi(
-        'SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Create Signal Configuration.vi',
-        inputs: {
-          'Signal Name': '${locals.currentWaveform.Name as String}SpecAn',
-          'Instrument Handle In': deviceHandles.RFmx,
-        },
-      ); // Create SpecAn Signal Configuration
-      locals.currentRFmxSpecAnSignal = outputs5['Selector String Out'] as String;
+      locals.currentRFmx5GnrSignal =
+          (await ts.callVi(
+                'LTE\\mx\\RFmxLTE.llb\\RFmxLTE Create Signal Configuration.vi',
+                inputs: {'Signal Name': locals.currentWaveform.Name, 'Instrument Handle In': deviceHandles.RFmx},
+              ))['Selector String Out']
+              as String; // Create LTE Signal Configuration
+      locals.currentRFmxSpecAnSignal =
+          (await ts.callVi(
+                'SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Create Signal Configuration.vi',
+                inputs: {
+                  'Signal Name': '${locals.currentWaveform.Name as String}SpecAn',
+                  'Instrument Handle In': deviceHandles.RFmx,
+                },
+              ))['Selector String Out']
+              as String; // Create SpecAn Signal Configuration
       await ts.callVi(
         '..\\..\\Source\\SA\\RFmxLTE\\LTE Configure Standard.vi',
         inputs: {
@@ -342,7 +340,6 @@ Future<void> mainSequence() async {
   }
 }
 
-/// Sequence `Configure`.
 Future<void> configure() async {
   // Applies all configurations that are dependent upon calculated or previous values to the correct variables
   configurations.Analyzer.Measurements.SpecAn_AMPM_Config.DUT_Average_Input_Power__dBm_ =
@@ -371,16 +368,14 @@ Future<void> configure() async {
       staticStationConfigs.DUT_Params.Gain_dB; // Calculate Reference Level
   configurations.Analyzer.SpecAn_Common_Config.Reference_Level__dBm_ =
       currentSweepStep.Calculated_Parameters.SA_Ref_Level;
-  final outputs = await ts.callVi(
+  configurations.Analyzer.RFmx_Selector_String = (await ts.callVi(
     'LTE\\mx\\RFmxLTE.llb\\RFmxLTE Build Signal String.vi',
     inputs: {'Signal Name': currentSweepStep.Loaded_Waveform.Name},
-  ); // Build LTE Signal String
-  configurations.Analyzer.RFmx_Selector_String = outputs['Selector String'];
-  final outputs2 = await ts.callVi(
+  ))['Selector String']; // Build LTE Signal String
+  configurations.Analyzer.RFmxSpecAn_Selector_String = (await ts.callVi(
     'SpecAn\\mx\\RFmxSpecAn.llb\\RFmxSpecAn Build Signal String.vi',
     inputs: {'Signal Name': '${currentSweepStep.Loaded_Waveform.Name as String}SpecAn'},
-  ); // Build SpecAn Signal String
-  configurations.Analyzer.RFmxSpecAn_Selector_String = outputs2['Selector String'];
+  ))['Selector String']; // Build SpecAn Signal String
 
   // Configure Generator
   await ts.callVi(
@@ -493,7 +488,6 @@ class _MeasureLocals {
   List<dynamic> measurementNames = <dynamic>['EVM', 'SEM'];
 }
 
-/// Sequence `Measure`.
 Future<void> measure() async {
   final locals = _MeasureLocals();
 
@@ -544,14 +538,13 @@ Future<void> measure() async {
               'Auto Level Bandwidth (Hz)': 20000000,
             },
           ); // Select and Initiate SpecAn AMPM Measurement
-          final outputs2 = await ts.callVi(
+          currentSweepStep.Results.SpecAn_AMPM_Results = (await ts.callVi(
             '..\\..\\Source\\SA\\RFmxSpecAn\\Measurements\\SpecAn Fetch AMPM.vi',
             inputs: {
               'Selector String': configurations.Analyzer.RFmxSpecAn_Selector_String,
               'RFmx Handle In': deviceHandles.RFmx,
             },
-          ); // SpecAn Fetch AMPM
-          currentSweepStep.Results.SpecAn_AMPM_Results = outputs2['AMPM Results'];
+          ))['AMPM Results']; // SpecAn Fetch AMPM
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.AMPM_Mean_LinerGain_dB =
               currentSweepStep.Results.SpecAn_AMPM_Results.Mean_Linear_Gain__dB_; // Map Results
@@ -570,14 +563,13 @@ Future<void> measure() async {
               'Auto Level Configuration': configurations.Analyzer.Auto_Level_Configuration,
             },
           ); // Select and Initiate LTE ACP Measurement
-          final outputs3 = await ts.callVi(
+          currentSweepStep.Results.LTE_ACP_Results = (await ts.callVi(
             '..\\..\\Source\\SA\\RFmxLTE\\Measurements\\LTE Fetch ACP.vi',
             inputs: {
               'Selector String': configurations.Analyzer.RFmx_Selector_String,
               'RFmx Handle In': deviceHandles.RFmx,
             },
-          ); // LTE Fetch ACP
-          currentSweepStep.Results.LTE_ACP_Results = outputs3['ACP Results'];
+          ))['ACP Results']; // LTE Fetch ACP
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.ACP_CC0_Absolute_Power_dBm =
               currentSweepStep.Results.LTE_ACP_Results.Component_Carrier_Results[0].Absolute_Power__dBm_; // Map Results
@@ -602,14 +594,13 @@ Future<void> measure() async {
               'Auto Level Configuration': configurations.Analyzer.Auto_Level_Configuration,
             },
           ); // Select and Initiate LTE ModAcc Measurement
-          final outputs4 = await ts.callVi(
+          currentSweepStep.Results.LTE_ModAcc_Results = (await ts.callVi(
             '..\\..\\Source\\SA\\RFmxLTE\\Measurements\\LTE Fetch ModAcc.vi',
             inputs: {
               'Selector String': configurations.Analyzer.RFmx_Selector_String,
               'RFmx Handle In': deviceHandles.RFmx,
             },
-          ); // LTE Fetch ModAcc
-          currentSweepStep.Results.LTE_ModAcc_Results = outputs4['ModAcc Results'];
+          ))['ModAcc Results']; // LTE Fetch ModAcc
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.RMS_Composite_EVM_Percent = currentSweepStep
               .Results
@@ -627,7 +618,6 @@ Future<void> measure() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'First Launch Message',

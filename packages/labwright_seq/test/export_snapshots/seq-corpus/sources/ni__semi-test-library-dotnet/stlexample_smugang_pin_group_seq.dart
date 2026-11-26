@@ -8,7 +8,7 @@ class _MainSequenceLocals {
   String vcc4ch = 'Vcc4ch';
 }
 
-/// Sequence `MainSequence` — Runs for each UUT.
+/// Runs for each UUT.
 Future<void> mainSequence() async {
   final locals = _MainSequenceLocals();
 
@@ -152,7 +152,7 @@ Future<void> mainSequence() async {
   ); // Force Voltage Measure Current (FVMI)
 }
 
-/// Sequence `ProcessSetup` — Runs once at lot start.
+/// Runs once at lot start.
 Future<void> processSetup() async {
   await ts.stepType('NI_SemiconductorTest_SetupNIDCPowerInstrumentation');
   await ts.stepType('NI_SemiconductorTest_SetupNIRelayModules');
@@ -178,7 +178,7 @@ Future<void> processSetup() async {
   ); // SMUGangPinGroup
 }
 
-/// Sequence `ProcessCleanup` — Runs once at lot end.
+/// Runs once at lot end.
 Future<void> processCleanup() async {
   try {
     // Unganging at step level
@@ -196,7 +196,6 @@ Future<void> processCleanup() async {
   }
 }
 
-/// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   await ts.messagePopup(
     'About This Example',

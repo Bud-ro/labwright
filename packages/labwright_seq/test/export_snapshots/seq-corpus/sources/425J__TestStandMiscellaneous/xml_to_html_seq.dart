@@ -12,7 +12,6 @@ class _ConvertLocals {
   bool success = false;
 }
 
-/// Sequence `Convert`.
 Future<void> convert() async {
   final locals = _ConvertLocals();
 

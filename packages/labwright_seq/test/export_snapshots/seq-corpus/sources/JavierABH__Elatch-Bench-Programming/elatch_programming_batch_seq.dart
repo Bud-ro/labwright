@@ -5,7 +5,7 @@ import 'station_globals.dart' as station;
 dynamic programmer;
 String partNumber = '';
 
-/// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
+/// Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes.
 Future<void> processSetup() async {
   await loadVariables(variableList: 'FirstRun'); // Load var init
   ts.eval('StationGlobals.isTraceEnable = FileGlobals.isTraceEnable'); // Assign TraceabilityEnabled Var
@@ -21,7 +21,7 @@ class _PreBatchLocals {
   String replyBackCheck = '';
 }
 
-/// Sequence `PreBatch` — Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action..
+/// Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action.
 Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dynamic modelPluginConfiguration}) async {
   final locals = _PreBatchLocals();
   final run = ts.SequenceRun();
@@ -102,11 +102,10 @@ Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dyna
     modelData.TestSockets[3].UUT.SerialNumber = station.individualSerials[3]; // Set Serial to UUT 4
     modelData.TestSockets[4].UUT.SerialNumber = station.individualSerials[4]; // Set Serial to UUT 5
     modelData.TestSockets[5].UUT.SerialNumber = station.individualSerials[5]; // Set Serial to UUT 6
-    final outputs = await ts.callVi(
+    modelData.BatchUUT.PartNumber = (await ts.callVi(
       '..\\LabVIEW_VIs\\Traceability\\WSP2_PartNumberRef.vi',
       inputs: {' SerialNumber': station.individualSerials[0]},
-    ); // Get_PartNumber
-    modelData.BatchUUT.PartNumber = outputs['AssemblyPartNumber'];
+    ))['AssemblyPartNumber']; // Get_PartNumber
     getPartNumberResult.Status = station.partNumber;
     run.record(getPartNumberResult.Status);
     // skipped: Activar para mostrar PN
@@ -130,72 +129,72 @@ Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dyna
       break skipToEndOfTraceabilitySection;
     }
     // Start Traceability Section
-    final outputs2 = await ts.callVi(
+    final outputs = await ts.callVi(
       '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
       inputs: {'serialNumber': modelData.TestSockets[0].UUT.SerialNumber, 'stationName': station.stationName},
     ); // BackCheck UUT 0
-    locals.backCheck = outputs2['Status'] as int;
-    locals.replyBackCheck = outputs2['ReplyTracMex'] as String;
+    locals.backCheck = outputs['Status'] as int;
+    locals.replyBackCheck = outputs['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk[0] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[0] = false; // Set Backcheck NOG
       await ts.messagePopup('Msg Bachcheck fail', 'UUT  0  reporta: ${locals.replyBackCheck}');
     }
-    final outputs3 = await ts.callVi(
+    final outputs2 = await ts.callVi(
       '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
       inputs: {'serialNumber': modelData.TestSockets[1].UUT.SerialNumber, 'stationName': station.stationName},
     ); // BackCheck UUT 1
-    locals.backCheck = outputs3['Status'] as int;
-    locals.replyBackCheck = outputs3['ReplyTracMex'] as String;
+    locals.backCheck = outputs2['Status'] as int;
+    locals.replyBackCheck = outputs2['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk[1] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[1] = false; // Set Backcheck NOG
       await ts.messagePopup('Msg Bachcheck fail', 'UUT 1  reporta: ${locals.replyBackCheck}');
     }
-    final outputs4 = await ts.callVi(
+    final outputs3 = await ts.callVi(
       '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
       inputs: {'serialNumber': modelData.TestSockets[2].UUT.SerialNumber, 'stationName': station.stationName},
     ); // BackCheck UUT 2
-    locals.backCheck = outputs4['Status'] as int;
-    locals.replyBackCheck = outputs4['ReplyTracMex'] as String;
+    locals.backCheck = outputs3['Status'] as int;
+    locals.replyBackCheck = outputs3['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk[2] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[2] = false; // Set Backcheck NOG
       await ts.messagePopup('Msg Bachcheck fail', 'UUT  2  reporta: ${locals.replyBackCheck}');
     }
-    final outputs5 = await ts.callVi(
+    final outputs4 = await ts.callVi(
       '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
       inputs: {'serialNumber': modelData.TestSockets[3].UUT.SerialNumber, 'stationName': station.stationName},
     ); // BackCheck UUT 3
-    locals.backCheck = outputs5['Status'] as int;
-    locals.replyBackCheck = outputs5['ReplyTracMex'] as String;
+    locals.backCheck = outputs4['Status'] as int;
+    locals.replyBackCheck = outputs4['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk[3] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[3] = false; // Set Backcheck NOG
       await ts.messagePopup('Msg Bachcheck fail', 'UUT 3  reporta: ${locals.replyBackCheck}');
     }
-    final outputs6 = await ts.callVi(
+    final outputs5 = await ts.callVi(
       '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
       inputs: {'serialNumber': modelData.TestSockets[4].UUT.SerialNumber, 'stationName': station.stationName},
     ); // BackCheck UUT 4
-    locals.backCheck = outputs6['Status'] as int;
-    locals.replyBackCheck = outputs6['ReplyTracMex'] as String;
+    locals.backCheck = outputs5['Status'] as int;
+    locals.replyBackCheck = outputs5['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk[4] = true; // Set Backcheck OK
     } else {
       station.isBackcheckOk[4] = false; // Set Backcheck NOG
       await ts.messagePopup('Msg Bachcheck fail', 'UUT 4  reporta: ${locals.replyBackCheck}');
     }
-    final outputs7 = await ts.callVi(
+    final outputs6 = await ts.callVi(
       '..\\LabVIEW_VIs\\Traceability\\WSP2_BackCheck_Serial.vi',
       inputs: {'serialNumber': modelData.TestSockets[5].UUT.SerialNumber, 'stationName': station.stationName},
     ); // BackCheck UUT 5
-    locals.backCheck = outputs7['Status'] as int;
-    locals.replyBackCheck = outputs7['ReplyTracMex'] as String;
+    locals.backCheck = outputs6['Status'] as int;
+    locals.replyBackCheck = outputs6['ReplyTracMex'] as String;
     if (locals.backCheck == 1) {
       station.isBackcheckOk[5] = true; // Set Backcheck OK
     } else {
@@ -212,7 +211,7 @@ Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dyna
   return run.status;
 }
 
-/// Sequence `PreUUTLoop` — Test UUTs calls this before looping on UUTs.  Is empty in model file.  Override this in the client file to perform an action before any UUTs are tested..
+/// Test UUTs calls this before looping on UUTs.  Is empty in model file.  Override this in the client file to perform an action before any UUTs are tested.
 Future<void> preUutLoop({dynamic modelPluginConfiguration}) async {
   if (ts.cond('RunState.TestSockets.MyIndex == 0')) {
     await loadVariables(variableList: 'UUT_1'); // Load_Var_UUT 1
@@ -230,7 +229,6 @@ Future<void> preUutLoop({dynamic modelPluginConfiguration}) async {
   // skipped: Save PN for check for PN at other panel
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final dynamic uutNotForThisProcessResult = ts.StepResult({'PassFail': false});
@@ -247,7 +245,7 @@ Future<ts.Status> mainSequence() async {
       'StationGlobals.isBackCheckOK[RunState.TestSockets.MyIndex] == False && StationGlobals.isTraceEnable == "True"',
     )) {
       uutNotForThisProcessResult.PassFail = false;
-      uutNotForThisProcessResult.Status = ts.truthy(uutNotForThisProcessResult.PassFail) ? 'Passed' : 'Failed';
+      uutNotForThisProcessResult.Status = ts.Status.passFail(ts.truthy(uutNotForThisProcessResult.PassFail));
       run.record(uutNotForThisProcessResult.Status);
       cleanupFrom = 3;
       break body;
@@ -289,11 +287,11 @@ Future<ts.Status> mainSequence() async {
       jLinkConnectionTestResult.PassFail = await ts
           .callPython('..\\Python\\ecu_programmer.py', 'open_connect', instance: programmer)
           .returnValue; // JLink Connection Test
-      jLinkConnectionTestResult.Status = ts.truthy(jLinkConnectionTestResult.PassFail) ? 'Passed' : 'Failed';
+      jLinkConnectionTestResult.Status = ts.Status.passFail(ts.truthy(jLinkConnectionTestResult.PassFail));
       loop.count(jLinkConnectionTestResult.Status);
       loop.index += 1;
     }
-    jLinkConnectionTestResult.Status = loop.numPassed >= 1 ? 'Passed' : 'Failed';
+    jLinkConnectionTestResult.Status = ts.Status.passFail(loop.numPassed >= 1);
     run.record(jLinkConnectionTestResult.Status);
     if (run.failed) {
       cleanupFrom = 3;
@@ -311,11 +309,11 @@ Future<ts.Status> mainSequence() async {
             instance: programmer,
           )
           .returnValue; // Target Connection Test
-      targetConnectionTestResult.Status = ts.truthy(targetConnectionTestResult.PassFail) ? 'Passed' : 'Failed';
+      targetConnectionTestResult.Status = ts.Status.passFail(ts.truthy(targetConnectionTestResult.PassFail));
       loop2.count(targetConnectionTestResult.Status);
       loop2.index += 1;
     }
-    targetConnectionTestResult.Status = loop2.numPassed >= 1 ? 'Passed' : 'Failed';
+    targetConnectionTestResult.Status = ts.Status.passFail(loop2.numPassed >= 1);
     run.record(targetConnectionTestResult.Status);
     if (run.failed) {
       break body;
@@ -323,7 +321,7 @@ Future<ts.Status> mainSequence() async {
     jLinkResetResult.PassFail = await ts
         .callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer)
         .returnValue; // JLink_reset
-    jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
+    jLinkResetResult.Status = ts.Status.passFail(ts.truthy(jLinkResetResult.PassFail));
     run.record(jLinkResetResult.Status);
     if (run.failed) {
       break body;
@@ -348,7 +346,7 @@ Future<ts.Status> mainSequence() async {
       jLinkCloseTestResult.PassFail = await ts
           .callPython('..\\Python\\ecu_programmer.py', 'close_connection', instance: programmer)
           .returnValue; // JLink_close Test
-      jLinkCloseTestResult.Status = ts.truthy(jLinkCloseTestResult.PassFail) ? 'Passed' : 'Failed';
+      jLinkCloseTestResult.Status = ts.Status.passFail(ts.truthy(jLinkCloseTestResult.PassFail));
       run.record(jLinkCloseTestResult.Status);
       if (run.failed) {
         await ts.messagePopup(
@@ -379,7 +377,7 @@ Future<ts.Status> mainSequence() async {
   return run.status;
 }
 
-/// Sequence `PostBatch` — Displays a pass, fail, error, or terminated banner for each TestSocket and allows viewing of Batch and UUT reports. Override this in client file to change or replace this action..
+/// Displays a pass, fail, error, or terminated banner for each TestSocket and allows viewing of Batch and UUT reports. Override this in client file to change or replace this action.
 Future<void> postBatch({dynamic modelData, dynamic modelPluginConfiguration}) async {
   skipToEndOfTraceabilitySection:
   {
@@ -634,7 +632,6 @@ class _LoadVariablesLocals {
   int tempLoop = 0;
 }
 
-/// Sequence `Load_Variables`.
 Future<void> loadVariables({String variableList = ''}) async {
   final locals = _LoadVariablesLocals();
 
@@ -654,7 +651,6 @@ Future<void> loadVariables({String variableList = ''}) async {
   // skipped: Message Popup
 }
 
-/// Sequence `Write_reset_flex_provision`.
 Future<ts.Status> writeResetFlexProvision() async {
   final run = ts.SequenceRun();
   final dynamic flashFlexProvisionResetResult = ts.StepResult({'PassFail': false});
@@ -670,29 +666,28 @@ Future<ts.Status> writeResetFlexProvision() async {
         instance: programmer,
       )
       .returnValue; // Flash_Flex_Provision_Reset
-  flashFlexProvisionResetResult.Status = ts.truthy(flashFlexProvisionResetResult.PassFail) ? 'Passed' : 'Failed';
+  flashFlexProvisionResetResult.Status = ts.Status.passFail(ts.truthy(flashFlexProvisionResetResult.PassFail));
   run.record(flashFlexProvisionResetResult.Status);
   jLinkResetResult.PassFail = await ts
       .callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer)
       .returnValue; // JLink_reset
-  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
+  jLinkResetResult.Status = ts.Status.passFail(ts.truthy(jLinkResetResult.PassFail));
   run.record(jLinkResetResult.Status);
   jLinkRestartResult.PassFail = await ts
       .callPython('..\\Python\\ecu_programmer.py', 'restart', instance: programmer)
       .returnValue; // JLink_restart
-  jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed';
+  jLinkRestartResult.Status = ts.Status.passFail(ts.truthy(jLinkRestartResult.PassFail));
   run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 2));
   jLinkResetResult2.PassFail = await ts
       .callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer)
       .returnValue; // JLink_reset
-  jLinkResetResult2.Status = ts.truthy(jLinkResetResult2.PassFail) ? 'Passed' : 'Failed';
+  jLinkResetResult2.Status = ts.Status.passFail(ts.truthy(jLinkResetResult2.PassFail));
   run.record(jLinkResetResult2.Status);
 
   return run.status;
 }
 
-/// Sequence `Write_flex_provision`.
 Future<ts.Status> writeFlexProvision() async {
   final run = ts.SequenceRun();
   final dynamic fllashFlexProvisionResult = ts.StepResult({'PassFail': false});
@@ -708,29 +703,28 @@ Future<ts.Status> writeFlexProvision() async {
         instance: programmer,
       )
       .returnValue; // Fllash_Flex_Provision
-  fllashFlexProvisionResult.Status = ts.truthy(fllashFlexProvisionResult.PassFail) ? 'Passed' : 'Failed';
+  fllashFlexProvisionResult.Status = ts.Status.passFail(ts.truthy(fllashFlexProvisionResult.PassFail));
   run.record(fllashFlexProvisionResult.Status);
   jLinkResetResult.PassFail = await ts
       .callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer)
       .returnValue; // JLink_reset
-  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
+  jLinkResetResult.Status = ts.Status.passFail(ts.truthy(jLinkResetResult.PassFail));
   run.record(jLinkResetResult.Status);
   jLinkRestartResult.PassFail = await ts
       .callPython('..\\Python\\ecu_programmer.py', 'restart', instance: programmer)
       .returnValue; // JLink_restart
-  jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed';
+  jLinkRestartResult.Status = ts.Status.passFail(ts.truthy(jLinkRestartResult.PassFail));
   run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 12));
   jLinkResetResult2.PassFail = await ts
       .callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer)
       .returnValue; // JLink_reset
-  jLinkResetResult2.Status = ts.truthy(jLinkResetResult2.PassFail) ? 'Passed' : 'Failed';
+  jLinkResetResult2.Status = ts.Status.passFail(ts.truthy(jLinkResetResult2.PassFail));
   run.record(jLinkResetResult2.Status);
 
   return run.status;
 }
 
-/// Sequence `Write_program_combined`.
 Future<ts.Status> writeProgramCombined() async {
   final run = ts.SequenceRun();
   final dynamic fllashFlexCombinedResult = ts.StepResult({'PassFail': false});
@@ -747,28 +741,28 @@ Future<ts.Status> writeProgramCombined() async {
         instance: programmer,
       )
       .returnValue; // Fllash_Flex_Combined
-  fllashFlexCombinedResult.Status = ts.truthy(fllashFlexCombinedResult.PassFail) ? 'Passed' : 'Failed';
+  fllashFlexCombinedResult.Status = ts.Status.passFail(ts.truthy(fllashFlexCombinedResult.PassFail));
   run.record(fllashFlexCombinedResult.Status);
   jLinkHaltResult.PassFail = await ts
       .callPython('..\\Python\\ecu_programmer.py', 'halt', instance: programmer)
       .returnValue; // JLink_halt
-  jLinkHaltResult.Status = ts.truthy(jLinkHaltResult.PassFail) ? 'Passed' : 'Failed';
+  jLinkHaltResult.Status = ts.Status.passFail(ts.truthy(jLinkHaltResult.PassFail));
   run.record(jLinkHaltResult.Status);
   jLinkRestartResult.PassFail = await ts
       .callPython('..\\Python\\ecu_programmer.py', 'restart', instance: programmer)
       .returnValue; // JLink_restart
-  jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed';
+  jLinkRestartResult.Status = ts.Status.passFail(ts.truthy(jLinkRestartResult.PassFail));
   run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 12));
   jLinkResetResult.PassFail = await ts
       .callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer)
       .returnValue; // JLink_reset
-  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
+  jLinkResetResult.Status = ts.Status.passFail(ts.truthy(jLinkResetResult.PassFail));
   run.record(jLinkResetResult.Status);
   jLinkRestartResult2.PassFail = await ts
       .callPython('..\\Python\\ecu_programmer.py', 'restart', instance: programmer)
       .returnValue; // JLink_restart
-  jLinkRestartResult2.Status = ts.truthy(jLinkRestartResult2.PassFail) ? 'Passed' : 'Failed';
+  jLinkRestartResult2.Status = ts.Status.passFail(ts.truthy(jLinkRestartResult2.PassFail));
   run.record(jLinkRestartResult2.Status);
 
   return run.status;

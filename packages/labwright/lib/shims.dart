@@ -266,6 +266,9 @@ enum StringComparison {
 /// A step status: the text TestStand records in `Step.Result.Status`. The constants are the values TestStand and its
 /// built-in step types set; a code module may set any other text.
 extension type const Status(String text) implements String {
+  /// [passed] when a judgement holds, [failed] when it does not.
+  const Status.passFail(bool holds) : this(holds ? 'Passed' : 'Failed');
+
   /// The step judged its measurement and it passed, or its run mode is Force Pass.
   static const passed = Status('Passed');
 

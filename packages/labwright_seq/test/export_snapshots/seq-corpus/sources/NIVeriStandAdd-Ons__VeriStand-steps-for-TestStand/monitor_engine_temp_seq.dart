@@ -23,7 +23,6 @@ class _MainSequenceLocals {
   List<dynamic> rpmSetpoints = <dynamic>['1000', '1500', '2000', '2500', '3000'];
 }
 
-/// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
@@ -76,7 +75,6 @@ Future<ts.Status> mainSequence() async {
   return run.status;
 }
 
-/// Sequence `Monitor Temperature`.
 Future<void> monitorTemperature({double readWait = 0}) async {
   while (ts.cond('Locals.Done==0')) {
     // Add a new element to the TemperatureValues result array
@@ -101,7 +99,6 @@ Future<void> monitorTemperature({double readWait = 0}) async {
   // Add a graph of the TemperatureValues array to the report
 }
 
-/// Sequence `Check Engine RPM`.
 Future<ts.Status> checkEngineRpm({double setpoint = 0, int settleTime = 0, int tolerance = 0}) async {
   final run = ts.SequenceRun();
   final dynamic channelValueLimitTestResult = ts.StepResult();
@@ -143,7 +140,6 @@ class _EnginePowerLocals {
   double currentRpm = 0;
 }
 
-/// Sequence `Engine Power`.
 Future<void> enginePower() async {
   final locals = _EnginePowerLocals();
 

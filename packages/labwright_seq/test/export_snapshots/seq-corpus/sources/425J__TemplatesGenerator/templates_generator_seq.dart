@@ -6,7 +6,6 @@ class _CreateTemplatesLocals {
   String toolFolderName = '';
 }
 
-/// Sequence `CreateTemplates`.
 Future<ts.Status> createTemplates({bool createViTemplates = true}) async {
   final locals = _CreateTemplatesLocals();
   final run = ts.SequenceRun();
@@ -48,7 +47,6 @@ class _CreateSfTemplatesLocals {
   int index = 0;
 }
 
-/// Sequence `CreateSFTemplates`.
 Future<ts.Status> createSfTemplates({
   String sequenceFilePath = '',
   dynamic templatesFile,
