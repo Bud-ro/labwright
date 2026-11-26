@@ -14,36 +14,10 @@ class _MainSequenceLocals {
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
-  dynamic enterANewUserNameResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  dynamic enterAGroupNameResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic userInGroupResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic userHasPrivilegeResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  dynamic enterANewUserNameResult = ts.StepResult({'ButtonHit': 0, 'Response': ''});
+  dynamic enterAGroupNameResult = ts.StepResult({'ButtonHit': 0, 'Response': ''});
+  final dynamic userInGroupResult = ts.StepResult({'PassFail': false});
+  final dynamic userHasPrivilegeResult = ts.StepResult({'PassFail': false});
 
   try {
     // Initialize EasyUserManager object using the VI "Initialize from Teststand.vi". This VI duplicates the engine reference to avoid automatic closing when the VI finishes execution.
@@ -55,14 +29,7 @@ Future<ts.Status> mainSequence() async {
     ); // Initialize EasyUserManager
     locals.eum = outputs['EasyUserManager out'];
     while (ts.checkStrLimit(locals.newUserName, '', 'CaseSensitive') == 'Passed') {
-      enterANewUserNameResult = ts.PropObj({
-        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-        'Status': '',
-        'ButtonHit': 0,
-        'Response': '',
-        'ReportText': '',
-        'Common': ts.PropObj(),
-      });
+      enterANewUserNameResult = ts.StepResult({'ButtonHit': 0, 'Response': ''});
       final popup = await ts.messagePopup(
         'Enter a new user name',
         'Enter a user name. The user password will be set to 12345',
@@ -100,14 +67,7 @@ Future<ts.Status> mainSequence() async {
       },
     ); // Create user
     while (!locals.groupExists) {
-      enterAGroupNameResult = ts.PropObj({
-        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-        'Status': '',
-        'ButtonHit': 0,
-        'Response': '',
-        'ReportText': '',
-        'Common': ts.PropObj(),
-      });
+      enterAGroupNameResult = ts.StepResult({'ButtonHit': 0, 'Response': ''});
       final popup2 = await ts.messagePopup(
         'Enter a group name',
         'Enter a group to which the new user shall be added. \n\nPick a group that does not already have the privilege Configure.ConfigAdapter (e.g. Technician).',

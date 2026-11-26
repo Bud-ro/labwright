@@ -24,25 +24,13 @@ class _MainSequenceLocals {
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
-  final dynamic rtSequencePassFailTestResult = ts.PropObj({
+  final dynamic rtSequencePassFailTestResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic ccRampDownResult = ts.PropObj({
+  final dynamic ccRampDownResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic stopVsLoggingResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
+  final dynamic stopVsLoggingResult = ts.StepResult({
     'Veristand': ts.PropObj({'Location': <dynamic>[]}),
   });
 

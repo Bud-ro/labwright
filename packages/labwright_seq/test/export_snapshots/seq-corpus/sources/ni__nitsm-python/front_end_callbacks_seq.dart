@@ -6,12 +6,7 @@ String userToAutoLogin = 'administrator';
 /// Sequence `LoginLogout`.
 Future<ts.Status> loginLogout() async {
   final run = ts.SequenceRun();
-  final dynamic autoLoginIfInitialLoginResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic autoLoginIfInitialLoginResult = ts.StepResult();
 
   endMain:
   {
@@ -40,14 +35,11 @@ class _AutoLoginLocals {
 Future<ts.Status> autoLogin() async {
   final locals = _AutoLoginLocals();
   final run = ts.SequenceRun();
-  final dynamic getUserToLoginResult = ts.PropObj({'Status': ''});
+  final dynamic getUserToLoginResult = ts.StepResult({'PassFail': 'True'});
 
-  final outputs = await ts.callActiveX(
-    ts.eval('RunState.Engine'),
-    'IEngine.GetUser',
-    inputs: {'LoginName': userToAutoLogin},
-  ); // Get User To Login
-  locals.userToLogin = outputs['Return Value'];
+  locals.userToLogin = await ts
+      .callActiveX(ts.eval('RunState.Engine'), 'IEngine.GetUser', inputs: {'LoginName': userToAutoLogin})
+      .returnValue; // Get User To Login
   ts.eval('Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False');
   getUserToLoginResult.Status = ts.truthy(getUserToLoginResult.PassFail) ? 'Passed' : 'Failed';
   run.record(getUserToLoginResult.Status);

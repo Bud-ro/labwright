@@ -41,51 +41,54 @@ Future<void> digitalStateTest({List<dynamic>? dataToWrite, dynamic sdsgResultDat
     ts.eval(
       '\n\nLocals.DateTime.Now = Str(Locals.DateTime.Month, "%.2u") + "-" + Str(Locals.DateTime.Day, "%.2u") + "-" + Right(Str(Locals.DateTime.Year, "%u"),2) + "-" + Str(Locals.DateTime.Hours, "%.2u") + "h" + Str(Locals.DateTime.Minutes, "%.2u") + "m" + Str(Locals.DateTime.Seconds, "%.2u") + "s"',
     );
-    final outputs = await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-      'System.Environment.GetFolderPath',
-      inputs: {'folder': 'MyDocuments'},
-    ); // Get document path
-    locals.documentPath = outputs['Return Value'] as String;
+    locals.documentPath =
+        await ts
+                .callDotNet('mscorlib', 'System.Environment.GetFolderPath', inputs: {'folder': 'MyDocuments'})
+                .returnValue
+            as String; // Get document path
     //
     //
     // Initialize Result Folder
-    final outputs2 = await ts.callDotNet(
-      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\NI.Measurement.Foundation.dll',
-      'NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-      inputs: {
-        'measurementArtifactsOutputFolderAbsolutePath': ts.eval(
-          '#NoValidation(Locals.DocumentPath + "\\\\MeasurementIPTraces\\\\SDSG - "+ Locals.DateTime.Now)',
-        ),
-      },
-    ); // Static Digital State Generation - Initialize Result Folder
-    locals.artifactsManagerSdsg = outputs2['Return Value'];
-    final outputs3 = await ts.callDotNet(
-      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\NI.Measurement.Foundation.dll',
-      'NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-      inputs: {
-        'measurementArtifactsOutputFolderAbsolutePath': ts.eval(
-          '#NoValidation(Locals.DocumentPath + "\\\\MeasurementIPTraces\\\\SDSM  - "+ Locals.DateTime.Now)',
-        ),
-      },
-    ); // Static Digital State Measurement - Initialize Result Folder
-    locals.artifactsManagerSdsm = outputs3['Return Value'];
+    locals.artifactsManagerSdsg = await ts
+        .callDotNet(
+          '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\NI.Measurement.Foundation.dll',
+          'NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+          inputs: {
+            'measurementArtifactsOutputFolderAbsolutePath': ts.eval(
+              '#NoValidation(Locals.DocumentPath + "\\\\MeasurementIPTraces\\\\SDSG - "+ Locals.DateTime.Now)',
+            ),
+          },
+        )
+        .returnValue; // Static Digital State Generation - Initialize Result Folder
+    locals.artifactsManagerSdsm = await ts
+        .callDotNet(
+          '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\NI.Measurement.Foundation.dll',
+          'NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+          inputs: {
+            'measurementArtifactsOutputFolderAbsolutePath': ts.eval(
+              '#NoValidation(Locals.DocumentPath + "\\\\MeasurementIPTraces\\\\SDSM  - "+ Locals.DateTime.Now)',
+            ),
+          },
+        )
+        .returnValue; // Static Digital State Measurement - Initialize Result Folder
     //
     //
     // Initialize Hardware
     // Note to run with Hardware: Update the Global Channel based on NI Max in the below initialize step
-    final outputs4 = await ts.callDotNet(
-      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
-      'PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.CreateInstance',
-      inputs: {'channelExpression': 'TS_DIn0:1'},
-    ); // Static Digital State Generation -  Initialize
-    locals.sdsgRessource = outputs4['Return Value'];
-    final outputs5 = await ts.callDotNet(
-      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
-      'PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.CreateInstance',
-      inputs: {'channelExpression': 'TP_DOut0:1'},
-    ); // Static Digital State Measurement -  Initialize
-    locals.sdsmRessource = outputs5['Return Value'];
+    locals.sdsgRessource = await ts
+        .callDotNet(
+          '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+          'PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.CreateInstance',
+          inputs: {'channelExpression': 'TS_DIn0:1'},
+        )
+        .returnValue; // Static Digital State Generation -  Initialize
+    locals.sdsmRessource = await ts
+        .callDotNet(
+          '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+          'PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.CreateInstance',
+          inputs: {'channelExpression': 'TP_DOut0:1'},
+        )
+        .returnValue; // Static Digital State Measurement -  Initialize
     //
     //
     // Assign Measure Folder
@@ -133,22 +136,24 @@ Future<void> digitalStateTest({List<dynamic>? dataToWrite, dynamic sdsgResultDat
       'PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.Use Existing Object',
       inputs: {'Existing Object': locals.sdsgRessource},
     ); // Static Digital State Generation - Configure Digital High
-    final outputs6 = await ts.callDotNet(
-      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
-      'PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.ConfigureAndGenerate',
-      inputs: {'parameters.DataToWrite': dataToWrite},
-    ); // Static Digital State Generation - Configure Digital High
-    sdsgResultData = outputs6['Return Value'];
+    sdsgResultData = await ts
+        .callDotNet(
+          '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+          'PCBATestToolkitApi.Generations.StaticDigitalStateGenerations.StaticDigitalStateGeneration.ConfigureAndGenerate',
+          inputs: {'parameters.DataToWrite': dataToWrite},
+        )
+        .returnValue; // Static Digital State Generation - Configure Digital High
     await ts.callDotNet(
       '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
       'PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.Use Existing Object',
       inputs: {'Existing Object': locals.sdsmRessource},
     ); // Static Digital State Measurement - Read Digital State
-    final outputs7 = await ts.callDotNet(
-      '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
-      'PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.ConfigureAndMeasure',
-    ); // Static Digital State Measurement - Read Digital State
-    sdsmResultData = outputs7['Return Value'];
+    sdsmResultData = await ts
+        .callDotNet(
+          '..\\..\\PCBA.Test.Toolkit\\bin\\Debug\\net462\\PCBA.Test.Toolkit.dll',
+          'PCBATestToolkitApi.Measurements.StaticDigitalStateMeasurements.StaticDigitalStateMeasurement.ConfigureAndMeasure',
+        )
+        .returnValue; // Static Digital State Measurement - Read Digital State
   } finally {
     // Close all Tasks
     await ts.callDotNet(

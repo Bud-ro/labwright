@@ -25,12 +25,7 @@ class _PreBatchLocals {
 Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dynamic modelPluginConfiguration}) async {
   final locals = _PreBatchLocals();
   final run = ts.SequenceRun();
-  final dynamic getPartNumberResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic getPartNumberResult = ts.StepResult();
 
   locals.backCheck = 0; // Reset Traceability Variables
   locals.replyBackCheck = '';
@@ -238,41 +233,11 @@ Future<void> preUutLoop({dynamic modelPluginConfiguration}) async {
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic uutNotForThisProcessResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  dynamic jLinkConnectionTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  dynamic targetConnectionTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic jLinkResetResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic jLinkCloseTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic uutNotForThisProcessResult = ts.StepResult({'PassFail': false});
+  dynamic jLinkConnectionTestResult = ts.StepResult({'PassFail': false});
+  dynamic targetConnectionTestResult = ts.StepResult({'PassFail': false});
+  final dynamic jLinkResetResult = ts.StepResult({'PassFail': false});
+  final dynamic jLinkCloseTestResult = ts.StepResult({'PassFail': false});
 
   var cleanupFrom = 0;
   body:
@@ -310,28 +275,20 @@ Future<ts.Status> mainSequence() async {
     }
 
     // Start programming
-    final outputs = await ts.callPython(
-      '..\\Python\\ecu_programmer.py',
-      'ECUProgrammer',
-      inputs: {'serial_number': ts.eval('#NoValidation(FileGlobals.Serial_segger)')},
-    ); // Create JLink instance
-    programmer = outputs['Return Value'];
+    programmer = await ts
+        .callPython(
+          '..\\Python\\ecu_programmer.py',
+          'ECUProgrammer',
+          inputs: {'serial_number': ts.eval('#NoValidation(FileGlobals.Serial_segger)')},
+        )
+        .returnValue; // Create JLink instance
     final loop = ts.StepLoop();
     loop.index = 0;
     while (loop.index < 3 && loop.numPassed < 1) {
-      jLinkConnectionTestResult = ts.PropObj({
-        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-        'Status': '',
-        'PassFail': false,
-        'ReportText': '',
-        'Common': ts.PropObj(),
-      });
-      final outputs2 = await ts.callPython(
-        '..\\Python\\ecu_programmer.py',
-        'open_connect',
-        instance: programmer,
-      ); // JLink Connection Test
-      jLinkConnectionTestResult.PassFail = outputs2['Return Value'];
+      jLinkConnectionTestResult = ts.StepResult({'PassFail': false});
+      jLinkConnectionTestResult.PassFail = await ts
+          .callPython('..\\Python\\ecu_programmer.py', 'open_connect', instance: programmer)
+          .returnValue; // JLink Connection Test
       jLinkConnectionTestResult.Status = ts.truthy(jLinkConnectionTestResult.PassFail) ? 'Passed' : 'Failed';
       loop.count(jLinkConnectionTestResult.Status);
       loop.index += 1;
@@ -345,20 +302,15 @@ Future<ts.Status> mainSequence() async {
     final loop2 = ts.StepLoop();
     loop2.index = 0;
     while (loop2.index < 3 && loop2.numPassed < 1) {
-      targetConnectionTestResult = ts.PropObj({
-        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-        'Status': '',
-        'PassFail': false,
-        'ReportText': '',
-        'Common': ts.PropObj(),
-      });
-      final outputs3 = await ts.callPython(
-        '..\\Python\\ecu_programmer.py',
-        'connect_target',
-        inputs: {'chip_name': ts.eval('#NoValidation(FileGlobals.Chip_name)')},
-        instance: programmer,
-      ); // Target Connection Test
-      targetConnectionTestResult.PassFail = outputs3['Return Value'];
+      targetConnectionTestResult = ts.StepResult({'PassFail': false});
+      targetConnectionTestResult.PassFail = await ts
+          .callPython(
+            '..\\Python\\ecu_programmer.py',
+            'connect_target',
+            inputs: {'chip_name': ts.eval('#NoValidation(FileGlobals.Chip_name)')},
+            instance: programmer,
+          )
+          .returnValue; // Target Connection Test
       targetConnectionTestResult.Status = ts.truthy(targetConnectionTestResult.PassFail) ? 'Passed' : 'Failed';
       loop2.count(targetConnectionTestResult.Status);
       loop2.index += 1;
@@ -368,8 +320,9 @@ Future<ts.Status> mainSequence() async {
     if (run.failed) {
       break body;
     }
-    final outputs4 = await ts.callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer); // JLink_reset
-    jLinkResetResult.PassFail = outputs4['Return Value'];
+    jLinkResetResult.PassFail = await ts
+        .callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer)
+        .returnValue; // JLink_reset
     jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
     run.record(jLinkResetResult.Status);
     if (run.failed) {
@@ -392,12 +345,9 @@ Future<ts.Status> mainSequence() async {
   } finally {
     if (cleanupFrom < 3) {
       // Failed Point
-      final outputs5 = await ts.callPython(
-        '..\\Python\\ecu_programmer.py',
-        'close_connection',
-        instance: programmer,
-      ); // JLink_close Test
-      jLinkCloseTestResult.PassFail = outputs5['Return Value'];
+      jLinkCloseTestResult.PassFail = await ts
+          .callPython('..\\Python\\ecu_programmer.py', 'close_connection', instance: programmer)
+          .returnValue; // JLink_close Test
       jLinkCloseTestResult.Status = ts.truthy(jLinkCloseTestResult.PassFail) ? 'Passed' : 'Failed';
       run.record(jLinkCloseTestResult.Status);
       if (run.failed) {
@@ -707,59 +657,35 @@ Future<void> loadVariables({String variableList = ''}) async {
 /// Sequence `Write_reset_flex_provision`.
 Future<ts.Status> writeResetFlexProvision() async {
   final run = ts.SequenceRun();
-  final dynamic flashFlexProvisionResetResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic jLinkResetResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic jLinkRestartResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic jLinkResetResult2 = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic flashFlexProvisionResetResult = ts.StepResult({'PassFail': false});
+  final dynamic jLinkResetResult = ts.StepResult({'PassFail': false});
+  final dynamic jLinkRestartResult = ts.StepResult({'PassFail': false});
+  final dynamic jLinkResetResult2 = ts.StepResult({'PassFail': false});
 
-  final outputs = await ts.callPython(
-    '..\\Python\\ecu_programmer.py',
-    'flash_file',
-    inputs: {'path_file': station.pathResetFlexProvision},
-    instance: programmer,
-  ); // Flash_Flex_Provision_Reset
-  flashFlexProvisionResetResult.PassFail = outputs['Return Value'];
+  flashFlexProvisionResetResult.PassFail = await ts
+      .callPython(
+        '..\\Python\\ecu_programmer.py',
+        'flash_file',
+        inputs: {'path_file': station.pathResetFlexProvision},
+        instance: programmer,
+      )
+      .returnValue; // Flash_Flex_Provision_Reset
   flashFlexProvisionResetResult.Status = ts.truthy(flashFlexProvisionResetResult.PassFail) ? 'Passed' : 'Failed';
   run.record(flashFlexProvisionResetResult.Status);
-  final outputs2 = await ts.callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer); // JLink_reset
-  jLinkResetResult.PassFail = outputs2['Return Value'];
+  jLinkResetResult.PassFail = await ts
+      .callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer)
+      .returnValue; // JLink_reset
   jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult.Status);
-  final outputs3 = await ts.callPython(
-    '..\\Python\\ecu_programmer.py',
-    'restart',
-    instance: programmer,
-  ); // JLink_restart
-  jLinkRestartResult.PassFail = outputs3['Return Value'];
+  jLinkRestartResult.PassFail = await ts
+      .callPython('..\\Python\\ecu_programmer.py', 'restart', instance: programmer)
+      .returnValue; // JLink_restart
   jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 2));
-  final outputs4 = await ts.callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer); // JLink_reset
-  jLinkResetResult2.PassFail = outputs4['Return Value'];
+  jLinkResetResult2.PassFail = await ts
+      .callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer)
+      .returnValue; // JLink_reset
   jLinkResetResult2.Status = ts.truthy(jLinkResetResult2.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult2.Status);
 
@@ -769,59 +695,35 @@ Future<ts.Status> writeResetFlexProvision() async {
 /// Sequence `Write_flex_provision`.
 Future<ts.Status> writeFlexProvision() async {
   final run = ts.SequenceRun();
-  final dynamic fllashFlexProvisionResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic jLinkResetResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic jLinkRestartResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic jLinkResetResult2 = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic fllashFlexProvisionResult = ts.StepResult({'PassFail': false});
+  final dynamic jLinkResetResult = ts.StepResult({'PassFail': false});
+  final dynamic jLinkRestartResult = ts.StepResult({'PassFail': false});
+  final dynamic jLinkResetResult2 = ts.StepResult({'PassFail': false});
 
-  final outputs = await ts.callPython(
-    '..\\Python\\ecu_programmer.py',
-    'flash_file',
-    inputs: {'path_file': station.pathFlexProvision},
-    instance: programmer,
-  ); // Fllash_Flex_Provision
-  fllashFlexProvisionResult.PassFail = outputs['Return Value'];
+  fllashFlexProvisionResult.PassFail = await ts
+      .callPython(
+        '..\\Python\\ecu_programmer.py',
+        'flash_file',
+        inputs: {'path_file': station.pathFlexProvision},
+        instance: programmer,
+      )
+      .returnValue; // Fllash_Flex_Provision
   fllashFlexProvisionResult.Status = ts.truthy(fllashFlexProvisionResult.PassFail) ? 'Passed' : 'Failed';
   run.record(fllashFlexProvisionResult.Status);
-  final outputs2 = await ts.callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer); // JLink_reset
-  jLinkResetResult.PassFail = outputs2['Return Value'];
+  jLinkResetResult.PassFail = await ts
+      .callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer)
+      .returnValue; // JLink_reset
   jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult.Status);
-  final outputs3 = await ts.callPython(
-    '..\\Python\\ecu_programmer.py',
-    'restart',
-    instance: programmer,
-  ); // JLink_restart
-  jLinkRestartResult.PassFail = outputs3['Return Value'];
+  jLinkRestartResult.PassFail = await ts
+      .callPython('..\\Python\\ecu_programmer.py', 'restart', instance: programmer)
+      .returnValue; // JLink_restart
   jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 12));
-  final outputs4 = await ts.callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer); // JLink_reset
-  jLinkResetResult2.PassFail = outputs4['Return Value'];
+  jLinkResetResult2.PassFail = await ts
+      .callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer)
+      .returnValue; // JLink_reset
   jLinkResetResult2.Status = ts.truthy(jLinkResetResult2.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult2.Status);
 
@@ -831,74 +733,41 @@ Future<ts.Status> writeFlexProvision() async {
 /// Sequence `Write_program_combined`.
 Future<ts.Status> writeProgramCombined() async {
   final run = ts.SequenceRun();
-  final dynamic fllashFlexCombinedResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic jLinkHaltResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic jLinkRestartResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic jLinkResetResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic jLinkRestartResult2 = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic fllashFlexCombinedResult = ts.StepResult({'PassFail': false});
+  final dynamic jLinkHaltResult = ts.StepResult({'PassFail': false});
+  final dynamic jLinkRestartResult = ts.StepResult({'PassFail': false});
+  final dynamic jLinkResetResult = ts.StepResult({'PassFail': false});
+  final dynamic jLinkRestartResult2 = ts.StepResult({'PassFail': false});
 
-  final outputs = await ts.callPython(
-    '..\\Python\\ecu_programmer.py',
-    'flash_file',
-    inputs: {'path_file': station.pathProgramCombined},
-    instance: programmer,
-  ); // Fllash_Flex_Combined
-  fllashFlexCombinedResult.PassFail = outputs['Return Value'];
+  fllashFlexCombinedResult.PassFail = await ts
+      .callPython(
+        '..\\Python\\ecu_programmer.py',
+        'flash_file',
+        inputs: {'path_file': station.pathProgramCombined},
+        instance: programmer,
+      )
+      .returnValue; // Fllash_Flex_Combined
   fllashFlexCombinedResult.Status = ts.truthy(fllashFlexCombinedResult.PassFail) ? 'Passed' : 'Failed';
   run.record(fllashFlexCombinedResult.Status);
-  final outputs2 = await ts.callPython('..\\Python\\ecu_programmer.py', 'halt', instance: programmer); // JLink_halt
-  jLinkHaltResult.PassFail = outputs2['Return Value'];
+  jLinkHaltResult.PassFail = await ts
+      .callPython('..\\Python\\ecu_programmer.py', 'halt', instance: programmer)
+      .returnValue; // JLink_halt
   jLinkHaltResult.Status = ts.truthy(jLinkHaltResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkHaltResult.Status);
-  final outputs3 = await ts.callPython(
-    '..\\Python\\ecu_programmer.py',
-    'restart',
-    instance: programmer,
-  ); // JLink_restart
-  jLinkRestartResult.PassFail = outputs3['Return Value'];
+  jLinkRestartResult.PassFail = await ts
+      .callPython('..\\Python\\ecu_programmer.py', 'restart', instance: programmer)
+      .returnValue; // JLink_restart
   jLinkRestartResult.Status = ts.truthy(jLinkRestartResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkRestartResult.Status);
   await Future<void>.delayed(const Duration(seconds: 12));
-  final outputs4 = await ts.callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer); // JLink_reset
-  jLinkResetResult.PassFail = outputs4['Return Value'];
+  jLinkResetResult.PassFail = await ts
+      .callPython('..\\Python\\ecu_programmer.py', 'reset', instance: programmer)
+      .returnValue; // JLink_reset
   jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkResetResult.Status);
-  final outputs5 = await ts.callPython(
-    '..\\Python\\ecu_programmer.py',
-    'restart',
-    instance: programmer,
-  ); // JLink_restart
-  jLinkRestartResult2.PassFail = outputs5['Return Value'];
+  jLinkRestartResult2.PassFail = await ts
+      .callPython('..\\Python\\ecu_programmer.py', 'restart', instance: programmer)
+      .returnValue; // JLink_restart
   jLinkRestartResult2.Status = ts.truthy(jLinkRestartResult2.PassFail) ? 'Passed' : 'Failed';
   run.record(jLinkRestartResult2.Status);
 

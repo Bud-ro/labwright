@@ -4,13 +4,7 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic tdmsGeneratingTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic tdmsGeneratingTestResult = ts.StepResult({'PassFail': false});
 
   final outputs = await ts.callVi('LabVIEW\\Attach Test Files.lvlibp\\Waveform Test.vi'); // TDMS Generating Test
   tdmsGeneratingTestResult.PassFail = outputs['Result'];

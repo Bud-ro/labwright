@@ -4,56 +4,14 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  dynamic numericLimitTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  });
-  dynamic numericLimitTest2Result = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  });
-  dynamic numericLimitTest3Result = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  });
-  dynamic numericLimitTest4Result = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  });
-  dynamic numericLimitTest5Result = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  });
+  dynamic numericLimitTestResult = ts.StepResult({'Numeric': 0});
+  dynamic numericLimitTest2Result = ts.StepResult({'Numeric': 0});
+  dynamic numericLimitTest3Result = ts.StepResult({'Numeric': 0});
+  dynamic numericLimitTest4Result = ts.StepResult({'Numeric': 0});
+  dynamic numericLimitTest5Result = ts.StepResult({'Numeric': 0});
 
   while (ts.truthy(true)) {
-    numericLimitTestResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'Numeric': 0,
-      'ReportText': '',
-      'Common': ts.PropObj(),
-      'Units': '',
-    });
+    numericLimitTestResult = ts.StepResult({'Numeric': 0});
     await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test
     numericLimitTestResult.Status = ts.checkLimits(
       numericLimitTestResult.Numeric = 10,
@@ -65,14 +23,7 @@ Future<ts.Status> mainSequence() async {
       'PERCENTAGE',
     );
     run.record(numericLimitTestResult.Status);
-    numericLimitTest2Result = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'Numeric': 0,
-      'ReportText': '',
-      'Common': ts.PropObj(),
-      'Units': '',
-    });
+    numericLimitTest2Result = ts.StepResult({'Numeric': 0});
     await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test 2
     numericLimitTest2Result.Status = ts.checkLimits(
       numericLimitTest2Result.Numeric = 12,
@@ -84,14 +35,7 @@ Future<ts.Status> mainSequence() async {
       'PERCENTAGE',
     );
     run.record(numericLimitTest2Result.Status);
-    numericLimitTest3Result = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'Numeric': 0,
-      'ReportText': '',
-      'Common': ts.PropObj(),
-      'Units': '',
-    });
+    numericLimitTest3Result = ts.StepResult({'Numeric': 0});
     await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test 3
     numericLimitTest3Result.Status = ts.checkLimits(
       numericLimitTest3Result.Numeric = ts.rand(8, 12),
@@ -103,14 +47,7 @@ Future<ts.Status> mainSequence() async {
       'PERCENTAGE',
     );
     run.record(numericLimitTest3Result.Status);
-    numericLimitTest4Result = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'Numeric': 0,
-      'ReportText': '',
-      'Common': ts.PropObj(),
-      'Units': '',
-    });
+    numericLimitTest4Result = ts.StepResult({'Numeric': 0});
     await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test 4
     numericLimitTest4Result.Status = ts.checkLimits(
       numericLimitTest4Result.Numeric = ts.rand(8, 12),
@@ -122,14 +59,7 @@ Future<ts.Status> mainSequence() async {
       'PERCENTAGE',
     );
     run.record(numericLimitTest4Result.Status);
-    numericLimitTest5Result = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'Numeric': 0,
-      'ReportText': '',
-      'Common': ts.PropObj(),
-      'Units': '',
-    });
+    numericLimitTest5Result = ts.StepResult({'Numeric': 0});
     await ts.callDll('kernel32.dll', 'Sleep', inputs: {'#2': 100}); // Numeric Limit Test 5
     numericLimitTest5Result.Status = ts.checkLimits(
       numericLimitTest5Result.Numeric = ts.rand(8, 12),

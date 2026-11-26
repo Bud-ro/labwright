@@ -59,12 +59,11 @@ Future<void> enableLabViewTcpServer({
 
   body:
   {
-    final outputs = await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-      'System.IO.File.Exists',
-      inputs: {'path': '$labviewDirectory\\LabVIEW.exe'},
-    ); // Check if LabVIEW.exe exists
-    locals.labviewExists = outputs['Return Value'] as bool;
+    locals.labviewExists =
+        await ts
+                .callDotNet('mscorlib', 'System.IO.File.Exists', inputs: {'path': '$labviewDirectory\\LabVIEW.exe'})
+                .returnValue
+            as bool; // Check if LabVIEW.exe exists
     if (!locals.labviewExists) {
       error.Code = 7; // Error
       error.Msg = '$labviewDirectory\\LabVIEW.exe not found.';
@@ -72,19 +71,21 @@ Future<void> enableLabViewTcpServer({
       break body;
     }
 
-    final outputs2 = await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-      'System.IO.File.Exists',
-      inputs: {'path': '$labviewDirectory\\LabVIEW.ini'},
-    ); // Check if LabVIEW.ini exists
-    locals.labviewIniExists = outputs2['Return Value'] as bool;
+    locals.labviewIniExists =
+        await ts
+                .callDotNet('mscorlib', 'System.IO.File.Exists', inputs: {'path': '$labviewDirectory\\LabVIEW.ini'})
+                .returnValue
+            as bool; // Check if LabVIEW.ini exists
     if (locals.labviewIniExists) {
-      final outputs3 = await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-        'System.IO.File.ReadAllText',
-        inputs: {'path': '$labviewDirectory\\LabVIEW.ini'},
-      ); // Read LabVIEW.ini
-      locals.labviewIniText = outputs3['Return Value'] as String;
+      locals.labviewIniText =
+          await ts
+                  .callDotNet(
+                    'mscorlib',
+                    'System.IO.File.ReadAllText',
+                    inputs: {'path': '$labviewDirectory\\LabVIEW.ini'},
+                  )
+                  .returnValue
+              as String; // Read LabVIEW.ini
       ts.eval(
         'SearchPatternAndReplace(Locals.LabviewIniText, "server.tcp.enabled=False", "server.tcp.enabled=True", 0, True)',
       ); // Prepare LabVIEW.ini keys
@@ -92,18 +93,18 @@ Future<void> enableLabViewTcpServer({
         '\n\n(Find(Locals.LabviewIniText, "server.tcp.enabled=True", 0, True) == -1) ?\n   Locals.LabviewIniText += "\\nserver.tcp.enabled=True"\n:\n   Nothing',
       );
       await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'mscorlib',
         'System.IO.File.WriteAllText',
         inputs: {'path': '$labviewDirectory\\LabVIEW.ini', 'contents': locals.labviewIniText},
       ); // Write LabVIEW.ini
     } else {
       await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'mscorlib',
         'System.IO.File.Create',
         inputs: {'path': '$labviewDirectory\\LabVIEW.ini'},
       ); // Create LabVIEW.ini
       await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'mscorlib',
         'System.IO.File.WriteAllText',
         inputs: {'path': '$labviewDirectory\\LabVIEW.ini', 'contents': '[LabVIEW]\nserver.tcp.enabled=True'},
       ); // Write LabVIEW.ini
@@ -122,20 +123,8 @@ class _SequenceFileLoadLocals {
 /// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
   final locals = _SequenceFileLoadLocals();
-  final dynamic prepareLabViewProjectCompiledObjectCacheResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic openLabViewProjectResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic prepareLabViewProjectCompiledObjectCacheResult = ts.StepResult({'ButtonHit': 0, 'Response': ''});
+  final dynamic openLabViewProjectResult = ts.StepResult();
 
   body:
   {

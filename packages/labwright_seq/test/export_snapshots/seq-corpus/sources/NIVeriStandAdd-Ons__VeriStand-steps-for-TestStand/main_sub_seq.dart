@@ -19,32 +19,11 @@ dynamic veristand = ts.PropObj({
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic channelValueLimitTestResult = ts.PropObj({
-    'Veristand': ts.PropObj({'ChannelName': '', 'Description': '', 'ChannelInfo': null}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'VeristandError': null,
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  });
-  final dynamic rtSequencePassFailTestResult = ts.PropObj({
+  final dynamic channelValueLimitTestResult = ts.StepResult({'Numeric': 0});
+  final dynamic rtSequencePassFailTestResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic rtSequenceNumericLimitResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Numeric': 0,
-    'Units': '',
-  });
+  final dynamic rtSequenceNumericLimitResult = ts.StepResult({'Numeric': 0});
 
   await ts.stepType('OpenReferences');
   await ts.stepType('OpenWorkspace');

@@ -104,16 +104,7 @@ Future<void> monitorTemperature({double readWait = 0}) async {
 /// Sequence `Check Engine RPM`.
 Future<ts.Status> checkEngineRpm({double setpoint = 0, int settleTime = 0, int tolerance = 0}) async {
   final run = ts.SequenceRun();
-  final dynamic channelValueLimitTestResult = ts.PropObj({
-    'Veristand': ts.PropObj({'ChannelName': '', 'Description': '', 'ChannelInfo': null}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'VeristandError': null,
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  });
+  final dynamic channelValueLimitTestResult = ts.StepResult();
 
   await ts.stepType('SetChannelValue', {
     'Veristand': {

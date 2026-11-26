@@ -67,41 +67,59 @@ Future<void> mainSequence() async {
     },
   ); // Measure Pattern Test
   await ts.stepType('NI_SemiconductorModule_Action');
-  final outputs = await ts.callActiveX(
-    ts.eval('Step.SemiconductorModuleContext'),
-    'ISemiconductorModuleContext.GetDigitalPatternProjectSpecificationsFilePaths',
-  ); // Get Specifications Paths
-  locals.specificationsPaths = outputs['Return Value'] as List<dynamic>;
+  locals.specificationsPaths =
+      await ts
+              .callActiveX(
+                ts.eval('Step.SemiconductorModuleContext'),
+                'ISemiconductorModuleContext.GetDigitalPatternProjectSpecificationsFilePaths',
+              )
+              .returnValue
+          as List<dynamic>; // Get Specifications Paths
   await ts.stepType('NI_SemiconductorModule_Action');
-  final outputs2 = await ts.callActiveX(
-    ts.eval('Step.SemiconductorModuleContext'),
-    'ISemiconductorModuleContext.GetDigitalPatternProjectLevelsFilePaths',
-  ); // Get Levels Paths
-  locals.levelsPaths = outputs2['Return Value'] as List<dynamic>;
+  locals.levelsPaths =
+      await ts
+              .callActiveX(
+                ts.eval('Step.SemiconductorModuleContext'),
+                'ISemiconductorModuleContext.GetDigitalPatternProjectLevelsFilePaths',
+              )
+              .returnValue
+          as List<dynamic>; // Get Levels Paths
   await ts.stepType('NI_SemiconductorModule_Action');
-  final outputs3 = await ts.callActiveX(
-    ts.eval('Step.SemiconductorModuleContext'),
-    'ISemiconductorModuleContext.GetDigitalPatternProjectTimingFilePaths',
-  ); // Get Timing Paths
-  locals.timingPaths = outputs3['Return Value'] as List<dynamic>;
+  locals.timingPaths =
+      await ts
+              .callActiveX(
+                ts.eval('Step.SemiconductorModuleContext'),
+                'ISemiconductorModuleContext.GetDigitalPatternProjectTimingFilePaths',
+              )
+              .returnValue
+          as List<dynamic>; // Get Timing Paths
   await ts.stepType('NI_SemiconductorModule_Action');
-  final outputs4 = await ts.callActiveX(
-    ts.eval('Step.SemiconductorModuleContext'),
-    'ISemiconductorModuleContext.GetDigitalPatternProjectPatternFilePaths',
-  ); // Get Pattern Paths
-  locals.patternPaths = outputs4['Return Value'] as List<dynamic>;
+  locals.patternPaths =
+      await ts
+              .callActiveX(
+                ts.eval('Step.SemiconductorModuleContext'),
+                'ISemiconductorModuleContext.GetDigitalPatternProjectPatternFilePaths',
+              )
+              .returnValue
+          as List<dynamic>; // Get Pattern Paths
   await ts.stepType('NI_SemiconductorModule_Action');
-  final outputs5 = await ts.callActiveX(
-    ts.eval('Step.SemiconductorModuleContext'),
-    'ISemiconductorModuleContext.GetDigitalPatternProjectSourceWaveformFilePaths',
-  ); // Get Source Waveform Paths
-  locals.sourceWaveformPaths = outputs5['Return Value'] as List<dynamic>;
+  locals.sourceWaveformPaths =
+      await ts
+              .callActiveX(
+                ts.eval('Step.SemiconductorModuleContext'),
+                'ISemiconductorModuleContext.GetDigitalPatternProjectSourceWaveformFilePaths',
+              )
+              .returnValue
+          as List<dynamic>; // Get Source Waveform Paths
   await ts.stepType('NI_SemiconductorModule_Action');
-  final outputs6 = await ts.callActiveX(
-    ts.eval('Step.SemiconductorModuleContext'),
-    'ISemiconductorModuleContext.GetDigitalPatternProjectCaptureWaveformFilePaths',
-  ); // Get Capture Waveform Paths
-  locals.captureWaveformPaths = outputs6['Return Value'] as List<dynamic>;
+  locals.captureWaveformPaths =
+      await ts
+              .callActiveX(
+                ts.eval('Step.SemiconductorModuleContext'),
+                'ISemiconductorModuleContext.GetDigitalPatternProjectCaptureWaveformFilePaths',
+              )
+              .returnValue
+          as List<dynamic>; // Get Capture Waveform Paths
   await ts.stepType('NI_SemiconductorModule_MultiTest', {
     'Multisite': {'SynchronizationOption': 1},
     'Result': {

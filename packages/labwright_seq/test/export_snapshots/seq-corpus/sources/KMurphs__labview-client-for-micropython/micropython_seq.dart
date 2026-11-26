@@ -17,20 +17,8 @@ class _MainSequenceLocals {
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
-  final dynamic downloadTestFunctionsScriptResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic interactWithDeviceResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic downloadTestFunctionsScriptResult = ts.StepResult({'PassFail': false});
+  final dynamic interactWithDeviceResult = ts.StepResult({'PassFail': false});
 
   try {
     final outputs = await ts.callVi(

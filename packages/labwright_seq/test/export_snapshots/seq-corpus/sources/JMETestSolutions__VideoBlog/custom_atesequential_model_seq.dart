@@ -96,32 +96,10 @@ class _TestUuTsLocals {
 /// Sequence `Test UUTs` — If you insert a new step in this sequence, disable the Record Results option for the step..
 Future<void> testUuTs({String sequence = 'MainSequence'}) async {
   final locals = _TestUuTsLocals();
-  final dynamic modelPluginsBeginResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic processSetupCallbackResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  dynamic mainSequenceCallbackResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  dynamic handleTerminationResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic modelPluginsBeginResult = ts.StepResult();
+  final dynamic processSetupCallbackResult = ts.StepResult();
+  dynamic mainSequenceCallbackResult = ts.StepResult();
+  dynamic handleTerminationResult = ts.StepResult({'ButtonHit': 0, 'Response': ''});
 
   try {
     ts.eval(
@@ -207,12 +185,7 @@ Future<void> testUuTs({String sequence = 'MainSequence'}) async {
         ); // PreMainSequence Callback
         // Because Parameters.Sequence defaults to "MainSequence", this step calls the MainSequence callback in the client file unless you call this entry point sequence directly and pass a different sequence name.
         try {
-          mainSequenceCallbackResult = ts.PropObj({
-            'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-            'Status': '',
-            'ReportText': '',
-            'Common': ts.PropObj(),
-          });
+          mainSequenceCallbackResult = ts.StepResult();
           await parametersSequence(); // MainSequence Callback: external sequence call
           locals.uutTerminated = locals.uutTerminated || mainSequenceCallbackResult.Status == 'Terminated';
           mainSequenceCallbackResult.Status = ts.Status.done;
@@ -262,14 +235,7 @@ Future<void> testUuTs({String sequence = 'MainSequence'}) async {
         if (ts.cond(
           '!(RunState.Sequence.Main["MainSequence Callback"].Result.Status == "Terminated"  && Locals.ContinueTesting) ? \nFalse : \n(Locals.ContinueTesting = (Locals.ModelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.SequentialTestUUTsTerminationOption == Enums.NI_SequentialTestUUTsTerminationOptions.NextUUT),\n(Locals.ModelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.SequentialTestUUTsTerminationOption == Enums.NI_SequentialTestUUTsTerminationOptions.Prompt))',
         )) {
-          handleTerminationResult = ts.PropObj({
-            'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-            'Status': '',
-            'ButtonHit': 0,
-            'Response': '',
-            'ReportText': '',
-            'Common': ts.PropObj(),
-          });
+          handleTerminationResult = ts.StepResult({'ButtonHit': 0, 'Response': ''});
           final popup = await ts.messagePopup(
             ts.resourceString('MODEL', 'HANDLE_TERMINATION_TITLE'),
             ts.resourceString('MODEL', 'HANDLE_TERMINATION_MESSAGE'),
@@ -374,24 +340,9 @@ class _SinglePassLocals {
 /// Sequence `Single Pass` — If you insert a new step in this sequence, disable the Record Results option for the step..
 Future<void> singlePass({String sequence = 'MainSequence'}) async {
   final locals = _SinglePassLocals();
-  final dynamic modelPluginsBeginResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic processSetupCallbackResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic mainSequenceCallbackResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic modelPluginsBeginResult = ts.StepResult();
+  final dynamic processSetupCallbackResult = ts.StepResult();
+  final dynamic mainSequenceCallbackResult = ts.StepResult();
 
   try {
     skipToPostUutLoopCallback:

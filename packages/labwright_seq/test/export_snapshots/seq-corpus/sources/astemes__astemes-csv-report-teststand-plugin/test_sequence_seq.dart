@@ -4,47 +4,9 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic numericLimitTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  });
-  final dynamic stringValueTestResult = ts.PropObj({
-    'TestData': ts.PropObj({
-      'TestNumber': 0,
-      'DefectNote': '',
-      'MoreInfoToOI': '',
-      'TestType': 2,
-      'SPC': false,
-      'NotRInstTest': false,
-      'BoardNr': 1,
-    }),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'String': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic numericLimitTestResult2 = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'TestData': ts.PropObj({
-      'TestNumber': 1050,
-      'DefectNote': '',
-      'MoreInfoToOI': 'TAG_NAME',
-      'TestType': 1,
-      'SPC': false,
-      'NotRInstTest': false,
-      'BoardNr': 1,
-    }),
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': 'V',
-  });
+  final dynamic numericLimitTestResult = ts.StepResult({'Numeric': 0});
+  final dynamic stringValueTestResult = ts.StepResult({'String': ''});
+  final dynamic numericLimitTestResult2 = ts.StepResult({'Numeric': 0});
 
   numericLimitTestResult.Status = ts.checkLimits(
     numericLimitTestResult.Numeric,
@@ -75,22 +37,7 @@ Future<ts.Status> mainSequence() async {
 /// Sequence `Sequence`.
 Future<ts.Status> sequence() async {
   final run = ts.SequenceRun();
-  final dynamic subseqResult = ts.PropObj({
-    'TestData': ts.PropObj({
-      'TestNumber': 0,
-      'DefectNote': '',
-      'MoreInfoToOI': '',
-      'TestType': 2,
-      'SPC': false,
-      'NotRInstTest': false,
-      'BoardNr': 1,
-    }),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'String': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic subseqResult = ts.StepResult({'String': ''});
 
   subseqResult.Status = ts.checkStrLimit(subseqResult.String, 'String Limit', 'IgnoreCase');
   run.record(subseqResult.Status);

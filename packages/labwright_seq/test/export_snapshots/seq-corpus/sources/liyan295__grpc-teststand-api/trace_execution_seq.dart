@@ -5,95 +5,9 @@ import 'package:labwright/shims.dart' as ts;
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
   final threads = ts.AsyncCalls();
-  final dynamic numericLimitTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  });
-  final dynamic multipleNumericLimitTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Measurement': <dynamic>[
-      ts.PropObj({
-        'Limits': ts.PropObj({
-          'ThresholdType': 'PERCENTAGE',
-          'Nominal': 100,
-          'Low': 5,
-          'High': 11,
-          'ThresholdTypeExpr': '',
-          'NominalExpr': '',
-          'LowExpr': '',
-          'HighExpr': '',
-          'UseThresholdTypeExpr': false,
-          'UseNominalExpr': false,
-          'UseLowExpr': false,
-          'UseHighExpr': false,
-        }),
-        'Units': '',
-        'Comp': 'GELE',
-        'CompExpr': '',
-        'UseCompExpr': false,
-        'Data': 0,
-        'Status': '',
-      }),
-      ts.PropObj({
-        'Limits': ts.PropObj({
-          'ThresholdType': 'PERCENTAGE',
-          'Nominal': 100,
-          'Low': 5,
-          'High': 20,
-          'ThresholdTypeExpr': '',
-          'NominalExpr': '',
-          'LowExpr': '',
-          'HighExpr': '',
-          'UseThresholdTypeExpr': false,
-          'UseNominalExpr': false,
-          'UseLowExpr': false,
-          'UseHighExpr': false,
-        }),
-        'Units': '',
-        'Comp': 'GELE',
-        'CompExpr': '',
-        'UseCompExpr': false,
-        'Data': 0,
-        'Status': '',
-      }),
-      ts.PropObj({
-        'Limits': ts.PropObj({
-          'ThresholdType': 'PERCENTAGE',
-          'Nominal': 100,
-          'Low': 1,
-          'High': 11,
-          'ThresholdTypeExpr': '',
-          'NominalExpr': '',
-          'LowExpr': '',
-          'HighExpr': '',
-          'UseThresholdTypeExpr': false,
-          'UseNominalExpr': false,
-          'UseLowExpr': false,
-          'UseHighExpr': false,
-        }),
-        'Units': '',
-        'Comp': 'GELE',
-        'CompExpr': '',
-        'UseCompExpr': false,
-        'Data': 0,
-        'Status': '',
-      }),
-    ],
-  });
-  final dynamic passFailTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic numericLimitTestResult = ts.StepResult({'Numeric': 0});
+  final dynamic multipleNumericLimitTestResult = ts.StepResult();
+  final dynamic passFailTestResult = ts.StepResult({'PassFail': true});
 
   try {
     ts.eval('Locals.OldTracingSpeed = RunState.Engine.StationOptions.UIMessageDelay'); // Slow Down Tracing

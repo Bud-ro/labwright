@@ -24,60 +24,7 @@ class _MainSequenceLocals {
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
-  final dynamic rxCompressionLimitTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Measurement': <dynamic>[
-      ts.PropObj({
-        'Limits': ts.PropObj({
-          'ThresholdType': 'PERCENTAGE',
-          'Nominal': 100,
-          'Low': 15,
-          'High': 20,
-          'ThresholdTypeExpr': '',
-          'NominalExpr': '',
-          'LowExpr': '',
-          'HighExpr': '',
-          'UseThresholdTypeExpr': false,
-          'UseNominalExpr': false,
-          'UseLowExpr': false,
-          'UseHighExpr': false,
-        }),
-        'Units': 'dB',
-        'Comp': 'LOG',
-        'CompExpr': '',
-        'UseCompExpr': false,
-        'Data': 0,
-        'Status': '',
-        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
-      }),
-      ts.PropObj({
-        'Limits': ts.PropObj({
-          'ThresholdType': 'PERCENTAGE',
-          'Nominal': 100,
-          'Low': 15,
-          'High': 20,
-          'ThresholdTypeExpr': '',
-          'NominalExpr': '',
-          'LowExpr': '',
-          'HighExpr': '',
-          'UseThresholdTypeExpr': false,
-          'UseNominalExpr': false,
-          'UseLowExpr': false,
-          'UseHighExpr': false,
-        }),
-        'Units': 'dBm',
-        'Comp': 'LOG',
-        'CompExpr': '',
-        'UseCompExpr': false,
-        'Data': 0,
-        'Status': '',
-        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
-      }),
-    ],
-  });
+  final dynamic rxCompressionLimitTestResult = ts.StepResult();
 
   try {
     await ts.callVi(

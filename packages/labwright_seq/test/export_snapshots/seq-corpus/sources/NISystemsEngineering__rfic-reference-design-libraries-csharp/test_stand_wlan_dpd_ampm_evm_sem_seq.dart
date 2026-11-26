@@ -266,28 +266,31 @@ Future<void> mainSequence() async {
     ); // Initialize Waveform Arrys
     ts.setNumElements(loadedWaveforms, ts.getNumElements(staticStationConfigs.Waveform_Configs));
     // Initialize Instruments
-    final outputs = await ts.callDotNet(
-      'NationalInstruments.ModularInstruments.NIRfsg.Fx45, Version=19.2.0.49152, Culture=neutral, PublicKeyToken=4febd62461bf11a4',
-      'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg',
-      inputs: {'resourceName': staticStationConfigs.Device_Names.SG_Name, 'idQuery': false, 'reset': false},
-    ); // Init RFSG
-    deviceHandles.RFSG_Session = outputs['Return Value'];
-    final outputs2 = await ts.callDotNet(
-      'NationalInstruments.RFmx.InstrMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
-      'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX',
-      inputs: {'resourceName': staticStationConfigs.Device_Names.SA_Name, 'optionString': ''},
-    ); // RFmx Initialize
-    deviceHandles.RFmx_Instr_Session = outputs2['Return Value'];
+    deviceHandles.RFSG_Session = await ts
+        .callDotNet(
+          'NationalInstruments.ModularInstruments.NIRfsg.Fx45',
+          'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg',
+          inputs: {'resourceName': staticStationConfigs.Device_Names.SG_Name, 'idQuery': false, 'reset': false},
+        )
+        .returnValue; // Init RFSG
+    deviceHandles.RFmx_Instr_Session = await ts
+        .callDotNet(
+          'NationalInstruments.RFmx.InstrMX.Fx40',
+          'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX',
+          inputs: {'resourceName': staticStationConfigs.Device_Names.SA_Name, 'optionString': ''},
+        )
+        .returnValue; // RFmx Initialize
     // Load Waveforms and Create Signals
     locals.waveFormConfigsIdx = 0; // Reset Wfm config index
     for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
       locals.currentWaveformConfig = element;
-      final outputs3 = await ts.callDotNet(
-        '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
-        'NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS',
-        inputs: {'filePath': locals.currentWaveformConfig.Absolute_Disk_Path},
-      ); // Load Waveform from TDMS
-      locals.currentWaveform = outputs3['Return Value'];
+      locals.currentWaveform = await ts
+          .callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS',
+            inputs: {'filePath': locals.currentWaveformConfig.Absolute_Disk_Path},
+          )
+          .returnValue; // Load Waveform from TDMS
       // Map Loaded Parameters
       await ts.callDotNet(
         '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
@@ -295,21 +298,23 @@ Future<void> mainSequence() async {
         inputs: {'rfsgHandle': deviceHandles.RFSG_Session, 'waveform': locals.currentWaveform},
       ); // Download Waveform to Generator
       // Create a new signal based on the waveform's parameters
-      final outputs4 = await ts.callDotNet(
-        'NationalInstruments.RFmx.WlanMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
-        'NationalInstruments.RFmx.InstrMX.RFmxWlanMXExtension.GetWlanSignalConfiguration',
-        inputs: {'instrSession': deviceHandles.RFmx_Instr_Session, 'signalName': locals.currentWaveform.Name},
-      ); // Create WLAN Signal Configuration
-      locals.currentRFmxWlanSignal = outputs4['Return Value'];
-      final outputs5 = await ts.callDotNet(
-        'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
-        'NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
-        inputs: {
-          'instrSession': deviceHandles.RFmx_Instr_Session,
-          'signalName': '${locals.currentWaveform.Name as String}SpecAn',
-        },
-      ); // Create SpecAn Signal Configuration
-      locals.currentRFmxSpecAnSignal = outputs5['Return Value'];
+      locals.currentRFmxWlanSignal = await ts
+          .callDotNet(
+            'NationalInstruments.RFmx.WlanMX.Fx40',
+            'NationalInstruments.RFmx.InstrMX.RFmxWlanMXExtension.GetWlanSignalConfiguration',
+            inputs: {'instrSession': deviceHandles.RFmx_Instr_Session, 'signalName': locals.currentWaveform.Name},
+          )
+          .returnValue; // Create WLAN Signal Configuration
+      locals.currentRFmxSpecAnSignal = await ts
+          .callDotNet(
+            'NationalInstruments.RFmx.SpecAnMX.Fx40',
+            'NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
+            inputs: {
+              'instrSession': deviceHandles.RFmx_Instr_Session,
+              'signalName': '${locals.currentWaveform.Name as String}SpecAn',
+            },
+          )
+          .returnValue; // Create SpecAn Signal Configuration
       loadedWaveformIndexes[locals.waveFormConfigsIdx] = locals.waveFormConfigsIdx; // Store Loaded Waveforms
       loadedWaveforms[locals.waveFormConfigsIdx] = locals.currentWaveform;
       locals.waveFormConfigsIdx++;
@@ -333,12 +338,12 @@ Future<void> mainSequence() async {
   } finally {
     // Instrument Cleanup
     await ts.callDotNet(
-      'NationalInstruments.RFmx.InstrMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+      'NationalInstruments.RFmx.InstrMX.Fx40',
       'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Use Existing Object',
       inputs: {'Existing Object': deviceHandles.RFmx_Instr_Session},
     ); // RFmx Close
     await ts.callDotNet(
-      'NationalInstruments.RFmx.InstrMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+      'NationalInstruments.RFmx.InstrMX.Fx40',
       'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close',
     ); // RFmx Close
     await ts.callDotNet(
@@ -381,22 +386,24 @@ Future<void> configure() async {
       staticStationConfigs.DUT_Params.Gain_dB; // Calculate Reference Level
   configurations.Analyzer.Common_Config.ReferenceLevel_dBm = currentSweepStep.Calculated_Parameters.SA_Ref_Level;
   // Retrieve the saved signal configuration for this waveform based on the waveform's name
-  final outputs = await ts.callDotNet(
-    'NationalInstruments.RFmx.WlanMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
-    'NationalInstruments.RFmx.InstrMX.RFmxWlanMXExtension.GetWlanSignalConfiguration',
-    inputs: {'instrSession': deviceHandles.RFmx_Instr_Session, 'signalName': currentSweepStep.Loaded_Waveform.Name},
-  ); // Get Specific WLAN Signal Configuration by Name
-  deviceHandles.RFmx_WLAN_Signal_Session = outputs['Return Value'];
+  deviceHandles.RFmx_WLAN_Signal_Session = await ts
+      .callDotNet(
+        'NationalInstruments.RFmx.WlanMX.Fx40',
+        'NationalInstruments.RFmx.InstrMX.RFmxWlanMXExtension.GetWlanSignalConfiguration',
+        inputs: {'instrSession': deviceHandles.RFmx_Instr_Session, 'signalName': currentSweepStep.Loaded_Waveform.Name},
+      )
+      .returnValue; // Get Specific WLAN Signal Configuration by Name
   // Retrieve the saved signal configuration for this waveform based on the waveform's name
-  final outputs2 = await ts.callDotNet(
-    'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
-    'NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
-    inputs: {
-      'instrSession': deviceHandles.RFmx_Instr_Session,
-      'signalName': '${currentSweepStep.Loaded_Waveform.Name as String}SpecAn',
-    },
-  ); // Get Specific SpecAn Signal Configuration by Name
-  deviceHandles.RFmx_SpecAn_Signal_Session = outputs2['Return Value'];
+  deviceHandles.RFmx_SpecAn_Signal_Session = await ts
+      .callDotNet(
+        'NationalInstruments.RFmx.SpecAnMX.Fx40',
+        'NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
+        inputs: {
+          'instrSession': deviceHandles.RFmx_Instr_Session,
+          'signalName': '${currentSweepStep.Loaded_Waveform.Name as String}SpecAn',
+        },
+      )
+      .returnValue; // Get Specific SpecAn Signal Configuration by Name
 
   // Configure Generator
   await ts.callDotNet(
@@ -424,12 +431,12 @@ Future<void> configure() async {
   // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
   currentSweepStep.Input_and_Output.PARAMS.WaveformName = currentSweepStep.Loaded_Waveform.Name; // Map Results
   await ts.callDotNet(
-    'NationalInstruments.ModularInstruments.NIRfsg.Fx45, Version=19.2.0.49152, Culture=neutral, PublicKeyToken=4febd62461bf11a4',
+    'NationalInstruments.ModularInstruments.NIRfsg.Fx45',
     'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Use Existing Object',
     inputs: {'Existing Object': deviceHandles.RFSG_Session},
   ); // RFSG Initiate
   await ts.callDotNet(
-    'NationalInstruments.ModularInstruments.NIRfsg.Fx45, Version=19.2.0.49152, Culture=neutral, PublicKeyToken=4febd62461bf11a4',
+    'NationalInstruments.ModularInstruments.NIRfsg.Fx45',
     'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Initiate',
   ); // RFSG Initiate
   // Configure Analyzer
@@ -564,12 +571,12 @@ Future<void> measure() async {
     // Only measure and apply DPD if its enabled for the current waveform configuration
     if (currentSweepStep.Input_and_Output.PARAMS.DPD_Enabled == true) {
       await ts.callDotNet(
-        'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+        'NationalInstruments.RFmx.SpecAnMX.Fx40',
         'NationalInstruments.RFmx.SpecAnMX.RFmxSpecAnMX.Use Existing Object',
         inputs: {'Existing Object': deviceHandles.RFmx_SpecAn_Signal_Session},
       ); // Select Single DPD measurement
       await ts.callDotNet(
-        'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+        'NationalInstruments.RFmx.SpecAnMX.Fx40',
         'NationalInstruments.RFmx.SpecAnMX.RFmxSpecAnMX.SelectMeasurements',
         inputs: {
           'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
@@ -615,15 +622,16 @@ Future<void> measure() async {
               'resultName': '',
             },
           ); // Initiate AMPM measurement
-          final outputs2 = await ts.callDotNet(
-            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
-            'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchAmpm',
-            inputs: {
-              'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
-              'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
-            },
-          ); // SpecAn Fetch AMPM
-          currentSweepStep.Results.RFmxSpecAn_AMPM_Results = outputs2['Return Value'];
+          currentSweepStep.Results.RFmxSpecAn_AMPM_Results = await ts
+              .callDotNet(
+                '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
+                'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchAmpm',
+                inputs: {
+                  'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+                  'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+                },
+              )
+              .returnValue; // SpecAn Fetch AMPM
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.AMPM_Mean_LinerGain_dB =
               currentSweepStep.Results.RFmxSpecAn_AMPM_Results.MeanLinearGain_dB; // Map Results
@@ -645,7 +653,7 @@ Future<void> measure() async {
               'resultName': '',
             },
           ); // WLAN Initiate SEM
-          final outputs3 = await ts.callDotNet(
+          final outputs2 = await ts.callDotNet(
             '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll',
             'NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.FetchSEM',
             inputs: {
@@ -653,29 +661,29 @@ Future<void> measure() async {
               'selectorString': configurations.Analyzer.RFmx_Selector_String,
             },
           ); // WLAN Fetch SEM
-          currentSweepStep.Results.RFmxWLAN_SEM_Results.measurementStatus = outputs3['Return Value.measurementStatus'];
-          currentSweepStep.Results.RFmxWLAN_SEM_Results.AbsolutePower_dBm = outputs3['Return Value.AbsolutePower_dBm'];
-          currentSweepStep.Results.RFmxWLAN_SEM_Results.RelativePower_dB = outputs3['Return Value.RelativePower_dB'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.measurementStatus = outputs2['Return Value.measurementStatus'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.AbsolutePower_dBm = outputs2['Return Value.AbsolutePower_dBm'];
+          currentSweepStep.Results.RFmxWLAN_SEM_Results.RelativePower_dB = outputs2['Return Value.RelativePower_dB'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.upperOffsetMeasurementStatus =
-              outputs3['Return Value.upperOffsetMeasurementStatus'];
+              outputs2['Return Value.upperOffsetMeasurementStatus'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.UpperOffsetMargin_dB =
-              outputs3['Return Value.UpperOffsetMargin_dB'];
+              outputs2['Return Value.UpperOffsetMargin_dB'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.UpperOffsetMarginFrequency_Hz =
-              outputs3['Return Value.UpperOffsetMarginFrequency_Hz'];
+              outputs2['Return Value.UpperOffsetMarginFrequency_Hz'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.UpperOffsetMarginAbsolutePower_dBm =
-              outputs3['Return Value.UpperOffsetMarginAbsolutePower_dBm'];
+              outputs2['Return Value.UpperOffsetMarginAbsolutePower_dBm'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.UpperOffsetMarginRelativePower_dB =
-              outputs3['Return Value.UpperOffsetMarginRelativePower_dB'];
+              outputs2['Return Value.UpperOffsetMarginRelativePower_dB'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMeasurementStatus =
-              outputs3['Return Value.lowerOffsetMeasurementStatus'];
+              outputs2['Return Value.lowerOffsetMeasurementStatus'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMargin_dB =
-              outputs3['Return Value.LowerOffsetMargin_dB'];
+              outputs2['Return Value.LowerOffsetMargin_dB'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMarginFrequency_Hz =
-              outputs3['Return Value.LowerOffsetMarginFrequency_Hz'];
+              outputs2['Return Value.LowerOffsetMarginFrequency_Hz'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMarginAbsolutePower_dBm =
-              outputs3['Return Value.LowerOffsetMarginAbsolutePower_dBm'];
+              outputs2['Return Value.LowerOffsetMarginAbsolutePower_dBm'];
           currentSweepStep.Results.RFmxWLAN_SEM_Results.LowerOffsetMarginRelativePower_dB =
-              outputs3['Return Value.LowerOffsetMarginRelativePower_dB'];
+              outputs2['Return Value.LowerOffsetMarginRelativePower_dB'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.SEMMeasurementStatus =
               currentSweepStep.Results.RFmxWLAN_SEM_Results.measurementStatus; // Map Results
@@ -697,7 +705,7 @@ Future<void> measure() async {
               'resultName': '',
             },
           ); // WLAN Initiate ModAcc
-          final outputs4 = await ts.callDotNet(
+          final outputs3 = await ts.callDotNet(
             '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll',
             'NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.FetchOFDMModAcc',
             inputs: {
@@ -706,13 +714,13 @@ Future<void> measure() async {
             },
           ); // WLAN Fetch OFDM ModAcc
           currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositeRMSEVMMean_dB =
-              outputs4['Return Value.CompositeRMSEVMMean_dB'];
+              outputs3['Return Value.CompositeRMSEVMMean_dB'];
           currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositeDataRMSEVMMean_dB =
-              outputs4['Return Value.CompositeDataRMSEVMMean_dB'];
+              outputs3['Return Value.CompositeDataRMSEVMMean_dB'];
           currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositePilotRMSEVMMean_dB =
-              outputs4['Return Value.CompositePilotRMSEVMMean_dB'];
+              outputs3['Return Value.CompositePilotRMSEVMMean_dB'];
           currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.NumberOfSymbolsUsed =
-              outputs4['Return Value.NumberOfSymbolsUsed'];
+              outputs3['Return Value.NumberOfSymbolsUsed'];
           // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
           currentSweepStep.Input_and_Output.MEAS.RMS_EVM_Average_dB =
               currentSweepStep.Results.WLAN_OFDM_ModAcc_Results.CompositeRMSEVMMean_dB; // Map Results

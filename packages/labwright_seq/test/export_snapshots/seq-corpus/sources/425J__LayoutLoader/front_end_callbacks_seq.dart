@@ -38,44 +38,40 @@ class _RestartLocals {
 /// Sequence `Restart`.
 Future<void> restart() async {
   final locals = _RestartLocals();
-  final dynamic messageResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic messageResult = ts.StepResult({'ButtonHit': 0, 'Response': ''});
 
   endMain:
   {
     if (ts.cond(
       '#NoValidation(FindFile(RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\\\\CurrentUIConfigFilePath.log"))',
     )) {
-      final outputs = await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-        'System.IO.File.ReadAllText',
-        inputs: {
-          'path': ts.eval(
-            '#NoValidation(RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\\\\CurrentUIConfigFilePath.log")',
-          ),
-        },
-      ); // Get Current UI Config Path
-      locals.currentUiConfigFilePath = outputs['Return Value'] as String;
+      locals.currentUiConfigFilePath =
+          await ts
+                  .callDotNet(
+                    'mscorlib',
+                    'System.IO.File.ReadAllText',
+                    inputs: {
+                      'path': ts.eval(
+                        '#NoValidation(RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\\\\CurrentUIConfigFilePath.log")',
+                      ),
+                    },
+                  )
+                  .returnValue
+              as String; // Get Current UI Config Path
     }
     if (ts.cond('RunState.Engine.CurrentUser.AsPropertyObject.Attributes.Exists("UIConfig" , PropOption_NoOptions)')) {
-      final outputs2 = await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-        'System.Environment.ExpandEnvironmentVariables',
-        inputs: {'name': ts.eval('Str(RunState.Engine.CurrentUser.AsPropertyObject.Attributes.UIConfig)')},
-      ); // Get New UI Config Path
-      locals.newUiConfigPath = outputs2['Return Value'] as String;
-      final outputs3 = await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-        'System.IO.File.Exists',
-        inputs: {'path': locals.newUiConfigPath},
-      ); // UI Config File Exists?
-      locals.newUiConfigExists = outputs3['Return Value'] as bool;
+      locals.newUiConfigPath =
+          await ts
+                  .callDotNet(
+                    'mscorlib',
+                    'System.Environment.ExpandEnvironmentVariables',
+                    inputs: {'name': ts.eval('Str(RunState.Engine.CurrentUser.AsPropertyObject.Attributes.UIConfig)')},
+                  )
+                  .returnValue
+              as String; // Get New UI Config Path
+      locals.newUiConfigExists =
+          await ts.callDotNet('mscorlib', 'System.IO.File.Exists', inputs: {'path': locals.newUiConfigPath}).returnValue
+              as bool; // UI Config File Exists?
       if (!locals.newUiConfigExists) {
         break endMain;
       }

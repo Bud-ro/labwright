@@ -59,12 +59,7 @@ Future<ts.Status> createSfTemplates({
 
   final locals = _CreateSfTemplatesLocals();
   final run = ts.SequenceRun();
-  dynamic setDefaultParametersResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  dynamic setDefaultParametersResult = ts.StepResult();
 
   try {
     ts.eval(
@@ -95,12 +90,7 @@ Future<ts.Status> createSfTemplates({
       loop.index = 0;
       while (loop.index <
           (locals.tmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject.GetNumSubProperties('') as num)) {
-        setDefaultParametersResult = ts.PropObj({
-          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-          'Status': '',
-          'ReportText': '',
-          'Common': ts.PropObj(),
-        });
+        setDefaultParametersResult = ts.StepResult();
         ts.eval('#NoValidation'); // Set Default Parameters
         ts.eval(
           '\n\'Set default flag for parameters\nLocals.TmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject.GetNthSubProperty("", RunState.LoopIndex, PropOption_NoOptions).UseDef = True',

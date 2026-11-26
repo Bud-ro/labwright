@@ -4,12 +4,7 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic errorResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic errorResult = ts.StepResult();
 
   // forced to pass: Pass
   run.record(ts.Status.failed); // Fail

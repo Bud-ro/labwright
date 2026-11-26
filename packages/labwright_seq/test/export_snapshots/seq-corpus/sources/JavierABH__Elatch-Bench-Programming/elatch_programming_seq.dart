@@ -74,13 +74,7 @@ Future<void> preUut({
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic uutNotForThisProcessResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic uutNotForThisProcessResult = ts.StepResult({'PassFail': false});
 
   body:
   try {

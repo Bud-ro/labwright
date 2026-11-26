@@ -25,12 +25,9 @@ Future<void> convert() async {
       break body;
     }
     // It is assumed that xml report stylesheet path is present in the first line of the report.
-    final outputs = await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-      'System.IO.File.ReadAllLines',
-      inputs: {'path': locals.xmlFilePath},
-    ); // Get XSL file path from XML
-    locals.xmlFileContent = outputs['Return Value'] as List<dynamic>;
+    locals.xmlFileContent =
+        await ts.callDotNet('mscorlib', 'System.IO.File.ReadAllLines', inputs: {'path': locals.xmlFilePath}).returnValue
+            as List<dynamic>; // Get XSL file path from XML
     ts.eval(
       '#NoValidation,\nGetNumElements(Locals.XmlFileContent) != 0 ? (\n   Locals.XslFilePath =\n   \' Mid(inputString, startIndex, numberOfCharacters)\n   Mid(\n      \' <inputString>\n      Locals.XmlFileContent[0],\n\n      \' <startIndex>\n      \' Find the beginning of the path by searching for the "xml-stylesheet"\n      \' tag and offset the found index by the tag length\n      Find(\n         Locals.XmlFileContent[0],\n         Locals.Tags.Front\n      ) \' Beginning of the path index\n      + Len(Locals.Tags.Front), \' Tag lenght\n\n      \' <numberOfCharacters>\n      \' From the whole string lenght ...\n      Len(Locals.XmlFileContent[0]) \n      - \' ... subtract the length of the string before the path and ...\n      (\n         Find(\n            Locals.XmlFileContent[0],\n            Locals.Tags.Front\n         ) \' Beginning of the path index\n         + Len(Locals.Tags.Front) \' Tag lenght\n      )\n      - \' ... subtract the length of the string after the path.\n      (\n         Len(Locals.XmlFileContent[0])\n         \' Find the end of the path by searching for the closing tag\n         - Find(\n              Locals.XmlFileContent[0],\n              Locals.Tags.Back,\n              \' Begin searching for the closing tag from the first index of the found path\n              Find(\n                 Locals.XmlFileContent[0],\n                 Locals.Tags.Front\n              ) \' Beginning of the path index\n              + Len(Locals.Tags.Front) \' Tag lenght\n           )\n      )\n   )\n) : Nothing',
     );
@@ -44,12 +41,9 @@ Future<void> convert() async {
       'IXMLDOMDocument3.async',
       inputs: {'newValue': false},
     ); // Disable asynchronous XML file loading
-    final outputs2 = await ts.callActiveX(
-      locals.xml,
-      'IXMLDOMDocument3.load',
-      inputs: {'xmlSource': locals.xmlFilePath},
-    ); // Load XML file
-    locals.success = outputs2['Return Value'] as bool;
+    locals.success =
+        await ts.callActiveX(locals.xml, 'IXMLDOMDocument3.load', inputs: {'xmlSource': locals.xmlFilePath}).returnValue
+            as bool; // Load XML file
     if (!locals.success) {
       break body;
     }
@@ -69,23 +63,19 @@ Future<void> convert() async {
       'IXMLDOMDocument3.resolveExternals',
       inputs: {'newValue': true},
     ); // Enable external files loading
-    final outputs3 = await ts.callActiveX(
-      locals.xsl,
-      'IXMLDOMDocument3.load',
-      inputs: {'xmlSource': locals.xslFilePath},
-    ); // Load XSL
-    locals.success = outputs3['Return Value'] as bool;
+    locals.success =
+        await ts.callActiveX(locals.xsl, 'IXMLDOMDocument3.load', inputs: {'xmlSource': locals.xslFilePath}).returnValue
+            as bool; // Load XSL
     if (!locals.success) {
       break body;
     }
-    final outputs4 = await ts.callActiveX(
-      locals.xml,
-      'IXMLDOMDocument3.transformNode',
-      inputs: {'stylesheet': locals.xsl},
-    ); // Transform
-    locals.htmlFileContent = outputs4['Return Value'] as String;
+    locals.htmlFileContent =
+        await ts
+                .callActiveX(locals.xml, 'IXMLDOMDocument3.transformNode', inputs: {'stylesheet': locals.xsl})
+                .returnValue
+            as String; // Transform
     await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'mscorlib',
       'System.IO.File.WriteAllText',
       inputs: {'path': locals.htmlFilePath, 'contents': locals.htmlFileContent},
     ); // Save HTML file

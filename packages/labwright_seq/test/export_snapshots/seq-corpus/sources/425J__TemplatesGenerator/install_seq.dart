@@ -3,14 +3,7 @@ import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
-  final dynamic promptResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic promptResult = ts.StepResult({'ButtonHit': 0, 'Response': ''});
 
   endMain:
   {
@@ -53,28 +46,28 @@ Future<void> install() async {
   locals.toolSetupDir = '${locals.testStandPublic}\\Setup';
   locals.toolMenusToInstallDir = '${locals.toolSetupDir}\\ToolMenusToInstall';
   await ts.callDotNet(
-    'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+    'mscorlib',
     'System.IO.Directory.CreateDirectory',
     inputs: {'path': locals.toolsDir},
   ); // Create Tools Directory
   await ts.callDotNet(
-    'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+    'mscorlib',
     'System.IO.File.Copy',
     inputs: {'sourceFileName': locals.source.Tool, 'destFileName': locals.target.Tool, 'overwrite': true},
   ); // Copy Tool
   ts.eval('OutputMessage("Tool copied: " + Locals.Source.Tool + " » " + Locals.Target.Tool)');
   await ts.callDotNet(
-    'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+    'mscorlib',
     'System.IO.Directory.CreateDirectory',
     inputs: {'path': locals.toolSetupDir},
   ); // Create Setup Directory
   await ts.callDotNet(
-    'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+    'mscorlib',
     'System.IO.Directory.CreateDirectory',
     inputs: {'path': locals.toolMenusToInstallDir},
   ); // Create ToolMenusToInstall Directory
   await ts.callDotNet(
-    'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+    'mscorlib',
     'System.IO.File.Copy',
     inputs: {'sourceFileName': locals.source.ExportFile, 'destFileName': locals.target.ExportFile, 'overwrite': true},
   ); // Copy Tool.ini

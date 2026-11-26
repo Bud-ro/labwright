@@ -19,12 +19,7 @@ class _OutputToStreamLocals {
 Future<ts.Status> outputToStream() async {
   final locals = _OutputToStreamLocals();
   final run = ts.SequenceRun();
-  dynamic writeOutputMessageResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  dynamic writeOutputMessageResult = ts.StepResult();
 
   // Sequence Editor Report view uses Resource Strings stored in: | C:\Program Files (x86)\National Instruments\TestStand 2020\Components\Language\English\EngineStrings.ini | These entries can be used to change the text displayed by default: | [EXECUTION_OUTPUT_RECORD_STREAM] | HEADER_STREAM_NAME = "Stream Name: " | FOOTER_RECORDS_TO_DISPLAY = "Records to Display: " | FOOTER_RECORDS_WRITTEN = "Total Records Written: " | FOOTER_ALL_RECORDS = "All" | [CSV_FILE_OUTPUT_RECORD_STREAM] | DESCRIPTION = "CSV File Output Record Stream"
   // Note about Resource Strings used in the report view to display a stream
@@ -45,12 +40,7 @@ Future<ts.Status> outputToStream() async {
   final loop = ts.StepLoop();
   loop.index = 0;
   while (loop.index < 10) {
-    writeOutputMessageResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
+    writeOutputMessageResult = ts.StepResult();
     locals.values.Message = ts.str(loop.index, 'Example message %d'); // Write output message
     ts.eval('\nLocals.Values.TimeStamp = Date() + " " + Time()');
     locals.values.Category = 'Uncategorized';

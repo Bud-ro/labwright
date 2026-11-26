@@ -3,14 +3,7 @@ import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `SequenceFileLoad`.
 Future<void> sequenceFileLoad() async {
-  final dynamic promptResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ButtonHit': 0,
-    'Response': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic promptResult = ts.StepResult({'ButtonHit': 0, 'Response': ''});
 
   endMain:
   {
@@ -56,7 +49,7 @@ Future<ts.Status> install() async {
   ); // Copy SeqEdit
   ts.eval('OutputMessage("SeqEdit configuration copied: " + Locals.Source.SeqEdit + " » " + Locals.Target.SeqEditDir)');
   await ts.callDotNet(
-    'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+    'mscorlib',
     'System.IO.File.Copy',
     inputs: {'sourceFileName': locals.source.Users, 'destFileName': locals.target.UsersDir, 'overwrite': true},
   ); // Copy Users
@@ -86,18 +79,12 @@ Future<ts.Status> copy({String sourceDirectoryPath = '', String targetDirectoryP
   final run = ts.SequenceRun();
 
   try {
-    final outputs = await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-      'System.IO.DirectoryInfo.DirectoryInfo',
-      inputs: {'path': sourceDirectoryPath},
-    ); // Get Source DirectoryInfo
-    locals.diSourceDirectory = outputs['Return Value'];
-    final outputs2 = await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-      'System.IO.DirectoryInfo.DirectoryInfo',
-      inputs: {'path': targetDirectoryPath},
-    ); // Get Target DirectoryInfo
-    locals.diTargetDirectory = outputs2['Return Value'];
+    locals.diSourceDirectory = await ts
+        .callDotNet('mscorlib', 'System.IO.DirectoryInfo.DirectoryInfo', inputs: {'path': sourceDirectoryPath})
+        .returnValue; // Get Source DirectoryInfo
+    locals.diTargetDirectory = await ts
+        .callDotNet('mscorlib', 'System.IO.DirectoryInfo.DirectoryInfo', inputs: {'path': targetDirectoryPath})
+        .returnValue; // Get Target DirectoryInfo
     run.record(await copyAll()); // CopyAll
   } finally {
     locals.diSourceDirectory = null; // Release
@@ -125,101 +112,81 @@ Future<ts.Status> copyAll({dynamic diSourceDirectory, dynamic diTargetDirectory}
 
   final locals = _CopyAllLocals();
   final run = ts.SequenceRun();
-  dynamic releaseFiSourceFilesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  dynamic releaseDiSourceSubdirectoriesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  dynamic releaseFiSourceFilesResult = ts.StepResult();
+  dynamic releaseDiSourceSubdirectoriesResult = ts.StepResult();
 
   try {
     await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'mscorlib',
       'System.IO.DirectoryInfo.Use Existing Object',
       inputs: {'Existing Object': diTargetDirectory},
     ); // Get Target FullName
-    final outputs = await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-      'System.IO.DirectoryInfo.FullName',
-    ); // Get Target FullName
-    locals.targetFullName = outputs['Return Value'] as String;
+    locals.targetFullName =
+        await ts.callDotNet('mscorlib', 'System.IO.DirectoryInfo.FullName').returnValue
+            as String; // Get Target FullName
     await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'mscorlib',
       'System.IO.Directory.CreateDirectory',
       inputs: {'path': locals.targetFullName},
     ); // Create Target Directory
     await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'mscorlib',
       'System.IO.DirectoryInfo.Use Existing Object',
       inputs: {'Existing Object': diSourceDirectory},
     ); // Get Source Files
-    final outputs2 = await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-      'System.IO.DirectoryInfo.GetFiles',
-    ); // Get Source Files
-    locals.fiSourceFiles = outputs2['Return Value'] as List<dynamic>;
+    locals.fiSourceFiles =
+        await ts.callDotNet('mscorlib', 'System.IO.DirectoryInfo.GetFiles').returnValue
+            as List<dynamic>; // Get Source Files
     for (final element in ts.iterate(locals.fiSourceFiles)) {
       locals.fiSourceFile = element;
       await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'mscorlib',
         'System.IO.FileInfo.Use Existing Object',
         inputs: {'Existing Object': locals.fiSourceFile},
       ); // Get File Name
-      final outputs3 = await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-        'System.IO.FileInfo.Name',
-      ); // Get File Name
-      locals.fileName = outputs3['Return Value'] as String;
+      locals.fileName =
+          await ts.callDotNet('mscorlib', 'System.IO.FileInfo.Name').returnValue as String; // Get File Name
       await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'mscorlib',
         'System.IO.FileInfo.Use Existing Object',
         inputs: {'Existing Object': locals.fiSourceFile},
       ); // Copy File
       await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'mscorlib',
         'System.IO.FileInfo.CopyTo',
         inputs: {'destFileName': '${locals.targetFullName}\\${locals.fileName}', 'overwrite': true},
       ); // Copy File
     }
     await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+      'mscorlib',
       'System.IO.DirectoryInfo.Use Existing Object',
       inputs: {'Existing Object': diSourceDirectory},
     ); // Get Source Subdirectories
-    final outputs4 = await ts.callDotNet(
-      'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-      'System.IO.DirectoryInfo.GetDirectories',
-    ); // Get Source Subdirectories
-    locals.diSourceSubdirectories = outputs4['Return Value'] as List<dynamic>;
+    locals.diSourceSubdirectories =
+        await ts.callDotNet('mscorlib', 'System.IO.DirectoryInfo.GetDirectories').returnValue
+            as List<dynamic>; // Get Source Subdirectories
     for (final element2 in ts.iterate(locals.diSourceSubdirectories)) {
       locals.diSourceSubdirectory = element2;
       await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'mscorlib',
         'System.IO.DirectoryInfo.Use Existing Object',
         inputs: {'Existing Object': locals.diSourceSubdirectory},
       ); // Get Subdirectory Name
-      final outputs5 = await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-        'System.IO.DirectoryInfo.Name',
-      ); // Get Subdirectory Name
-      locals.subdirectoryName = outputs5['Return Value'] as String;
+      locals.subdirectoryName =
+          await ts.callDotNet('mscorlib', 'System.IO.DirectoryInfo.Name').returnValue
+              as String; // Get Subdirectory Name
       await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'mscorlib',
         'System.IO.DirectoryInfo.Use Existing Object',
         inputs: {'Existing Object': diTargetDirectory},
       ); // Create Subdirectory
-      final outputs6 = await ts.callDotNet(
-        'mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-        'System.IO.DirectoryInfo.CreateSubdirectory',
-        inputs: {'path': locals.subdirectoryName},
-      ); // Create Subdirectory
-      locals.diTargetSubdirectory = outputs6['Return Value'];
+      locals.diTargetSubdirectory = await ts
+          .callDotNet(
+            'mscorlib',
+            'System.IO.DirectoryInfo.CreateSubdirectory',
+            inputs: {'path': locals.subdirectoryName},
+          )
+          .returnValue; // Create Subdirectory
       run.record(
         await copyAll(diSourceDirectory: locals.diSourceSubdirectory, diTargetDirectory: locals.diTargetSubdirectory),
       ); // CopyAll
@@ -229,12 +196,7 @@ Future<ts.Status> copyAll({dynamic diSourceDirectory, dynamic diTargetDirectory}
     final loop = ts.StepLoop();
     loop.index = 0;
     while (loop.index < ts.getNumElements(locals.fiSourceFiles)) {
-      releaseFiSourceFilesResult = ts.PropObj({
-        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-        'Status': '',
-        'ReportText': '',
-        'Common': ts.PropObj(),
-      });
+      releaseFiSourceFilesResult = ts.StepResult();
       locals.fiSourceFiles[loop.index.toInt()] = null; // Release fiSourceFiles
       releaseFiSourceFilesResult.Status = ts.Status.done;
       loop.count(releaseFiSourceFilesResult.Status);
@@ -245,12 +207,7 @@ Future<ts.Status> copyAll({dynamic diSourceDirectory, dynamic diTargetDirectory}
     final loop2 = ts.StepLoop();
     loop2.index = 0;
     while (loop2.index < ts.getNumElements(locals.diSourceSubdirectories)) {
-      releaseDiSourceSubdirectoriesResult = ts.PropObj({
-        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-        'Status': '',
-        'ReportText': '',
-        'Common': ts.PropObj(),
-      });
+      releaseDiSourceSubdirectoriesResult = ts.StepResult();
       locals.diSourceSubdirectories[loop2.index.toInt()] = null; // Release diSourceSubdirectories
       releaseDiSourceSubdirectoriesResult.Status = ts.Status.done;
       loop2.count(releaseDiSourceSubdirectoriesResult.Status);

@@ -17,21 +17,9 @@ dynamic veristand = ts.PropObj({
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic rtSequenceNumericLimitTestResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Numeric': 0,
-    'Units': '',
-  });
-  final dynamic rtSequencePassFailTestResult = ts.PropObj({
+  final dynamic rtSequenceNumericLimitTestResult = ts.StepResult({'Numeric': 0});
+  final dynamic rtSequencePassFailTestResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': 0}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
 
   await ts.stepType('RunRTSequenceAction_2', {

@@ -36,41 +36,24 @@ class _SequenceFileDocLocals {
 Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
   final locals = _SequenceFileDocLocals();
   final run = ts.SequenceRun();
-  dynamic updateTotalNumStepsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  dynamic forEachSequenceResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic saveDocToFileResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  dynamic updateTotalNumStepsResult = ts.StepResult();
+  dynamic forEachSequenceResult = ts.StepResult();
+  final dynamic saveDocToFileResult = ts.StepResult({'PassFail': true});
 
-  final outputs = await ts.callActiveX(sequenceFile, 'PropertyObjectFile.Locked'); // GetLocked?
-  locked = outputs['Return Value'] as bool;
-  final outputs2 = await ts.callActiveX(sequenceFile, 'PropertyObjectFile.Protection'); // GetProtection?
-  protection = outputs2['Return Value'] as double;
+  locked = await ts.callActiveX(sequenceFile, 'PropertyObjectFile.Locked').returnValue as bool; // GetLocked?
+  protection =
+      await ts.callActiveX(sequenceFile, 'PropertyObjectFile.Protection').returnValue as double; // GetProtection?
 
   skipToEndStationGlobals:
   {
     skipToEndSeqFileGlobals:
     {
-      final outputs3 = await ts.callDll(
+      final outputs = await ts.callDll(
         '\$(Platform)\\DocSupport.dll',
         'GetCharsetHTMLMetaString',
         inputs: {'resultBuf': locals.charsetMetaTag},
       ); // GetCharsetMetaTag
-      locals.charsetMetaTag = outputs3['resultBuf'] as String;
+      locals.charsetMetaTag = outputs['resultBuf'] as String;
       locals.docResult +=
           '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN"><HTML><HEAD> ${locals.charsetMetaTag} <TITLE>${ts.resourceString('SEQ_FILE_DOC', 'DOC_TITLE')}</TITLE></HEAD><BODY><FONT FACE = "VERDANA">'; // Begin HTML
       locals.docResult +=
@@ -118,12 +101,7 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
       final loop = ts.StepLoop();
       loop.index = 0;
       while (loop.index < ts.getNumElements(sequenceFile.Data.Seq)) {
-        updateTotalNumStepsResult = ts.PropObj({
-          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-          'Status': '',
-          'ReportText': '',
-          'Common': ts.PropObj(),
-        });
+        updateTotalNumStepsResult = ts.StepResult();
         locals.totalNumSteps +=
             ts.getNumElements(sequenceFile.Data.Seq[loop.index.toInt()].Main) +
             ts.getNumElements(sequenceFile.Data.Seq[loop.index.toInt()].Setup) +
@@ -149,12 +127,15 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
       if (docOptions.ShowFileGlobals == false) {
         break skipToEndSeqFileGlobals;
       }
-      final outputs4 = await ts.callActiveX(
-        sequenceFile.Data.FileGlobalDefaults,
-        'PropertyObject.GetNumSubProperties',
-        inputs: {'lookupString': ''},
-      ); // GetNumSubProperties
-      locals.tmpNum = outputs4['Return Value'] as int;
+      locals.tmpNum =
+          await ts
+                  .callActiveX(
+                    sequenceFile.Data.FileGlobalDefaults,
+                    'PropertyObject.GetNumSubProperties',
+                    inputs: {'lookupString': ''},
+                  )
+                  .returnValue
+              as int; // GetNumSubProperties
       if (locals.tmpNum > 0) {
         await ts.callDll(
           '\$(Platform)\\DocSupport.dll',
@@ -178,12 +159,15 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
     if (docOptions.ShowStationGlobals == false) {
       break skipToEndStationGlobals;
     }
-    final outputs5 = await ts.callActiveX(
-      ts.eval('StationGlobals'),
-      'PropertyObject.GetNumSubProperties',
-      inputs: {'lookupString': ''},
-    ); // GetNumSubProperties
-    locals.tmpNum = outputs5['Return Value'] as int;
+    locals.tmpNum =
+        await ts
+                .callActiveX(
+                  ts.eval('StationGlobals'),
+                  'PropertyObject.GetNumSubProperties',
+                  inputs: {'lookupString': ''},
+                )
+                .returnValue
+            as int; // GetNumSubProperties
     if (locals.tmpNum > 0) {
       await ts.callDll(
         '\$(Platform)\\DocSupport.dll',
@@ -207,12 +191,7 @@ Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) as
   final loop2 = ts.StepLoop();
   loop2.index = 0;
   while (loop2.index < ts.getNumElements(sequenceFile.Data.Seq)) {
-    forEachSequenceResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
+    forEachSequenceResult = ts.StepResult();
     forEachSequenceResult.Status = await sequenceDoc(); // For Each Sequence
     loop2.count(forEachSequenceResult.Status);
     loop2.index += 1;
@@ -253,24 +232,9 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
   final docResultRef = docResult ?? ts.Ref<String>('');
   final locals = _SequenceDocLocals();
   final run = ts.SequenceRun();
-  dynamic forEachSetupStepResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  dynamic forEachMainStepResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  dynamic forEachCleanupStepResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  dynamic forEachSetupStepResult = ts.StepResult();
+  dynamic forEachMainStepResult = ts.StepResult();
+  dynamic forEachCleanupStepResult = ts.StepResult();
 
   skipToEndLocals:
   {
@@ -312,12 +276,11 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
       if (docOptions.ShowParameters == false) {
         break skipToEndParameters;
       }
-      final outputs = await ts.callActiveX(
-        sequence.Parameters,
-        'PropertyObject.GetNumSubProperties',
-        inputs: {'lookupString': ''},
-      ); // GetNumSubProperties
-      locals.tmpNum = outputs['Return Value'] as int;
+      locals.tmpNum =
+          await ts
+                  .callActiveX(sequence.Parameters, 'PropertyObject.GetNumSubProperties', inputs: {'lookupString': ''})
+                  .returnValue
+              as int; // GetNumSubProperties
       if (locals.tmpNum > 0) {
         await ts.callDll(
           '\$(Platform)\\DocSupport.dll',
@@ -346,12 +309,11 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
     if (docOptions.ShowLocals == false) {
       break skipToEndLocals;
     }
-    final outputs2 = await ts.callActiveX(
-      sequence.Locals,
-      'PropertyObject.GetNumSubProperties',
-      inputs: {'lookupString': ''},
-    ); // GetNumSubProperties
-    locals.tmpNum = outputs2['Return Value'] as int;
+    locals.tmpNum =
+        await ts
+                .callActiveX(sequence.Locals, 'PropertyObject.GetNumSubProperties', inputs: {'lookupString': ''})
+                .returnValue
+            as int; // GetNumSubProperties
     if (locals.tmpNum > 0) {
       await ts.callDll(
         '\$(Platform)\\DocSupport.dll',
@@ -398,12 +360,7 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
   final loop = ts.StepLoop();
   loop.index = 0;
   while (loop.index < ts.getNumElements(sequence.Setup)) {
-    forEachSetupStepResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
+    forEachSetupStepResult = ts.StepResult();
     final docResultRef3 = ts.Ref<String>(docResultRef.value);
     final stepsSoFarRef = ts.Ref<int>(locals.stepsSoFar);
     final previousBlockLevelRef = ts.Ref<int>(locals.previousBlockLevel);
@@ -429,12 +386,7 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
   final loop2 = ts.StepLoop();
   loop2.index = 0;
   while (loop2.index < ts.getNumElements(sequence.Main)) {
-    forEachMainStepResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
+    forEachMainStepResult = ts.StepResult();
     final docResultRef4 = ts.Ref<String>(docResultRef.value);
     final stepsSoFarRef2 = ts.Ref<int>(locals.stepsSoFar);
     final previousBlockLevelRef2 = ts.Ref<int>(locals.previousBlockLevel);
@@ -460,12 +412,7 @@ Future<ts.Status> sequenceDoc({dynamic sequence, ts.Ref<String>? docResult, dyna
   final loop3 = ts.StepLoop();
   loop3.index = 0;
   while (loop3.index < ts.getNumElements(sequence.Cleanup)) {
-    forEachCleanupStepResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
+    forEachCleanupStepResult = ts.StepResult();
     final docResultRef5 = ts.Ref<String>(docResultRef.value);
     final stepsSoFarRef3 = ts.Ref<int>(locals.stepsSoFar);
     final previousBlockLevelRef3 = ts.Ref<int>(locals.previousBlockLevel);
@@ -513,18 +460,11 @@ Future<ts.Status> stepDoc({
   final previousBlockLevelRef = previousBlockLevel ?? ts.Ref<int>(0);
   final locals = _StepDocLocals();
   final run = ts.SequenceRun();
-  final dynamic getStepTypeNameResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic getStepTypeNameResult = ts.StepResult({'PassFail': true});
 
   skipToBeginOfMultipleLimits:
   {
-    final outputs = await ts.callActiveX(step, 'Step.BlockLevel'); // Get Block Level
-    locals.blockLevel = outputs['Return Value'] as int;
+    locals.blockLevel = await ts.callActiveX(step, 'Step.BlockLevel').returnValue as int; // Get Block Level
     if (locals.blockLevel > previousBlockLevelRef.value) {
       docResultRef.value += '<BLOCKQUOTE>'; // Indent For Block
     }
@@ -541,16 +481,15 @@ Future<ts.Status> stepDoc({
     ts.eval(
       'Parameters.DocResult += "<BLOCKQUOTE>" + Locals.TableHTML + Locals.RowHTML + Locals.TitleColHTML +\n	"<FONT COLOR=WHITE SIZE=+2><B>" +\n	GetResourceString("SEQ_FILE_DOC", "DOC_STEP_NAME") +\n	NameOf(Parameters.Step) + "</B></FONT>\\n"\n',
     ); // Step Header
-    final outputs2 = await ts.callDll(
+    final outputs = await ts.callDll(
       '\$(Platform)\\DocSupport.dll',
       'GetStepTypeName',
       inputs: {'step': step, 'stringObjToStoreResult': locals.stepTypeName, 'isNIStepType': locals.isNiStepType},
     ); // Get StepType Name
-    locals.isNiStepType = outputs2['isNIStepType'] as bool;
+    locals.isNiStepType = outputs['isNIStepType'] as bool;
     getStepTypeNameResult.Status = ts.truthy(getStepTypeNameResult.PassFail) ? 'Passed' : 'Failed';
     run.record(getStepTypeNameResult.Status);
-    final outputs3 = await ts.callActiveX(step, 'Step.AdapterKeyName'); // GetStepKeyName
-    locals.stepKeyName = outputs3['Return Value'] as String;
+    locals.stepKeyName = await ts.callActiveX(step, 'Step.AdapterKeyName').returnValue as String; // GetStepKeyName
     locals.tmpString = ts.resourceString('Adapter Names', locals.stepKeyName); // Process Adapter Name
     ts.eval('\nFindAndReplace(Locals.tmpString, "<", "&lt;")');
     ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")');
@@ -558,12 +497,11 @@ Future<ts.Status> stepDoc({
     ts.eval(
       'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\nStr(ResStr("SEQ_FILE_DOC", "DOC_STEP_TYPE_AND_ADAPTER"), "%-30s") +\nLocals.ValColHTML +\nResStr("STEPTYPE_NAMES", Locals.StepTypeName, Locals.StepTypeName) + \n", " + Locals.tmpString + "\\n"\n',
     ); // Step Type, Adapter Name
-    final outputs4 = await ts.callActiveX(
-      step,
-      'Step.GetDescriptionEx',
-      inputs: {'options': ts.eval('1 \' long description')},
-    ); // Get Step Desc
-    locals.tmpString = outputs4['Return Value'] as String;
+    locals.tmpString =
+        await ts
+                .callActiveX(step, 'Step.GetDescriptionEx', inputs: {'options': ts.eval('1 \' long description')})
+                .returnValue
+            as String; // Get Step Desc
     ts.eval('FindAndReplace(Locals.tmpString, "<", "&lt;")'); // Process Desc
     ts.eval('\nFindAndReplace(Locals.tmpString, ">", "&gt;")');
     ts.eval('\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")');
@@ -629,12 +567,15 @@ Future<ts.Status> stepDoc({
   )) {
     await writeMultipleNumericLimitLimits(); // Add Multiple Numeric Limits
   }
-  final outputs5 = await ts.callActiveX(
-    step,
-    'Step.GetExecutionFlowString',
-    inputs: {'options': ts.eval('0x1 \' StepDescOption_Long')},
-  ); // Get Execution Flow
-  locals.execFlow = outputs5['Return Value'] as String;
+  locals.execFlow =
+      await ts
+              .callActiveX(
+                step,
+                'Step.GetExecutionFlowString',
+                inputs: {'options': ts.eval('0x1 \' StepDescOption_Long')},
+              )
+              .returnValue
+          as String; // Get Execution Flow
   if (locals.execFlow != '') {
     docResultRef.value +=
         '${locals.rowHtml + locals.propColHtml + ts.str(ts.resourceString('SEQ_FILE_DOC', 'DOC_STEP_EXEC_FLOW'), '%-30s') + locals.valColHtml}<XMP>${locals.execFlow}</XMP>\n'; // Execution Flow
@@ -665,32 +606,37 @@ Future<void> writeSubproperties({
 
   endMain:
   {
-    final outputs = await ts.callActiveX(
-      root,
-      'PropertyObject.GetNumSubProperties',
-      inputs: {'lookupString': parentPropLookupStr},
-    ); // GetNumSubProperties
-    locals.numSubproperties = outputs['Return Value'] as int;
+    locals.numSubproperties =
+        await ts
+                .callActiveX(root, 'PropertyObject.GetNumSubProperties', inputs: {'lookupString': parentPropLookupStr})
+                .returnValue
+            as int; // GetNumSubProperties
     backToGotoEndWhenDone:
     while (true) {
       if (locals.i == locals.numSubproperties) {
         break endMain;
       }
-      final outputs2 = await ts.callActiveX(
-        root,
-        'PropertyObject.GetNthSubPropertyName',
-        inputs: {'lookupString': parentPropLookupStr, 'index': locals.i, 'options': 0},
-      ); // GetSubPropName
-      locals.subpropName = outputs2['Return Value'] as String;
+      locals.subpropName =
+          await ts
+                  .callActiveX(
+                    root,
+                    'PropertyObject.GetNthSubPropertyName',
+                    inputs: {'lookupString': parentPropLookupStr, 'index': locals.i, 'options': 0},
+                  )
+                  .returnValue
+              as String; // GetSubPropName
       parentPropLookupStr != ''
           ? (locals.subpropLookupStr = '$parentPropLookupStr.${locals.subpropName}')
           : (locals.subpropLookupStr = locals.subpropName); // BuildNewLookupStr
-      final outputs3 = await ts.callActiveX(
-        root,
-        'PropertyObject.GetFlags',
-        inputs: {'lookupString': locals.subpropLookupStr, 'options': 0},
-      ); // GetFlags
-      locals.subpropFlags = outputs3['Return Value'] as int;
+      locals.subpropFlags =
+          await ts
+                  .callActiveX(
+                    root,
+                    'PropertyObject.GetFlags',
+                    inputs: {'lookupString': locals.subpropLookupStr, 'options': 0},
+                  )
+                  .returnValue
+              as int; // GetFlags
       locals.subpropFlags & 8 != 0 ? (locals.isHidden = true) : (locals.isHidden = false); // IsHidden
       if (locals.isHidden == false || ts.truthy(docOptions.ShowHidden)) {
         await writePropertyDetails(); // DisplayProperty
@@ -749,12 +695,15 @@ Future<void> writeArrayElements({
         if (locals.currentOffset == locals.numElements) {
           break endMain;
         }
-        final outputs2 = await ts.callActiveX(
-          root,
-          'PropertyObject.GetArrayIndex',
-          inputs: {'lookupString': arrayPropLookupStr, 'options': 0, 'offset': locals.currentOffset},
-        ); // GetArrayIndexFromOffset
-        locals.currentArrayIndex = outputs2['Return Value'] as String;
+        locals.currentArrayIndex =
+            await ts
+                    .callActiveX(
+                      root,
+                      'PropertyObject.GetArrayIndex',
+                      inputs: {'lookupString': arrayPropLookupStr, 'options': 0, 'offset': locals.currentOffset},
+                    )
+                    .returnValue
+                as String; // GetArrayIndexFromOffset
         await writePropertyDetails(); // DisplayProperty
         await writeSubproperties(); // DisplaySubproperties
         locals.currentOffset += 1; // Inc Loop Var
@@ -790,12 +739,7 @@ Future<void> writePropertyDetails({
 }) async {
   final docResultRef = docResult ?? ts.Ref<String>('');
   final locals = _WritePropertyDetailsLocals();
-  final dynamic tryToEvaluateResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic tryToEvaluateResult = ts.StepResult();
 
   skipToSkipEvaluate:
   {
@@ -845,12 +789,15 @@ Future<void> writePropertyDetails({
   ts.eval('FindAndReplace(Locals.SubpropValue, "<", "&lt;")'); // Process SubpropValue
   ts.eval('\nFindAndReplace(Locals.SubpropValue, ">", "&gt;")');
   ts.eval('\nFindAndReplace(Locals.SubpropValue, "\\n", "<BR>")');
-  final outputs2 = await ts.callActiveX(
-    root,
-    'PropertyObject.GetFlags',
-    inputs: {'lookupString': propertyToDisplayName, 'options': 0},
-  ); // GetFlags
-  locals.subpropFlags = outputs2['Return Value'] as int;
+  locals.subpropFlags =
+      await ts
+              .callActiveX(
+                root,
+                'PropertyObject.GetFlags',
+                inputs: {'lookupString': propertyToDisplayName, 'options': 0},
+              )
+              .returnValue
+          as int; // GetFlags
   locals.subpropFlags & 4 != 0
       ? (locals.byRefStr = ' (${ts.resourceString('SEQUENCING ADAPTER', 'PASS_BYREFERENCE')})')
       : (locals.byRefStr = ''); // IsByRef
@@ -907,20 +854,26 @@ Future<void> writeMultipleNumericLimitLimits({dynamic step, ts.Ref<String>? docR
       if (ts.cond(
         'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low")',
       )) {
-        final outputs2 = await ts.callActiveX(
-          step.Result.Measurement[locals.currentOffset].Limits.Low,
-          'PropertyObject.NumericFormat',
-        ); // Get Low Limit Format
-        locals.lowLimitFmt = outputs2['Return Value'] as String;
+        locals.lowLimitFmt =
+            await ts
+                    .callActiveX(
+                      step.Result.Measurement[locals.currentOffset].Limits.Low,
+                      'PropertyObject.NumericFormat',
+                    )
+                    .returnValue
+                as String; // Get Low Limit Format
       }
       if (ts.cond(
         'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High")',
       )) {
-        final outputs3 = await ts.callActiveX(
-          step.Result.Measurement[locals.currentOffset].Limits.High,
-          'PropertyObject.NumericFormat',
-        ); // Get High Limit Format
-        locals.highLimitFmt = outputs3['Return Value'] as String;
+        locals.highLimitFmt =
+            await ts
+                    .callActiveX(
+                      step.Result.Measurement[locals.currentOffset].Limits.High,
+                      'PropertyObject.NumericFormat',
+                    )
+                    .returnValue
+                as String; // Get High Limit Format
       }
       if (ts.cond(
         '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Comp != "LOG"))',

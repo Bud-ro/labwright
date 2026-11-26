@@ -31,55 +31,47 @@ Future<void> mainSequence() async {
     ts.eval(
       'Locals.AppManagerRef = RunState.Engine.GetInternalOption(InternalOption_ApplicationManager)',
     ); // Get Application Manager Reference
-    final outputs = await ts.callActiveX(
-      locals.appManagerRef,
-      'IApplicationMgr.CommandLineArguments',
-    ); // Get Command Line Args Reference
-    locals.commandLineArgsRef = outputs['Return Value'];
-    final outputs2 = await ts.callActiveX(locals.commandLineArgsRef, 'Strings.Count'); // Get Command Line Args Count
-    locals.commandLineArgsCount = outputs2['Return Value'] as int;
+    locals.commandLineArgsRef = await ts
+        .callActiveX(locals.appManagerRef, 'IApplicationMgr.CommandLineArguments')
+        .returnValue; // Get Command Line Args Reference
+    locals.commandLineArgsCount =
+        await ts.callActiveX(locals.commandLineArgsRef, 'Strings.Count').returnValue
+            as int; // Get Command Line Args Count
     for (locals.i = 0; locals.i < locals.commandLineArgsCount; locals.i += 1) {
-      final outputs3 = await ts.callActiveX(
-        locals.commandLineArgsRef,
-        'Strings.Item',
-        inputs: {'itemIndex': locals.i},
-      ); // Get Command Line Arg
-      locals.commandLineArg = outputs3['Return Value'] as String;
+      locals.commandLineArg =
+          await ts.callActiveX(locals.commandLineArgsRef, 'Strings.Item', inputs: {'itemIndex': locals.i}).returnValue
+              as String; // Get Command Line Arg
       {
         final select1 = locals.commandLineArg;
         var matched1 = false;
         if (!matched1 && select1 == '/pyrunentrypoint') {
           matched1 = true;
-          final outputs4 = await ts.callActiveX(
-            locals.commandLineArgsRef,
-            'Strings.Item',
-            inputs: {'itemIndex': locals.i + 1},
-          ); // Get Command Entry Point Name
-          locals.commandLineEntryPoint = outputs4['Return Value'] as String;
-          final outputs5 = await ts.callActiveX(
-            locals.commandLineArgsRef,
-            'Strings.Item',
-            inputs: {'itemIndex': locals.i + 2},
-          ); // Get Command Line Sequence File Path
-          locals.commandLineSequenceFilePath = outputs5['Return Value'] as String;
+          locals.commandLineEntryPoint =
+              await ts
+                      .callActiveX(locals.commandLineArgsRef, 'Strings.Item', inputs: {'itemIndex': locals.i + 1})
+                      .returnValue
+                  as String; // Get Command Entry Point Name
+          locals.commandLineSequenceFilePath =
+              await ts
+                      .callActiveX(locals.commandLineArgsRef, 'Strings.Item', inputs: {'itemIndex': locals.i + 2})
+                      .returnValue
+                  as String; // Get Command Line Sequence File Path
         }
         if (!matched1 && select1 == '/pyversion') {
           matched1 = true;
-          final outputs6 = await ts.callActiveX(
-            locals.commandLineArgsRef,
-            'Strings.Item',
-            inputs: {'itemIndex': locals.i + 1},
-          ); // Get Command Line Python Version
-          locals.commandLinePythonVersion = outputs6['Return Value'] as String;
+          locals.commandLinePythonVersion =
+              await ts
+                      .callActiveX(locals.commandLineArgsRef, 'Strings.Item', inputs: {'itemIndex': locals.i + 1})
+                      .returnValue
+                  as String; // Get Command Line Python Version
         }
         if (!matched1 && select1 == '/pyenvironment') {
           matched1 = true;
-          final outputs7 = await ts.callActiveX(
-            locals.commandLineArgsRef,
-            'Strings.Item',
-            inputs: {'itemIndex': locals.i + 1},
-          ); // Get Command Line Python Environment Path
-          locals.commandLinePythonEnvironmentPath = outputs7['Return Value'] as String;
+          locals.commandLinePythonEnvironmentPath =
+              await ts
+                      .callActiveX(locals.commandLineArgsRef, 'Strings.Item', inputs: {'itemIndex': locals.i + 1})
+                      .returnValue
+                  as String; // Get Command Line Python Environment Path
         }
       }
     }

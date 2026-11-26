@@ -190,52 +190,57 @@ Future<void> mainSequence() async {
     ); // Initialize Waveform Arrays
     ts.setNumElements(loadedWaveforms, ts.getNumElements(staticStationConfigs.Waveform_Configs));
     // Initialize Instruments
-    final outputs = await ts.callDotNet(
-      '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll',
-      'NationalInstruments.ReferenceDesignLibraries.FocusITuner.FocusITunerBroker.FocusITunerBroker',
-    ); // Init Tuner
-    deviceHandles.iTunerReference = outputs['Return Value'];
+    deviceHandles.iTunerReference = await ts
+        .callDotNet(
+          '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll',
+          'NationalInstruments.ReferenceDesignLibraries.FocusITuner.FocusITunerBroker.FocusITunerBroker',
+        )
+        .returnValue; // Init Tuner
     await ts.callDotNet(
       '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll',
       'NationalInstruments.ReferenceDesignLibraries.FocusITuner.FocusITunerBroker.Initialize',
       inputs: {'ipAddress': staticStationConfigs.Device_Names.Tuner_IP, 'reset': false, 'verifyCommunication': true},
     ); // Init Tuner
-    final outputs2 = await ts.callDotNet(
-      'NationalInstruments.ModularInstruments.NIRfsg.Fx45, Version=19.2.0.49152, Culture=neutral, PublicKeyToken=4febd62461bf11a4',
-      'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg',
-      inputs: {'resourceName': staticStationConfigs.Device_Names.SG_Name, 'idQuery': true, 'reset': false},
-    ); // Init RFSG
-    deviceHandles.RFSG_Session = outputs2['Return Value'];
-    final outputs3 = await ts.callDotNet(
-      'NationalInstruments.RFmx.InstrMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
-      'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX',
-      inputs: {'resourceName': staticStationConfigs.Device_Names.SA_Name, 'optionString': ''},
-    ); // RFmx Initialize
-    deviceHandles.RFmx_Instr_Session = outputs3['Return Value'];
+    deviceHandles.RFSG_Session = await ts
+        .callDotNet(
+          'NationalInstruments.ModularInstruments.NIRfsg.Fx45',
+          'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg',
+          inputs: {'resourceName': staticStationConfigs.Device_Names.SG_Name, 'idQuery': true, 'reset': false},
+        )
+        .returnValue; // Init RFSG
+    deviceHandles.RFmx_Instr_Session = await ts
+        .callDotNet(
+          'NationalInstruments.RFmx.InstrMX.Fx40',
+          'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX',
+          inputs: {'resourceName': staticStationConfigs.Device_Names.SA_Name, 'optionString': ''},
+        )
+        .returnValue; // RFmx Initialize
     // Load Waveforms and Create Signals
     locals.waveFormConfigsIdx = 0; // Reset Wfm config index
     for (final element in ts.iterate(staticStationConfigs.Waveform_Configs)) {
       locals.currentWaveformConfig = element;
-      final outputs4 = await ts.callDotNet(
-        '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
-        'NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS',
-        inputs: {'filePath': locals.currentWaveformConfig.Absolute_Disk_Path},
-      ); // Load Waveform from TDMS
-      locals.currentWaveform = outputs4['Return Value'];
+      locals.currentWaveform = await ts
+          .callDotNet(
+            '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
+            'NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS',
+            inputs: {'filePath': locals.currentWaveformConfig.Absolute_Disk_Path},
+          )
+          .returnValue; // Load Waveform from TDMS
       await ts.callDotNet(
         '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.SG.dll',
         'NationalInstruments.ReferenceDesignLibraries.SG.DownloadWaveform',
         inputs: {'rfsgHandle': deviceHandles.RFSG_Session, 'waveform': locals.currentWaveform},
       ); // Download Waveform to Generator
-      final outputs5 = await ts.callDotNet(
-        'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
-        'NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
-        inputs: {
-          'instrSession': deviceHandles.RFmx_Instr_Session,
-          'signalName': '${locals.currentWaveform.Name as String}SpecAn',
-        },
-      ); // Create SpecAn Signal Configuration
-      locals.currentRFmxSpecAnSignal = outputs5['Return Value'];
+      locals.currentRFmxSpecAnSignal = await ts
+          .callDotNet(
+            'NationalInstruments.RFmx.SpecAnMX.Fx40',
+            'NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
+            inputs: {
+              'instrSession': deviceHandles.RFmx_Instr_Session,
+              'signalName': '${locals.currentWaveform.Name as String}SpecAn',
+            },
+          )
+          .returnValue; // Create SpecAn Signal Configuration
       loadedWaveformIndexes[locals.waveFormConfigsIdx] = locals.waveFormConfigsIdx; // Store Loaded Waveforms
       loadedWaveforms[locals.waveFormConfigsIdx] = locals.currentWaveform;
       locals.waveFormConfigsIdx++;
@@ -259,12 +264,12 @@ Future<void> mainSequence() async {
   } finally {
     // Instrument Cleanup
     await ts.callDotNet(
-      'NationalInstruments.RFmx.InstrMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+      'NationalInstruments.RFmx.InstrMX.Fx40',
       'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Use Existing Object',
       inputs: {'Existing Object': deviceHandles.RFmx_Instr_Session},
     ); // RFmx Close
     await ts.callDotNet(
-      'NationalInstruments.RFmx.InstrMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
+      'NationalInstruments.RFmx.InstrMX.Fx40',
       'NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close',
     ); // RFmx Close
     await ts.callDotNet(
@@ -305,15 +310,16 @@ Future<void> configure() async {
       staticStationConfigs.DUT_Params.Gain_dB; // Calculate Reference Level
   configurations.Analyzer.SpecAn_Common_Config.ReferenceLevel_dBm = currentSweepStep.Calculated_Parameters.SA_Ref_Level;
   // Retrieve the saved signal configuration for this waveform based on the waveform's name
-  final outputs = await ts.callDotNet(
-    'NationalInstruments.RFmx.SpecAnMX.Fx40, Version=19.1.0.49152, Culture=neutral, PublicKeyToken=dc6ad606294fc298',
-    'NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
-    inputs: {
-      'instrSession': deviceHandles.RFmx_Instr_Session,
-      'signalName': '${currentSweepStep.Loaded_Waveform.Name as String}SpecAn',
-    },
-  ); // Get Specific SpecAn Signal Configuration by Name
-  deviceHandles.RFmx_SpecAn_Signal_Session = outputs['Return Value'];
+  deviceHandles.RFmx_SpecAn_Signal_Session = await ts
+      .callDotNet(
+        'NationalInstruments.RFmx.SpecAnMX.Fx40',
+        'NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
+        inputs: {
+          'instrSession': deviceHandles.RFmx_Instr_Session,
+          'signalName': '${currentSweepStep.Loaded_Waveform.Name as String}SpecAn',
+        },
+      )
+      .returnValue; // Get Specific SpecAn Signal Configuration by Name
 
   // Configure Generator
   // Configure continuous generation and software triggers.
@@ -340,12 +346,12 @@ Future<void> configure() async {
     },
   ); // RFSG Config Instrument
   await ts.callDotNet(
-    'NationalInstruments.ModularInstruments.NIRfsg.Fx45, Version=19.2.0.49152, Culture=neutral, PublicKeyToken=4febd62461bf11a4',
+    'NationalInstruments.ModularInstruments.NIRfsg.Fx45',
     'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Use Existing Object',
     inputs: {'Existing Object': deviceHandles.RFSG_Session},
   ); // RFSG Initiate
   await ts.callDotNet(
-    'NationalInstruments.ModularInstruments.NIRfsg.Fx45, Version=19.2.0.49152, Culture=neutral, PublicKeyToken=4febd62461bf11a4',
+    'NationalInstruments.ModularInstruments.NIRfsg.Fx45',
     'NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.Initiate',
   ); // RFSG Initiate
   // Configure Analyzer
@@ -380,18 +386,19 @@ Future<void> configure() async {
   // Average input power is set to the applied value from the sweep file
   currentSweepStep.Input_and_Output.MEAS.Avg_Input_Power_dBm =
       configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_; // Map Input Power
-  final outputs2 = await ts.callDotNet(
-    '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll',
-    'NationalInstruments.ReferenceDesignLibraries.FocusTuner.ConfigureCommon',
-    inputs: {
-      'iTuner': deviceHandles.iTunerReference,
-      'commonConfiguration.TunerMode': configurations.Tuner.Tuner_Config.TunerMode,
-      'commonConfiguration.CalibrationID': configurations.Tuner.Tuner_Config.CalibrationID,
-      'commonConfiguration.DUTtoTunerSParameters': configurations.Tuner.Tuner_Config.DUTtoTunerSParameters,
-      'commonConfiguration.LoadTermination': configurations.Tuner.Tuner_Config.LoadTermination,
-    },
-  ); // Configure Tuner
-  currentSweepStep.Results.Tuner_Primary_Frequency_GHz = outputs2['Return Value'];
+  currentSweepStep.Results.Tuner_Primary_Frequency_GHz = await ts
+      .callDotNet(
+        '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll',
+        'NationalInstruments.ReferenceDesignLibraries.FocusTuner.ConfigureCommon',
+        inputs: {
+          'iTuner': deviceHandles.iTunerReference,
+          'commonConfiguration.TunerMode': configurations.Tuner.Tuner_Config.TunerMode,
+          'commonConfiguration.CalibrationID': configurations.Tuner.Tuner_Config.CalibrationID,
+          'commonConfiguration.DUTtoTunerSParameters': configurations.Tuner.Tuner_Config.DUTtoTunerSParameters,
+          'commonConfiguration.LoadTermination': configurations.Tuner.Tuner_Config.LoadTermination,
+        },
+      )
+      .returnValue; // Configure Tuner
   // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
   currentSweepStep.Input_and_Output.PARAMS.WaveformName = currentSweepStep.Loaded_Waveform.Name; // Map Results
 }
@@ -399,12 +406,13 @@ Future<void> configure() async {
 /// Sequence `Measure`.
 Future<void> measure() async {
   try {
-    final outputs = await ts.callDotNet(
-      '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll',
-      'NationalInstruments.ReferenceDesignLibraries.FocusTuner.MoveTunerPerVSWR',
-      inputs: {'iTuner': deviceHandles.iTunerReference, 'vswr': configurations.Tuner.VSWR, 'timeout': 60},
-    ); // Move Tuner
-    currentSweepStep.Results.VSWR_and_Phase = outputs['Return Value'];
+    currentSweepStep.Results.VSWR_and_Phase = await ts
+        .callDotNet(
+          '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll',
+          'NationalInstruments.ReferenceDesignLibraries.FocusTuner.MoveTunerPerVSWR',
+          inputs: {'iTuner': deviceHandles.iTunerReference, 'vswr': configurations.Tuner.VSWR, 'timeout': 60},
+        )
+        .returnValue; // Move Tuner
     await ts.callDotNet(
       '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
       'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.SelectAndInitiateMeasurements',
@@ -418,15 +426,16 @@ Future<void> measure() async {
         'resultName': '',
       },
     ); // Select and Initiate SpecAn TxP Measurement
-    final outputs2 = await ts.callDotNet(
-      '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
-      'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchTxp',
-      inputs: {
-        'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
-        'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
-      },
-    ); // SpecAn Fetch TxP
-    currentSweepStep.Results.TxP_Results = outputs2['Return Value'];
+    currentSweepStep.Results.TxP_Results = await ts
+        .callDotNet(
+          '..\\..\\Builds\\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll',
+          'NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchTxp',
+          inputs: {
+            'specAn': deviceHandles.RFmx_SpecAn_Signal_Session,
+            'selectorString': configurations.Analyzer.RFmxSpecAn_Selector_String,
+          },
+        )
+        .returnValue; // SpecAn Fetch TxP
     // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
     currentSweepStep.Input_and_Output.MEAS.Avg_Mean_Power_dBm =
         currentSweepStep.Results.TxP_Results.AverageMeanPower_dBm; // Map Results

@@ -12,37 +12,7 @@ class _MainSequenceLocals {
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
-  final dynamic rxNoiseFigureSnsLimitTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Measurement': <dynamic>[
-      ts.PropObj({
-        'Limits': ts.PropObj({
-          'ThresholdType': 'PERCENTAGE',
-          'Nominal': 100,
-          'Low': 0.001,
-          'High': 0.015,
-          'ThresholdTypeExpr': '',
-          'NominalExpr': '',
-          'LowExpr': '',
-          'HighExpr': '',
-          'UseThresholdTypeExpr': false,
-          'UseNominalExpr': false,
-          'UseLowExpr': false,
-          'UseHighExpr': false,
-        }),
-        'Units': 'dB',
-        'Comp': 'LOG',
-        'CompExpr': '',
-        'UseCompExpr': false,
-        'Data': 0,
-        'Status': '',
-        'RawLimits': ts.PropObj({'Nominal': 100, 'Low': 9, 'High': 11}),
-      }),
-    ],
-  });
+  final dynamic rxNoiseFigureSnsLimitTestResult = ts.StepResult();
 
   try {
     await ts.callVi(

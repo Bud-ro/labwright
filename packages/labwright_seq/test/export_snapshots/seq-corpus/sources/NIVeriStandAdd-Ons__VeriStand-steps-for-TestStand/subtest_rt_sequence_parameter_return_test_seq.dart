@@ -6,58 +6,14 @@ dynamic veristand = ts.PropObj({'GatewayIP': '"localhost"'});
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic testBoolParameterReturnResult = ts.PropObj({
+  final dynamic testBoolParameterReturnResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic testU32ParameterReturnResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Numeric': 0,
-    'Units': '',
-  });
-  final dynamic testU64ParameterReturnResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Numeric': 0,
-    'Units': '',
-  });
-  final dynamic testI32ParameterReturnResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Numeric': 0,
-    'Units': '',
-  });
-  final dynamic testI64ParameterReturnResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Numeric': 0,
-    'Units': '',
-  });
-  final dynamic testDblParamaterReturnResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Numeric': 0,
-    'Units': '',
-  });
+  final dynamic testU32ParameterReturnResult = ts.StepResult({'Numeric': 0});
+  final dynamic testU64ParameterReturnResult = ts.StepResult({'Numeric': 0});
+  final dynamic testI32ParameterReturnResult = ts.StepResult({'Numeric': 0});
+  final dynamic testI64ParameterReturnResult = ts.StepResult({'Numeric': 0});
+  final dynamic testDblParamaterReturnResult = ts.StepResult({'Numeric': 0});
 
   await ts.stepType('RunRTSequencePassFail', {
     'VeriStand': {

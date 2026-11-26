@@ -14,21 +14,19 @@ Future<ts.Status> isProcessRunning({
 }) async {
   final locals = _IsProcessRunningLocals();
   final run = ts.SequenceRun();
-  dynamic releaseProcessResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  dynamic releaseProcessResult = ts.StepResult();
 
   body:
   try {
-    final outputs = await ts.callDotNet(
-      'System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-      'System.Diagnostics.Process.GetProcessesByName',
-      inputs: {'processName': processName},
-    ); // Get process
-    locals.processes = outputs['Return Value'] as List<dynamic>;
+    locals.processes =
+        await ts
+                .callDotNet(
+                  'System',
+                  'System.Diagnostics.Process.GetProcessesByName',
+                  inputs: {'processName': processName},
+                )
+                .returnValue
+            as List<dynamic>; // Get process
     if (!ts.cond(
       'Parameters.ProcessFound = (GetNumElements(Locals.Processes) != 0 && Locals.Processes[0] != Nothing),\nParameters.ProcessFound\n',
     )) {
@@ -36,23 +34,15 @@ Future<ts.Status> isProcessRunning({
     }
     if (descriptionToSearch != '') {
       await ts.callDotNet(
-        'System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
+        'System',
         'System.Diagnostics.Process.Use Existing Object',
         inputs: {'Existing Object': locals.processes[0]},
       ); // Get description
-      await ts.callDotNet(
-        'System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-        'System.Diagnostics.Process.MainModule',
-      ); // Get description
-      await ts.callDotNet(
-        'System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-        'System.Diagnostics.ProcessModule.FileVersionInfo',
-      ); // Get description
-      final outputs2 = await ts.callDotNet(
-        'System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089',
-        'System.Diagnostics.FileVersionInfo.FileDescription',
-      ); // Get description
-      locals.description = outputs2['Return Value'] as String;
+      await ts.callDotNet('System', 'System.Diagnostics.Process.MainModule'); // Get description
+      await ts.callDotNet('System', 'System.Diagnostics.ProcessModule.FileVersionInfo'); // Get description
+      locals.description =
+          await ts.callDotNet('System', 'System.Diagnostics.FileVersionInfo.FileDescription').returnValue
+              as String; // Get description
       ts.eval(
         'Parameters.ProcessFound = MatchPattern(Locals.Description, Parameters.DescriptionToSearch, True)',
       ); // Check description
@@ -61,12 +51,7 @@ Future<ts.Status> isProcessRunning({
     final loop = ts.StepLoop();
     loop.index = 0;
     while (loop.index < ts.getNumElements(locals.processes)) {
-      releaseProcessResult = ts.PropObj({
-        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-        'Status': '',
-        'ReportText': '',
-        'Common': ts.PropObj(),
-      });
+      releaseProcessResult = ts.StepResult();
       locals.processes[loop.index.toInt()] = null; // Release Process
       releaseProcessResult.Status = ts.Status.done;
       loop.count(releaseProcessResult.Status);

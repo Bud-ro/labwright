@@ -1843,7 +1843,11 @@ class _DartExporter {
     _out = StringBuffer();
     _indent = 1;
     _emitBody(sequence);
-    final body = _out.toString();
+    final inits = {
+      for (final step in sequence.steps)
+        if (_resultVars[step.raw] case final id?) id: _resultInit(step, id, _out.toString()),
+    };
+    final body = _out.toString().replaceAllMapped(_resultInitMark, (m) => inits[m[1]]!);
     _out = outer;
     final localsClass = _mentions(body, 'locals')
         ? _uniqueTopLevel('_${dartIdentifier(sequence.name, capitalize: true)}Locals')
@@ -1888,7 +1892,7 @@ class _DartExporter {
     for (final step in sequence.steps) {
       if (_resultVars[step.raw] case final id?) {
         _line(
-          '${_reassignedResults.contains(id) ? '' : 'final '}dynamic $id = ${_resultInit(step)};',
+          '${_reassignedResults.contains(id) ? '' : 'final '}dynamic $id = ${inits[id]};',
         );
       }
     }
@@ -2725,7 +2729,7 @@ class _DartExporter {
       _indent++;
     }
     if (result != null && (_loopDepth > 0 || loop != null)) {
-      _line('$result = ${_resultInit(step)};');
+      _line('$result = \u0001$result\u0001;');
       _reassignedResults.add(result);
     }
 
@@ -2920,12 +2924,19 @@ class _DartExporter {
         _stepExpressions(step).any(_sequenceFailed.hasMatch),
   );
 
-  String _resultInit(Step step) {
-    final raw = step.raw.prop('Result');
-    final init = raw == null ? '' : _propObjInit(raw, {});
-    return init.startsWith('ts.PropObj({') && raw!.subProps.any((p) => p.name == 'Status')
-        ? init
-        : "ts.PropObj({'Status': ''})";
+  static final _resultInitMark = RegExp('\u0001(\\w+)\u0001');
+
+  /// The members every step result has; ts.StepResult supplies them.
+  static const _commonResultMembers = {'Error', 'Status', 'ReportText', 'Common'};
+
+  /// A fresh result for [step], held in [id], with the members its type adds that [body] refers to.
+  String _resultInit(Step step, String id, String body) {
+    final extra = [
+      for (final p in step.raw.prop('Result')?.subProps ?? const <SeqProperty>[])
+        if (!_commonResultMembers.contains(p.name) && _mentions(body, '$id.${p.name}'))
+          "'${_escape(p.name)}': ${_propValue(p, {})}",
+    ];
+    return 'ts.StepResult(${extra.isEmpty ? '' : '{${extra.join(', ')}}'})';
   }
 
   Map<SeqProperty, String> _trackedResults(Sequence sequence) {
@@ -3333,6 +3344,9 @@ class _DartExporter {
   static final _thisContext = RegExp(r'^(RunState\.)?(ThisContext|SequenceContext)$', caseSensitive: false);
   static final _ownError = RegExp(r'^(RunState\.)?Step\.Result\.Error(\.\w+)?$', caseSensitive: false);
 
+  /// The name every adapter gives the parameter that receives a call's value.
+  static const _returnValue = 'Return Value';
+
   /// The name the adapters give a parameter whose prototype has none.
   static const _unnamedParameter = '_notNamed';
   static final _variable = RegExp(r'^[A-Za-z_][\w.]*(\[.*\])?$');
@@ -3385,6 +3399,13 @@ class _DartExporter {
       if (outputs.isEmpty) {
         _line('await $call;$note');
         return;
+      }
+      if (outputs case [final only] when only.name == _returnValue) {
+        final store = _assignment(only.bound, 'await $call.returnValue');
+        if (store != null && _variable.hasMatch(store.substring(0, store.indexOf(' = ')))) {
+          _line('$store$note');
+          return;
+        }
       }
       const answer = '\u0000';
       final stores = [
@@ -3443,7 +3464,7 @@ class _DartExporter {
       case SeqAdapter.dotNet:
         for (final call in list(data?.prop('Calls'))) {
           emit('callDotNet', [
-            text(module.assemblyPath ?? at('AssemblyStrongName')),
+            text(module.assemblyPath ?? at('AssemblyStrongName')?.split(',').first),
             text([call.prop('ClassName')?.scalar, call.prop('MemberName')?.scalar].nonNulls.join('.')),
           ], _moduleArgs(list(call.prop('Params')), 'MultiElement', returned));
         }

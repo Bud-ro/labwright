@@ -18,101 +18,101 @@ class _MainSequenceLocals {
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
-  final dynamic passFailTestMaskAAnalysisVbsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic passFailTestMaskAAnalysisVbsResult = ts.StepResult({'PassFail': false});
 
   try {
     await ts.callExecutable('C:\\Program Files (x86)\\National Instruments\\VeriStand 2011\\NI VeriStand.exe');
-    final outputs = await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
-      'NationalInstruments.VeriStand.ClientAPI.Factory.Factory',
-    ); // Open VS Interface
-    locals.niVsFactory = outputs['Return Value'];
+    locals.niVsFactory = await ts
+        .callDotNet(
+          'NationalInstruments.VeriStand.ClientAPI',
+          'NationalInstruments.VeriStand.ClientAPI.Factory.Factory',
+        )
+        .returnValue; // Open VS Interface
     do {
       try {
         await ts.callDotNet(
-          'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+          'NationalInstruments.VeriStand.ClientAPI',
           'NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object',
           inputs: {'Existing Object': locals.niVsFactory},
         ); // Open VS Workspace Mngr Ref
-        final outputs2 = await ts.callDotNet(
-          'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
-          'NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace',
-        ); // Open VS Workspace Mngr Ref
-        locals.niVsWorkspace = outputs2['Return Value'];
+        locals.niVsWorkspace = await ts
+            .callDotNet(
+              'NationalInstruments.VeriStand.ClientAPI',
+              'NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace',
+            )
+            .returnValue; // Open VS Workspace Mngr Ref
         ts.eval('Locals.NotReady=RunState.PreviousStep.Result.Error.Occurred');
       } on ts.RunTimeError catch (_) {}
       await Future<void>.delayed(const Duration(seconds: 2));
     } while (locals.notReady == true);
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object',
       inputs: {'Existing Object': locals.niVsFactory},
     ); // Open Stimulus Profile Mgr Ref
-    final outputs3 = await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
-      'NationalInstruments.VeriStand.ClientAPI.Factory.GetIStimulus',
-    ); // Open Stimulus Profile Mgr Ref
-    locals.niVsStimulus = outputs3['Return Value'];
+    locals.niVsStimulus = await ts
+        .callDotNet(
+          'NationalInstruments.VeriStand.ClientAPI',
+          'NationalInstruments.VeriStand.ClientAPI.Factory.GetIStimulus',
+        )
+        .returnValue; // Open Stimulus Profile Mgr Ref
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object',
       inputs: {'Existing Object': locals.niVsFactory},
     ); // Open Model Mng Ref
-    final outputs4 = await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
-      'NationalInstruments.VeriStand.ClientAPI.Factory.GetIModelManager',
-    ); // Open Model Mng Ref
-    locals.niVsModelManager = outputs4['Return Value'];
+    locals.niVsModelManager = await ts
+        .callDotNet(
+          'NationalInstruments.VeriStand.ClientAPI',
+          'NationalInstruments.VeriStand.ClientAPI.Factory.GetIModelManager',
+        )
+        .returnValue; // Open Model Mng Ref
 
     // Engine Test Script.rtts
     // MIL Test
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object',
       inputs: {'Existing Object': locals.niVsFactory},
     ); // Open Project Reference
-    final outputs5 = await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
-      'NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject',
-      inputs: {
-        'gateway_ip_address': 'localhost',
-        'project_path': 'C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\MIL_EngineController.nivsproj',
-        'username': '',
-        'password': '',
-      },
-    ); // Open Project Reference
-    locals.niVsProject = outputs5['Return Value'];
+    locals.niVsProject = await ts
+        .callDotNet(
+          'NationalInstruments.VeriStand.ClientAPI',
+          'NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject',
+          inputs: {
+            'gateway_ip_address': 'localhost',
+            'project_path':
+                'C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\MIL_EngineController.nivsproj',
+            'username': '',
+            'password': '',
+          },
+        )
+        .returnValue; // Open Project Reference
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object',
       inputs: {'Existing Object': locals.niVsProject},
     ); // Deploy and Connect
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IProject.Deploy',
     ); // Deploy and Connect
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object',
       inputs: {'Existing Object': locals.niVsProject},
     ); // Open Workspace
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IProject.OpenWorkspace',
     ); // Open Workspace
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IModelManager.Use Existing Object',
       inputs: {'Existing Object': locals.niVsModelManager},
     ); // Set calibration values
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IModelManager.SetMultipleParameterValues',
       inputs: {
         'parameters.[0]': 'Engine_mdl/Pamb (psi)/Value',
@@ -122,12 +122,12 @@ Future<ts.Status> mainSequence() async {
       },
     ); // Set calibration values
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object',
       inputs: {'Existing Object': locals.niVsStimulus},
     ); // Run Stimulus Profile
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IStimulus.RunStimulusProfile',
       inputs: {
         'file_path':
@@ -141,24 +141,24 @@ Future<ts.Status> mainSequence() async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     do {
       await ts.callDotNet(
-        'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+        'NationalInstruments.VeriStand.ClientAPI',
         'NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object',
         inputs: {'Existing Object': locals.niVsStimulus},
       ); // Check if Stimulus is done
       await ts.callDotNet(
-        'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+        'NationalInstruments.VeriStand.ClientAPI',
         'NationalInstruments.VeriStand.ClientAPI.IStimulus.GetStimulusProfileManagerState',
         inputs: {'state': locals.stimState},
       ); // Check if Stimulus is done
       await Future<void>.delayed(const Duration(milliseconds: 500));
     } while (locals.stimState == 2);
-    final outputs6 = await ts.callVi(
+    final outputs = await ts.callVi(
       'C:\\SE\\Demos and POCs\\RTTA\\Source\\Executable\\Support Files\\LastTDMSfile.vi',
       inputs: {
         'Logs Folder': 'C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\Working Directory\\VSLogs',
       },
     ); // Get log file path
-    locals.logs[0] = outputs6['Latest File Saved'];
+    locals.logs[0] = outputs['Latest File Saved'];
     await ts.stepType('DIAdem_OpenReference', {'DIAdemRefExpr': 'Locals.DIAdemReference'});
     await ts.stepType('DIAdem_ExportChannels', {
       'DIAdemRefExpr': 'Locals.DIAdemReference',
@@ -196,12 +196,12 @@ Future<ts.Status> mainSequence() async {
     await ts.stepType('DIAdem_Close_Reference', {'DIAdemRefExpr': 'Locals.DIAdemReference'});
   } finally {
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object',
       inputs: {'Existing Object': locals.niVsProject},
     ); // Quit VS
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308, processorArchitecture=MSIL',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IProject.Quit',
     ); // Quit VS
   }

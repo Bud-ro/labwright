@@ -22,24 +22,14 @@ Future<ts.Status> stationPostResults({
 
   final locals = _StationPostResultsLocals();
   final run = ts.SequenceRun();
-  dynamic outputMessageResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  dynamic outputMessageResult = ts.StepResult();
 
   if (ts.cond('RunState.Caller.Sequence.Id == RunState.Main.Sequence.Id')) {
     try {
       final loop = ts.StepLoop();
       loop.index = 0;
       while (loop.index < ts.getNumElements(results)) {
-        outputMessageResult = ts.PropObj({
-          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-          'Status': '',
-          'ReportText': '',
-          'Common': ts.PropObj(),
-        });
+        outputMessageResult = ts.StepResult();
         ts.eval('Locals.Name = Parameters.Steps[RunState.LoopIndex]->Name'); // Output Message
         ts.eval('\nLocals.Status = Parameters.Results[RunState.LoopIndex]->Status');
         ts.eval(

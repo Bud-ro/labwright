@@ -4,28 +4,9 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic v1PassFailTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic v2NumericLimitTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': 'DEC',
-  });
-  final dynamic v3StringValueTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'String': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic v1PassFailTestResult = ts.StepResult({'PassFail': false});
+  final dynamic v2NumericLimitTestResult = ts.StepResult({'Numeric': 0});
+  final dynamic v3StringValueTestResult = ts.StepResult({'String': ''});
 
   v1PassFailTestResult.PassFail = true;
   v1PassFailTestResult.Status = ts.truthy(v1PassFailTestResult.PassFail) ? 'Passed' : 'Failed';

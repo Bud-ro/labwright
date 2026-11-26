@@ -398,6 +398,11 @@ Future<LockHold> acquireLock(Object? nameOrReference) => throw UnimplementedErro
 /// What a code module answers: its outputs by parameter name, with a cluster or struct member as `parameter.member`.
 typedef ModuleOutputs = Map<String, Object?>;
 
+/// The value a code module call answers as `Return Value`.
+extension ModuleReturn on Future<ModuleOutputs> {
+  Future<Object?> get returnValue async => (await this)['Return Value'];
+}
+
 /// Runs the LabVIEW VI at [path] with [inputs] wired to its controls by label.
 ///
 /// LabVIEW adapter translation. A VI that [passesContext] receives the calling sequence's context and can read and
@@ -459,6 +464,18 @@ final class Undecoded {
 /// step sets that differ from its type's defaults. A [result] receives what the step type records.
 Future<void> stepType(String type, [Map<String, Object?> properties = const {}, Object? result]) =>
     throw UnimplementedError('step type $type');
+
+/// What a step records: its status, its run-time error, its report text, and the members its type adds as [extra].
+class StepResult extends PropObj {
+  StepResult([Map<String, Object?> extra = const {}])
+    : super({
+        'Error': PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': PropObj(),
+        ...extra,
+      });
+}
 
 /// The status of a sequence whose steps can fail: failed once a step whose failure fails the sequence records
 /// [Status.failed].

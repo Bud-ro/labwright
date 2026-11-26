@@ -4,426 +4,74 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic tcA010011ObjectCreationBaseClass10ObjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
+  final dynamic tcA010011ObjectCreationBaseClass10ObjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010012ObjectCreationBaseClass50ObjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010013ObjectCreationBaseClass300ObjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010014ObjectCreationBaseClass10ObjExtCreateResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010021ObjectCreationSubClass10ObjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010022ObjectCreationSubClass50ObjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010023ObjectCreationSubClass300ObjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010024ObjectCreationSubClass10ObjExtCreateResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010031ObjectCreationMultipleClasses1ObjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010032ObjectCreationMultipleClasses50ObjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010033ObjectCreationMultipleClasses100OvjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010041ObjectCreationDefaultConstructorResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010042ObjectCreationDefaultConstructorExtCreateResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010051ObjectCreationGenericCreateResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010052ObjectCreationGenericCreateExtCreateResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010061ObjectsCanBeNamedWhenCreatedResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010062ObjectsCanBeNamedWhenCreatedResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010063ObjectsCanBeNamedWhenCreatedResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010064ObjectsCanBeNamedWhenCreatedResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010065ObjectsCanBeNamedWhenCreatedResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010071ObjectsCanBeLookedUpByNameResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010072ObjectsCanBeLookedUpByNameExtCreateResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010081NameObjectsWithUserCounterResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010091ObjectCreationWithNoRegistration10ObjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010101GarbageCollectorWithSameOwnerResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA020011ReadingLockingSettingAttributesResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA020021ModifyingAttributesFromInheritedMethodsResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA020031ModifyingObjectAttributesMultipleTimes1Obj100TimesResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA020032ModifyingObjectAttributesMultipleTimes10Obj10TimesResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA020043AttributesCouldBeModifiedFasterThatGoop1100Obj100TimesResult = ts.StepResult({
     'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic tcA010012ObjectCreationBaseClass50ObjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
+  final dynamic tcA020052AttributesCouldBeResizedFasterThatGoop110Obj1000TimesResult = ts.StepResult({
     'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic tcA010013ObjectCreationBaseClass300ObjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
+  final dynamic tcA020071AttributesCanBeUnlockedWithoutBeingModifiedResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA020081MutualExclusionWhenModifyingAttributesResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA020091TimeoutWhenWaitingForModifyingAttributesResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA030021ReadingLockingAndSettingClassAttributesResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA030022ReadingLockingAndSettingClassAttributesExtCreatorResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA030031MutualExclustionWhenModifyingClassAttributesResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA030032MutualExclustionWhenModifyingClassAttributesExtCreatorResult = ts.StepResult({
     'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic tcA010014ObjectCreationBaseClass10ObjExtCreateResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
+  final dynamic tcA030061ClassAttributesCanBeUnlockedWithoutBeingModifiedResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA030062ClassAttributesCanBeUnlockedWithoutBeingModifiedExtCreatorResult = ts.StepResult({
     'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic tcA010021ObjectCreationSubClass10ObjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010022ObjectCreationSubClass50ObjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010023ObjectCreationSubClass300ObjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010024ObjectCreationSubClass10ObjExtCreateResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010031ObjectCreationMultipleClasses1ObjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010032ObjectCreationMultipleClasses50ObjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010033ObjectCreationMultipleClasses100OvjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010041ObjectCreationDefaultConstructorResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010042ObjectCreationDefaultConstructorExtCreateResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010051ObjectCreationGenericCreateResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010052ObjectCreationGenericCreateExtCreateResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010061ObjectsCanBeNamedWhenCreatedResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010062ObjectsCanBeNamedWhenCreatedResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010063ObjectsCanBeNamedWhenCreatedResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010064ObjectsCanBeNamedWhenCreatedResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010065ObjectsCanBeNamedWhenCreatedResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010071ObjectsCanBeLookedUpByNameResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010072ObjectsCanBeLookedUpByNameExtCreateResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010081NameObjectsWithUserCounterResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010091ObjectCreationWithNoRegistration10ObjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010101GarbageCollectorWithSameOwnerResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA020011ReadingLockingSettingAttributesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA020021ModifyingAttributesFromInheritedMethodsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA020031ModifyingObjectAttributesMultipleTimes1Obj100TimesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA020032ModifyingObjectAttributesMultipleTimes10Obj10TimesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA020043AttributesCouldBeModifiedFasterThatGoop1100Obj100TimesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA020052AttributesCouldBeResizedFasterThatGoop110Obj1000TimesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA020071AttributesCanBeUnlockedWithoutBeingModifiedResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA020081MutualExclusionWhenModifyingAttributesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA020091TimeoutWhenWaitingForModifyingAttributesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA030021ReadingLockingAndSettingClassAttributesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA030022ReadingLockingAndSettingClassAttributesExtCreatorResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA030031MutualExclustionWhenModifyingClassAttributesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA030032MutualExclustionWhenModifyingClassAttributesExtCreatorResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA030061ClassAttributesCanBeUnlockedWithoutBeingModifiedResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA030062ClassAttributesCanBeUnlockedWithoutBeingModifiedExtCreatorResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA030071TimeoutWhenWaitingForModifyingClassAttributesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA040012DynamicallyCallSubClassMethods10ObjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA040041NestedObjectsCallsDynamicMethodsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA050011ImplementingInterfacesResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA060021DestroyedReferenceErrorHandlingResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA060031ConstructorErrorHandlingResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA060041ObjectsAreDestroyedEvenIfErrorIn1ObjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA060042ObjectsAreDestroyedEvenIfErrorIn10ObjResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA060051MissingAbstractMethodResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA070011ObjectStatusInformationResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA070021SupportMethodsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA070031SerializationResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA070032SerializationWithFileResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA070033SerializationXmlResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA070034SerializationWithFileXmlResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA070041GenericOpenResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA070042GenericOpenExtCreatorResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA070051InterfaceSupportMethodsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA070061CastFromLabViewObjectResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic tcA010111CloneObjectResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic tcA030071TimeoutWhenWaitingForModifyingClassAttributesResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA040012DynamicallyCallSubClassMethods10ObjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA040041NestedObjectsCallsDynamicMethodsResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA050011ImplementingInterfacesResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA060021DestroyedReferenceErrorHandlingResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA060031ConstructorErrorHandlingResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA060041ObjectsAreDestroyedEvenIfErrorIn1ObjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA060042ObjectsAreDestroyedEvenIfErrorIn10ObjResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA060051MissingAbstractMethodResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA070011ObjectStatusInformationResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA070021SupportMethodsResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA070031SerializationResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA070032SerializationWithFileResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA070033SerializationXmlResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA070034SerializationWithFileXmlResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA070041GenericOpenResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA070042GenericOpenExtCreatorResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA070051InterfaceSupportMethodsResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA070061CastFromLabViewObjectResult = ts.StepResult({'PassFail': true});
+  final dynamic tcA010111CloneObjectResult = ts.StepResult({'PassFail': true});
 
   ts.eval('Step.InBuf=1');
   await ts.callVi(

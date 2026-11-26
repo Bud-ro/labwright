@@ -9,21 +9,9 @@ class _MainSequenceLocals {
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
-  dynamic rtSequenceNumericLimitTestResult = ts.PropObj({
-    'VeriStand': ts.PropObj({'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Numeric': 0,
-    'Units': '',
-  });
-  dynamic rtSequencePassFailTestResult = ts.PropObj({
+  dynamic rtSequenceNumericLimitTestResult = ts.StepResult({'Numeric': 0});
+  dynamic rtSequencePassFailTestResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
 
   for (int sequenceCounter = 0; sequenceCounter < locals.sequencesToRun; sequenceCounter += 1) {
@@ -37,15 +25,7 @@ Future<ts.Status> mainSequence() async {
         'ParamNamesArray': '{"EnginePower","DesiredRPM"}',
       },
     });
-    rtSequenceNumericLimitTestResult = ts.PropObj({
-      'VeriStand': ts.PropObj({'Path': ''}),
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-      'Numeric': 0,
-      'Units': '',
-    });
+    rtSequenceNumericLimitTestResult = ts.StepResult({'Numeric': 0});
     await ts.stepType('RunRTSequenceNumericLimit', {
       'VeriStand': {
         'SeqTimeout': 10,
@@ -61,12 +41,8 @@ Future<ts.Status> mainSequence() async {
     }, rtSequenceNumericLimitTestResult);
     rtSequenceNumericLimitTestResult.Status = ts.checkLimits(rtSequenceNumericLimitTestResult.Numeric, 100, 0, 'GELE');
     run.record(rtSequenceNumericLimitTestResult.Status);
-    rtSequencePassFailTestResult = ts.PropObj({
+    rtSequencePassFailTestResult = ts.StepResult({
       'VeriStand': ts.PropObj({'PassFail': false, 'Path': ''}),
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
     });
     await ts.stepType('RunRTSequencePassFail', {
       'VeriStand': {

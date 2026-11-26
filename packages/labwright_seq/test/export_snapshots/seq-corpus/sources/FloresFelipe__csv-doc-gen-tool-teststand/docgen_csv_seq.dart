@@ -15,13 +15,7 @@ class _SequenceFileDocLocals {
 Future<ts.Status> sequenceFileDoc({dynamic sequenceFile, dynamic docOptions}) async {
   final locals = _SequenceFileDocLocals();
   final run = ts.SequenceRun();
-  final dynamic saveDocToFileResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': true,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic saveDocToFileResult = ts.StepResult({'PassFail': true});
 
   try {
     sequenceFileObj = sequenceFile; // Set Sequence File Ref
@@ -166,24 +160,14 @@ Future<ts.Status> buildDocString({ts.Ref<String>? seqDocString}) async {
   final seqDocStringRef = seqDocString ?? ts.Ref<String>('');
   final locals = _BuildDocStringLocals();
   final run = ts.SequenceRun();
-  dynamic createParameterSHeaderResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  dynamic createParameterSHeaderResult = ts.StepResult();
 
   locals.stdHeader =
       'Sequence File${separator}Sequence${separator}Step Group${separator}Step Index${separator}Indent Level${separator}Step${separator}Icon${separator}Descirption${separator}Settings${separator}Requirement[0]$separator'; // Populate Standard Header
   final loop = ts.StepLoop();
   loop.index = 0;
   while (loop.index < largestParameterCount) {
-    createParameterSHeaderResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
+    createParameterSHeaderResult = ts.StepResult();
     locals.parametersHeader =
         '${locals.parametersHeader}Parameter[${ts.str(loop.index)}] Name${separator}Parameter[${ts.str(loop.index)}] Value$separator'; // Create Parameter's Header
     createParameterSHeaderResult.Status = ts.Status.done;

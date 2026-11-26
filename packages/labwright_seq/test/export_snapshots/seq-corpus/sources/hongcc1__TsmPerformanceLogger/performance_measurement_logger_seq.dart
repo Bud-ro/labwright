@@ -139,24 +139,27 @@ Future<void> modelPluginBegin({
     ); // Set OTF Callback Requirements
   }
   if (ts.truthy(modelThreadType.IsController)) {
-    final outputs = await ts.callDotNet(
-      'API\\DotNET\\Assemblies\\CurrentVersion\\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll',
-      'NationalInstruments.TestStand.SemiconductorModule.SemiconductorModuleManagerFactory.GetSemiconductorModuleManager',
-      inputs: {'engine': ts.eval('RunState.Engine')},
-    ); // Get SemiconductorModuleManager
-    locals.semiconductorModuleManager = outputs['Return Value'];
-    final outputs2 = await ts.callDotNet(
-      'NationalInstruments.TestStand.SemiconductorModule.dll',
-      'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementUtility.PerformanceMeasurementUtility',
-      inputs: {'engine': ts.eval('RunState.Engine')},
-    ); // Create Performance Measurement Utility
-    locals.performanceMeasurementUtility = outputs2['Return Value'];
-    final outputs3 = await ts.callDotNet(
-      'NationalInstruments.TestStand.SemiconductorModule.dll',
-      'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.PerformanceMeasurementLogger',
-      inputs: {'performanceMeasurementUtility': locals.performanceMeasurementUtility},
-    ); // Create Performance Measurement Logger
-    modelPlugin.PluginSpecific.RuntimeVariables.PerformanceMeasurementLogger = outputs3['Return Value'];
+    locals.semiconductorModuleManager = await ts
+        .callDotNet(
+          'API\\DotNET\\Assemblies\\CurrentVersion\\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll',
+          'NationalInstruments.TestStand.SemiconductorModule.SemiconductorModuleManagerFactory.GetSemiconductorModuleManager',
+          inputs: {'engine': ts.eval('RunState.Engine')},
+        )
+        .returnValue; // Get SemiconductorModuleManager
+    locals.performanceMeasurementUtility = await ts
+        .callDotNet(
+          'NationalInstruments.TestStand.SemiconductorModule.dll',
+          'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementUtility.PerformanceMeasurementUtility',
+          inputs: {'engine': ts.eval('RunState.Engine')},
+        )
+        .returnValue; // Create Performance Measurement Utility
+    modelPlugin.PluginSpecific.RuntimeVariables.PerformanceMeasurementLogger = await ts
+        .callDotNet(
+          'NationalInstruments.TestStand.SemiconductorModule.dll',
+          'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.PerformanceMeasurementLogger',
+          inputs: {'performanceMeasurementUtility': locals.performanceMeasurementUtility},
+        )
+        .returnValue; // Create Performance Measurement Logger
     locals.dateString =
         ts.str(startDate.Year, '%04d') +
         ts.str(startDate.Month, '%02d') +
@@ -223,12 +226,15 @@ Future<void> modelPluginPostUut({
         ),
       },
     ); // Convert Test Socket Index to Site Number
-    final outputs = await ts.callDotNet(
-      'NationalInstruments.TestStand.SemiconductorModule.dll',
-      'NationalInstruments.TestStand.SemiconductorModule.Manager.ISiteNumberMapper.TestSocketIndexToSiteNumber',
-      inputs: {'testSocketIndex': ts.eval('RunState.TestSockets.MyIndex')},
-    ); // Convert Test Socket Index to Site Number
-    locals.siteNumber = outputs['Return Value'] as int;
+    locals.siteNumber =
+        await ts
+                .callDotNet(
+                  'NationalInstruments.TestStand.SemiconductorModule.dll',
+                  'NationalInstruments.TestStand.SemiconductorModule.Manager.ISiteNumberMapper.TestSocketIndexToSiteNumber',
+                  inputs: {'testSocketIndex': ts.eval('RunState.TestSockets.MyIndex')},
+                )
+                .returnValue
+            as int; // Convert Test Socket Index to Site Number
     await ts.callDotNet(
       'NationalInstruments.TestStand.SemiconductorModule.dll',
       'NationalInstruments.TestStand.SemiconductorModule.Manager.SemiconductorModuleManager.Use Existing Object',
@@ -238,11 +244,14 @@ Future<void> modelPluginPostUut({
         ),
       },
     ); // Get Number Of Sites
-    final outputs2 = await ts.callDotNet(
-      'NationalInstruments.TestStand.SemiconductorModule.dll',
-      'NationalInstruments.TestStand.SemiconductorModule.Manager.SemiconductorModuleManager.NumberOfSites',
-    ); // Get Number Of Sites
-    locals.numberOfSites = outputs2['Return Value'] as int;
+    locals.numberOfSites =
+        await ts
+                .callDotNet(
+                  'NationalInstruments.TestStand.SemiconductorModule.dll',
+                  'NationalInstruments.TestStand.SemiconductorModule.Manager.SemiconductorModuleManager.NumberOfSites',
+                )
+                .returnValue
+            as int; // Get Number Of Sites
     await ts.callDotNet(
       'NationalInstruments.TestStand.SemiconductorModule.dll',
       'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.Use Existing Object',
@@ -311,11 +320,14 @@ Future<void> logDataToFile({dynamic performanceMeasurementLogger}) async {
     'API\\DotNET\\Assemblies\\CurrentVersion\\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll',
     'NationalInstruments.TestStand.SemiconductorModule.ISemiconductorModuleManager.AllSiteLotStatistics',
   ); // Get Socket Time
-  final outputs = await ts.callDotNet(
-    'API\\DotNET\\Assemblies\\CurrentVersion\\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll',
-    'NationalInstruments.TestStand.SemiconductorModule.ILotStatistics.LastSocketTime',
-  ); // Get Socket Time
-  locals.socketTime = outputs['Return Value'] as int;
+  locals.socketTime =
+      await ts
+              .callDotNet(
+                'API\\DotNET\\Assemblies\\CurrentVersion\\NationalInstruments.TestStand.SemiconductorModule.ApplicationAPI.dll',
+                'NationalInstruments.TestStand.SemiconductorModule.ILotStatistics.LastSocketTime',
+              )
+              .returnValue
+          as int; // Get Socket Time
   await ts.callDotNet(
     'NationalInstruments.TestStand.SemiconductorModule.dll',
     'NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.Use Existing Object',

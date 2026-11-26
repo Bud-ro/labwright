@@ -13,58 +13,7 @@ class _MainSequenceLocals {
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
-  dynamic chargeAndDischargeResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Measurement': <dynamic>[
-      ts.PropObj({
-        'Limits': ts.PropObj({
-          'ThresholdType': 'PERCENTAGE',
-          'Nominal': 100,
-          'Low': 100,
-          'High': 11,
-          'ThresholdTypeExpr': '',
-          'NominalExpr': '',
-          'LowExpr': '',
-          'HighExpr': '',
-          'UseThresholdTypeExpr': false,
-          'UseNominalExpr': false,
-          'UseLowExpr': false,
-          'UseHighExpr': false,
-        }),
-        'Units': 'mAh',
-        'Comp': 'GT',
-        'CompExpr': '',
-        'UseCompExpr': false,
-        'Data': 0,
-        'Status': '',
-      }),
-      ts.PropObj({
-        'Limits': ts.PropObj({
-          'ThresholdType': 'PERCENTAGE',
-          'Nominal': 100,
-          'Low': 100,
-          'High': 11,
-          'ThresholdTypeExpr': '',
-          'NominalExpr': '',
-          'LowExpr': '',
-          'HighExpr': '',
-          'UseThresholdTypeExpr': false,
-          'UseNominalExpr': false,
-          'UseLowExpr': false,
-          'UseHighExpr': false,
-        }),
-        'Units': 'Wh',
-        'Comp': 'GT',
-        'CompExpr': '',
-        'UseCompExpr': false,
-        'Data': 0,
-        'Status': '',
-      }),
-    ],
-  });
+  dynamic chargeAndDischargeResult = ts.StepResult();
 
   await ts.stepType('AddProperty', {'KeyExpr': '"Location"', 'ValueExpr': '"Austin"'});
   await ts.stepType('AddProperty', {'KeyExpr': '"Voltage (V)"', 'ValueExpr': '"1.5"'});
@@ -78,58 +27,7 @@ Future<ts.Status> mainSequence() async {
     'RecipientExpr': 'Locals.EmailAddress',
   });
   for (locals.cycle = 0; locals.cycle < 500; locals.cycle += 1) {
-    chargeAndDischargeResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-      'Measurement': <dynamic>[
-        ts.PropObj({
-          'Limits': ts.PropObj({
-            'ThresholdType': 'PERCENTAGE',
-            'Nominal': 100,
-            'Low': 100,
-            'High': 11,
-            'ThresholdTypeExpr': '',
-            'NominalExpr': '',
-            'LowExpr': '',
-            'HighExpr': '',
-            'UseThresholdTypeExpr': false,
-            'UseNominalExpr': false,
-            'UseLowExpr': false,
-            'UseHighExpr': false,
-          }),
-          'Units': 'mAh',
-          'Comp': 'GT',
-          'CompExpr': '',
-          'UseCompExpr': false,
-          'Data': 0,
-          'Status': '',
-        }),
-        ts.PropObj({
-          'Limits': ts.PropObj({
-            'ThresholdType': 'PERCENTAGE',
-            'Nominal': 100,
-            'Low': 100,
-            'High': 11,
-            'ThresholdTypeExpr': '',
-            'NominalExpr': '',
-            'LowExpr': '',
-            'HighExpr': '',
-            'UseThresholdTypeExpr': false,
-            'UseNominalExpr': false,
-            'UseLowExpr': false,
-            'UseHighExpr': false,
-          }),
-          'Units': 'Wh',
-          'Comp': 'GT',
-          'CompExpr': '',
-          'UseCompExpr': false,
-          'Data': 0,
-          'Status': '',
-        }),
-      ],
-    });
+    chargeAndDischargeResult = ts.StepResult();
     final outputs = await ts.callVi(
       'My Computer\\Charge and Discharge.vi',
       inputs: {'Cycle': locals.cycle, 'Initial Capacity  (mAh)': locals.capacity, 'TDMS File Path In': locals.filePath},

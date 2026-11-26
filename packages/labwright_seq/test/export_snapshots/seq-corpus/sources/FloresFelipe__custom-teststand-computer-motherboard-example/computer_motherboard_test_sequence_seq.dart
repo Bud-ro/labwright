@@ -14,86 +14,17 @@ class _MainSequenceLocals {
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
-  final dynamic powerupTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic cpuTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic romTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic ramTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic videoTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': 'microseconds',
-  });
-  final dynamic keyboardTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  });
-  final dynamic romDiagnosticsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic ramDiagnosticsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic videoDiagnosticsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': 'Volts',
-  });
-  final dynamic keyboardDiagnosticsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic powerupDiagnosticsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': 'ampere',
-  });
+  final dynamic powerupTestResult = ts.StepResult({'PassFail': false});
+  final dynamic cpuTestResult = ts.StepResult();
+  final dynamic romTestResult = ts.StepResult({'PassFail': false});
+  final dynamic ramTestResult = ts.StepResult({'PassFail': false});
+  final dynamic videoTestResult = ts.StepResult({'Numeric': 0});
+  final dynamic keyboardTestResult = ts.StepResult({'Numeric': 0});
+  final dynamic romDiagnosticsResult = ts.StepResult({'PassFail': false});
+  final dynamic ramDiagnosticsResult = ts.StepResult({'PassFail': false});
+  final dynamic videoDiagnosticsResult = ts.StepResult({'Numeric': 0});
+  final dynamic keyboardDiagnosticsResult = ts.StepResult({'PassFail': false});
+  final dynamic powerupDiagnosticsResult = ts.StepResult({'Numeric': 0});
 
   try {
     final outputs = await ts.callVi(
@@ -211,34 +142,10 @@ Future<ts.Status> mainSequence() async {
 /// Sequence `CPU Test`.
 Future<ts.Status> cpuTest({bool cpuFail = false}) async {
   final run = ts.SequenceRun();
-  final dynamic registerTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic instructionSetTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic cacheTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic fpuTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic registerTestResult = ts.StepResult({'PassFail': false});
+  final dynamic instructionSetTestResult = ts.StepResult({'PassFail': false});
+  final dynamic cacheTestResult = ts.StepResult({'PassFail': false});
+  final dynamic fpuTestResult = ts.StepResult({'PassFail': false});
 
   final outputs = await ts.callVi('Modules\\Register Test.vi'); // Register Test
   registerTestResult.PassFail = outputs['Result'];
@@ -266,34 +173,10 @@ Future<ts.Status> cpuTest({bool cpuFail = false}) async {
 /// Sequence `CPU Diagnostics`.
 Future<ts.Status> cpuDiagnostics({bool cpuFail = false}) async {
   final run = ts.SequenceRun();
-  final dynamic registerDiagnosticsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic instructionSetDiagnosticsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic cacheDiagnosticsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
-  final dynamic fpuDiagnosticsResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'PassFail': false,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-  });
+  final dynamic registerDiagnosticsResult = ts.StepResult({'PassFail': false});
+  final dynamic instructionSetDiagnosticsResult = ts.StepResult({'PassFail': false});
+  final dynamic cacheDiagnosticsResult = ts.StepResult({'PassFail': false});
+  final dynamic fpuDiagnosticsResult = ts.StepResult({'PassFail': false});
 
   final outputs = await ts.callVi('Modules\\Register Diagnostics.vi'); // Register Diagnostics
   registerDiagnosticsResult.PassFail = outputs['Result'];

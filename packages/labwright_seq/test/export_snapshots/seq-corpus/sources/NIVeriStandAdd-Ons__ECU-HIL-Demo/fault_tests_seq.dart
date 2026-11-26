@@ -19,89 +19,41 @@ dynamic veristand = ts.PropObj({
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic getToKnownStateResult = ts.PropObj({
+  final dynamic getToKnownStateResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic appFaultDetectionTestResult = ts.PropObj({
+  final dynamic appFaultDetectionTestResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic getToKnownStateResult2 = ts.PropObj({
+  final dynamic getToKnownStateResult2 = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic appFaultClearTestResult = ts.PropObj({
+  final dynamic appFaultClearTestResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic getToKnownStateResult3 = ts.PropObj({
+  final dynamic getToKnownStateResult3 = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic appFaultResponseTestResult = ts.PropObj({
+  final dynamic appFaultResponseTestResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic getToKnownStateResult4 = ts.PropObj({
+  final dynamic getToKnownStateResult4 = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic impFaultDetectionTestResult = ts.PropObj({
+  final dynamic impFaultDetectionTestResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic getToKnownStateResult5 = ts.PropObj({
+  final dynamic getToKnownStateResult5 = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic impFaultClearTestResult = ts.PropObj({
+  final dynamic impFaultClearTestResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic getToKnownStateResult6 = ts.PropObj({
+  final dynamic getToKnownStateResult6 = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic impFaultResponseTestResult = ts.PropObj({
+  final dynamic impFaultResponseTestResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
 
   await ts.stepType('InitializeVeriStand', {

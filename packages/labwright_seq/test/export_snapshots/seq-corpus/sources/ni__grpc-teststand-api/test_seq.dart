@@ -4,22 +4,8 @@ import 'package:labwright/shims.dart' as ts;
 /// Sequence `MainSequence`.
 Future<ts.Status> mainSequence() async {
   final run = ts.SequenceRun();
-  final dynamic numericLimitTestResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  });
-  final dynamic numericLimitTestResult2 = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'Numeric': 0,
-    'ReportText': '',
-    'Common': ts.PropObj(),
-    'Units': '',
-  });
+  final dynamic numericLimitTestResult = ts.StepResult({'Numeric': 0});
+  final dynamic numericLimitTestResult2 = ts.StepResult({'Numeric': 0});
 
   numericLimitTestResult.Status = ts.checkLimits(
     numericLimitTestResult.Numeric = 15,

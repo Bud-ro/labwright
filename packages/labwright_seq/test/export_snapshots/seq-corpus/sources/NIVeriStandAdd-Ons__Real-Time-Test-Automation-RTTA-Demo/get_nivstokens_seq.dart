@@ -11,131 +11,133 @@ Future<void> mainSequence() async {
 
   try {
     ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetConstructorMetadataToken()');
-    final outputs = await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
-      'NationalInstruments.VeriStand.ClientAPI.Factory.Factory',
-    ); // Constructor
-    locals.temp = outputs['Return Value'];
+    locals.temp = await ts
+        .callDotNet(
+          'NationalInstruments.VeriStand.ClientAPI',
+          'NationalInstruments.VeriStand.ClientAPI.Factory.Factory',
+        )
+        .returnValue; // Constructor
   } on ts.RunTimeError catch (_) {}
   try {
     ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object',
       inputs: {'Existing Object': locals.temp},
     ); // IWorkspace
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace',
     ); // IWorkspace
   } on ts.RunTimeError catch (_) {}
   try {
     ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object',
       inputs: {'Existing Object': locals.temp},
     ); // IStim
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.Factory.GetIStimulus',
     ); // IStim
   } on ts.RunTimeError catch (_) {}
   try {
     ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object',
       inputs: {'Existing Object': locals.temp},
     ); // IModelManager
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.Factory.GetIModelManager',
     ); // IModelManager
   } on ts.RunTimeError catch (_) {}
   try {
     ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object',
       inputs: {'Existing Object': locals.temp},
     ); // IProject
-    final outputs2 = await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
-      'NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject',
-      inputs: {'gateway_ip_address': '', 'project_path': '', 'username': '', 'password': ''},
-    ); // IProject
-    locals.temp = outputs2['Return Value'];
+    locals.temp = await ts
+        .callDotNet(
+          'NationalInstruments.VeriStand.ClientAPI',
+          'NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject',
+          inputs: {'gateway_ip_address': '', 'project_path': '', 'username': '', 'password': ''},
+        )
+        .returnValue; // IProject
   } on ts.RunTimeError catch (_) {}
   try {
     ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IModelManager.Use Existing Object',
       inputs: {'Existing Object': locals.temp},
     ); // SetMultiParam
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IModelManager.SetMultipleParameterValues',
     ); // SetMultiParam
   } on ts.RunTimeError catch (_) {}
   try {
     ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object',
       inputs: {'Existing Object': locals.temp},
     ); // RunStim
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IStimulus.RunStimulusProfile',
     ); // RunStim
   } on ts.RunTimeError catch (_) {}
   try {
     ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object',
       inputs: {'Existing Object': locals.temp},
     ); // GetStimState
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IStimulus.GetStimulusProfileManagerState',
     ); // GetStimState
   } on ts.RunTimeError catch (_) {}
   try {
     ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object',
       inputs: {'Existing Object': locals.temp},
     ); // OpenWks
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IProject.OpenWorkspace',
     ); // OpenWks
   } on ts.RunTimeError catch (_) {}
   try {
     ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object',
       inputs: {'Existing Object': locals.temp},
     ); // Deploy
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IProject.Deploy',
     ); // Deploy
   } on ts.RunTimeError catch (_) {}
   try {
     ts.eval('Locals.token= RunState.Step.Module.AsDotNetModule.GetMetadataToken()');
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object',
       inputs: {'Existing Object': locals.temp},
     ); // Quit
     await ts.callDotNet(
-      'NationalInstruments.VeriStand.ClientAPI, Version=2011.0.0.0, Culture=neutral, PublicKeyToken=a6d690c380daa308',
+      'NationalInstruments.VeriStand.ClientAPI',
       'NationalInstruments.VeriStand.ClientAPI.IProject.Quit',
     ); // Quit
   } on ts.RunTimeError catch (_) {}

@@ -25,95 +25,43 @@ class _MainSequenceLocals {
 Future<ts.Status> mainSequence() async {
   final locals = _MainSequenceLocals();
   final run = ts.SequenceRun();
-  final dynamic getToKnownStateResult = ts.PropObj({
+  final dynamic getToKnownStateResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic ccRampUpResult = ts.PropObj({
+  final dynamic ccRampUpResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic getToKnownStateResult2 = ts.PropObj({
+  final dynamic getToKnownStateResult2 = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic ccRampDownResult = ts.PropObj({
+  final dynamic ccRampDownResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic getToKnownStateResult3 = ts.PropObj({
+  final dynamic getToKnownStateResult3 = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic ccRampUpAndDownResult = ts.PropObj({
+  final dynamic ccRampUpAndDownResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic getToKnownStateResult4 = ts.PropObj({
+  final dynamic getToKnownStateResult4 = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic ccDisableResult = ts.PropObj({
+  final dynamic ccDisableResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic getToKnownStateResult5 = ts.PropObj({
+  final dynamic getToKnownStateResult5 = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic exitCcWithBrakeResult = ts.PropObj({
+  final dynamic exitCcWithBrakeResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic getToKnownStateResult6 = ts.PropObj({
+  final dynamic getToKnownStateResult6 = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic resumeCcResult = ts.PropObj({
+  final dynamic resumeCcResult = ts.StepResult({
     'VeriStand': ts.PropObj({'PassFail': false, 'Path': '', 'Returnval': false}),
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
   });
-  final dynamic stopVsLoggingResult = ts.PropObj({
-    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-    'Status': '',
-    'ReportText': '',
-    'Common': ts.PropObj(),
+  final dynamic stopVsLoggingResult = ts.StepResult({
     'Veristand': ts.PropObj({'Location': <dynamic>[]}),
   });
 
