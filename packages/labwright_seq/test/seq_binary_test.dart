@@ -211,6 +211,7 @@ void main() {
         expect(view.getUint32(span.start, Endian.little), want, reason: '${span.field} at ${span.start}');
       }
       expect(body.undecodedRecordBytes, 4 * spans.length);
+      expect(body.unexplainedRecordBytes, 0);
     });
 
     test('writes back byte-exactly and renames through the pool alone', () {

@@ -1,4 +1,5 @@
 import 'seq_file.dart';
+import 'seq_module.dart';
 import 'seq_property.dart';
 
 extension on SeqProperty {
@@ -120,6 +121,15 @@ const _callParamKeys = [
   'IID',
   'IsUserOptional',
   'IsByRef',
+  'IsSafeArray',
+  'IsServerOptional',
+  'UseDefault',
+  'TypeName',
+  'IsOptional',
+  'CallDispose',
+  'NumDimensions',
+  'MultiElement',
+  'ComplexParts',
 ];
 
 const _stepTypeKeys = [
@@ -524,6 +534,7 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
         'CallName',
         'VIDescription',
         'ShowFrnPnl',
+        'DupLabelsFound',
         ..._viCallSettingKeys,
       ]);
       void markParam(SeqProperty node) {
@@ -540,11 +551,11 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
         }
         markContainer(node.prop('AdditionalResult'));
         markContainer(node.prop('ArrayDimensionsSize'));
-        final els = node.prop('ArrayClusterEls');
-        mark(els);
-        for (final element in els?.array ?? const <SeqProperty>[]) {
-          markParam(element);
+        for (final member in CallParameter(node).members) {
+          markParam(member.raw);
         }
+        markSubtree(node.prop('ComplexParts'));
+        markContainer(node.prop('NumDimensions'));
         markSubtree(node.prop('ArrayClusterProto'));
       }
 
@@ -580,12 +591,42 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
         'HasReturnValue',
         'TypeLibVersion',
         'VTableIndex',
+        'CreateObject',
+        'CreateFromFilePath',
+        'RemoteMachine',
+        'RemoteMachineByExpr',
+        'UseLoadSpec',
+        'MakeCall',
+        'Locale',
+        'TypeLibLocale',
       ]);
       final callParms = call?.prop('Parms');
       mark(callParms);
       for (final parameter in callParms?.array ?? const <SeqProperty>[]) {
         markParam(parameter);
       }
+      mark(sdata?.prop('Calls'));
+      for (final call in step.module.dotNetCalls) {
+        mark(call.raw);
+        markKeys(call.raw, ['ClassName', 'MemberName', 'MemberType', 'Static', 'Params']);
+        markContainer(call.raw.prop('AdditionalResult'));
+        for (final parameter in call.parameters) {
+          markParam(parameter.raw);
+        }
+      }
+      markKeys(sdata, [
+        'AssemblyPath',
+        'AssemblyStrongName',
+        'AssemblyLocation',
+        'ClassName',
+        'IsStruct',
+        'RemoteSpecifiedByExpr',
+        'UseLoadSpec',
+        'ModuleSlnPath',
+        'FunctionName',
+      ]);
+      markSubtree(sdata?.prop('StructDef'));
+      step.typeProperties.forEach(markSubtree);
       mark(sdata?.prop('SeqName'));
       mark(sdata?.prop('SFPath'));
       markKeys(sdata, ['ModuleSrcPath', 'ModulePrjPath', 'ModuleCreateSrcType']);
@@ -691,6 +732,7 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
     }
   }
 
+  markSubtree(file.attributes);
   markKeys(file.data, [
     'ModelFile',
     'ModelOption',

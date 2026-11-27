@@ -36,6 +36,7 @@ void main() {
       expect(body.data.end + 8, body.recordRegionLength, reason: '$rel: the data root ends at the pool');
       expect((body.tailWord, body.lastStringTerminated, body.poolTail.length), (0, true, 0), reason: rel);
       expect(body.types.map((t) => t.entryWord), everyElement(1), reason: rel);
+      expect(body.unexplainedRecordBytes, 0, reason: '$rel: every undecoded word holds its reserved value');
       for (final record in body.records) {
         if (record.enumItems != null) expect(record.enumItemsWord, 1, reason: '$rel: ${record.name}');
         if (record.structureFlags case final bits?) structureBits |= bits;

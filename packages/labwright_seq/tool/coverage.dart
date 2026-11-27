@@ -5,7 +5,7 @@ import 'package:labwright_seq/labwright_seq.dart';
 import '../../../tool/corpus.dart';
 
 class _Stat {
-  int files = 0, seqs = 0, steps = 0, recordBytes = 0, undecodedBytes = 0;
+  int files = 0, seqs = 0, steps = 0, recordBytes = 0, undecodedBytes = 0, unexplainedBytes = 0;
   var cov = const SeqCoverage(total: 0, modeled: 0);
 }
 
@@ -95,11 +95,11 @@ void main() {
   stdout.writeln(
     '  TOF1  ${axis(binary.cov)} · ${binary.files} binary .seq · ${binary.seqs} sequences · ${binary.steps} steps',
   );
-  final accounted = pct(binary.recordBytes - binary.undecodedBytes, binary.recordBytes);
-  stdout.writeln(
-    '  TOF1 bytes: record region $accounted% accounted · '
-    '${binary.undecodedBytes} B of ${binary.recordBytes} B not yet decoded',
-  );
+  final accounted = pct(binary.recordBytes - binary.unexplainedBytes, binary.recordBytes);
+  final bytesLine =
+      'record region $accounted% accounted · ${binary.undecodedBytes} B in reserved words holding their constant '
+      'value, purpose not yet decoded · ${binary.unexplainedBytes} B unexplained of ${binary.recordBytes} B';
+  stdout.writeln('  TOF1 bytes: $bytesLine');
 
   final report = StringBuffer()
     ..writeln('# TestStand model — coverage report card')
@@ -136,8 +136,7 @@ void main() {
     ..writeln(
       '**TOTAL (TOF1 binary)** ${binary.files} binary .seq · ${binary.seqs} sequences · '
       '${binary.steps} steps · model coverage ${modelPct(binary.cov)}% '
-      '(${binary.cov.modeled}/${binary.cov.total} property nodes) · record bytes $accounted% accounted, '
-      '${binary.undecodedBytes} bytes not yet decoded.',
+      '(${binary.cov.modeled}/${binary.cov.total} property nodes) · $bytesLine.',
     );
   File('$root/REPORT.md').writeAsStringSync('$report\n');
   stdout.writeln('wrote $root/REPORT.md');
@@ -161,6 +160,7 @@ _Stat _measure(List<File> files, SeqFormat fmt) {
     if (sf.binary case final body?) {
       s.recordBytes += body.recordRegionLength;
       s.undecodedBytes += body.undecodedRecordBytes;
+      s.unexplainedBytes += body.unexplainedRecordBytes;
     }
   }
   return s;

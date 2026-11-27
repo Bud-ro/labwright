@@ -16,6 +16,12 @@ class Step {
 
   String? get type => raw.typeName;
 
+  /// The properties the step's type gives it, beyond the settings and result every step has.
+  List<SeqProperty> get typeProperties => [
+    for (final p in raw.subProps)
+      if (p.name != 'TS' && p.name != 'Result') p,
+  ];
+
   StepType? get stepType => StepType.of(type);
 
   String? get comment => nonEmpty(raw.directiveAttribute('%COMMENT')) ?? nonEmpty(raw.xmlComment);
