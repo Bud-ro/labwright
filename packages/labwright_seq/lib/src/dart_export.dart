@@ -276,7 +276,10 @@ String _uniqueName(String base, Set<String> taken) {
   return name;
 }
 
-const _reservedTopLevelNames = {'ts', 'station', 'main', 'locals'};
+const _reservedTopLevelNames = {'ts', 'station', 'main', 'locals', _semiconductorModuleSettings};
+
+/// The top-level constant holding a file's Semiconductor Module settings.
+const _semiconductorModuleSettings = 'semiconductorModule';
 
 const _stationGlobalsFile = 'station_globals.dart';
 
@@ -3695,7 +3698,29 @@ class _DartExporter {
     }
   }
 
+  /// [p] as a constant, or null when it holds nothing: an empty text, an empty list, or an object of such members.
+  String? _setValue(SeqProperty p) {
+    if (p.array case final elements?) {
+      final values = [for (final e in elements) ?_setValue(e)];
+      return values.isEmpty ? null : '[${values.join(', ')}]';
+    }
+    if (p.subProps.isEmpty) return p.scalar == null || p.scalar!.isEmpty ? null : _propValue(p, {});
+    final members = [
+      for (final c in p.subProps)
+        if (_setValue(c) case final value?) "'${_escape(c.name)}': $value",
+    ];
+    return members.isEmpty ? null : '{${members.join(', ')}}';
+  }
+
   void _emitFileGlobals() {
+    if (file.attributes?.prop('NI')?.prop('SemiconductorModule') case final settings?) {
+      if (_setValue(settings) case final value?) {
+        _out
+          ..writeln('/// The Semiconductor Module settings saved with the sequence file.')
+          ..writeln('const $_semiconductorModuleSettings = $value;')
+          ..writeln();
+      }
+    }
     if (_fileGlobalDecls.isEmpty) return;
     _out
       ..writeln(_fileGlobalDecls.join('\n'))
