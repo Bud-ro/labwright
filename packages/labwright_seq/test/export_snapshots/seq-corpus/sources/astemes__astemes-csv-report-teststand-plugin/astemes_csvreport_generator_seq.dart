@@ -64,8 +64,6 @@ Future<void> modelPluginConfigureStandardOptions({
   String modelType = '',
   dynamic modelPlugin,
 }) async {
-  processModel = ts.copy(processModel);
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   await ts.callVi(
     'astemes-csv-report-plugin.lvlibp\\Options Dialog\\Options Dialog.vi',
@@ -79,8 +77,6 @@ Future<void> modelPluginConfigureAdditionalOptions({
   String modelType = '',
   dynamic modelPlugin,
 }) async {
-  processModel = ts.copy(processModel);
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   await ts.messagePopup(
     ts.resourceString('PLUGIN_TEMPLATE', 'ADDITIONAL_OPTIONS_DIALOG_TITLE'),
@@ -102,8 +98,6 @@ Future<void> modelPluginBegin({
   String processModelClientPath = '',
   dynamic parentThread,
 }) async {
-  parentThread = ts.copy(parentThread);
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   if (ts.truthy(modelPlugin.Base.Enabled) && ts.truthy(modelPlugin.Base.ProcessOnTheFly)) {
     ts.eval(
@@ -205,12 +199,6 @@ Future<void> modelPluginOnTheFlyStepResults({
   List<dynamic>? parentIds,
   dynamic modelPluginConfiguration,
 }) async {
-  context = ts.copy(context);
-  steps ??= <dynamic>[];
-  results ??= <dynamic>[];
-  callbackNames ??= <dynamic>[];
-  parentIds ??= <dynamic>[];
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
 
@@ -236,9 +224,7 @@ Future<void> modelPluginUutDone({
   dynamic priorIterationNewThread,
 }) async {
   mainSequenceResult = ts.copy(mainSequenceResult);
-  callingThread = ts.copy(callingThread);
   callingThreadBlocker = ts.copy(callingThreadBlocker);
-  priorIterationNewThread = ts.copy(priorIterationNewThread);
 
   final locals = _ModelPluginUutDoneLocals();
 
@@ -290,10 +276,7 @@ Future<void> modelPluginBatchDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
-  mainSequenceResult = ts.copy(mainSequenceResult);
-  callingThread = ts.copy(callingThread);
   callingThreadBlocker = ts.copy(callingThreadBlocker);
-  priorIterationNewThread = ts.copy(priorIterationNewThread);
 
   final locals = _ModelPluginBatchDoneLocals();
 
@@ -328,8 +311,6 @@ Future<void> modelPluginPostUut({
   String uutStatus = '',
   dynamic mainSequenceResult,
 }) async {
-  mainSequenceResult = ts.copy(mainSequenceResult);
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
 
@@ -345,8 +326,6 @@ Future<void> modelPluginPostBatch({
   String uutStatus = '',
   dynamic mainSequenceResult,
 }) async {
-  mainSequenceResult = ts.copy(mainSequenceResult);
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
 

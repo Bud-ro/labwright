@@ -73,8 +73,6 @@ Future<void> modelPluginConfigureStandardOptions({
   String modelType = '',
   dynamic modelPlugin,
 }) async {
-  processModel = ts.copy(processModel);
-
   final changedRef = changed ?? ts.Ref<bool>(false);
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -125,8 +123,6 @@ Future<void> modelPluginBegin({
   String processModelClientPath = '',
   dynamic parentThread,
 }) async {
-  parentThread = ts.copy(parentThread);
-
   final locals = _ModelPluginBeginLocals();
 
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
@@ -284,8 +280,6 @@ Future<void> modelPluginPostBatch({
   String uutStatus = '',
   dynamic mainSequenceResult,
 }) async {
-  mainSequenceResult = ts.copy(mainSequenceResult);
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   if (ts.cond(
     '#NoValidation(\nParameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate == 0? True:\n(Parameters.ModelData.BatchLoopIndex % Parameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate) == 0\n)',
@@ -372,8 +366,6 @@ Future<void> reservedModelPluginConfigureAdditionalOptions({
   String modelType = '',
   dynamic modelPlugin,
 }) async {
-  processModel = ts.copy(processModel);
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   await ts.messagePopup(
     ts.resourceString('PLUGIN_TEMPLATE', 'ADDITIONAL_OPTIONS_DIALOG_TITLE'),
@@ -458,12 +450,6 @@ Future<void> reservedModelPluginOnTheFlyStepResults({
   List<dynamic>? parentIds,
   dynamic modelPluginConfiguration,
 }) async {
-  context = ts.copy(context);
-  steps ??= <dynamic>[];
-  results ??= <dynamic>[];
-  callbackNames ??= <dynamic>[];
-  parentIds ??= <dynamic>[];
-
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
 }
 
@@ -487,10 +473,7 @@ Future<void> reservedModelPluginUutDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
-  mainSequenceResult = ts.copy(mainSequenceResult);
-  callingThread = ts.copy(callingThread);
   callingThreadBlocker = ts.copy(callingThreadBlocker);
-  priorIterationNewThread = ts.copy(priorIterationNewThread);
 
   final locals = _ReservedModelPluginUutDoneLocals();
 
@@ -533,10 +516,7 @@ Future<void> reservedModelPluginBatchDone({
   dynamic callingThreadBlocker,
   dynamic priorIterationNewThread,
 }) async {
-  mainSequenceResult = ts.copy(mainSequenceResult);
-  callingThread = ts.copy(callingThread);
   callingThreadBlocker = ts.copy(callingThreadBlocker);
-  priorIterationNewThread = ts.copy(priorIterationNewThread);
 
   final locals = _ReservedModelPluginBatchDoneLocals();
 

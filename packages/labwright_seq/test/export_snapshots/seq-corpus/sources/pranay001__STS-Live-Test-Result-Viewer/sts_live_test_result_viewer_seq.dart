@@ -100,8 +100,6 @@ Future<void> modelPluginBegin({
   String processModelClientPath = '',
   dynamic parentThread,
 }) async {
-  parentThread = ts.copy(parentThread);
-
   if (ts.truthy(modelThreadType.IsController)) {
     // File names should contain the batch serial number if and only if the "Batch" process model is used.
     modelPlugin.PluginSpecific.RuntimeVariables.ReportBatchSerialNumber =
@@ -181,11 +179,6 @@ Future<void> modelPluginUutDone({
   dynamic notificationToUnblockCallingThread,
   dynamic postProcessingThreadForPriorUut,
 }) async {
-  mainSequenceResult = ts.copy(mainSequenceResult);
-  callingThread = ts.copy(callingThread);
-  notificationToUnblockCallingThread = ts.copy(notificationToUnblockCallingThread);
-  postProcessingThreadForPriorUut = ts.copy(postProcessingThreadForPriorUut);
-
   // (no steps in the source sequence)
 }
 
@@ -202,9 +195,6 @@ Future<void> modelPluginOnTheFlyStepResults({
   List<dynamic>? parentIds,
 }) async {
   steps ??= <dynamic>[];
-  results ??= <dynamic>[];
-  callbackNames ??= <dynamic>[];
-  parentIds ??= <dynamic>[];
 
   await ts.callVi(
     'My Computer\\Source Code\\STS_LTRV\\STS_LTRV.lvlib\\Utilities\\TestStand APIs\\SubVIs\\Result Publisher.vi',
@@ -257,8 +247,5 @@ Future<void> generateReportPath({
   dynamic options,
   dynamic runtimeVariables,
 }) async {
-  startTime = ts.copy(startTime);
-  startDate = ts.copy(startDate);
-
   // (no steps in the source sequence)
 }

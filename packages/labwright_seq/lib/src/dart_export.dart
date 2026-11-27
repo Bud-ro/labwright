@@ -123,6 +123,7 @@ SeqProjectExport exportSeqProjectToDart(Map<String, SeqFile> byPath) {
 
   final callersOf = <(String, String), Set<(String, String)>>{};
   final failing = <(String, String)>{};
+  final supplied = <(String, String), Set<String>>{};
   for (final key in ordered) {
     final file = byPath[key]!;
     final probe = _DartExporter(file, sourceName: key);
@@ -138,6 +139,19 @@ SeqProjectExport exportSeqProjectToDart(Map<String, SeqFile> byPath) {
         final local = m.resolvesLocalCall(ownFilePath: key) && names.contains(target);
         final targetKey = local ? key : (m.sequenceFile == null ? null : resolveTargetFile(key, m.sequenceFile!));
         if (target != null && targetKey != null) (callersOf[(targetKey, target)] ??= {}).add(caller);
+      }
+      for (final step in seq.steps) {
+        final m = step.module;
+        final target = m.sequenceName;
+        if (m.adapter != SeqAdapter.sequenceCall || target == null) continue;
+        final local = m.resolvesLocalCall(ownFilePath: key) && names.contains(target);
+        final targetKey = local ? key : (m.sequenceFile == null ? null : resolveTargetFile(key, m.sequenceFile!));
+        if (targetKey == null) continue;
+        final given = {
+          for (final a in m.sequenceArguments)
+            if (a.usesDefault != true && a.expression != null) a.name.toLowerCase(),
+        };
+        supplied.update((targetKey, target), (all) => all.intersection(given), ifAbsent: () => given);
       }
     }
   }
@@ -163,6 +177,7 @@ SeqProjectExport exportSeqProjectToDart(Map<String, SeqFile> byPath) {
       byPath[key]!,
       sourceName: key,
       failing: failing,
+      supplied: supplied,
       imports: {for (final dep in importsOf[key] ?? const <String>{}) moduleOf[dep]!},
       resolveExternalCall: (m) {
         final (sf, name) = (m.sequenceFile, m.sequenceName);
@@ -1102,6 +1117,7 @@ class _DartExporter {
     this.file, {
     this.sourceName,
     this.failing = const {},
+    this.supplied = const {},
     this.imports = const {},
     this.resolveExternalCall,
     this.stationIds = const {},
@@ -1109,6 +1125,9 @@ class _DartExporter {
   final SeqFile file;
   final String? sourceName;
   final Set<(String, String)> failing;
+
+  /// For each called sequence, the parameters, lower-cased, that every call in the project passes.
+  final Map<(String, String), Set<String>> supplied;
   final Set<String> imports;
   final _ResolvedCall? Function(StepModule module)? resolveExternalCall;
   final Map<String, String> stationIds;
@@ -1901,11 +1920,18 @@ class _DartExporter {
       '${scope.emittedParams.isEmpty ? '' : '{${[for (final p in scope.emittedParams) _boxedParams.containsKey(_paramIds[p.name]) ? 'ts.Ref<${_idTypes[_paramIds[p.name]]!.source}>? ${_paramIds[p.name]}' : _paramDecl(p, _paramIds[p.name]!)].join(', ')}}'}) async {',
     );
     final preamble = [
-      for (final p in scope.emittedParams) ...[
-        if (_scalarType(p) == null && _isArrayVar(p)) '${_paramIds[p.name]!} ??= ${_arrayInit(p)};${_typeComment(p)}',
-        if (!_boxedParams.containsKey(_paramIds[p.name]) && _scalarType(p) == null && !p.passesByReference)
-          '${_paramIds[p.name]!} = ts.copy(${_paramIds[p.name]!});',
-      ],
+      for (final p in scope.emittedParams)
+        if (_mentions(body, _paramIds[p.name]!)) ...[
+          if (_scalarType(p) == null && _isArrayVar(p))
+            '${_paramIds[p.name]!} ??= ${_arrayInit(p)};${_typeComment(p)}'
+          else if (_scalarType(p) == null &&
+              p.raw.subProps.isNotEmpty &&
+              !p.passesByReference &&
+              !(supplied[(sourceName, sequence.name)]?.contains(p.name.toLowerCase()) ?? false))
+            '${_paramIds[p.name]!} ??= ${_propObjInit(p.raw, {})};${_typeComment(p)}',
+          if (!_boxedParams.containsKey(_paramIds[p.name]) && _scalarType(p) == null && !p.passesByReference)
+            '${_paramIds[p.name]!} = ts.copy(${_paramIds[p.name]!});',
+        ],
     ];
     preamble.forEach(_line);
     if (preamble.isNotEmpty) _line('');

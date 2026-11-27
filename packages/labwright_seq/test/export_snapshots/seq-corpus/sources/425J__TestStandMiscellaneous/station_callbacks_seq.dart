@@ -15,10 +15,7 @@ Future<ts.Status> stationPostResults({
   List<dynamic>? callbackNames,
   List<dynamic>? parentIds,
 }) async {
-  steps ??= <dynamic>[];
   results ??= <dynamic>[];
-  callbackNames ??= <dynamic>[];
-  parentIds ??= <dynamic>[];
 
   final locals = _StationPostResultsLocals();
   final run = ts.SequenceRun();

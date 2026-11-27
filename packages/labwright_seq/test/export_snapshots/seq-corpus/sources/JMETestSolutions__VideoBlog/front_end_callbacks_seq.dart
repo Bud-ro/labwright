@@ -84,8 +84,6 @@ class _UpdateGroupMembershipLocals {
 }
 
 Future<void> updateGroupMembership({String groupName = '', dynamic user, List<dynamic>? userGroups}) async {
-  userGroups ??= List<dynamic>.filled(10, '', growable: true);
-
   final locals = _UpdateGroupMembershipLocals();
 
   try {

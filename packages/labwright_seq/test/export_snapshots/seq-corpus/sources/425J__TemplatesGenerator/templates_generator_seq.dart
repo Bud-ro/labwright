@@ -52,9 +52,6 @@ Future<ts.Status> createSfTemplates({
   dynamic templatesFile,
   dynamic templatesFolder,
 }) async {
-  templatesFile = ts.copy(templatesFile);
-  templatesFolder = ts.copy(templatesFolder);
-
   final locals = _CreateSfTemplatesLocals();
   final run = ts.SequenceRun();
   dynamic setDefaultParametersResult = ts.StepResult();
