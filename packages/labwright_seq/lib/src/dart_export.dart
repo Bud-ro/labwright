@@ -2344,7 +2344,7 @@ class _DartExporter {
               final value = _claimId('value');
               final source = level.length == 1
                   ? level.single.values
-                  : 'ts.parallel([${level.map((p) => p.values).join(', ')}])';
+                  : 'ts.${_sweepPermutes ? 'permuted' : 'parallel'}([${level.map((p) => p.values).join(', ')}])';
               final binds = [
                 for (final (column, parameter) in level.indexed)
                   parameter.bind(level.length == 1 ? value : '$value[$column]'),
@@ -2639,6 +2639,9 @@ class _DartExporter {
     _line('}');
   }
 
+  /// Whether the sweep loop last examined has no levels and steps through every combination of its parameters.
+  bool _sweepPermutes = false;
+
   List<List<({String values, String Function(String value) bind})>>? _sweepLevels(SweepLoop sweep) {
     final unsupported =
         sweep.input?.enabled == true ||
@@ -2652,7 +2655,8 @@ class _DartExporter {
       for (final p in sweep.parameters)
         if (p.strategy != 'UseExistingValue' && p.enabled != false) p,
     ];
-    if (active.isEmpty || (active.length > 1 && active.any((p) => p.level == null))) return null;
+    _sweepPermutes = active.length > 1 && active.every((p) => p.level == null) && sweep.permutes == true;
+    if (active.isEmpty || (active.length > 1 && !_sweepPermutes && active.any((p) => p.level == null))) return null;
     final byLevel = <int, List<({String values, String Function(String value) bind})>>{};
     for (final parameter in active) {
       final target = parameter.valueExpression;

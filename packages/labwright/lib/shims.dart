@@ -548,6 +548,13 @@ Iterable<List<Object?>> parallel(List<Iterable<Object?>> columns) sync* {
   }
 }
 
+/// Rows holding one value from each of [columns], one row for every combination.
+///
+/// Translation of a Sweep Loop that has no levels and permutes its parameters. TODO: the order such a loop steps
+/// through the combinations is not yet decoded, so this raises.
+Iterable<List<Object?>> permuted(List<Iterable<Object?>> columns) =>
+    throw UnimplementedError('order of a permuted sweep');
+
 Iterable<Object?> iterate(Object? v) => switch (v) {
   final Iterable<Object?> i => i,
   final Map<Object?, Object?> m => m.values,

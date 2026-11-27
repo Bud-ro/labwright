@@ -245,10 +245,18 @@ Future<void> mainSequence() async {
       locals.waveFormConfigsIdx++;
     }
 
-    ts.notExported(
-      'sweep loop (FileGlobals.Configurations.Tuner.VSWR._VSWR_k__BackingField, FileGlobals.Configurations.Tuner.VSWR._DegreePhase_k__BackingField, FileGlobals.Configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_, FileGlobals.Configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Index)',
-    );
-    {
+    for (final value in ts.permuted([
+      ts.sweepSteps(2, 2, 1),
+      ts.sweepSteps(-60, 180, 120),
+      ts.sweepSteps(2000000000.0, 2000000000.0, 1000000000.0),
+      ts.sweepSteps(-10, -10, 5),
+      loadedWaveformIndexes,
+    ])) {
+      configurations.Tuner.VSWR._VSWR_k__BackingField = value[0];
+      configurations.Tuner.VSWR._DegreePhase_k__BackingField = value[1];
+      configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_ = value[2];
+      configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_ = value[3];
+      currentSweepStep.Calculated_Parameters.Waveform_Index = value[4];
       await configure(); // Apply Configurations
       await measure(); // Measure Results
       ts.eval(

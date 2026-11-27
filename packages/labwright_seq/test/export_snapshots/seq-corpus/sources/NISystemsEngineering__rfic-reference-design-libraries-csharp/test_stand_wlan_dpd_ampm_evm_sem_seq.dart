@@ -319,10 +319,14 @@ Future<void> mainSequence() async {
       locals.waveFormConfigsIdx++;
     }
 
-    ts.notExported(
-      'sweep loop (FileGlobals.Configurations.Generator.RFSGConfig.CarrierFrequency_Hz, FileGlobals.Configurations.Generator.RFSGConfig.DutAverageInputPower_dBm, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Name)',
-    );
-    {
+    for (final value in ts.permuted([
+      ts.sweepSteps(2000000000.0, 3000000000.0, 1000000000.0),
+      ts.sweepSteps(-10, 5, 5),
+      loadedRFmxWaveforms,
+    ])) {
+      configurations.Generator.RFSGConfig.CarrierFrequency_Hz = value[0];
+      configurations.Generator.RFSGConfig.DutAverageInputPower_dBm = value[1];
+      currentSweepStep.Calculated_Parameters.Waveform_Name = value[2];
       await configure(); // Apply Configurations
       await measure(); // Measure Results
       ts.eval(
