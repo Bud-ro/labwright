@@ -79,14 +79,10 @@ Future<void> mainSequence() async {
         locals.commandLinePythonEnvironmentPath; // Set Python Environment Path
 
     // sequence call spawns a new execution in the engine — exported as a plain awaited call
-    await localsCommandLineEntryPoint(); // Call Sequence File: external sequence call
+    await ts.callSequence(locals.commandLineEntryPoint, file: locals.commandLineSequenceFilePath); // Call Sequence File
   } finally {
     locals.pythonAdapterRef.AsPythonAdapter.PythonVersion = locals.cachedPythonVersion; // Restore Python Version
     locals.pythonAdapterRef.AsPythonAdapter.PythonVirtualEnvironmentPath =
         locals.cachedPythonEnvironmentPath; // Restore Python Environment Path
   }
 }
-
-/// Sequence `Locals.CommandLineEntryPoint` in a file outside this export.
-Future<Object?> localsCommandLineEntryPoint() async =>
-    throw UnimplementedError('external sequence: Locals.CommandLineEntryPoint');

@@ -35,7 +35,17 @@ Future<void> preUut({
   locals.backCheck = 0;
   locals.replyBackCheck = '';
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
-  await doPreUut(); // Call DoPreUUT: external sequence call
+  await ts.callSequence(
+    'DoPreUUT',
+    file: ts.eval('Runstate.Execution.ModelSequenceFilePath'),
+    arguments: {
+      'ContinueTesting': continueTesting,
+      'UUT': uut,
+      'TestSocket': testSocket,
+      'ModelData': modelData,
+      'ModelPluginConfiguration': modelPluginConfiguration,
+    },
+  ); // Call DoPreUUT
 
   skipToEndOfTraceabilitySection:
   {
@@ -99,7 +109,17 @@ Future<void> postUut({
   dynamic modelPluginConfiguration,
 }) async {
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
-  await doPreUut(); // Call DoPostUUT: external sequence call
+  await ts.callSequence(
+    'DoPostUUT',
+    file: ts.eval('Runstate.Execution.ModelSequenceFilePath'),
+    arguments: {
+      'Result': result,
+      'UUT': uut,
+      'TestSocket': testSocket,
+      'ModelData': modelData,
+      'ModelPluginConfiguration': modelPluginConfiguration,
+    },
+  ); // Call DoPostUUT
 
   skipToEndOfTraceabilitySection:
   {
@@ -171,6 +191,3 @@ Future<void> loadVariables({String variableList = ''}) async {
     ts.eval('RunState.Main.FileGlobals.SetValString(Locals.Temp_Name,0x1,Locals.Temp_Str)'); // CreateLimits
   }
 }
-
-/// Sequence `DoPreUUT` in a file outside this export.
-Future<Object?> doPreUut() async => throw UnimplementedError('external sequence: DoPreUUT');

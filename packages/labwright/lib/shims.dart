@@ -457,6 +457,18 @@ Future<ModuleOutputs> callPython(
 Future<ModuleOutputs> callActiveX(Object? object, String member, {Map<String, Object?> inputs = const {}}) =>
     throw UnimplementedError('ActiveX $member');
 
+/// Calls the sequence [name] names with [arguments] by parameter name, in the sequence file [file] names or in the
+/// calling file when there is none.
+///
+/// Translation of a Sequence Call step that gives its target as expressions. A call that [ignoresTermination] lets
+/// its caller carry on when the called sequence is terminated.
+Future<void> callSequence(
+  Object? name, {
+  Object? file,
+  Map<String, Object?> arguments = const {},
+  bool ignoresTermination = false,
+}) => throw UnimplementedError('sequence $name');
+
 /// The text of [tag] in [category] of the station's localized resource strings.
 ///
 /// `ResStr` and `GetResourceString` translation.

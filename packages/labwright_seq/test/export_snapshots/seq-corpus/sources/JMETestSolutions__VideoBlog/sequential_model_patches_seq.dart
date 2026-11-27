@@ -10,7 +10,17 @@ Future<void> preUut({
   dynamic modelPluginConfiguration,
 }) async {
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
-  await doPreUut(); // Call DoPreUUT: external sequence call
+  await ts.callSequence(
+    'DoPreUUT',
+    file: ts.eval('Runstate.Execution.ModelSequenceFilePath'),
+    arguments: {
+      'ContinueTesting': continueTesting,
+      'UUT': uut,
+      'TestSocket': testSocket,
+      'ModelData': modelData,
+      'ModelPluginConfiguration': modelPluginConfiguration,
+    },
+  ); // Call DoPreUUT
 }
 
 /// Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes.
@@ -22,6 +32,3 @@ Future<void> processSetup() async {
 Future<void> processCleanup() async {
   await ts.messagePopup('Shutting down Instruments', 'Shutting down Instruments');
 }
-
-/// Sequence `DoPreUUT` in a file outside this export.
-Future<Object?> doPreUut() async => throw UnimplementedError('external sequence: DoPreUUT');

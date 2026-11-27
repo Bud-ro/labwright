@@ -164,7 +164,11 @@ Future<void> testUuTs({String sequence = 'MainSequence'}) async {
         // Because Parameters.Sequence defaults to "MainSequence", this step calls the MainSequence callback in the client file unless you call this entry point sequence directly and pass a different sequence name.
         try {
           mainSequenceCallbackResult = ts.StepResult();
-          await parametersSequence(); // MainSequence Callback: external sequence call
+          await ts.callSequence(
+            sequence,
+            file: ts.eval('RunState.ProcessModelClient'),
+            ignoresTermination: true,
+          ); // MainSequence Callback
           locals.uutTerminated = locals.uutTerminated || mainSequenceCallbackResult.Status == 'Terminated';
           mainSequenceCallbackResult.Status = ts.Status.done;
         } on ts.RunTimeError catch (_) {}
@@ -398,7 +402,11 @@ Future<void> singlePass({String sequence = 'MainSequence'}) async {
       ); // PreMainSequence Callback
       // Because Parameters.Sequence defaults to "MainSequence", this step calls the MainSequence callback in the client file unless you call this entry point sequence directly and pass a different sequence name.
       try {
-        await parametersSequence(); // MainSequence Callback: external sequence call
+        await ts.callSequence(
+          sequence,
+          file: ts.eval('RunState.ProcessModelClient'),
+          ignoresTermination: true,
+        ); // MainSequence Callback
         mainSequenceCallbackResult.Status = ts.Status.done;
       } on ts.RunTimeError catch (_) {}
       await postMainSequence(
@@ -516,7 +524,17 @@ Future<void> preUut({
   dynamic modelPluginConfiguration2,
 }) async {
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
-  await doPreUut2(); // Call DoPreUUT: external sequence call
+  await ts.callSequence(
+    'DoPreUUT',
+    file: ts.eval('Runstate.Execution.ModelSequenceFilePath'),
+    arguments: {
+      'ContinueTesting': continueTesting,
+      'UUT': uut,
+      'TestSocket': testSocket,
+      'ModelData': modelData,
+      'ModelPluginConfiguration': modelPluginConfiguration2,
+    },
+  ); // Call DoPreUUT
 }
 
 /// Displays a pass, fail, error, or terminated banner. Override this in client file to change or replace this action.
@@ -528,7 +546,17 @@ Future<void> postUut({
   dynamic modelPluginConfiguration2,
 }) async {
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
-  await doPreUut2(); // Call DoPostUUT: external sequence call
+  await ts.callSequence(
+    'DoPostUUT',
+    file: ts.eval('Runstate.Execution.ModelSequenceFilePath'),
+    arguments: {
+      'Result': result,
+      'UUT': uut,
+      'TestSocket': testSocket,
+      'ModelData': modelData,
+      'ModelPluginConfiguration': modelPluginConfiguration2,
+    },
+  ); // Call DoPostUUT
 }
 
 /// Test UUTs calls this before looping on UUTs.  Is empty in model file.  Override this in the client file to perform an action before any UUTs are tested.
@@ -813,9 +841,6 @@ Future<Object?> modelPluginsUutStart({
   dynamic uut,
 }) async => throw UnimplementedError('external sequence: Model Plugins - UUT Start');
 
-/// Sequence `Parameters.sequence` in a file outside this export.
-Future<Object?> parametersSequence() async => throw UnimplementedError('external sequence: Parameters.sequence');
-
 /// Sequence `Model Plugins - UUT Done` in a file outside this export.
 Future<Object?> modelPluginsUutDone({
   dynamic modelPluginConfiguration,
@@ -848,9 +873,6 @@ Future<Object?> displayResultProcessingConfigurationDialog({
   dynamic modelFile,
   String activeConfigurationName = '',
 }) async => throw UnimplementedError('external sequence: DisplayResultProcessingConfigurationDialog');
-
-/// Sequence `DoPreUUT` in a file outside this export.
-Future<Object?> doPreUut2() async => throw UnimplementedError('external sequence: DoPreUUT');
 
 /// Sequence `TestReport` in a file outside this export.
 Future<Object?> testReport2({

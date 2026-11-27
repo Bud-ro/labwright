@@ -3105,6 +3105,23 @@ class _DartExporter {
             '// sequence call executes on remote host ${_comment(module.remoteHost ?? module.remoteHostExpression ?? '?')}',
           );
         }
+        if (module.specifiesByExpression == true && !_callsExportedSequence(step)) {
+          final file = nonEmpty(module.raw?.prop('SFPathExpr')?.scalar);
+          final passed = [
+            for (final argument in module.sequenceArguments)
+              if (argument.usesDefault != true)
+                if (argument.expression case final bound?) "'${_escape(argument.name)}': ${_expr(bound)}",
+          ];
+          _line(
+            'await ts.callSequence(${[
+              _expr(module.sequenceNameExpression ?? '""'),
+              if (file != null) 'file: ${_expr(file)}',
+              if (passed.isNotEmpty) 'arguments: {${passed.join(', ')}}',
+              if (module.raw?.prop('IgnoreTerminate')?.scalar?.toLowerCase() == 'true') 'ignoresTermination: true',
+            ].join(', ')}); // $name',
+          );
+          return;
+        }
         final call = _sequenceCall(step);
         call.args.before.forEach(_line);
         _line(

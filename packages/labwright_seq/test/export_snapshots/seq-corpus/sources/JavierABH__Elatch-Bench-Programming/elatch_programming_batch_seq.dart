@@ -78,7 +78,11 @@ Future<ts.Status> preBatch({bool continueTesting = true, dynamic modelData, dyna
   }
   if (modelData.EntryPoint == 'Test UUTs' &&
       ts.truthy(modelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.BatchModelGetNextUUTs)) {
-    await processDialogRequests(); // Wait For Dialog: external sequence call
+    await ts.callSequence(
+      'ProcessDialogRequests',
+      file: ts.eval('Runstate.Execution.ModelSequenceFilePath'),
+      arguments: {'ModelPluginConfiguration': modelPluginConfiguration, 'ModelData': modelData},
+    ); // Wait For Dialog
   }
 
   skipToEndOfTraceabilitySection:
@@ -767,6 +771,3 @@ Future<ts.Status> writeProgramCombined() async {
 
   return run.status;
 }
-
-/// Sequence `ProcessDialogRequests` in a file outside this export.
-Future<Object?> processDialogRequests() async => throw UnimplementedError('external sequence: ProcessDialogRequests');
